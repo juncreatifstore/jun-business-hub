@@ -8,12 +8,6 @@ import { sanitizeDocumentHtml } from "@/lib/sanitize";
 import { formatMoney } from "@/lib/utils";
 import { emptyToNull } from "@/lib/validation";
 
-/**
- * AI creation executors — draft-only side effects (documents in DRAFT, unassigned tasks).
- * Sensitive actions (finalize, sign, send, approve) NEVER live here: they go through
- * the AIAction PROPOSED → APPROVED workflow with human review.
- */
-
 function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -48,10 +42,10 @@ export async function createDraftFromAI(
 }
 
 export async function createReceiptDraftFromAI(user: CurrentUser, paymentReference: string) {
-  const p = await prisma.payment.findUnique({ where: { reference: paymentReference }, include: { client: true, receipt: true } });
+  const p = await prisma.payment.findUnique({ where: { reference: paymentReference }, include: { client: true } });
   if (!p) return { error: "Payment not found" };
-  if (p.status !== "CONFIRMED") return { error: "Payment is not CONFIRMED — a receipt draft needs a confirmed payment" };
-  const body = `Received from ${p.client.firstName} ${p.client.lastName} (${p.client.internalId}): ${formatMoney(Number(p.amount), p.currency)} via ${p.method} on ${p.paidAt.toISOString().slice(0, 10)}. Payment reference ${p.reference}.${p.receipt ? ` Official receipt ${p.receipt.reference} already issued.` : ""}`;
+  if (p.status !== "CONFIRMED" || !p.paidAt) return { error: "Payment is not a dated CONFIRMED payment — a receipt draft requires a confirmed payment" };
+  const body = `Received from ${p.client.firstName} ${p.client.lastName} (${p.client.internalId}): ${formatMoney(Number(p.amount), p.currency)} via ${p.method} on ${p.paidAt.toISOString().slice(0, 10)}. Payment reference ${p.reference}. Official receipt reference RCT-${p.reference}.`;
   return createDraftFromAI(user, { type: "RECEIPT", title: `Receipt draft — ${p.reference}`, body, clientId: p.clientId, caseId: p.caseId ?? undefined });
 }
 
@@ -71,7 +65,7 @@ export async function createTaskFromAI(
       caseId,
       clientId,
       creatorId: user.id,
-      assigneeId: null, // AI never assigns work to people
+      assigneeId: null,
       dueDate: due && !Number.isNaN(due.getTime()) ? due : null,
     },
   });
