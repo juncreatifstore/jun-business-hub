@@ -41,6 +41,7 @@ export default async function DashboardPage() {
     months.push({ label: d.toLocaleString("en-US", { month: "short" }), total: 0 });
   }
   for (const p of paymentsByMonth) {
+    if (!p.paidAt) continue;
     const idx = 5 - (now.getMonth() - p.paidAt.getMonth() + 12 * (now.getFullYear() - p.paidAt.getFullYear()));
     if (idx >= 0 && idx < 6) months[idx].total += Number(p.amount);
   }
