@@ -16,7 +16,7 @@ export default async function EmailSettingsPage() {
   const user = await requireUser();
   if (!can(user, "SETTINGS_MANAGE")) redirect("/app/forbidden");
 
-  const accounts = await prisma.mailAccount.findMany({ orderBy: { createdAt: "asc" }, include: { connectedBy: true } });
+  const accounts = await prisma.mailAccount.findMany({ orderBy: { createdAt: "asc" } });
   const configured = googleConfigured();
 
   return (
@@ -48,20 +48,23 @@ export default async function EmailSettingsPage() {
             <p className="text-sm text-muted2">No mailbox connected yet.</p>
           ) : (
             <ul className="divide-y divide-white/5">
-              {accounts.map((a) => (
-                <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div>
-                    <p className="font-medium">{a.email}</p>
-                    <p className="text-xs text-muted2">Connected by {a.connectedBy.firstName} {a.connectedBy.lastName} · {formatDateTime(a.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge className={a.status === "CONNECTED" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}>{a.status}</Badge>
-                    {a.status === "CONNECTED" ? (
-                      <form action={disconnectMailbox.bind(null, a.id)}><Button variant="danger" size="sm">Disconnect</Button></form>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+              {accounts.map((a) => {
+                const connected = Boolean(a.refreshTokenEnc || a.accessTokenEnc);
+                return (
+                  <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div>
+                      <p className="font-medium">{a.email}</p>
+                      <p className="text-xs text-muted2">Added {formatDateTime(a.createdAt)}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge className={connected ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-700"}>{connected ? "CONNECTED" : "DISCONNECTED"}</Badge>
+                      {connected ? (
+                        <form action={disconnectMailbox.bind(null, a.id)}><Button variant="danger" size="sm">Disconnect</Button></form>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>
