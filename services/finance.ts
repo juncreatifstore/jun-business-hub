@@ -31,7 +31,7 @@ export async function createPayment(_prev: FormState, formData: FormData): Promi
       method: d.method,
       paidAt: parseDate(d.paidAt) ?? new Date(),
       notes: emptyToNull(d.notes),
-      createdById: user.id,
+      recordedById: user.id,
     },
   });
   await audit({ userId: user.id, action: "PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, amount: d.amount, currency: payment.currency } });
@@ -39,38 +39,28 @@ export async function createPayment(_prev: FormState, formData: FormData): Promi
   redirect(`/app/finance/payments/${payment.id}?toast=${encodeURIComponent("Payment recorded — pending confirmation")}`);
 }
 
-// Confirming a payment automatically issues a numbered receipt.
 export async function confirmPayment(paymentId: string) {
   const user = await assertPermission("PAYMENT_APPROVE");
   const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { client: true } });
   if (!payment || payment.status !== "PENDING") return;
 
-  const receiptRef = await nextNumber("REC");
+  const receiptRef = `RCT-${payment.reference}`;
   await prisma.$transaction([
     prisma.payment.update({ where: { id: paymentId }, data: { status: "CONFIRMED" } }),
-    prisma.receipt.create({
-      data: {
-        reference: receiptRef,
-        paymentId,
-        clientId: payment.clientId,
-        amount: payment.amount,
-        currency: payment.currency,
-        reason: payment.notes,
-      },
-    }),
     prisma.notification.create({
       data: {
-        userId: payment.createdById,
+        userId: payment.recordedById,
         type: "PAYMENT_CONFIRMED",
         title: `Payment ${payment.reference} confirmed`,
-        body: `Receipt ${receiptRef} was issued automatically.`,
-        href: `/app/finance/payments/${paymentId}`,
+        body: `Receipt ${receiptRef} is available.`,
       },
     }),
   ]);
   await audit({ userId: user.id, action: "PAYMENT_CONFIRM", resourceType: "Payment", resourceId: paymentId, before: { status: "PENDING" }, after: { status: "CONFIRMED", receipt: receiptRef } });
-  await logActivity({ type: "PAYMENT_CONFIRMED", message: `Payment ${payment.reference} confirmed · receipt ${receiptRef} issued`, userId: user.id, clientId: payment.clientId, caseId: payment.caseId });
+  await logActivity({ type: "PAYMENT_CONFIRMED", message: `Payment ${payment.reference} confirmed · receipt ${receiptRef} available`, userId: user.id, clientId: payment.clientId, caseId: payment.caseId });
   revalidatePath(`/app/finance/payments/${paymentId}`);
+  revalidatePath("/app/finance/payments");
+  revalidatePath("/app/finance/receipts");
 }
 
 export async function rejectPayment(paymentId: string) {
@@ -95,7 +85,6 @@ export async function createRefund(_prev: FormState, formData: FormData): Promis
     const original = await prisma.payment.findUnique({ where: { id: d.paymentId }, include: { refunds: true } });
     if (!original) return { message: "Original payment not found." };
     if (original.clientId !== d.clientId) return { message: "Original payment belongs to a different client." };
-    // Refund cap: requested amount must not exceed what is still refundable on this payment.
     const alreadyCommitted = original.refunds
       .filter((r) => !["REJECTED", "CANCELLED"].includes(r.status))
       .reduce((sum, r) => sum + Number(r.amount), 0);
@@ -105,13 +94,12 @@ export async function createRefund(_prev: FormState, formData: FormData): Promis
     }
   }
 
-  const reference = await nextNumber("REF");
-  // Even installment schedule, monthly from next month; remainder on the last one.
+  const refundNumber = await nextNumber("REF");
   const installments = splitInstallments(d.amount, d.installments);
 
   const refund = await prisma.refund.create({
     data: {
-      reference,
+      refundNumber,
       clientId: d.clientId,
       caseId: emptyToNull(d.caseId),
       paymentId: emptyToNull(d.paymentId),
@@ -122,8 +110,8 @@ export async function createRefund(_prev: FormState, formData: FormData): Promis
       installments: { create: installments },
     },
   });
-  await audit({ userId: user.id, action: "REFUND_CREATE", resourceType: "Refund", resourceId: refund.id, after: { reference, amount: d.amount, installments: d.installments } });
-  await logActivity({ type: "REFUND_REQUESTED", message: `Refund ${reference} requested (${refund.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: refund.caseId });
+  await audit({ userId: user.id, action: "REFUND_CREATE", resourceType: "Refund", resourceId: refund.id, after: { refundNumber, amount: d.amount, installments: d.installments } });
+  await logActivity({ type: "REFUND_REQUESTED", message: `Refund ${refundNumber} requested (${refund.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: refund.caseId });
   redirect(`/app/finance/refunds/${refund.id}?toast=${encodeURIComponent("Refund request created")}`);
 }
 
@@ -138,18 +126,17 @@ export async function setRefundStatus(refundId: string, formData: FormData) {
     where: { id: refundId },
     data: {
       status: status as never,
-      ...(status === "APPROVED" ? { approvedById: user.id, approvedAt: new Date() } : {}),
+      ...(status === "APPROVED" ? { approvedById: user.id } : {}),
     },
   });
   await audit({ userId: user.id, action: `REFUND_${status}`, resourceType: "Refund", resourceId: refundId, before: { status: before.status }, after: { status } });
-  await logActivity({ type: "REFUND_UPDATED", message: `Refund ${refund.reference} → ${status.replaceAll("_", " ")}`, userId: user.id, clientId: refund.clientId, caseId: refund.caseId });
+  await logActivity({ type: "REFUND_UPDATED", message: `Refund ${refund.refundNumber} → ${status.replaceAll("_", " ")}`, userId: user.id, clientId: refund.clientId, caseId: refund.caseId });
   if (status === "APPROVED") {
     await prisma.notification.create({
       data: {
         userId: refund.createdById,
         type: "REFUND_APPROVED",
-        title: `Refund ${refund.reference} approved`,
-        href: `/app/finance/refunds/${refundId}`,
+        title: `Refund ${refund.refundNumber} approved`,
       },
     });
   }
@@ -160,13 +147,13 @@ export async function markInstallmentPaid(installmentId: string) {
   const user = await assertPermission("REFUND_APPROVE");
   const inst = await prisma.refundInstallment.findUnique({ where: { id: installmentId }, include: { refund: { include: { installments: true } } } });
   if (!inst || inst.status === "PAID") return;
-  if (!["APPROVED", "PARTIALLY_PAID"].includes(inst.refund.status)) return; // cannot pay before approval
+  if (!["APPROVED", "PARTIALLY_PAID"].includes(inst.refund.status)) return;
 
   await prisma.refundInstallment.update({ where: { id: installmentId }, data: { status: "PAID", paidAt: new Date() } });
   const remaining = inst.refund.installments.filter((i) => i.id !== installmentId && i.status !== "PAID" && i.status !== "CANCELLED").length;
   const newStatus = remaining === 0 ? "PAID" : "PARTIALLY_PAID";
   await prisma.refund.update({ where: { id: inst.refundId }, data: { status: newStatus } });
-  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_PAID", resourceType: "RefundInstallment", resourceId: installmentId, after: { refund: inst.refund.reference, newStatus } });
-  await logActivity({ type: "REFUND_UPDATED", message: `Installment paid on ${inst.refund.reference} (${newStatus.replaceAll("_", " ")})`, userId: user.id, clientId: inst.refund.clientId, caseId: inst.refund.caseId });
+  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_PAID", resourceType: "RefundInstallment", resourceId: installmentId, after: { refund: inst.refund.refundNumber, newStatus } });
+  await logActivity({ type: "REFUND_UPDATED", message: `Installment paid on ${inst.refund.refundNumber} (${newStatus.replaceAll("_", " ")})`, userId: user.id, clientId: inst.refund.clientId, caseId: inst.refund.caseId });
   revalidatePath(`/app/finance/refunds/${inst.refundId}`);
 }
