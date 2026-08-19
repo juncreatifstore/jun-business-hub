@@ -7,25 +7,48 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Document verification" };
 
-// Public verification page. Deliberately exposes ONLY: registry ID, type,
-// dates, status, partial hash, and signature status — never content, client
-// names, or amounts.
+// Public verification page. Deliberately exposes ONLY registry metadata:
+// reference, type, dates, status, partial integrity hash and signature status.
+// It never exposes document contents, client names or payment amounts.
 export default async function VerifyPage({ params }: { params: { documentId: string } }) {
   const id = decodeURIComponent(params.documentId).slice(0, 60);
 
   const doc = await prisma.document.findUnique({
     where: { documentId: id },
     select: {
-      documentId: true, type: true, status: true, createdAt: true,
-      finalizedAt: true, finalHash: true,
-      signatureRequests: { select: { status: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      documentId: true,
+      type: true,
+      status: true,
+      createdAt: true,
+      finalizedAt: true,
+      finalHash: true,
+      signatures: {
+        select: { status: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
     },
   });
-  const receipt = !doc
-    ? await prisma.receipt.findUnique({ where: { reference: id }, select: { reference: true, issuedAt: true } })
+
+  // Receipts are generated from confirmed payments; there is no Receipt model.
+  // Public receipt references use the deterministic form RCT-<payment reference>.
+  const paymentReference = !doc && id.startsWith("RCT-") ? id.slice(4) : null;
+  const receiptPayment = paymentReference
+    ? await prisma.payment.findUnique({
+        where: { reference: paymentReference },
+        select: { reference: true, status: true, paidAt: true },
+      })
     : null;
 
-  const authentic = Boolean((doc && (doc.status === "FINAL" || doc.status === "SIGNED")) || receipt);
+  const validReceipt = Boolean(
+    receiptPayment &&
+      receiptPayment.status === "CONFIRMED" &&
+      receiptPayment.paidAt,
+  );
+
+  const authentic = Boolean(
+    (doc && (doc.status === "FINAL" || doc.status === "SIGNED")) || validReceipt,
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-night text-white">
@@ -48,7 +71,7 @@ export default async function VerifyPage({ params }: { params: { documentId: str
               <div>
                 <p className="text-lg font-semibold text-red-300">Invalid or not verifiable</p>
                 <p className="text-sm text-white/60">
-                  No final document with this reference exists in the JUN registry. If you received a
+                  No final document or confirmed receipt with this reference exists in the JUN registry. If you received a
                   document claiming this ID, contact us before relying on it.
                 </p>
               </div>
@@ -66,17 +89,19 @@ export default async function VerifyPage({ params }: { params: { documentId: str
                 {doc.finalHash ? <div className="flex justify-between gap-4"><dt className="text-white/50">Integrity hash</dt><dd className="registry-id">{shortHash(doc.finalHash)}</dd></div> : null}
                 <div className="flex justify-between gap-4">
                   <dt className="text-white/50">Signature</dt>
-                  <dd>{doc.signatureRequests[0]?.status.replaceAll("_", " ") ?? "Not requested"}</dd>
+                  <dd>{doc.signatures[0]?.status.replaceAll("_", " ") ?? "Not requested"}</dd>
                 </div>
               </>
-            ) : receipt ? (
+            ) : validReceipt && receiptPayment ? (
               <>
                 <div className="flex justify-between gap-4"><dt className="text-white/50">Type</dt><dd>Payment receipt</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-white/50">Issued</dt><dd>{formatDateTime(receipt.issuedAt)}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-white/50">Status</dt><dd>CONFIRMED</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-white/50">Paid</dt><dd>{formatDateTime(receiptPayment.paidAt)}</dd></div>
               </>
             ) : null}
           </dl>
         </div>
+
         <p className="mt-6 text-center text-xs text-white/40">
           This page shows only registry metadata. Document contents remain private.
         </p>
