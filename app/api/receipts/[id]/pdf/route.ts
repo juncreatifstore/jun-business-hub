@@ -37,7 +37,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const issuedAt = payment.paidAt ?? payment.createdAt;
+  // A receipt is proof of a completed payment. Never generate one for an unpaid payment.
+  if (!payment.paidAt) {
+    return NextResponse.json({ error: "Receipt unavailable until the payment is marked paid" }, { status: 409 });
+  }
+
+  const paidAt = payment.paidAt;
+  const issuedAt = paidAt;
   const receiptReference = `RCT-${payment.reference}`;
 
   const bytes = await renderReceiptPdf({
@@ -48,7 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     currency: payment.currency,
     method: payment.method,
     paymentReference: payment.reference,
-    paidAt: payment.paidAt,
+    paidAt,
     issuedAt,
     caseNumber: payment.case?.caseNumber ?? null,
     reason: payment.notes ?? null,
