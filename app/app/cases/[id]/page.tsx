@@ -40,7 +40,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
         actions={
           <div className="flex gap-2">
             <Link href={`/app/clients/${c.clientId}`}><Button variant="secondary">View client</Button></Link>
-            {can(user, "CASE_WRITE") ? <Link href={`/app/cases/${c.id}/edit`}><Button variant="primary">Edit case</Button></Link> : null}
+            {can(user, "CASE_UPDATE") ? <Link href={`/app/cases/${c.id}/edit`}><Button variant="primary">Edit case</Button></Link> : null}
           </div>
         }
       />
