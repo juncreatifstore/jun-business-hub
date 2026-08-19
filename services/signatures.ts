@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { sha256 } from "@/lib/hash";
+import { signatureRecipients, type SignatureRecipient } from "@/lib/signature-recipients";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
-type Recipient = { name: string; email: string; order: number; signedAt?: string | null };
 type ProviderResult = { envelopeId: string; provider: string };
 
 interface SignatureProvider {
@@ -46,28 +46,13 @@ async function signatureProvider(finalPdf: () => Promise<Uint8Array>): Promise<S
   return new MockSignatureProvider();
 }
 
-export function signatureRecipients(value: unknown): Recipient[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((v, index) => {
-      if (!v || typeof v !== "object") return null;
-      const r = v as Record<string, unknown>;
-      const name = typeof r.name === "string" ? r.name : "Signer";
-      const email = typeof r.email === "string" ? r.email : "";
-      const order = typeof r.order === "number" ? r.order : index + 1;
-      const signedAt = typeof r.signedAt === "string" ? r.signedAt : null;
-      return { name, email, order, signedAt };
-    })
-    .filter((r): r is Recipient => Boolean(r));
-}
-
 export async function createSignatureRequest(documentId: string): Promise<void> {
   const user = await assertPermission("DOCUMENT_SIGN");
   const doc = await prisma.document.findUnique({ where: { id: documentId }, include: { client: true } });
   if (!doc) redirect("/app/documents?toast_error=Document not found");
   if (doc.status !== "FINAL") redirect(`/app/documents/${doc.id}?toast_error=Only finalized documents can be sent for signature`);
 
-  const recipients: Recipient[] = [];
+  const recipients: SignatureRecipient[] = [];
   if (doc.client) recipients.push({ name: `${doc.client.firstName} ${doc.client.lastName}`, email: doc.client.email ?? "unknown@juncreatif.org", order: 1, signedAt: null });
   recipients.push({ name: `${user.firstName} ${user.lastName}`, email: user.email, order: recipients.length + 1, signedAt: null });
 
