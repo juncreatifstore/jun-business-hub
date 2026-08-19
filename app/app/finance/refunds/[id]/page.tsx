@@ -14,16 +14,31 @@ export default async function RefundDetailPage({ params }: { params: { id: strin
   const user = await requirePermission("REFUND_READ");
   const r = await prisma.refund.findUnique({
     where: { id: params.id },
-    include: { client: true, case: true, payment: true, createdBy: true, approvedBy: true, installments: { orderBy: { dueDate: "asc" } }, attachments: true },
+    include: {
+      client: true,
+      case: true,
+      payment: true,
+      createdBy: true,
+      installments: { orderBy: { dueDate: "asc" } },
+      files: true,
+    },
   });
   if (!r) notFound();
+
+  const approvedBy = r.approvedById
+    ? await prisma.user.findUnique({
+        where: { id: r.approvedById },
+        select: { firstName: true, lastName: true },
+      })
+    : null;
+
   const approver = can(user, "REFUND_APPROVE");
 
   return (
     <div className="max-w-3xl">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="registry-id text-muted2">{r.reference}</p>
+          <p className="registry-id text-muted2">{r.refundNumber}</p>
           <h1 className="mt-1 flex items-center gap-3 text-2xl font-semibold">
             -{formatMoney(Number(r.amount), r.currency)} <StatusBadge status={r.status} />
           </h1>
@@ -59,7 +74,7 @@ export default async function RefundDetailPage({ params }: { params: { id: strin
           <p className="whitespace-pre-wrap text-sm">{r.reason}</p>
           <p className="mt-3 text-xs text-muted2">
             Requested by {r.createdBy.firstName} {r.createdBy.lastName} on {formatDate(r.createdAt)}
-            {r.approvedBy ? ` · approved by ${r.approvedBy.firstName} ${r.approvedBy.lastName} on ${formatDate(r.approvedAt)}` : ""}
+            {approvedBy ? ` · approved by ${approvedBy.firstName} ${approvedBy.lastName}` : ""}
           </p>
         </CardContent>
       </Card>
