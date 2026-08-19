@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge, StatusBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, Input, Textarea, Select } from "@/components/ui/input";
@@ -23,6 +23,8 @@ const FOLDERS = [
   { key: "AI_REVIEW", label: "AI Review", icon: Bot },
 ] as const;
 
+type FolderKey = (typeof FOLDERS)[number]["key"];
+
 const AI_BADGE: Record<string, string> = {
   AUTO: "bg-emerald-100 text-emerald-800",
   APPROVAL_REQUIRED: "bg-amber-100 text-amber-800",
@@ -34,78 +36,78 @@ export default async function MailPage({ searchParams }: { searchParams: { folde
   if (!can(user, "EMAIL_READ")) redirect("/app/forbidden");
   const canDraft = can(user, "EMAIL_DRAFT");
   const canSend = can(user, "EMAIL_SEND");
-
-  const folder = FOLDERS.some((f) => f.key === searchParams.folder) ? (searchParams.folder as string) : "INBOX";
+  const folder: FolderKey = FOLDERS.some((f) => f.key === searchParams.folder) ? (searchParams.folder as FolderKey) : "INBOX";
   const composing = searchParams.compose === "1";
 
-  const gmailAccount = await prisma.mailAccount.findFirst({ where: { status: "CONNECTED" }, orderBy: { createdAt: "asc" } });
-  const [threads, counts, clients, cases, activeThread] = await Promise.all([
-    prisma.emailThread.findMany({
-      where: { folder },
-      orderBy: { updatedAt: "desc" },
-      take: 50,
-      include: { client: true, messages: { orderBy: { createdAt: "desc" }, take: 1 } },
-    }),
-    prisma.emailThread.groupBy({ by: ["folder"], _count: { _all: true } }),
-    canDraft ? prisma.client.findMany({ orderBy: { createdAt: "desc" }, take: 200, select: { id: true, firstName: true, lastName: true, internalId: true } }) : Promise.resolve([]),
-    canDraft ? prisma.case.findMany({ orderBy: { createdAt: "desc" }, take: 200, select: { id: true, caseNumber: true, title: true } }) : Promise.resolve([]),
-    searchParams.thread
-      ? prisma.emailThread.findUnique({
-          where: { id: searchParams.thread },
-          include: { client: true, case: true, messages: { orderBy: { createdAt: "asc" } } },
+  const gmailAccount = await prisma.mailAccount.findFirst({
+    where: { OR: [{ accessTokenEnc: { not: null } }, { refreshTokenEnc: { not: null } }] },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const [allThreads, clients, activeThread] = await Promise.all([
+    gmailAccount
+      ? prisma.mailThread.findMany({
+          where: { mailAccountId: gmailAccount.id },
+          orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
+          take: 200,
+          include: { client: true },
         })
+      : Promise.resolve([]),
+    canDraft ? prisma.client.findMany({ orderBy: { createdAt: "desc" }, take: 200, select: { id: true, firstName: true, lastName: true, internalId: true } }) : Promise.resolve([]),
+    searchParams.thread
+      ? prisma.mailThread.findUnique({ where: { id: searchParams.thread }, include: { client: true, account: true } })
       : Promise.resolve(null),
   ]);
 
-  const countMap = Object.fromEntries(counts.map((c) => [c.folder, c._count._all]));
+  const accountEmail = gmailAccount?.email.toLowerCase() ?? "";
+  const inFolder = (t: (typeof allThreads)[number], key: FolderKey) => {
+    const sent = Boolean(accountEmail && t.fromEmail?.toLowerCase().includes(accountEmail) && !t.aiDraft);
+    if (key === "DRAFTS") return Boolean(t.aiDraft);
+    if (key === "SENT") return sent;
+    if (key === "IMPORTANT") return t.requiresAttention;
+    if (key === "AI_REVIEW") return t.requiresAttention || t.aiLevel !== "AUTO";
+    return !t.aiDraft && !sent;
+  };
+  const threads = allThreads.filter((t) => inFolder(t, folder)).slice(0, 50);
+  const countMap = Object.fromEntries(FOLDERS.map((f) => [f.key, allThreads.filter((t) => inFolder(t, f.key)).length]));
 
   return (
     <div>
       <PageHeader
         title="Mail"
-        subtitle={gmailAccount ? `Connected to Gmail — ${gmailAccount.email}. Sync, triage and real sending are live.` : "No mailbox connected. Connect a Gmail mailbox in Settings → Email to sync and send."}
+        subtitle={gmailAccount ? `Connected to Gmail — ${gmailAccount.email}.` : "No mailbox connected. Connect Gmail in Settings → Email."}
         actions={
           <div className="flex items-center gap-2">
-            {gmailAccount ? (
-              <form action={syncMailbox.bind(null, gmailAccount.id)}><Button variant="secondary">Sync {gmailAccount.email}</Button></form>
-            ) : null}
-            {canDraft ? <Link href={`/app/mail?folder=${folder}&compose=1`}><Button variant="primary">Compose</Button></Link> : null}
+            {gmailAccount ? <form action={syncMailbox.bind(null, gmailAccount.id)}><Button variant="secondary">Sync {gmailAccount.email}</Button></form> : null}
+            {canDraft && gmailAccount ? <Link href={`/app/mail?folder=${folder}&compose=1`}><Button variant="primary">Compose</Button></Link> : null}
           </div>
         }
       />
 
       <div className="grid gap-6 lg:grid-cols-[200px_1fr_1.2fr]">
-        {/* Folders */}
         <nav className="space-y-1">
           {FOLDERS.map((f) => (
-            <Link
-              key={f.key}
-              href={`/app/mail?folder=${f.key}`}
-              className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${folder === f.key ? "bg-electric/10 text-electric" : "text-muted2 hover:bg-white/5 hover:text-white"}`}
-            >
+            <Link key={f.key} href={`/app/mail?folder=${f.key}`} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${folder === f.key ? "bg-electric/10 text-electric" : "text-muted2 hover:bg-white/5 hover:text-white"}`}>
               <span className="flex items-center gap-2"><f.icon className="h-4 w-4" /> {f.label}</span>
               <span className="registry-id text-xs">{countMap[f.key] ?? 0}</span>
             </Link>
           ))}
         </nav>
 
-        {/* Thread list */}
         <div className="min-w-0">
           {threads.length === 0 ? (
-            <EmptyState icon={Mail} title={`No threads in ${folder.toLowerCase().replace("_", " ")}`} description={folder === "DRAFTS" ? "Compose a message to create your first draft." : "Connected mailboxes will populate this folder."} />
+            <EmptyState icon={Mail} title={`No threads in ${folder.toLowerCase().replace("_", " ")}`} description={gmailAccount ? "Sync Gmail or choose another folder." : "Connect a Gmail mailbox to populate JUN Mail."} />
           ) : (
             <ul className="divide-y divide-white/5 rounded-xl border border-white/10 bg-white/[0.02]">
               {threads.map((t) => (
                 <li key={t.id}>
                   <Link href={`/app/mail?folder=${folder}&thread=${t.id}`} className={`block px-4 py-3 hover:bg-white/5 ${activeThread?.id === t.id ? "bg-white/5" : ""}`}>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate font-medium">{t.subject}</p>
+                      <p className="truncate font-medium">{t.subject ?? "(no subject)"}</p>
                       <Badge className={AI_BADGE[t.aiLevel] ?? ""}>{t.aiLevel.replaceAll("_", " ")}</Badge>
                     </div>
-                    <p className="mt-1 truncate text-sm text-muted2">{t.messages[0]?.body?.slice(0, 90) ?? "—"}</p>
-                    <p className="mt-1 text-xs text-muted2">
-                      {t.client ? `${t.client.firstName} ${t.client.lastName} · ` : ""}{formatDateTime(t.updatedAt)}
-                    </p>
+                    <p className="mt-1 truncate text-sm text-muted2">{t.aiDraft ?? t.snippet ?? "—"}</p>
+                    <p className="mt-1 text-xs text-muted2">{t.client ? `${t.client.firstName} ${t.client.lastName} · ` : ""}{formatDateTime(t.lastMessageAt ?? t.updatedAt)}</p>
                   </Link>
                 </li>
               ))}
@@ -113,35 +115,22 @@ export default async function MailPage({ searchParams }: { searchParams: { folde
           )}
         </div>
 
-        {/* Reading pane / composer */}
         <div className="min-w-0">
-          {composing && canDraft ? (
+          {composing && canDraft && gmailAccount ? (
             <Card>
               <CardHeader><CardTitle>New message</CardTitle></CardHeader>
               <CardContent>
                 <form action={composeDraft} className="space-y-4">
                   <Field label="To"><Input name="toAddr" type="email" required placeholder="client@example.com" /></Field>
                   <Field label="Subject"><Input name="subject" required maxLength={200} /></Field>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Field label="Link to client (optional)">
-                      <Select name="clientId" defaultValue="">
-                        <option value="">— None —</option>
-                        {clients.map((c) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.internalId})</option>)}
-                      </Select>
-                    </Field>
-                    <Field label="Link to case (optional)">
-                      <Select name="caseId" defaultValue="">
-                        <option value="">— None —</option>
-                        {cases.map((c) => <option key={c.id} value={c.id}>{c.caseNumber}</option>)}
-                      </Select>
-                    </Field>
-                  </div>
+                  <Field label="Link to client (optional)">
+                    <Select name="clientId" defaultValue="">
+                      <option value="">— None —</option>
+                      {clients.map((c) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.internalId})</option>)}
+                    </Select>
+                  </Field>
                   <Field label="Message"><Textarea name="body" rows={8} required /></Field>
-                  <div className="flex gap-3">
-                    <Button type="submit" variant="primary">Save draft</Button>
-                    <Link href={`/app/mail?folder=${folder}`}><Button type="button" variant="ghost">Cancel</Button></Link>
-                  </div>
-                  <p className="text-xs text-muted2">{gmailAccount ? `Drafts are triaged by JUN AI, then sent for real through ${gmailAccount.email}.` : "Drafts are triaged by JUN AI (auto / approval required / blocked). Connect a Gmail mailbox in Settings → Email to enable sending."}</p>
+                  <div className="flex gap-3"><Button type="submit" variant="primary">Save draft</Button><Link href={`/app/mail?folder=${folder}`}><Button type="button" variant="ghost">Cancel</Button></Link></div>
                 </form>
               </CardContent>
             </Card>
@@ -149,41 +138,23 @@ export default async function MailPage({ searchParams }: { searchParams: { folde
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <CardTitle>{activeThread.subject}</CardTitle>
+                  <CardTitle>{activeThread.subject ?? "(no subject)"}</CardTitle>
                   <Badge className={AI_BADGE[activeThread.aiLevel] ?? ""}>{activeThread.aiLevel.replaceAll("_", " ")}</Badge>
                 </div>
-                <p className="text-sm text-muted2">
-                  {activeThread.client ? <>Client: <Link className="text-electric" href={`/app/clients/${activeThread.clientId}`}>{activeThread.client.firstName} {activeThread.client.lastName}</Link> · </> : null}
-                  {activeThread.case ? <>Case: <Link className="text-electric registry-id" href={`/app/cases/${activeThread.caseId}`}>{activeThread.case.caseNumber}</Link> · </> : null}
-                  {activeThread.aiSummary ?? ""}
-                </p>
+                <p className="text-sm text-muted2">{activeThread.client ? <>Client: <Link className="text-electric" href={`/app/clients/${activeThread.clientId}`}>{activeThread.client.firstName} {activeThread.client.lastName}</Link> · </> : null}{activeThread.aiSummary ?? ""}</p>
               </CardHeader>
               <CardContent className="space-y-4">
-                {activeThread.messages.map((m) => (
-                  <div key={m.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                    <p className="text-xs text-muted2">
-                      <span className="font-medium text-white/80">{m.fromAddr}</span> → {m.toAddr} · {m.isDraft ? "Draft" : m.sentAt ? `Sent ${formatDateTime(m.sentAt)}` : formatDateTime(m.createdAt)}
-                      {m.isAIDraft ? <span className="ml-2 rounded bg-electric/10 px-1.5 py-0.5 text-electric">AI draft</span> : null}
-                    </p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm">{m.body}</p>
-                  </div>
-                ))}
+                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-xs text-muted2"><span className="font-medium text-white/80">{activeThread.fromEmail ?? activeThread.account.email}</span> → {activeThread.toEmails.join(", ") || "—"} · {formatDateTime(activeThread.lastMessageAt ?? activeThread.updatedAt)}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm">{activeThread.aiDraft ?? activeThread.snippet ?? "No preview available."}</p>
+                  {activeThread.aiDraft ? <span className="mt-2 inline-block rounded bg-electric/10 px-1.5 py-0.5 text-xs text-electric">Draft</span> : null}
+                </div>
                 <div className="flex flex-wrap gap-2 pt-2">
-                  {activeThread.messages.some((m) => m.isDraft) && canSend ? (
-                    gmailAccount ? (
-                      <form action={sendDraftViaGmail.bind(null, activeThread.id)}><Button variant="gold">Send via {gmailAccount.email}</Button></form>
-                    ) : process.env.NODE_ENV !== "production" ? (
-                      <form action={sendDraft.bind(null, activeThread.id)}><Button variant="secondary">Mark as sent (DEV mock)</Button></form>
-                    ) : (
-                      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">Send disabled — Connect a Gmail mailbox before sending emails.</div>
-                    )
+                  {activeThread.aiDraft && canSend ? (
+                    gmailAccount ? <form action={sendDraftViaGmail.bind(null, activeThread.id)}><Button variant="gold">Send via {gmailAccount.email}</Button></form> : process.env.NODE_ENV !== "production" ? <form action={sendDraft.bind(null, activeThread.id)}><Button variant="secondary">Mark as sent</Button></form> : null
                   ) : null}
-                  {activeThread.folder !== "IMPORTANT" ? (
-                    <form action={moveThread.bind(null, activeThread.id, "IMPORTANT")}><Button variant="secondary">Mark important</Button></form>
-                  ) : null}
-                  {activeThread.folder !== "AI_REVIEW" && activeThread.aiLevel !== "AUTO" ? (
-                    <form action={moveThread.bind(null, activeThread.id, "AI_REVIEW")}><Button variant="secondary">Send to AI review</Button></form>
-                  ) : null}
+                  {!activeThread.requiresAttention ? <form action={moveThread.bind(null, activeThread.id, "IMPORTANT")}><Button variant="secondary">Mark important</Button></form> : null}
+                  {!activeThread.requiresAttention && activeThread.aiLevel !== "AUTO" ? <form action={moveThread.bind(null, activeThread.id, "AI_REVIEW")}><Button variant="secondary">Send to AI review</Button></form> : null}
                 </div>
               </CardContent>
             </Card>
