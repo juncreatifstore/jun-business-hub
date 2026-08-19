@@ -16,13 +16,12 @@ import { ShieldCheck, Smartphone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function SecurityPage({ searchParams }: { searchParams: { setup?: string; recovery?: string } }) {
+export default async function SecurityPage({ searchParams }: { searchParams: { setup?: string } }) {
   const user = await requireUser();
   const row = await prisma.user.findUnique({ where: { id: user.id }, select: { mfaEnabled: true, mfaSecret: true } });
   const sessions = await prisma.session.findMany({ where: { userId: user.id, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" } });
   const currentHash = sha256(cookies().get(SESSION_COOKIE)?.value ?? "");
 
-  // Setup in progress: render QR from the (decrypted) pending secret.
   let qrDataUrl: string | null = null;
   if (searchParams.setup === "1" && row?.mfaSecret && !row.mfaEnabled) {
     const secret = decryptSecret(row.mfaSecret);
@@ -30,16 +29,9 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
     qrDataUrl = await QRCode.toDataURL(uri, { margin: 1, width: 220 });
   }
 
-  // Recovery codes: shown exactly once from a short-lived cookie, then cleared client-side by expiry.
-  let recoveryCodes: string[] = [];
-  if (searchParams.recovery === "1") {
-    try { recoveryCodes = JSON.parse(cookies().get("jun_mfa_recovery")?.value ?? "[]"); } catch { recoveryCodes = []; }
-  }
-
   return (
     <div>
       <PageHeader title="Security" subtitle="Two-factor authentication and active sessions for your account." />
-
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Smartphone className="h-4 w-4" /> Two-factor authentication (TOTP)</CardTitle></CardHeader>
@@ -48,7 +40,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
               <>
                 <p className="flex items-center gap-2 text-sm text-emerald-400"><ShieldCheck className="h-4 w-4" /> MFA is enabled on your account.</p>
                 <form action={disableMfa} className="flex items-end gap-3">
-                  <Field label="Enter a current code to disable"><Input name="code" inputMode="numeric" autoComplete="one-time-code" required maxLength={10} className="w-40" /></Field>
+                  <Field label="Enter a current code to disable"><Input name="code" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} className="w-40" /></Field>
                   <Button variant="danger">Disable MFA</Button>
                 </form>
               </>
@@ -64,20 +56,10 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
               </>
             ) : (
               <>
-                <p className="text-sm text-muted2">Protect your account with a one-time code from an authenticator app. Recommended (and intended to become mandatory) for SUPER_ADMIN, DIRECTOR, ADMIN, FINANCE, LEGAL and ACCOUNTANT roles.</p>
+                <p className="text-sm text-muted2">Protect your account with a one-time code from an authenticator app.</p>
                 <form action={startMfaSetup}><Button variant="primary">Enable MFA</Button></form>
               </>
             )}
-
-            {recoveryCodes.length > 0 ? (
-              <div className="rounded-lg border border-gold/40 bg-gold/10 p-4">
-                <p className="text-sm font-medium text-gold">Recovery codes — shown only once. Store them safely.</p>
-                <div className="mt-2 grid grid-cols-2 gap-1">
-                  {recoveryCodes.map((c) => <span key={c} className="registry-id text-sm">{c}</span>)}
-                </div>
-                <p className="mt-2 text-xs text-muted2">Each code works once if you lose your authenticator. They are stored hashed — we cannot show them again.</p>
-              </div>
-            ) : null}
           </CardContent>
         </Card>
 
@@ -99,9 +81,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
                 </li>
               ))}
             </ul>
-            {sessions.length > 1 ? (
-              <form action={revokeOtherSessions} className="mt-4"><Button variant="danger">Revoke all other sessions</Button></form>
-            ) : null}
+            {sessions.length > 1 ? <form action={revokeOtherSessions} className="mt-4"><Button variant="danger">Revoke all other sessions</Button></form> : null}
           </CardContent>
         </Card>
       </div>
