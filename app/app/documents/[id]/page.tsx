@@ -13,6 +13,16 @@ import { shortHash } from "@/lib/hash";
 
 export const dynamic = "force-dynamic";
 
+function recipientCount(recipients: unknown): number {
+  if (Array.isArray(recipients)) return recipients.length;
+  if (recipients && typeof recipients === "object") {
+    const value = recipients as { signers?: unknown[]; recipients?: unknown[] };
+    if (Array.isArray(value.signers)) return value.signers.length;
+    if (Array.isArray(value.recipients)) return value.recipients.length;
+  }
+  return 0;
+}
+
 export default async function DocumentDetailPage({ params }: { params: { id: string } }) {
   const user = await requirePermission("DOCUMENT_READ");
   const doc = await prisma.document.findUnique({
@@ -20,7 +30,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
     include: {
       client: true, case: true, author: true,
       versions: { orderBy: { version: "desc" }, include: { author: true } },
-      signatureRequests: { orderBy: { createdAt: "desc" }, include: { signers: true } },
+      signatures: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!doc) notFound();
@@ -86,18 +96,18 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
               </ul>
             </CardContent>
           </Card>
-          {doc.signatureRequests.length > 0 ? (
+          {doc.signatures.length > 0 ? (
             <Card>
               <CardHeader><CardTitle>Signature</CardTitle></CardHeader>
               <CardContent className="p-0">
                 <ul className="divide-y divide-line">
-                  {doc.signatureRequests.map((s) => (
+                  {doc.signatures.map((s) => (
                     <li key={s.id} className="px-4 py-2.5">
                       <div className="flex items-center justify-between">
                         <Link href={`/app/signatures/${s.id}`} className="text-sm font-medium hover:text-electric">{s.provider} request</Link>
                         <StatusBadge status={s.status} />
                       </div>
-                      <p className="text-xs text-muted2">{s.signers.length} signer(s) · {formatDateTime(s.createdAt)}</p>
+                      <p className="text-xs text-muted2">{recipientCount(s.recipients)} signer(s) · {formatDateTime(s.createdAt)}</p>
                     </li>
                   ))}
                 </ul>
