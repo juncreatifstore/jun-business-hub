@@ -98,7 +98,7 @@ async function gmail<T>(token: string, path: string, init?: RequestInit): Promis
 }
 
 type GmailHeader = { name: string; value: string };
-type GmailMessage = { id: string; threadId: string; snippet?: string; labelIds?: string[]; payload?: { headers?: GmailHeader[]; body?: { data?: string }; parts?: { mimeType?: string; body?: { data?: string }; parts?: unknown[] }[] }; internalDate?: string };
+type GmailMessage = { id: string; threadId: string; snippet?: string; payload?: { headers?: GmailHeader[]; body?: { data?: string }; parts?: { mimeType?: string; body?: { data?: string }; parts?: unknown[] }[] }; internalDate?: string };
 
 function header(m: GmailMessage, name: string): string {
   return m.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
@@ -129,6 +129,7 @@ export async function syncFolder(accountId: string, folder: "INBOX" | "SENT" | "
     const from = header(m, "From");
     const to = header(m, "To");
     const body = decodeBody(m).slice(0, 20_000);
+    const snippet = m.snippet?.slice(0, 500) || body.slice(0, 500) || null;
     const emails = `${from} ${to}`.match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? [];
     const client = emails.length ? await prisma.client.findFirst({ where: { email: { in: emails.map((e) => e.toLowerCase()) } }, select: { id: true } }) : null;
     const existing = await prisma.mailThread.findUnique({ where: { gmailThreadId: m.threadId }, select: { id: true } });
@@ -137,12 +138,12 @@ export async function syncFolder(accountId: string, folder: "INBOX" | "SENT" | "
       where: { gmailThreadId: m.threadId },
       update: {
         subject,
-        snippet: m.snippet?.slice(0, 500) ?? body.slice(0, 500) || null,
+        snippet,
         fromEmail: from.slice(0, 300) || null,
-        toEmails: emails.filter((e) => e.toLowerCase() !== from.toLowerCase()),
+        toEmails: emails,
         lastMessageAt: when,
-        clientId: client?.id ?? undefined,
-        requiresAttention: folder === "IMPORTANT" || undefined,
+        ...(client ? { clientId: client.id } : {}),
+        ...(folder === "IMPORTANT" ? { requiresAttention: true } : {}),
         ...(folder === "DRAFTS" ? { aiDraft: body || m.snippet || "" } : {}),
       },
       create: {
@@ -150,9 +151,9 @@ export async function syncFolder(accountId: string, folder: "INBOX" | "SENT" | "
         mailAccountId: accountId,
         clientId: client?.id ?? null,
         subject,
-        snippet: m.snippet?.slice(0, 500) ?? body.slice(0, 500) || null,
+        snippet,
         fromEmail: from.slice(0, 300) || null,
-        toEmails: emails.filter((e) => e.toLowerCase() !== from.toLowerCase()),
+        toEmails: emails,
         lastMessageAt: when,
         requiresAttention: folder === "IMPORTANT",
         aiDraft: folder === "DRAFTS" ? body || m.snippet || "" : null,
