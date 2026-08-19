@@ -18,7 +18,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: { s
   const payments = await prisma.payment.findMany({
     where: status && status !== "ALL" ? { status: status as never } : {},
     orderBy: { paidAt: "desc" }, take: 100,
-    include: { client: true, case: true, receipt: true },
+    include: { client: true, case: true },
   });
 
   return (
@@ -45,7 +45,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: { s
                 <TD className="font-medium">{formatMoney(Number(p.amount), p.currency)}</TD>
                 <TD className="text-muted2">{p.method.replaceAll("_", " ")}</TD>
                 <TD><StatusBadge status={p.status} /></TD>
-                <TD className="registry-id text-muted2">{p.receipt?.reference ?? "—"}</TD>
+                <TD className="registry-id text-muted2">
+                  {p.status === "CONFIRMED" && p.paidAt ? (
+                    <a href={`/api/receipts/${p.id}/pdf`} target="_blank" rel="noreferrer" className="hover:text-electric">RCT-{p.reference}</a>
+                  ) : "—"}
+                </TD>
                 <TD className="text-muted2">{formatDate(p.paidAt)}</TD>
               </TR>
             ))}
