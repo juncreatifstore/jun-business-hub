@@ -1,8 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 
-// Server-only Prisma singleton. In Vercel, prefer the connection strings injected
-// by the Supabase integration. DATABASE_URL remains a fallback for non-Vercel/local use.
+// Server-only Prisma singleton. Use the native Supabase/Vercel pooled URL when available.
+// Prisma's standard Node.js engine is intentionally used here to avoid an extra
+// driver-adapter/query-compiler layer in the authentication path.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function pickConnectionString() {
@@ -22,11 +22,9 @@ function createClient() {
     );
   }
 
-  const adapter = new PrismaPg({
-    connectionString,
-    connectionTimeoutMillis: 10_000,
+  return new PrismaClient({
+    datasources: { db: { url: connectionString } },
   });
-  return new PrismaClient({ adapter });
 }
 
 function getClient(): PrismaClient {
