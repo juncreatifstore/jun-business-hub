@@ -2,13 +2,6 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
-/**
- * Real Gmail integration (OAuth 2.0 + Gmail REST API, no heavy SDK).
- * STATUS: READY — CREDENTIALS REQUIRED (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI).
- * Refresh tokens are stored AES-256-GCM encrypted (MailAccount.refreshTokenEnc)
- * and are never sent to the browser.
- */
-
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.send",
@@ -27,7 +20,7 @@ export function googleAuthUrl(state: string): string {
     response_type: "code",
     scope: SCOPES,
     access_type: "offline",
-    prompt: "consent", // force refresh_token issuance
+    prompt: "consent",
     state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
@@ -53,14 +46,13 @@ export async function exchangeCode(code: string): Promise<{ accessToken: string;
   return { accessToken: t.access_token, refreshToken: t.refresh_token, expiresIn: t.expires_in, email: info.email, scope: t.scope };
 }
 
-/** Get a valid access token for a connected mailbox, refreshing if needed. */
 export async function accessTokenFor(accountId: string): Promise<{ token: string; email: string }> {
   const acc = await prisma.mailAccount.findUnique({ where: { id: accountId } });
-  if (!acc || acc.status !== "CONNECTED") throw new Error("Mailbox not connected");
-  if (acc.accessToken && acc.tokenExpiry && acc.tokenExpiry.getTime() > Date.now() + 60_000) {
-    return { token: acc.accessToken, email: acc.email };
+  if (!acc) throw new Error("Mailbox not found");
+  if (acc.accessTokenEnc && acc.tokenExpiry && acc.tokenExpiry.getTime() > Date.now() + 60_000) {
+    return { token: decryptSecret(acc.accessTokenEnc), email: acc.email };
   }
-  if (!acc.refreshTokenEnc) throw new Error("No refresh token — reconnect the mailbox");
+  if (!acc.refreshTokenEnc) throw new Error("Mailbox not connected — reconnect it in Settings → Email");
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -71,14 +63,11 @@ export async function accessTokenFor(accountId: string): Promise<{ token: string
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) {
-    await prisma.mailAccount.update({ where: { id: acc.id }, data: { status: "ERROR" } });
-    throw new Error(`Google token refresh failed: ${await res.text()}`);
-  }
+  if (!res.ok) throw new Error(`Google token refresh failed: ${await res.text()}`);
   const t = (await res.json()) as { access_token: string; expires_in: number };
   await prisma.mailAccount.update({
     where: { id: acc.id },
-    data: { accessToken: t.access_token, tokenExpiry: new Date(Date.now() + t.expires_in * 1000), status: "CONNECTED" },
+    data: { accessTokenEnc: encryptSecret(t.access_token), tokenExpiry: new Date(Date.now() + t.expires_in * 1000) },
   });
   return { token: t.access_token, email: acc.email };
 }
@@ -87,24 +76,19 @@ export async function saveConnectedAccount(input: { email: string; accessToken: 
   return prisma.mailAccount.upsert({
     where: { email: input.email },
     update: {
-      accessToken: input.accessToken,
+      accessTokenEnc: encryptSecret(input.accessToken),
       tokenExpiry: new Date(Date.now() + input.expiresIn * 1000),
       ...(input.refreshToken ? { refreshTokenEnc: encryptSecret(input.refreshToken) } : {}),
-      scope: input.scope,
-      status: "CONNECTED",
     },
     create: {
       email: input.email,
-      accessToken: input.accessToken,
-      tokenExpiry: new Date(Date.now() + input.expiresIn * 1000),
+      accessTokenEnc: encryptSecret(input.accessToken),
       refreshTokenEnc: input.refreshToken ? encryptSecret(input.refreshToken) : null,
-      scope: input.scope,
-      connectedById: input.connectedById,
+      tokenExpiry: new Date(Date.now() + input.expiresIn * 1000),
     },
   });
 }
 
-// ── Gmail REST helpers ────────────────────────────────────────────────────────
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 async function gmail<T>(token: string, path: string, init?: RequestInit): Promise<T> {
@@ -114,7 +98,7 @@ async function gmail<T>(token: string, path: string, init?: RequestInit): Promis
 }
 
 type GmailHeader = { name: string; value: string };
-type GmailMessage = { id: string; threadId: string; snippet?: string; labelIds?: string[]; payload?: { headers?: GmailHeader[]; mimeType?: string; body?: { data?: string }; parts?: { mimeType?: string; body?: { data?: string }; parts?: unknown[] }[] }; internalDate?: string };
+type GmailMessage = { id: string; threadId: string; snippet?: string; labelIds?: string[]; payload?: { headers?: GmailHeader[]; body?: { data?: string }; parts?: { mimeType?: string; body?: { data?: string }; parts?: unknown[] }[] }; internalDate?: string };
 
 function header(m: GmailMessage, name: string): string {
   return m.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
@@ -122,64 +106,63 @@ function header(m: GmailMessage, name: string): string {
 
 function decodeBody(m: GmailMessage): string {
   const b64 = (d?: string) => (d ? Buffer.from(d.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8") : "");
-  const findPart = (parts: NonNullable<GmailMessage["payload"]>["parts"], mime: string): string => {
+  const walk = (parts: NonNullable<GmailMessage["payload"]>["parts"]): string => {
     for (const p of parts ?? []) {
-      if (p.mimeType === mime && p.body?.data) return b64(p.body.data);
-      const nested = findPart(p.parts as never, mime);
+      if (p.mimeType === "text/plain" && p.body?.data) return b64(p.body.data);
+      const nested = walk(p.parts as never);
       if (nested) return nested;
     }
     return "";
   };
-  if (m.payload?.body?.data) return b64(m.payload.body.data);
-  return findPart(m.payload?.parts, "text/plain") || findPart(m.payload?.parts, "text/html");
+  return b64(m.payload?.body?.data) || walk(m.payload?.parts);
 }
 
 const FOLDER_QUERY: Record<string, string> = { INBOX: "in:inbox", SENT: "in:sent", DRAFTS: "in:drafts", IMPORTANT: "is:important" };
 
-/** Sync up to `max` recent threads for a folder into EmailThread/EmailMessage. Returns count of new messages. */
 export async function syncFolder(accountId: string, folder: "INBOX" | "SENT" | "DRAFTS" | "IMPORTANT", max = 25): Promise<number> {
   const { token } = await accessTokenFor(accountId);
   const list = await gmail<{ messages?: { id: string; threadId: string }[] }>(token, `/messages?maxResults=${max}&q=${encodeURIComponent(FOLDER_QUERY[folder])}`);
   let created = 0;
   for (const ref of list.messages ?? []) {
-    const exists = await prisma.emailMessage.findUnique({ where: { gmailId: ref.id }, select: { id: true } });
-    if (exists) continue;
     const m = await gmail<GmailMessage>(token, `/messages/${ref.id}?format=full`);
     const subject = header(m, "Subject") || "(no subject)";
-    const fromAddr = header(m, "From");
-    const toAddr = header(m, "To");
-    const unread = (m.labelIds ?? []).includes("UNREAD");
-    const body = decodeBody(m).slice(0, 100_000);
-
-    // Auto-associate client by sender/recipient email
-    const emails = `${fromAddr} ${toAddr}`.match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? [];
-    const client = emails.length
-      ? await prisma.client.findFirst({ where: { email: { in: emails.map((e) => e.toLowerCase()) } }, select: { id: true } })
-      : null;
-
-    const thread = await prisma.emailThread.upsert({
+    const from = header(m, "From");
+    const to = header(m, "To");
+    const body = decodeBody(m).slice(0, 20_000);
+    const emails = `${from} ${to}`.match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? [];
+    const client = emails.length ? await prisma.client.findFirst({ where: { email: { in: emails.map((e) => e.toLowerCase()) } }, select: { id: true } }) : null;
+    const existing = await prisma.mailThread.findUnique({ where: { gmailThreadId: m.threadId }, select: { id: true } });
+    const when = m.internalDate ? new Date(Number(m.internalDate)) : new Date();
+    await prisma.mailThread.upsert({
       where: { gmailThreadId: m.threadId },
-      update: { unread, folder },
-      create: { gmailThreadId: m.threadId, subject, folder, unread, clientId: client?.id ?? null },
-    });
-    await prisma.emailMessage.create({
-      data: {
-        threadId: thread.id,
-        gmailId: m.id,
-        fromAddr: fromAddr.slice(0, 300),
-        toAddr: toAddr.slice(0, 300),
-        body,
-        snippet: m.snippet?.slice(0, 300) ?? null,
-        isDraft: folder === "DRAFTS",
-        sentAt: m.internalDate ? new Date(Number(m.internalDate)) : null,
+      update: {
+        subject,
+        snippet: m.snippet?.slice(0, 500) ?? body.slice(0, 500) || null,
+        fromEmail: from.slice(0, 300) || null,
+        toEmails: emails.filter((e) => e.toLowerCase() !== from.toLowerCase()),
+        lastMessageAt: when,
+        clientId: client?.id ?? undefined,
+        requiresAttention: folder === "IMPORTANT" || undefined,
+        ...(folder === "DRAFTS" ? { aiDraft: body || m.snippet || "" } : {}),
+      },
+      create: {
+        gmailThreadId: m.threadId,
+        mailAccountId: accountId,
+        clientId: client?.id ?? null,
+        subject,
+        snippet: m.snippet?.slice(0, 500) ?? body.slice(0, 500) || null,
+        fromEmail: from.slice(0, 300) || null,
+        toEmails: emails.filter((e) => e.toLowerCase() !== from.toLowerCase()),
+        lastMessageAt: when,
+        requiresAttention: folder === "IMPORTANT",
+        aiDraft: folder === "DRAFTS" ? body || m.snippet || "" : null,
       },
     });
-    created += 1;
+    if (!existing) created += 1;
   }
   return created;
 }
 
-/** Send an email through the connected mailbox. Returns the Gmail message id. */
 export async function gmailSend(accountId: string, input: { to: string; subject: string; text: string; inReplyToGmailId?: string }): Promise<string> {
   const { token, email } = await accessTokenFor(accountId);
   const headers = [
