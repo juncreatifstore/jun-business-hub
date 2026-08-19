@@ -1,0 +1,172 @@
+"use server";
+// Finance business logic — all sensitive operations run server-side, are
+// permission-checked, audited, and produce activity + notifications.
+import { prisma } from "@/lib/prisma";
+import { assertPermission } from "@/lib/auth";
+import { audit, logActivity } from "@/lib/audit";
+import { paymentSchema, refundSchema, emptyToNull, parseDate } from "@/lib/validation";
+import { nextNumber } from "@/lib/sequence";
+import { splitInstallments } from "@/lib/money";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import type { FormState } from "@/services/clients";
+
+export async function createPayment(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await assertPermission("PAYMENT_CREATE");
+  const parsed = paymentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+  const d = parsed.data;
+
+  const client = await prisma.client.findUnique({ where: { id: d.clientId } });
+  if (!client) return { message: "Selected client does not exist." };
+
+  const reference = await nextNumber("PAY");
+  const payment = await prisma.payment.create({
+    data: {
+      reference,
+      clientId: d.clientId,
+      caseId: emptyToNull(d.caseId),
+      amount: d.amount,
+      currency: d.currency.toUpperCase(),
+      method: d.method,
+      paidAt: parseDate(d.paidAt) ?? new Date(),
+      notes: emptyToNull(d.notes),
+      createdById: user.id,
+    },
+  });
+  await audit({ userId: user.id, action: "PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, amount: d.amount, currency: payment.currency } });
+  await logActivity({ type: "PAYMENT_CREATED", message: `Payment ${reference} recorded (${payment.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: payment.caseId });
+  redirect(`/app/finance/payments/${payment.id}?toast=${encodeURIComponent("Payment recorded — pending confirmation")}`);
+}
+
+// Confirming a payment automatically issues a numbered receipt.
+export async function confirmPayment(paymentId: string) {
+  const user = await assertPermission("PAYMENT_APPROVE");
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { client: true } });
+  if (!payment || payment.status !== "PENDING") return;
+
+  const receiptRef = await nextNumber("REC");
+  await prisma.$transaction([
+    prisma.payment.update({ where: { id: paymentId }, data: { status: "CONFIRMED" } }),
+    prisma.receipt.create({
+      data: {
+        reference: receiptRef,
+        paymentId,
+        clientId: payment.clientId,
+        amount: payment.amount,
+        currency: payment.currency,
+        reason: payment.notes,
+      },
+    }),
+    prisma.notification.create({
+      data: {
+        userId: payment.createdById,
+        type: "PAYMENT_CONFIRMED",
+        title: `Payment ${payment.reference} confirmed`,
+        body: `Receipt ${receiptRef} was issued automatically.`,
+        href: `/app/finance/payments/${paymentId}`,
+      },
+    }),
+  ]);
+  await audit({ userId: user.id, action: "PAYMENT_CONFIRM", resourceType: "Payment", resourceId: paymentId, before: { status: "PENDING" }, after: { status: "CONFIRMED", receipt: receiptRef } });
+  await logActivity({ type: "PAYMENT_CONFIRMED", message: `Payment ${payment.reference} confirmed · receipt ${receiptRef} issued`, userId: user.id, clientId: payment.clientId, caseId: payment.caseId });
+  revalidatePath(`/app/finance/payments/${paymentId}`);
+}
+
+export async function rejectPayment(paymentId: string) {
+  const user = await assertPermission("PAYMENT_APPROVE");
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!payment || payment.status !== "PENDING") return;
+  await prisma.payment.update({ where: { id: paymentId }, data: { status: "REJECTED" } });
+  await audit({ userId: user.id, action: "PAYMENT_REJECT", resourceType: "Payment", resourceId: paymentId, before: { status: "PENDING" }, after: { status: "REJECTED" } });
+  await logActivity({ type: "PAYMENT_REJECTED", message: `Payment ${payment.reference} rejected`, userId: user.id, clientId: payment.clientId, caseId: payment.caseId });
+  revalidatePath(`/app/finance/payments/${paymentId}`);
+}
+
+export async function createRefund(_prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await assertPermission("REFUND_CREATE");
+  const parsed = refundSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+  const d = parsed.data;
+
+  const client = await prisma.client.findUnique({ where: { id: d.clientId } });
+  if (!client) return { message: "Selected client does not exist." };
+  if (d.paymentId) {
+    const original = await prisma.payment.findUnique({ where: { id: d.paymentId }, include: { refunds: true } });
+    if (!original) return { message: "Original payment not found." };
+    if (original.clientId !== d.clientId) return { message: "Original payment belongs to a different client." };
+    // Refund cap: requested amount must not exceed what is still refundable on this payment.
+    const alreadyCommitted = original.refunds
+      .filter((r) => !["REJECTED", "CANCELLED"].includes(r.status))
+      .reduce((sum, r) => sum + Number(r.amount), 0);
+    const available = Math.round((Number(original.amount) - alreadyCommitted) * 100) / 100;
+    if (d.amount > available) {
+      return { message: `Refund exceeds the available amount on ${original.reference}: ${original.currency} ${available.toFixed(2)} remaining.` };
+    }
+  }
+
+  const reference = await nextNumber("REF");
+  // Even installment schedule, monthly from next month; remainder on the last one.
+  const installments = splitInstallments(d.amount, d.installments);
+
+  const refund = await prisma.refund.create({
+    data: {
+      reference,
+      clientId: d.clientId,
+      caseId: emptyToNull(d.caseId),
+      paymentId: emptyToNull(d.paymentId),
+      amount: d.amount,
+      currency: d.currency.toUpperCase(),
+      reason: d.reason,
+      createdById: user.id,
+      installments: { create: installments },
+    },
+  });
+  await audit({ userId: user.id, action: "REFUND_CREATE", resourceType: "Refund", resourceId: refund.id, after: { reference, amount: d.amount, installments: d.installments } });
+  await logActivity({ type: "REFUND_REQUESTED", message: `Refund ${reference} requested (${refund.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: refund.caseId });
+  redirect(`/app/finance/refunds/${refund.id}?toast=${encodeURIComponent("Refund request created")}`);
+}
+
+export async function setRefundStatus(refundId: string, formData: FormData) {
+  const user = await assertPermission("REFUND_APPROVE");
+  const status = String(formData.get("status") ?? "");
+  const allowed = ["UNDER_REVIEW", "APPROVED", "REJECTED", "CANCELLED"];
+  if (!allowed.includes(status)) return;
+  const before = await prisma.refund.findUnique({ where: { id: refundId } });
+  if (!before) return;
+  const refund = await prisma.refund.update({
+    where: { id: refundId },
+    data: {
+      status: status as never,
+      ...(status === "APPROVED" ? { approvedById: user.id, approvedAt: new Date() } : {}),
+    },
+  });
+  await audit({ userId: user.id, action: `REFUND_${status}`, resourceType: "Refund", resourceId: refundId, before: { status: before.status }, after: { status } });
+  await logActivity({ type: "REFUND_UPDATED", message: `Refund ${refund.reference} → ${status.replaceAll("_", " ")}`, userId: user.id, clientId: refund.clientId, caseId: refund.caseId });
+  if (status === "APPROVED") {
+    await prisma.notification.create({
+      data: {
+        userId: refund.createdById,
+        type: "REFUND_APPROVED",
+        title: `Refund ${refund.reference} approved`,
+        href: `/app/finance/refunds/${refundId}`,
+      },
+    });
+  }
+  revalidatePath(`/app/finance/refunds/${refundId}`);
+}
+
+export async function markInstallmentPaid(installmentId: string) {
+  const user = await assertPermission("REFUND_APPROVE");
+  const inst = await prisma.refundInstallment.findUnique({ where: { id: installmentId }, include: { refund: { include: { installments: true } } } });
+  if (!inst || inst.status === "PAID") return;
+  if (!["APPROVED", "PARTIALLY_PAID"].includes(inst.refund.status)) return; // cannot pay before approval
+
+  await prisma.refundInstallment.update({ where: { id: installmentId }, data: { status: "PAID", paidAt: new Date() } });
+  const remaining = inst.refund.installments.filter((i) => i.id !== installmentId && i.status !== "PAID" && i.status !== "CANCELLED").length;
+  const newStatus = remaining === 0 ? "PAID" : "PARTIALLY_PAID";
+  await prisma.refund.update({ where: { id: inst.refundId }, data: { status: newStatus } });
+  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_PAID", resourceType: "RefundInstallment", resourceId: installmentId, after: { refund: inst.refund.reference, newStatus } });
+  await logActivity({ type: "REFUND_UPDATED", message: `Installment paid on ${inst.refund.reference} (${newStatus.replaceAll("_", " ")})`, userId: user.id, clientId: inst.refund.clientId, caseId: inst.refund.caseId });
+  revalidatePath(`/app/finance/refunds/${inst.refundId}`);
+}
