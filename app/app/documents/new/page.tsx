@@ -33,7 +33,6 @@ export default async function NewDocumentPage({
       <DocumentCreateForm
         clients={clients}
         cases={cases}
-        templates={[]}
         defaultClientId={searchParams.clientId}
         defaultCaseId={searchParams.caseId}
         defaultType={searchParams.type}
