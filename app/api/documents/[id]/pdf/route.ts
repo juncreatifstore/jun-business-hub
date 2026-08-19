@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       client: true,
       case: true,
       versions: { orderBy: { version: "desc" }, take: 1 },
-      signatureRequests: { orderBy: { createdAt: "desc" }, take: 1 },
+      signatures: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -68,7 +68,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   });
 }
 
-type DocWithRels = NonNullable<Awaited<ReturnType<typeof prisma.document.findUnique<{ where: { id: string }; include: { client: true; case: true; versions: true; signatureRequests: true } }>>>>;
+type DocWithRels = NonNullable<Awaited<ReturnType<typeof prisma.document.findUnique<{ where: { id: string }; include: { client: true; case: true; versions: true; signatures: true } }>>>>;
 
 async function renderLive(doc: DocWithRels): Promise<Uint8Array> {
   return renderDocumentPdf({
@@ -79,6 +79,6 @@ async function renderLive(doc: DocWithRels): Promise<Uint8Array> {
     html: doc.versions[0]?.content ?? "",
     clientName: doc.client ? `${doc.client.firstName} ${doc.client.lastName}` : null,
     caseNumber: doc.case?.caseNumber ?? null,
-    signatureStatus: doc.signatureRequests[0]?.status ?? null,
+    signatureStatus: doc.signatures[0]?.status ?? null,
   });
 }
