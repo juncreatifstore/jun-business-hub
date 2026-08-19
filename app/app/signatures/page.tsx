@@ -6,7 +6,7 @@ import { Table, THead, TH, TR, TD } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
-import { signatureRecipients } from "@/services/signatures";
+import { signatureRecipients } from "@/lib/signature-recipients";
 import { PenLine } from "lucide-react";
 
 export const dynamic = "force-dynamic";
