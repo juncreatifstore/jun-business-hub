@@ -39,7 +39,7 @@ export default async function SearchPage({ searchParams }: { searchParams: { q?:
       ? prisma.payment.findMany({ where: { OR: [{ reference: ci }, { notes: ci }] }, take: 10, include: { client: true } })
       : Promise.resolve([]),
     can(user, "REFUND_READ")
-      ? prisma.refund.findMany({ where: { OR: [{ reference: ci }, { reason: ci }] }, take: 10, include: { client: true } })
+      ? prisma.refund.findMany({ where: { OR: [{ refundNumber: ci }, { reason: ci }] }, take: 10, include: { client: true } })
       : Promise.resolve([]),
     can(user, "DOCUMENT_READ")
       ? prisma.signatureRequest.findMany({ where: { document: { OR: [{ title: ci }, { documentId: ci }] } }, take: 10, include: { document: true } })
@@ -118,7 +118,7 @@ export default async function SearchPage({ searchParams }: { searchParams: { q?:
               <CardContent className="divide-y divide-white/5">
                 {refunds.map((r) => (
                   <Link key={r.id} href={`/app/finance/refunds/${r.id}`} className="flex items-center justify-between py-2 hover:text-electric">
-                    <span><span className="registry-id text-xs">{r.reference}</span> · {formatMoney(Number(r.amount), r.currency)}<span className="ml-2 text-xs text-muted2">{r.client.firstName} {r.client.lastName}</span></span>
+                    <span><span className="registry-id text-xs">{r.refundNumber}</span> · {formatMoney(Number(r.amount), r.currency)}<span className="ml-2 text-xs text-muted2">{r.client.firstName} {r.client.lastName}</span></span>
                     <StatusBadge status={r.status} />
                   </Link>
                 ))}
