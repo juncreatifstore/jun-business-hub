@@ -15,18 +15,14 @@ export async function submitContact(_prev: ContactState, formData: FormData): Pr
   if (!parsed.success) {
     return { ok: false, errors: parsed.error.flatten().fieldErrors };
   }
+
   const d = parsed.data;
-  await prisma.contactRequest.create({
-    data: {
-      firstName: d.firstName,
-      lastName: d.lastName,
-      phone: d.phone || null,
-      email: d.email,
-      subject: d.subject,
-      department: d.department,
-      message: d.message,
-      // aiCategory is filled later by the AI classification pipeline (see services/ai)
-    },
-  });
+  await prisma.$executeRaw`
+    INSERT INTO "ContactRequest"
+      ("id", "firstName", "lastName", "phone", "email", "subject", "department", "message", "createdAt")
+    VALUES
+      (${crypto.randomUUID()}, ${d.firstName}, ${d.lastName}, ${d.phone || null}, ${d.email}, ${d.subject}, ${d.department}, ${d.message}, NOW())
+  `;
+
   return { ok: true, message: "Message received. Our team will reach out shortly." };
 }
