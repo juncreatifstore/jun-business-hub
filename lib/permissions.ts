@@ -1,0 +1,69 @@
+// RBAC: roles map to permission sets. All authorization checks happen server-side
+// via requirePermission()/can() — never trust the client.
+
+export const PERMISSIONS = [
+  "CLIENT_READ", "CLIENT_CREATE", "CLIENT_UPDATE", "CLIENT_ARCHIVE",
+  "CASE_READ", "CASE_CREATE", "CASE_UPDATE",
+  "TASK_READ", "TASK_CREATE", "TASK_UPDATE",
+  "DOCUMENT_READ", "DOCUMENT_CREATE", "DOCUMENT_EDIT", "DOCUMENT_DELETE", "DOCUMENT_SIGN",
+  "FILE_READ", "FILE_UPLOAD", "FILE_DELETE",
+  "VAULT_READ", "VAULT_MANAGE",
+  "PAYMENT_READ", "PAYMENT_CREATE", "PAYMENT_APPROVE",
+  "REFUND_READ", "REFUND_CREATE", "REFUND_APPROVE",
+  "EMAIL_READ", "EMAIL_DRAFT", "EMAIL_SEND",
+  "AI_USE", "AI_APPROVE",
+  "TEAM_MANAGE", "SETTINGS_MANAGE", "AUDIT_READ",
+] as const;
+
+export type PermissionCode = (typeof PERMISSIONS)[number];
+
+export type StaffRole =
+  | "SUPER_ADMIN" | "DIRECTOR" | "ADMIN" | "MANAGER" | "FINANCE"
+  | "TRAVEL_AGENT" | "DOCUMENT_AGENT" | "LEGAL" | "ACCOUNTANT" | "AUDITOR" | "VIEWER" | "CLIENT";
+
+const ALL = [...PERMISSIONS];
+
+const READ_ALL: PermissionCode[] = [
+  "CLIENT_READ", "CASE_READ", "TASK_READ", "DOCUMENT_READ", "FILE_READ",
+  "PAYMENT_READ", "REFUND_READ", "EMAIL_READ",
+];
+
+export const ROLE_PERMISSIONS: Record<StaffRole, PermissionCode[]> = {
+  SUPER_ADMIN: ALL,
+  DIRECTOR: ALL,
+  ADMIN: ALL.filter((p) => p !== "VAULT_MANAGE"),
+  MANAGER: [
+    ...READ_ALL,
+    "CLIENT_CREATE", "CLIENT_UPDATE", "CASE_CREATE", "CASE_UPDATE",
+    "TASK_CREATE", "TASK_UPDATE", "DOCUMENT_CREATE", "DOCUMENT_EDIT",
+    "FILE_UPLOAD", "PAYMENT_CREATE", "REFUND_CREATE", "EMAIL_DRAFT", "AI_USE", "AI_APPROVE",
+  ],
+  FINANCE: [
+    ...READ_ALL,
+    "PAYMENT_CREATE", "PAYMENT_APPROVE", "REFUND_CREATE", "REFUND_APPROVE",
+    "FILE_UPLOAD", "DOCUMENT_CREATE", "AI_USE",
+  ],
+  TRAVEL_AGENT: [
+    ...READ_ALL,
+    "CLIENT_CREATE", "CLIENT_UPDATE", "CASE_CREATE", "CASE_UPDATE",
+    "TASK_CREATE", "TASK_UPDATE", "FILE_UPLOAD", "DOCUMENT_CREATE", "EMAIL_DRAFT", "AI_USE",
+  ],
+  DOCUMENT_AGENT: [
+    ...READ_ALL,
+    "DOCUMENT_CREATE", "DOCUMENT_EDIT", "DOCUMENT_SIGN", "FILE_UPLOAD",
+    "TASK_CREATE", "TASK_UPDATE", "AI_USE",
+  ],
+  LEGAL: [
+    ...READ_ALL,
+    "DOCUMENT_CREATE", "DOCUMENT_EDIT", "DOCUMENT_SIGN", "VAULT_READ",
+    "FILE_UPLOAD", "AI_USE", "AUDIT_READ",
+  ],
+  ACCOUNTANT: [...READ_ALL, "PAYMENT_CREATE", "FILE_UPLOAD", "AI_USE"],
+  AUDITOR: [...READ_ALL, "AUDIT_READ", "VAULT_READ"],
+  VIEWER: READ_ALL,
+  CLIENT: [], // client-portal accounts get no staff permissions at all
+};
+
+export function roleHasPermission(role: StaffRole, permission: PermissionCode) {
+  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+}

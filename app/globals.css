@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+
+/* Brand tokens as HSL channels — overridable at runtime (Settings > Branding
+   writes these on a <style> tag), so the palette can change without a rebuild. */
+:root {
+  --jun-night: 222 47% 11%;        /* deep night blue  #0e1729 */
+  --jun-night-soft: 221 39% 17%;   /* raised night     #1a2540 */
+  --jun-electric: 217 91% 60%;     /* electric blue    #3b82f6 */
+  --jun-gold: 42 62% 58%;          /* restrained gold  #d4af5a */
+  --jun-surface: 210 25% 98%;      /* near-white       #f8fafc */
+  --jun-line: 214 20% 90%;         /* hairline gray    #e2e6ec */
+  --jun-ink: 222 39% 14%;          /* text on light    */
+  --jun-muted: 218 12% 45%;        /* secondary text   */
+}
+
+html { scroll-behavior: smooth; }
+body { @apply bg-surface text-ink antialiased; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Registry motif: document IDs and hashes always render in the utility mono face. */
+.registry-id { @apply font-mono text-[13px] tracking-tight; }
+
+.doc-prose h1 { @apply text-2xl font-semibold mt-6 mb-3; }
+.doc-prose h2 { @apply text-xl font-semibold mt-5 mb-2; }
+.doc-prose p  { @apply my-2 leading-relaxed; }
+.doc-prose ul { @apply list-disc pl-6 my-2; }
+.doc-prose table { @apply w-full border-collapse my-3; }
+.doc-prose td, .doc-prose th { @apply border border-line p-2 text-sm; }
