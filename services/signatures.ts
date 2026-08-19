@@ -6,12 +6,7 @@ import { sha256 } from "@/lib/hash";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
-/**
- * Signature provider abstraction.
- * The MOCK provider is fully functional for the MVP (in-app signing with audit trail).
- * DocuSign / Dropbox Sign adapters can be plugged in later behind the same interface.
- * External providers: "Requires external API credentials".
- */
+type Recipient = { name: string; email: string; order: number; signedAt?: string | null };
 type ProviderResult = { envelopeId: string; provider: string };
 
 interface SignatureProvider {
@@ -45,30 +40,38 @@ async function signatureProvider(finalPdf: () => Promise<Uint8Array>): Promise<S
   const { docusignConfigured } = await import("@/lib/docusign");
   const wanted = process.env.SIGNATURE_PROVIDER ?? "MOCK";
   if (wanted === "DOCUSIGN") {
-    if (!docusignConfigured()) {
-      throw new Error("SIGNATURE_PROVIDER=DOCUSIGN but DocuSign credentials are missing — see .env.example (READY — CREDENTIALS REQUIRED)");
-    }
+    if (!docusignConfigured()) throw new Error("SIGNATURE_PROVIDER=DOCUSIGN but DocuSign credentials are missing");
     return new DocusignProvider(await finalPdf());
   }
-  return new MockSignatureProvider(); // dev-only fallback
+  return new MockSignatureProvider();
+}
+
+export function signatureRecipients(value: unknown): Recipient[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((v, index) => {
+      if (!v || typeof v !== "object") return null;
+      const r = v as Record<string, unknown>;
+      const name = typeof r.name === "string" ? r.name : "Signer";
+      const email = typeof r.email === "string" ? r.email : "";
+      const order = typeof r.order === "number" ? r.order : index + 1;
+      const signedAt = typeof r.signedAt === "string" ? r.signedAt : null;
+      return { name, email, order, signedAt };
+    })
+    .filter((r): r is Recipient => Boolean(r));
 }
 
 export async function createSignatureRequest(documentId: string): Promise<void> {
   const user = await assertPermission("DOCUMENT_SIGN");
-
-  const doc = await prisma.document.findUnique({
-    where: { id: documentId },
-    include: { client: true },
-  });
+  const doc = await prisma.document.findUnique({ where: { id: documentId }, include: { client: true } });
   if (!doc) redirect("/app/documents?toast_error=Document not found");
   if (doc.status !== "FINAL") redirect(`/app/documents/${doc.id}?toast_error=Only finalized documents can be sent for signature`);
 
-  const signers: { name: string; email: string; order: number }[] = [];
-  if (doc.client) signers.push({ name: `${doc.client.firstName} ${doc.client.lastName}`, email: doc.client.email ?? "unknown@juncreatif.org", order: 1 });
-  signers.push({ name: `${user.firstName} ${user.lastName}`, email: user.email, order: signers.length + 1 });
+  const recipients: Recipient[] = [];
+  if (doc.client) recipients.push({ name: `${doc.client.firstName} ${doc.client.lastName}`, email: doc.client.email ?? "unknown@juncreatif.org", order: 1, signedAt: null });
+  recipients.push({ name: `${user.firstName} ${user.lastName}`, email: user.email, order: recipients.length + 1, signedAt: null });
 
   const provider = await signatureProvider(async () => {
-    // Envelope carries the exact final PDF (stored bytes if present, else fresh render).
     if (doc.finalPdfKey) {
       const { storage } = await import("@/lib/storage");
       return new Uint8Array(await storage().download(doc.finalPdfKey));
@@ -77,80 +80,56 @@ export async function createSignatureRequest(documentId: string): Promise<void> 
     const latest = await prisma.documentVersion.findFirst({ where: { documentId: doc.id }, orderBy: { version: "desc" } });
     return renderDocumentPdf({ documentId: doc.documentId, title: doc.title, type: doc.type, status: doc.status, html: latest?.content ?? "", clientName: doc.client ? `${doc.client.firstName} ${doc.client.lastName}` : null });
   });
-  const envelope = await provider.createEnvelope({
-    documentId: doc.documentId,
-    title: doc.title,
-    signers,
-  });
 
+  const envelope = await provider.createEnvelope({ documentId: doc.documentId, title: doc.title, signers: recipients.map(({ name, email }) => ({ name, email })) });
   const request = await prisma.signatureRequest.create({
     data: {
       documentId: doc.id,
       provider: envelope.provider,
       providerEnvelopeId: envelope.envelopeId,
       status: "SENT",
+      recipients: recipients as never,
       createdById: user.id,
-      auditTrail: [
-        { at: new Date().toISOString(), event: "REQUEST_CREATED", by: user.email, provider: envelope.provider },
-        { at: new Date().toISOString(), event: "SENT", signers: signers.map((s) => s.email) },
-      ],
-      signers: { create: signers },
+      sentAt: new Date(),
     },
   });
 
-  await audit({ userId: user.id, action: "SIGNATURE_REQUEST_CREATE", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: doc.documentId, provider: envelope.provider, signers: signers.length } });
+  await audit({ userId: user.id, action: "SIGNATURE_REQUEST_CREATE", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: doc.documentId, provider: envelope.provider, recipients: recipients.length } });
   await logActivity({ userId: user.id, type: "SIGNATURE_REQUESTED", message: `Signature request sent for ${doc.documentId}`, clientId: doc.clientId ?? undefined, caseId: doc.caseId ?? undefined });
-
   revalidatePath(`/app/documents/${doc.id}`);
-  redirect(`/app/signatures/${request.id}?toast=${encodeURIComponent(
-    envelope.provider === "DOCUSIGN" ? "Signature request sent via DocuSign." : `Signature request created via ${envelope.provider}`
-  )}`);
+  redirect(`/app/signatures/${request.id}?toast=${encodeURIComponent(envelope.provider === "DOCUSIGN" ? "Signature request sent via DocuSign." : `Signature request created via ${envelope.provider}`)}`);
 }
 
-/**
- * DEV-ONLY mock in-app signing. Guarded twice: the request must use the MOCK
- * provider AND NODE_ENV must not be production — real signatures go through
- * DocuSign and its verified webhook.
- */
-export async function mockSignSigner(signerId: string): Promise<void> {
+export async function mockSignRecipient(requestId: string, recipientIndex: number): Promise<void> {
   const user = await assertPermission("DOCUMENT_SIGN");
-  if (process.env.NODE_ENV === "production") {
-    redirect("/app/signatures?toast_error=Mock signing is disabled in production");
-  }
-
-  const signer = await prisma.signer.findUnique({
-    where: { id: signerId },
-    include: { request: { include: { signers: true, document: { include: { versions: { orderBy: { version: "desc" }, take: 1 } } } } } },
+  if (process.env.NODE_ENV === "production") redirect("/app/signatures?toast_error=Mock signing is disabled in production");
+  const request = await prisma.signatureRequest.findUnique({
+    where: { id: requestId },
+    include: { document: { include: { versions: { orderBy: { version: "desc" }, take: 1 } } } },
   });
-  if (!signer) redirect("/app/signatures?toast_error=Signer not found");
-  const request = signer.request;
-  if (["SIGNED", "DECLINED", "EXPIRED", "VOIDED"].includes(request.status)) {
-    redirect(`/app/signatures/${request.id}?toast_error=This request is closed`);
-  }
-  if (request.provider !== "MOCK") redirect(`/app/signatures/${request.id}?toast_error=This request uses ${request.provider} — signing happens on the provider side`);
-  if (signer.signedAt) redirect(`/app/signatures/${request.id}?toast_error=Already signed`);
+  if (!request) redirect("/app/signatures?toast_error=Request not found");
+  if (request.provider !== "MOCK") redirect(`/app/signatures/${request.id}?toast_error=This request uses ${request.provider}`);
+  if (["SIGNED", "DECLINED", "EXPIRED", "VOIDED"].includes(request.status)) redirect(`/app/signatures/${request.id}?toast_error=This request is closed`);
 
-  const now = new Date();
-  await prisma.signer.update({ where: { id: signer.id }, data: { signedAt: now, ip: "mock-in-app" } });
+  const recipients = signatureRecipients(request.recipients);
+  const recipient = recipients[recipientIndex];
+  if (!recipient) redirect(`/app/signatures/${request.id}?toast_error=Recipient not found`);
+  if (recipient.signedAt) redirect(`/app/signatures/${request.id}?toast_error=Already signed`);
+  recipients[recipientIndex] = { ...recipient, signedAt: new Date().toISOString() };
+  const complete = recipients.every((r) => Boolean(r.signedAt));
 
-  const remaining = request.signers.filter((s) => s.id !== signer.id && !s.signedAt).length;
-  const trail = Array.isArray(request.auditTrail) ? (request.auditTrail as unknown[]) : [];
-  trail.push({ at: now.toISOString(), event: "SIGNER_SIGNED", signer: signer.email, by: user.email, method: "MOCK_IN_APP" });
-
-  if (remaining === 0) {
+  if (complete) {
     const content = request.document.versions[0]?.content ?? "";
-    const finalHash = sha256(`${request.document.documentId}::SIGNED::${content}`);
-    trail.push({ at: now.toISOString(), event: "COMPLETED", hash: finalHash });
+    const signedPdfHash = sha256(`${request.document.documentId}::SIGNED::${content}`);
     await prisma.$transaction([
-      prisma.signatureRequest.update({ where: { id: request.id }, data: { status: "SIGNED", finalHash, auditTrail: trail as object[] } }),
+      prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: recipients as never, status: "SIGNED", completedAt: new Date(), signedPdfHash } }),
       prisma.document.update({ where: { id: request.documentId }, data: { status: "SIGNED" } }),
     ]);
-    await audit({ userId: user.id, action: "SIGNATURE_COMPLETED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: request.document.documentId, finalHash } });
+    await audit({ userId: user.id, action: "SIGNATURE_COMPLETED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: request.document.documentId, signedPdfHash } });
   } else {
-    await prisma.signatureRequest.update({ where: { id: request.id }, data: { status: "PARTIALLY_SIGNED", auditTrail: trail as object[] } });
-    await audit({ userId: user.id, action: "SIGNER_SIGNED", resourceType: "SignatureRequest", resourceId: request.id, after: { signer: signer.email, remaining } });
+    await prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: recipients as never, status: "PARTIALLY_SIGNED" } });
+    await audit({ userId: user.id, action: "SIGNER_SIGNED", resourceType: "SignatureRequest", resourceId: request.id, after: { signer: recipient.email } });
   }
-
   revalidatePath(`/app/signatures/${request.id}`);
   redirect(`/app/signatures/${request.id}?toast=Signature recorded`);
 }
@@ -160,11 +139,7 @@ export async function voidSignatureRequest(requestId: string): Promise<void> {
   const request = await prisma.signatureRequest.findUnique({ where: { id: requestId }, include: { document: true } });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
   if (request.status === "SIGNED") redirect(`/app/signatures/${request.id}?toast_error=A completed request cannot be voided`);
-
-  const trail = Array.isArray(request.auditTrail) ? (request.auditTrail as unknown[]) : [];
-  trail.push({ at: new Date().toISOString(), event: "VOIDED", by: user.email });
-
-  await prisma.signatureRequest.update({ where: { id: request.id }, data: { status: "VOIDED", auditTrail: trail as object[] } });
+  await prisma.signatureRequest.update({ where: { id: request.id }, data: { status: "VOIDED" } });
   await audit({ userId: user.id, action: "SIGNATURE_REQUEST_VOID", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: request.document.documentId } });
   revalidatePath(`/app/signatures/${request.id}`);
   redirect(`/app/signatures/${request.id}?toast=Request voided`);
