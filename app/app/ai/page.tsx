@@ -21,7 +21,7 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
   const [conversations, actions] = await Promise.all([
     prisma.aIConversation.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 30 }),
     canApprove
-      ? prisma.aIAction.findMany({ where: { status: "PROPOSED" }, orderBy: { createdAt: "desc" }, take: 20, include: { proposedBy: true } })
+      ? prisma.aIAction.findMany({ where: { status: "PROPOSED" }, orderBy: { createdAt: "desc" }, take: 20, include: { user: true } })
       : Promise.resolve([]),
   ]);
 
@@ -40,7 +40,6 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
       />
 
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-        {/* Conversation list */}
         <div>
           <Link href="/app/ai"><Button variant="secondary" className="mb-3 w-full">New conversation</Button></Link>
           <ul className="space-y-1">
@@ -57,7 +56,6 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
           </ul>
         </div>
 
-        {/* Chat area */}
         <div className="space-y-6">
           <Card>
             <CardContent className="pt-6">
@@ -92,7 +90,6 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
             </CardContent>
           </Card>
 
-          {/* Pending AI actions */}
           {canApprove ? (
             <Card>
               <CardHeader><CardTitle>Proposed AI actions — human approval required</CardTitle></CardHeader>
@@ -105,12 +102,12 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
                       <li key={a.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
-                            <p className="font-medium">{a.type.replaceAll("_", " ")}</p>
-                            <p className="text-xs text-muted2">Proposed by {a.proposedBy.firstName} {a.proposedBy.lastName} · {formatDateTime(a.createdAt)}</p>
+                            <p className="font-medium">{a.tool.replaceAll("_", " ")}</p>
+                            <p className="text-xs text-muted2">Proposed by {a.user.firstName} {a.user.lastName} · {formatDateTime(a.createdAt)}</p>
                           </div>
                           <StatusBadge status={a.status} />
                         </div>
-                        <pre className="mt-2 overflow-x-auto rounded bg-black/30 p-2 text-xs text-muted2">{JSON.stringify(a.payload, null, 2)}</pre>
+                        <pre className="mt-2 overflow-x-auto rounded bg-black/30 p-2 text-xs text-muted2">{JSON.stringify(a.args, null, 2)}</pre>
                         <div className="mt-3 flex gap-2">
                           <form action={reviewAIAction.bind(null, a.id)}>
                             <input type="hidden" name="decision" value="APPROVED" />
