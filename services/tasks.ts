@@ -33,7 +33,6 @@ export async function createTask(_prev: FormState, formData: FormData): Promise<
         type: "TASK_ASSIGNED",
         title: "New task assigned to you",
         body: task.title,
-        href: `/app/tasks?focus=${task.id}`,
       },
     });
   }
