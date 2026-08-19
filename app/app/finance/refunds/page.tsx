@@ -29,7 +29,7 @@ export default async function RefundsPage() {
               const paid = r.installments.filter((i) => i.status === "PAID").length;
               return (
                 <TR key={r.id}>
-                  <TD><Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.reference}</Link></TD>
+                  <TD><Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.refundNumber}</Link></TD>
                   <TD><Link href={`/app/clients/${r.clientId}`} className="hover:text-electric">{r.client.firstName} {r.client.lastName}</Link></TD>
                   <TD className="font-medium">{formatMoney(Number(r.amount), r.currency)}</TD>
                   <TD className="text-muted2">{paid}/{r.installments.length} installments paid</TD>
