@@ -15,11 +15,10 @@ function Submit() {
 }
 
 export function DocumentCreateForm({
-  clients, cases, templates, defaultClientId, defaultCaseId, defaultType,
+  clients, cases, defaultClientId, defaultCaseId, defaultType,
 }: {
   clients: { id: string; firstName: string; lastName: string; internalId: string }[];
   cases: { id: string; caseNumber: string; title: string }[];
-  templates: { id: string; name: string; type: string }[];
   defaultClientId?: string;
   defaultCaseId?: string;
   defaultType?: string;
@@ -58,12 +57,6 @@ export function DocumentCreateForm({
             {TYPES.map((t) => <option key={t} value={t}>{t.replaceAll("_"," ")}</option>)}
           </Select>
         </Field>
-        <Field label="Template (optional)">
-          <Select name="templateId" defaultValue="">
-            <option value="">Blank / AI draft</option>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </Select>
-        </Field>
         <Field label="Client (optional)">
           <Select name="clientId" value={clientId} onChange={(e) => setClientId(e.target.value)}>
             <option value="">No client</option>
@@ -78,7 +71,7 @@ export function DocumentCreateForm({
         </Field>
         <input type="hidden" name="content" value={content} />
         <div className="sm:col-span-2">
-          <Field label="Initial content (HTML)" hint="Leave empty to start from the template or a blank page.">
+          <Field label="Initial content (HTML)" hint="Leave empty to start with a blank page.">
             <Textarea rows={10} value={content} onChange={(e) => setContent(e.target.value)} className="font-mono text-xs" />
           </Field>
         </div>
@@ -95,7 +88,7 @@ export function DocumentCreateForm({
         <Textarea
           className="mt-3"
           rows={5}
-          placeholder='e.g. "Prepare a refund agreement for Carlos Balthazar of $4500 payable in three monthly installments."'
+          placeholder='e.g. "Prepare a refund agreement for a client for $4500 payable in three monthly installments."'
           value={instruction}
           onChange={(e) => setInstruction(e.target.value)}
         />
