@@ -35,7 +35,7 @@ export default async function ClientDetailPage({
       payments: { orderBy: { paidAt: "desc" } },
       refunds: { orderBy: { createdAt: "desc" } },
       files: { orderBy: { createdAt: "desc" }, where: { isVault: false } },
-      emailThreads: { orderBy: { updatedAt: "desc" }, include: { messages: { take: 1, orderBy: { createdAt: "desc" } } } },
+      mailThreads: { orderBy: { updatedAt: "desc" } },
       clientNotes: { orderBy: { createdAt: "desc" }, include: { author: true } },
       activities: { orderBy: { createdAt: "desc" }, take: 30, include: { user: true } },
     },
@@ -56,7 +56,6 @@ export default async function ClientDetailPage({
 
   return (
     <div>
-      {/* 360 header */}
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
@@ -80,7 +79,6 @@ export default async function ClientDetailPage({
         </div>
       </div>
 
-      {/* 360 metrics */}
       <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
           { label: "Balance", value: formatMoney(balance) },
@@ -96,7 +94,6 @@ export default async function ClientDetailPage({
         ))}
       </div>
 
-      {/* Tabs */}
       <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line">
         {TABS.map((t) => (
           <Link
@@ -271,7 +268,7 @@ export default async function ClientDetailPage({
             <tbody>
               {client.refunds.map((r) => (
                 <TR key={r.id}>
-                  <TD><Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.reference}</Link></TD>
+                  <TD><Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.refundNumber}</Link></TD>
                   <TD className="font-medium">{formatMoney(Number(r.amount), r.currency)}</TD>
                   <TD className="max-w-xs truncate text-muted2">{r.reason}</TD>
                   <TD><StatusBadge status={r.status} /></TD>
@@ -284,18 +281,18 @@ export default async function ClientDetailPage({
       ) : null}
 
       {tab === "emails" ? (
-        client.emailThreads.length === 0 ? (
+        client.mailThreads.length === 0 ? (
           <p className="text-sm text-muted2">No email threads linked to this client. Threads can be linked from JUN Mail.</p>
         ) : (
           <ul className="space-y-2">
-            {client.emailThreads.map((t) => (
+            {client.mailThreads.map((t) => (
               <li key={t.id}>
                 <Card><CardContent className="p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <Link href={`/app/mail?thread=${t.id}`} className="font-medium hover:text-electric">{t.subject}</Link>
-                    {t.urgency ? <StatusBadge status={t.urgency} /> : null}
+                    <Link href={`/app/mail?thread=${t.id}`} className="font-medium hover:text-electric">{t.subject ?? "(No subject)"}</Link>
+                    {t.requiresAttention ? <StatusBadge status="ATTENTION" /> : null}
                   </div>
-                  {t.messages[0] ? <p className="mt-1 line-clamp-2 text-sm text-muted2">{t.messages[0].body}</p> : null}
+                  {t.snippet ? <p className="mt-1 line-clamp-2 text-sm text-muted2">{t.snippet}</p> : null}
                 </CardContent></Card>
               </li>
             ))}
