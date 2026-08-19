@@ -14,7 +14,7 @@ export default async function PaymentDetailPage({ params }: { params: { id: stri
   const user = await requirePermission("PAYMENT_READ");
   const p = await prisma.payment.findUnique({
     where: { id: params.id },
-    include: { client: true, case: true, createdBy: true, receipt: true, refunds: true, proofs: true },
+    include: { client: true, case: true, recordedBy: true, refunds: true },
   });
   if (!p) notFound();
 
@@ -45,22 +45,22 @@ export default async function PaymentDetailPage({ params }: { params: { id: stri
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div><dt className="text-xs text-muted2">Method</dt><dd className="mt-0.5">{p.method.replaceAll("_"," ")}</dd></div>
             <div><dt className="text-xs text-muted2">Payment date</dt><dd className="mt-0.5">{formatDateTime(p.paidAt)}</dd></div>
-            <div><dt className="text-xs text-muted2">Recorded by</dt><dd className="mt-0.5">{p.createdBy.firstName} {p.createdBy.lastName}</dd></div>
+            <div><dt className="text-xs text-muted2">Recorded by</dt><dd className="mt-0.5">{p.recordedBy.firstName} {p.recordedBy.lastName}</dd></div>
             <div><dt className="text-xs text-muted2">Recorded at</dt><dd className="mt-0.5">{formatDateTime(p.createdAt)}</dd></div>
             {p.notes ? <div className="col-span-2"><dt className="text-xs text-muted2">Notes</dt><dd className="mt-0.5 whitespace-pre-wrap">{p.notes}</dd></div> : null}
           </dl>
         </CardContent>
       </Card>
 
-      {p.receipt ? (
+      {p.paidAt ? (
         <Card className="mt-4">
           <CardHeader><CardTitle>Receipt</CardTitle></CardHeader>
           <CardContent className="flex items-center justify-between">
             <div>
-              <p className="registry-id">{p.receipt.reference}</p>
-              <p className="text-xs text-muted2">Issued {formatDateTime(p.receipt.issuedAt)}</p>
+              <p className="registry-id">RCT-{p.reference}</p>
+              <p className="text-xs text-muted2">Generated from confirmed payment</p>
             </div>
-            <Link href={`/app/finance/receipts/${p.receipt.id}/print`}><Button variant="outline">Open printable receipt</Button></Link>
+            <a href={`/api/receipts/${p.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Open receipt PDF</Button></a>
           </CardContent>
         </Card>
       ) : null}
@@ -72,7 +72,7 @@ export default async function PaymentDetailPage({ params }: { params: { id: stri
             <ul className="divide-y divide-line">
               {p.refunds.map((r) => (
                 <li key={r.id} className="flex items-center justify-between px-5 py-3">
-                  <Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.reference}</Link>
+                  <Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.refundNumber}</Link>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium">-{formatMoney(Number(r.amount), r.currency)}</span>
                     <StatusBadge status={r.status} />
