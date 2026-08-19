@@ -17,12 +17,7 @@ export async function createDocument(_prev: FormState, formData: FormData): Prom
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
   const d = parsed.data;
 
-  const templateId = String(formData.get("templateId") ?? "");
   let content = d.content;
-  if (!content && templateId) {
-    const tpl = await prisma.documentTemplate.findUnique({ where: { id: templateId } });
-    if (tpl) content = tpl.content;
-  }
   if (!content) content = `<h1>${d.title}</h1><p></p>`;
   content = sanitizeDocumentHtml(content);
 
@@ -56,7 +51,6 @@ export async function saveDocumentVersion(documentId: string, formData: FormData
   });
   if (!doc) return;
   if (isDocumentFrozen(doc.status)) {
-    // Signed/voided documents are frozen — new work must start as a new document.
     redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("This document is frozen and cannot be edited")}`);
   }
   const latest = doc.versions[0];
@@ -73,7 +67,6 @@ export async function saveDocumentVersion(documentId: string, formData: FormData
   redirect(`/app/documents/${documentId}?toast=${encodeURIComponent(`Version ${nextVersion} saved`)}`);
 }
 
-// Finalization: computes and stores the SHA-256 integrity hash of the latest version.
 export async function finalizeDocument(documentId: string) {
   const user = await assertPermission("DOCUMENT_EDIT");
   const doc = await prisma.document.findUnique({
@@ -85,8 +78,6 @@ export async function finalizeDocument(documentId: string) {
   const latest = doc.versions[0];
   const hash = sha256(latest.content);
 
-  // Generate the official final PDF (letterhead + QR) and record its own hash
-  // so any later modification of the file is detectable.
   let finalPdfKey: string | null = null;
   let finalPdfHash: string | null = null;
   try {
