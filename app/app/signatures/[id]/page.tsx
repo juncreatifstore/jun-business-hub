@@ -7,7 +7,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { mockSignRecipient, signatureRecipients, voidSignatureRequest } from "@/services/signatures";
+import { mockSignRecipient, voidSignatureRequest } from "@/services/signatures";
+import { signatureRecipients } from "@/lib/signature-recipients";
 import { CheckCircle2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
