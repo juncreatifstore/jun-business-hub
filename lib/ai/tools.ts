@@ -5,12 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { can, type CurrentUser } from "@/lib/auth";
 import { htmlToText } from "@/lib/sanitize";
 
-/**
- * JUN AI tools — every tool re-checks the CURRENT USER's permission before touching
- * the database. The model can request a tool, but RBAC is enforced server-side here;
- * the AI can never bypass it. Results are minimized: ids, names, statuses, short
- * summaries — never passwords, tokens, full passport data or entire documents.
- */
 const DENIED = { error: "Permission denied for this tool" } as const;
 
 export function buildAITools(user: CurrentUser) {
@@ -21,12 +15,11 @@ export function buildAITools(user: CurrentUser) {
       execute: async ({ query }) => {
         if (!can(user, "CLIENT_READ")) return DENIED;
         const ci = { contains: query, mode: "insensitive" as const };
-        const rows = await prisma.client.findMany({
+        return prisma.client.findMany({
           where: { OR: [{ firstName: ci }, { lastName: ci }, { email: ci }, { internalId: ci }] },
           take: 8,
           select: { id: true, internalId: true, firstName: true, lastName: true, status: true, email: true },
         });
-        return rows;
       },
     }),
     getClient: tool({
@@ -114,29 +107,42 @@ export function buildAITools(user: CurrentUser) {
       inputSchema: z.object({ id: z.string().min(1).max(60) }),
       execute: async ({ id }) => {
         if (!can(user, "PAYMENT_READ")) return DENIED;
-        const p = await prisma.payment.findFirst({ where: { OR: [{ id }, { reference: id }] }, include: { client: { select: { firstName: true, lastName: true, internalId: true } }, receipt: { select: { reference: true } } } });
+        const p = await prisma.payment.findFirst({
+          where: { OR: [{ id }, { reference: id }] },
+          include: { client: { select: { firstName: true, lastName: true, internalId: true } } },
+        });
         if (!p) return { error: "Payment not found" };
-        return { id: p.id, reference: p.reference, amount: Number(p.amount), currency: p.currency, method: p.method, status: p.status, paidAt: p.paidAt, client: `${p.client.firstName} ${p.client.lastName}`, receipt: p.receipt?.reference ?? null };
+        return {
+          id: p.id,
+          reference: p.reference,
+          amount: Number(p.amount),
+          currency: p.currency,
+          method: p.method,
+          status: p.status,
+          paidAt: p.paidAt,
+          client: `${p.client.firstName} ${p.client.lastName}`,
+          receipt: p.status === "CONFIRMED" && p.paidAt ? `RCT-${p.reference}` : null,
+        };
       },
     }),
     searchRefunds: tool({
-      description: "Search refunds by reference (REF-…) or reason.",
+      description: "Search refunds by refund number (REF-…) or reason.",
       inputSchema: z.object({ query: z.string().min(1).max(100) }),
       execute: async ({ query }) => {
         if (!can(user, "REFUND_READ")) return DENIED;
         const ci = { contains: query, mode: "insensitive" as const };
-        const rows = await prisma.refund.findMany({ where: { OR: [{ reference: ci }, { reason: ci }] }, take: 8, include: { installments: true } });
-        return rows.map((r) => ({ id: r.id, reference: r.reference, amount: Number(r.amount), currency: r.currency, status: r.status, installments: r.installments.length, installmentsPaid: r.installments.filter((i) => i.status === "PAID").length }));
+        const rows = await prisma.refund.findMany({ where: { OR: [{ refundNumber: ci }, { reason: ci }] }, take: 8, include: { installments: true } });
+        return rows.map((r) => ({ id: r.id, reference: r.refundNumber, amount: Number(r.amount), currency: r.currency, status: r.status, installments: r.installments.length, installmentsPaid: r.installments.filter((i) => i.status === "PAID").length }));
       },
     }),
     getRefund: tool({
-      description: "Get one refund by id or reference with its installment schedule.",
+      description: "Get one refund by id or refund number with its installment schedule.",
       inputSchema: z.object({ id: z.string().min(1).max(60) }),
       execute: async ({ id }) => {
         if (!can(user, "REFUND_READ")) return DENIED;
-        const r = await prisma.refund.findFirst({ where: { OR: [{ id }, { reference: id }] }, include: { installments: { orderBy: { dueDate: "asc" } }, client: { select: { firstName: true, lastName: true } } } });
+        const r = await prisma.refund.findFirst({ where: { OR: [{ id }, { refundNumber: id }] }, include: { installments: { orderBy: { dueDate: "asc" } }, client: { select: { firstName: true, lastName: true } } } });
         if (!r) return { error: "Refund not found" };
-        return { id: r.id, reference: r.reference, amount: Number(r.amount), currency: r.currency, status: r.status, reason: r.reason, client: `${r.client.firstName} ${r.client.lastName}`, installments: r.installments.map((i) => ({ due: i.dueDate, amount: Number(i.amount), status: i.status })) };
+        return { id: r.id, reference: r.refundNumber, amount: Number(r.amount), currency: r.currency, status: r.status, reason: r.reason, client: `${r.client.firstName} ${r.client.lastName}`, installments: r.installments.map((i) => ({ due: i.dueDate, amount: Number(i.amount), status: i.status })) };
       },
     }),
     createDocumentDraft: tool({
