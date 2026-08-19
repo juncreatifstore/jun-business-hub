@@ -1,16 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-// Server-only Prisma singleton. Prefer the app-specific DATABASE_URL when present,
-// but fall back to the native Supabase/Vercel integration variables so production
-// does not depend on manually copied connection strings.
+// Server-only Prisma singleton. In Vercel, prefer the connection strings injected
+// by the Supabase integration. DATABASE_URL remains a fallback for non-Vercel/local use.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function pickConnectionString() {
   return (
-    process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
     ""
   );
 }
@@ -19,7 +18,7 @@ function createClient() {
   const connectionString = pickConnectionString();
   if (!/^postgres(?:ql)?:\/\//i.test(connectionString)) {
     throw new Error(
-      "No valid PostgreSQL connection string found. Expected DATABASE_URL, POSTGRES_PRISMA_URL, or POSTGRES_URL.",
+      "No valid PostgreSQL connection string found. Expected POSTGRES_PRISMA_URL, POSTGRES_URL, or DATABASE_URL.",
     );
   }
 
