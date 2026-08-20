@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { sanitizeDocumentHtml } from "@/lib/sanitize";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
@@ -25,6 +27,14 @@ export default async function DocumentPrintPage({ params }: { params: { id: stri
 
   return (
     <div className="mx-auto max-w-3xl bg-white p-10 print:p-0">
+      <div className="mb-6 flex items-center justify-between gap-3 print:hidden">
+        <Link href={`/app/documents/${doc.id}`} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-night shadow-sm hover:bg-surface">
+          <ArrowLeft className="h-4 w-4" />
+          Back to document
+        </Link>
+        <span className="text-xs text-muted2">Print / preview mode</span>
+      </div>
+
       <div className="flex items-start justify-between border-b-2 border-night pb-5">
         <div>
           <p className="font-display text-3xl">JUN</p>
