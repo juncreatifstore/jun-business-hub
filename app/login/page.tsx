@@ -2,6 +2,8 @@ import Link from "next/link";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Sign in" };
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
   return (
