@@ -63,6 +63,8 @@ export const documentSchema = z.object({
   clientId: z.string().optional().or(z.literal("")),
   caseId: z.string().optional().or(z.literal("")),
   content: z.string().max(500_000).default(""),
+  language: z.enum(["FR", "EN", "ES", "HT"]).default("FR"),
+  templateId: z.string().max(120).optional().or(z.literal("")),
 });
 
 export const contactSchema = z.object({
@@ -79,13 +81,6 @@ export const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1, "Password is required").max(200),
 });
-
-export function emptyToNull(v: string | undefined) {
-  return v && v.length > 0 ? v : null;
-}
-export function parseTags(v: string | undefined) {
-  return (v ?? "").split(",").map((t) => t.trim()).filter(Boolean);
-}
-export function parseDate(v: string | undefined) {
-  return v && v.length > 0 ? new Date(v) : null;
-}
+export function emptyToNull(v: string | undefined) { return v && v.length > 0 ? v : null; }
+export function parseTags(v: string | undefined) { return (v ?? "").split(",").map((t) => t.trim()).filter(Boolean); }
+export function parseDate(v: string | undefined) { return v && v.length > 0 ? new Date(v) : null; }
