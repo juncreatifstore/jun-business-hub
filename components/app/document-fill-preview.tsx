@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, CopyPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, CopyPlus, Circle as CircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { documentFieldHasValue, validateDocumentField } from "@/lib/document-field-validation";
 
 type FieldMeta = {
   el: HTMLElement;
@@ -15,6 +16,7 @@ type FieldMeta = {
   options: string[];
   order: number;
   formula: string;
+  validation: string;
 };
 
 function numberValue(value: unknown): number {
@@ -45,6 +47,25 @@ function valueLabel(value: string | boolean | undefined, type: string): string {
   return String(value ?? "").trim();
 }
 
+function digits(value: string) { return value.replace(/\D/g, ""); }
+function formatUsPhone(value: string) {
+  const d = digits(value).slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
+function formatSsn(value: string) {
+  const d = digits(value).slice(0, 9);
+  if (d.length <= 3) return d;
+  if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+}
+function formatEin(value: string) {
+  const d = digits(value).slice(0, 9);
+  return d.length <= 2 ? d : `${d.slice(0, 2)}-${d.slice(2)}`;
+}
+function formatCard(value: string) { return digits(value).slice(0, 16).replace(/(.{4})/g, "$1 ").trim(); }
+
 export function DocumentFillPreview({
   documentId,
   title,
@@ -71,7 +92,7 @@ export function DocumentFillPreview({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const found = Array.from(root.querySelectorAll<HTMLElement>('[data-jun-field="true"]'))
+    const found: FieldMeta[] = Array.from(root.querySelectorAll<HTMLElement>('[data-jun-field="true"]'))
       .map((el) => ({
         el,
         name: el.dataset.fieldName || "Field",
@@ -81,6 +102,7 @@ export function DocumentFillPreview({
         options: (el.dataset.options || "").split(",").map((x) => x.trim()).filter(Boolean),
         order: Number(el.dataset.order || 0),
         formula: el.dataset.formula || "",
+        validation: el.dataset.validation || "",
       }))
       .sort((a, b) => a.order - b.order);
 
@@ -101,7 +123,7 @@ export function DocumentFillPreview({
 
       const update = (value: string | boolean) => setValues((prev) => ({ ...prev, [field.name]: value }));
       let control: HTMLElement;
-      if (field.type === "DROPDOWN") {
+      if (["DROPDOWN", "US_STATE", "GENDER"].includes(field.type)) {
         const select = document.createElement("select");
         select.className = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm";
         const empty = document.createElement("option"); empty.value = ""; empty.textContent = "Select…"; select.append(empty);
@@ -124,10 +146,19 @@ export function DocumentFillPreview({
         input.onchange = () => update(input.files?.[0]?.name || ""); control = input;
       } else {
         const input = document.createElement("input");
-        input.type = field.type === "NUMBER" ? "number" : field.type === "DATE" ? "date" : "text";
-        input.placeholder = field.type === "SIGNATURE" ? "Type signer name" : field.type === "INITIALS" ? "Initials" : field.name;
+        input.type = ["NUMBER", "AGE"].includes(field.type) ? "number" : field.type === "DATE" ? "date" : field.type === "EMAIL" ? "email" : "text";
+        if (field.type === "AGE") { input.min = "0"; input.max = "130"; input.step = "1"; }
+        if (["US_PHONE", "ZIP", "SSN", "EIN", "CREDIT_CARD"].includes(field.type)) input.inputMode = "numeric";
+        input.placeholder = field.type === "SIGNATURE" ? "Type signer name" : field.type === "INITIALS" ? "Initials" : field.help || field.name;
         input.className = `w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm ${field.type === "SIGNATURE" ? "italic" : ""}`;
-        input.oninput = () => update(input.value); control = input;
+        input.oninput = () => {
+          if (field.type === "US_PHONE") input.value = formatUsPhone(input.value);
+          if (field.type === "SSN") input.value = formatSsn(input.value);
+          if (field.type === "EIN") input.value = formatEin(input.value);
+          if (field.type === "CREDIT_CARD") input.value = formatCard(input.value);
+          update(input.value);
+        };
+        control = input;
       }
       control.setAttribute("data-fill-control", "true");
       field.el.append(control);
@@ -146,8 +177,7 @@ export function DocumentFillPreview({
 
   const completed = useMemo(() => fields.filter((field) => {
     if (field.type === "FORMULA") return true;
-    const value = values[field.name];
-    return typeof value === "boolean" ? value : Boolean(String(value ?? "").trim());
+    return documentFieldHasValue(values[field.name], field.type);
   }).length, [fields, values]);
 
   function focusField(index: number) {
@@ -158,17 +188,20 @@ export function DocumentFillPreview({
     fields[next].el.querySelector<HTMLElement>("[data-fill-control=true], input, select")?.focus();
   }
 
-  function missingRequired(): string[] {
-    return fields
-      .filter((field) => field.required && field.type !== "FORMULA" && !(field.type === "CHECKBOX" ? values[field.name] === true : String(values[field.name] ?? "").trim()))
-      .map((field) => field.name);
+  function validationErrors(): string[] {
+    return fields.flatMap((field) => {
+      if (field.type === "FORMULA") return [];
+      const error = validateDocumentField({ name: field.name, type: field.type, required: field.required, validation: field.validation, options: field.options }, values[field.name]);
+      return error ? [error] : [];
+    });
   }
 
   function validate(): boolean {
-    const missing = missingRequired();
-    setErrors(missing);
-    if (missing.length) {
-      const first = fields.findIndex((field) => field.name === missing[0]);
+    const invalid = validationErrors();
+    setErrors(invalid);
+    if (invalid.length) {
+      const fieldName = invalid[0].split(" is ")[0].split(" must ")[0];
+      const first = fields.findIndex((field) => field.name === fieldName);
       if (first >= 0) focusField(first);
       return false;
     }
@@ -234,10 +267,10 @@ export function DocumentFillPreview({
       </div>
       <div className="mb-4 rounded-xl border border-line bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-sm font-semibold">Preview / Fill</p><p className="text-xs text-muted2">{title} · Required fields must be completed before creating a filled copy.</p></div>
+          <div><p className="text-sm font-semibold">Preview / Fill</p><p className="text-xs text-muted2">{title} · Required fields and configured validation rules are checked before creating a filled copy.</p></div>
           <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => focusField(current - 1)} disabled={current <= 0}>Previous</Button><Button type="button" variant="outline" onClick={() => focusField(current + 1)} disabled={current >= fields.length - 1}>Next <ArrowRight className="ml-1 h-4 w-4" /></Button><Button type="button" variant="outline" onClick={() => validate()}><CheckCircle2 className="mr-1.5 h-4 w-4" />Validate</Button></div>
         </div>
-        {(errors.length || serverError) ? <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{serverError || `Required: ${errors.join(", ")}`}</span></div> : null}
+        {(errors.length || serverError) ? <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{serverError || errors.join(" · ")}</span></div> : null}
         <form ref={formRef} action={createFilledCopy} className="mt-4 flex flex-wrap items-end gap-3">
           <input ref={valuesRef} type="hidden" name="values" />
           <input ref={htmlRef} type="hidden" name="filledHtml" />
@@ -246,7 +279,18 @@ export function DocumentFillPreview({
         </form>
       </div>
       {fields.length === 0 ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This document has no fillable fields yet. Add fields in the Document Editor first.</div> : null}
-      <div className="mx-auto max-w-[850px] rounded-xl border border-line bg-white shadow-sm"><div ref={rootRef} className="doc-prose min-h-[900px] px-12 py-10 text-[15px] text-night" dangerouslySetInnerHTML={{ __html: html }} /></div>
+      <div className="grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
+        <aside className="h-fit rounded-xl border border-line bg-white p-3 lg:sticky lg:top-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted2">Fields to fill in</p>
+          <div className="space-y-1.5">
+            {fields.map((field, index) => {
+              const filled = field.type === "FORMULA" || documentFieldHasValue(values[field.name], field.type);
+              return <button key={`${field.order}-${field.name}`} type="button" onClick={() => focusField(index)} className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs ${current === index ? "border-electric bg-electric/5" : "border-line hover:bg-surface"}`}><span className="shrink-0">{filled ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <CircleIcon className="h-4 w-4 text-muted2" />}</span><span className="min-w-0"><span className="block truncate font-medium">{field.order}. {field.name}{field.required ? " *" : ""}</span><span className="block text-[10px] text-muted2">{field.type}</span></span></button>;
+            })}
+          </div>
+        </aside>
+        <div className="mx-auto w-full max-w-[850px] rounded-xl border border-line bg-white shadow-sm"><div ref={rootRef} className="doc-prose min-h-[900px] px-12 py-10 text-[15px] text-night" dangerouslySetInnerHTML={{ __html: html }} /></div>
+      </div>
     </div>
   );
 }
