@@ -5,37 +5,51 @@ import { DocumentCreateForm } from "@/components/app/document-create-form";
 
 export const dynamic = "force-dynamic";
 
+type TemplateRow = {
+  id: string;
+  name: string;
+  type: string;
+  content: string;
+};
+
 export default async function NewDocumentPage({
   searchParams,
 }: {
-  searchParams: { clientId?: string; caseId?: string; type?: string };
+  searchParams: { clientId?: string; caseId?: string; type?: string; templateId?: string };
 }) {
   await requirePermission("DOCUMENT_CREATE");
-  const [clients, cases] = await Promise.all([
+  const [clients, cases, templates] = await Promise.all([
     prisma.client.findMany({
       where: { status: { not: "ARCHIVED" } },
-      orderBy: { lastName: "asc" },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: { id: true, firstName: true, lastName: true, internalId: true },
     }),
     prisma.case.findMany({
       where: { status: { notIn: ["ARCHIVED", "CANCELLED"] } },
       orderBy: { createdAt: "desc" },
-      select: { id: true, caseNumber: true, title: true },
+      select: { id: true, caseNumber: true, title: true, clientId: true },
     }),
+    prisma.$queryRaw<TemplateRow[]>`
+      SELECT id, name, type::text AS type, content
+      FROM "DocumentTemplate"
+      ORDER BY name ASC
+    `.catch(() => [] as TemplateRow[]),
   ]);
 
   return (
     <div>
       <PageHeader
         title="New document"
-        subtitle="Start blank or write it with JUN AI. A registry ID is assigned on creation."
+        subtitle="Start blank, reuse a JUN template, or generate a draft with JUN AI. A registry ID is assigned automatically."
       />
       <DocumentCreateForm
         clients={clients}
         cases={cases}
+        templates={templates}
         defaultClientId={searchParams.clientId}
         defaultCaseId={searchParams.caseId}
         defaultType={searchParams.type}
+        defaultTemplateId={searchParams.templateId}
       />
     </div>
   );
