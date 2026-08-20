@@ -1,10 +1,7 @@
 import "server-only";
 import { createSign } from "crypto";
 
-/**
- * Real DocuSign provider (eSignature REST v2.1, JWT grant — no interactive login).
- */
-
+/** Real DocuSign provider (eSignature REST v2.1, JWT grant — no interactive login). */
 export function docusignConfigured(): boolean {
   return Boolean(
     process.env.DOCUSIGN_CLIENT_ID &&
@@ -53,7 +50,7 @@ function api(path: string) {
   return `${process.env.DOCUSIGN_BASE_PATH}/restapi/v2.1/accounts/${process.env.DOCUSIGN_ACCOUNT_ID}${path}`;
 }
 
-type DsField = { type: "SIGNATURE" | "INITIALS" | "DATE_SIGNED" | "NAME"; page: number; x: number; y: number };
+type DsField = { type: "SIGNATURE" | "INITIALS" | "DATE_SIGNED" | "NAME"; page: number; x: number; y: number; width?: number; height?: number };
 
 function docusignTabs(fields: DsField[]) {
   const signHereTabs: object[] = [];
@@ -67,6 +64,8 @@ function docusignTabs(fields: DsField[]) {
       pageNumber: String(Math.max(1, f.page)),
       xPosition: String(Math.max(0, f.x)),
       yPosition: String(Math.max(0, f.y)),
+      ...(f.width ? { width: String(f.width) } : {}),
+      ...(f.height ? { height: String(f.height) } : {}),
     };
     if (f.type === "SIGNATURE") signHereTabs.push(tab);
     else if (f.type === "INITIALS") initialHereTabs.push(tab);
@@ -101,7 +100,7 @@ export async function docusignCreateEnvelope(input: {
       documents: [{ documentBase64: Buffer.from(input.pdfBytes).toString("base64"), name: `${input.documentId}.pdf`, fileExtension: "pdf", documentId: "1" }],
       recipients: {
         signers: input.signers.map((s, i) => {
-          const fields = s.fields?.length ? s.fields : [{ type: "SIGNATURE" as const, page: 1, x: 72, y: 700 }];
+          const fields = s.fields?.length ? s.fields : [{ type: "SIGNATURE" as const, page: 1, x: 72, y: 700, width: 150, height: 48 }];
           return {
             email: s.email,
             name: s.name,
