@@ -3,12 +3,8 @@ import { PDFDocument, StandardFonts, rgb, degrees, type PDFFont, type PDFPage, t
 import QRCode from "qrcode";
 import { htmlToText, normalizeDocumentHtmlInput } from "@/lib/sanitize";
 import { parseDocumentPages } from "@/lib/document-pages";
-
-/**
- * Server-side PDF generation (pdf-lib — pure JS, no headless browser).
- * Official documents keep the JUN letterhead, company information, QR,
- * repeated premium watermark, seal, reference and pagination.
- */
+import { prisma } from "@/lib/prisma";
+import { storage } from "@/lib/storage";
 
 const NIGHT = rgb(0.055, 0.09, 0.16);
 const GOLD = rgb(0.79, 0.62, 0.2);
@@ -16,15 +12,23 @@ const GRAY = rgb(0.45, 0.48, 0.55);
 const LIGHT = rgb(0.91, 0.92, 0.94);
 const PAGE = { w: 595.28, h: 841.89, margin: 56 };
 
-const COMPANY = {
+const DEFAULT_COMPANY = {
   name: "JUN CREATIF AND TRAVEL LLC",
   site: "www.juncreatif.org",
   tagline: "Travel · Documents · Business Services",
-  mailingAddress: process.env.JUN_OFFICIAL_PO_BOX ?? "PO Box 770064, Orlando, FL 32877",
-  phone: process.env.JUN_OFFICIAL_PHONE ?? "+1 480-954-1260",
-  email: process.env.JUN_OFFICIAL_EMAIL ?? "",
+  mailingAddress: "PO Box 770064, Orlando, FL 32877",
+  address: "",
+  phone: "+1 480-954-1260",
+  whatsapp: "",
+  email: "",
+  registration: "",
+  taxId: "",
+  footerLabel: "",
+  watermarkOpacity: 0.055,
+  sealSize: 72,
 };
 
+type OfficialCompany = typeof DEFAULT_COMPANY;
 type PageRotation = 0 | 90 | 180 | 270;
 type BrandAssets = { logo: PDFImage | null; seal: PDFImage | null };
 type Ctx = {
@@ -40,6 +44,42 @@ type Ctx = {
   decoratePage: (p: PDFPage) => void;
 };
 
+async function loadOfficialCompany(): Promise<OfficialCompany & { logoKey: string; sealKey: string }> {
+  try {
+    const rows = await prisma.appSetting.findMany({
+      where: { key: { in: [
+        "company.name", "company.tagline", "company.website", "company.po_box", "company.address",
+        "company.phone", "company.whatsapp", "company.email", "company.registration", "company.tax_id",
+        "document.footer_label", "document.watermark_opacity", "document.seal_size",
+        "document.logo_key", "document.seal_key",
+      ] } },
+    });
+    const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    const website = (s["company.website"] || DEFAULT_COMPANY.site).replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    const opacity = Number(s["document.watermark_opacity"] ?? DEFAULT_COMPANY.watermarkOpacity);
+    const sealSize = Number(s["document.seal_size"] ?? DEFAULT_COMPANY.sealSize);
+    return {
+      name: s["company.name"] || DEFAULT_COMPANY.name,
+      site: website,
+      tagline: s["company.tagline"] || DEFAULT_COMPANY.tagline,
+      mailingAddress: s["company.po_box"] || DEFAULT_COMPANY.mailingAddress,
+      address: s["company.address"] || "",
+      phone: s["company.phone"] || DEFAULT_COMPANY.phone,
+      whatsapp: s["company.whatsapp"] || "",
+      email: s["company.email"] || "",
+      registration: s["company.registration"] || "",
+      taxId: s["company.tax_id"] || "",
+      footerLabel: s["document.footer_label"] || "",
+      watermarkOpacity: Number.isFinite(opacity) ? Math.min(0.12, Math.max(0.02, opacity)) : DEFAULT_COMPANY.watermarkOpacity,
+      sealSize: Number.isFinite(sealSize) ? Math.min(120, Math.max(40, sealSize)) : DEFAULT_COMPANY.sealSize,
+      logoKey: s["document.logo_key"] || "",
+      sealKey: s["document.seal_key"] || "",
+    };
+  } catch {
+    return { ...DEFAULT_COMPANY, logoKey: "", sealKey: "" };
+  }
+}
+
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const out: string[] = [];
   for (const raw of text.split("\n")) {
@@ -49,32 +89,32 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
     for (const word of words) {
       const probe = line ? `${line} ${word}` : word;
       if (font.widthOfTextAtSize(probe, size) <= maxWidth) line = probe;
-      else {
-        if (line) out.push(line);
-        line = word;
-      }
+      else { if (line) out.push(line); line = word; }
     }
     if (line) out.push(line);
   }
   return out;
 }
 
-async function embedRemoteImage(pdf: PDFDocument, url?: string): Promise<PDFImage | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    const contentType = (res.headers.get("content-type") ?? "").toLowerCase();
-    if (contentType.includes("png") || url.toLowerCase().includes(".png")) return await pdf.embedPng(bytes);
-    if (contentType.includes("jpeg") || contentType.includes("jpg") || /\.jpe?g(?:$|\?)/i.test(url)) return await pdf.embedJpg(bytes);
-    try { return await pdf.embedPng(bytes); } catch { return await pdf.embedJpg(bytes); }
-  } catch {
-    return null;
+async function embedBytes(pdf: PDFDocument, bytes: Uint8Array): Promise<PDFImage | null> {
+  try { return await pdf.embedPng(bytes); } catch {
+    try { return await pdf.embedJpg(bytes); } catch { return null; }
   }
 }
 
-function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont) {
+async function embedStoredImage(pdf: PDFDocument, key: string, fallbackUrl?: string): Promise<PDFImage | null> {
+  if (key) {
+    try { return await embedBytes(pdf, new Uint8Array(await storage().download(key))); } catch {}
+  }
+  if (!fallbackUrl) return null;
+  try {
+    const res = await fetch(fallbackUrl, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await embedBytes(pdf, new Uint8Array(await res.arrayBuffer()));
+  } catch { return null; }
+}
+
+function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont, opacity: number) {
   const cols = 3;
   const rows = 5;
   const left = PAGE.margin + 22;
@@ -86,34 +126,29 @@ function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont) {
       const cx = left + (right - left) * (col / (cols - 1));
       const cy = bottom + (top - bottom) * (row / (rows - 1));
       if (logo) {
-        const maxW = 78;
-        const maxH = 42;
-        const scale = Math.min(maxW / logo.width, maxH / logo.height);
+        const scale = Math.min(78 / logo.width, 42 / logo.height);
         const w = logo.width * scale;
         const h = logo.height * scale;
-        page.drawImage(logo, { x: cx - w / 2, y: cy - h / 2, width: w, height: h, opacity: 0.038 });
+        page.drawImage(logo, { x: cx - w / 2, y: cy - h / 2, width: w, height: h, opacity });
       } else {
         const text = "JUN";
         const size = 15;
         const w = bold.widthOfTextAtSize(text, size);
-        page.drawText(text, { x: cx - w / 2, y: cy, size, font: bold, color: GRAY, opacity: 0.035 });
+        page.drawText(text, { x: cx - w / 2, y: cy, size, font: bold, color: GRAY, opacity: Math.min(opacity, 0.05) });
       }
     }
   }
 }
 
-function drawSeal(page: PDFPage, seal: PDFImage | null) {
+function drawSeal(page: PDFPage, seal: PDFImage | null, max: number) {
   if (!seal) return;
-  const max = 72;
   const scale = Math.min(max / seal.width, max / seal.height);
   const w = seal.width * scale;
   const h = seal.height * scale;
   page.drawImage(seal, { x: PAGE.w - PAGE.margin - w, y: 50, width: w, height: h, opacity: 0.92 });
 }
 
-function applyRotation(page: PDFPage, rotation: PageRotation) {
-  page.setRotation(degrees(rotation));
-}
+function applyRotation(page: PDFPage, rotation: PageRotation) { page.setRotation(degrees(rotation)); }
 
 function newPage(ctx: Ctx, rotation: PageRotation = ctx.rotation) {
   ctx.footer(ctx.page, ctx.pageNo);
@@ -138,33 +173,28 @@ function drawLines(ctx: Ctx, lines: string[], opts: { size?: number; bold?: bool
   ctx.y -= opts.gap ?? 0;
 }
 
-async function buildBase(meta: {
-  title: string;
-  reference: string;
-  verifyPath: string;
-  statusLine: string;
-  extraHeader?: string[];
-}): Promise<{ ctx: Ctx; finish: () => Promise<Uint8Array> }> {
+async function buildBase(meta: { title: string; reference: string; verifyPath: string; statusLine: string; extraHeader?: string[] }): Promise<{ ctx: Ctx; finish: () => Promise<Uint8Array> }> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const company = await loadOfficialCompany();
 
   const [logo, seal] = await Promise.all([
-    embedRemoteImage(pdf, process.env.JUN_PDF_LOGO_URL),
-    embedRemoteImage(pdf, process.env.JUN_PDF_SEAL_URL),
+    embedStoredImage(pdf, company.logoKey, process.env.JUN_PDF_LOGO_URL),
+    embedStoredImage(pdf, company.sealKey, process.env.JUN_PDF_SEAL_URL),
   ]);
   const assets: BrandAssets = { logo, seal };
 
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.juncreatif.org").replace(/\/$/, "");
   const verifyUrl = `${base}${meta.verifyPath}`;
-  const qrPng = await QRCode.toBuffer(verifyUrl, { margin: 0, width: 240 });
-  const qrImg = await pdf.embedPng(qrPng);
+  const qrImg = await pdf.embedPng(await QRCode.toBuffer(verifyUrl, { margin: 0, width: 240 }));
 
-  const decoratePage = (p: PDFPage) => drawWatermark(p, assets.logo, bold);
+  const decoratePage = (p: PDFPage) => drawWatermark(p, assets.logo, bold, company.watermarkOpacity);
   const footer = (p: PDFPage, n: number) => {
-    drawSeal(p, assets.seal);
+    drawSeal(p, assets.seal, company.sealSize);
     p.drawLine({ start: { x: PAGE.margin, y: 43 }, end: { x: PAGE.w - PAGE.margin, y: 43 }, thickness: 0.45, color: LIGHT });
-    p.drawText(`${COMPANY.name} · ${COMPANY.site}`, { x: PAGE.margin, y: 29, size: 7.4, font, color: GRAY });
+    const leftFooter = company.footerLabel || `${company.name} · ${company.site}`;
+    p.drawText(leftFooter.slice(0, 75), { x: PAGE.margin, y: 29, size: 7.4, font, color: GRAY });
     const pageText = `${meta.reference} · ${n}`;
     p.drawText(pageText, { x: PAGE.w - PAGE.margin - font.widthOfTextAtSize(pageText, 7.4), y: 29, size: 7.4, font, color: GRAY });
   };
@@ -174,9 +204,7 @@ async function buildBase(meta: {
   const ctx: Ctx = { pdf, page, y: PAGE.h - PAGE.margin, font, bold, pageNo: 1, rotation: 0, assets, footer, decoratePage };
 
   if (logo) {
-    const maxW = 62;
-    const maxH = 50;
-    const scale = Math.min(maxW / logo.width, maxH / logo.height);
+    const scale = Math.min(62 / logo.width, 50 / logo.height);
     const w = logo.width * scale;
     const h = logo.height * scale;
     ctx.page.drawImage(logo, { x: PAGE.margin, y: ctx.y - h + 4, width: w, height: h });
@@ -185,11 +213,11 @@ async function buildBase(meta: {
   }
 
   const infoX = PAGE.margin + 70;
-  ctx.page.drawText(COMPANY.name, { x: infoX, y: ctx.y + 7, size: 11, font: bold, color: NIGHT });
-  ctx.page.drawText(COMPANY.tagline, { x: infoX, y: ctx.y - 5, size: 8.2, font, color: GRAY });
-  ctx.page.drawText(COMPANY.mailingAddress, { x: infoX, y: ctx.y - 17, size: 7.3, font, color: GRAY });
-  const contact = [COMPANY.phone, COMPANY.email].filter(Boolean).join(" · ");
-  if (contact) ctx.page.drawText(contact, { x: infoX, y: ctx.y - 28, size: 7.3, font, color: GRAY });
+  ctx.page.drawText(company.name.slice(0, 60), { x: infoX, y: ctx.y + 7, size: 11, font: bold, color: NIGHT });
+  ctx.page.drawText(company.tagline.slice(0, 80), { x: infoX, y: ctx.y - 5, size: 8.2, font, color: GRAY });
+  ctx.page.drawText(company.mailingAddress.slice(0, 85), { x: infoX, y: ctx.y - 17, size: 7.3, font, color: GRAY });
+  const contact = [company.phone, company.email].filter(Boolean).join(" · ");
+  if (contact) ctx.page.drawText(contact.slice(0, 85), { x: infoX, y: ctx.y - 28, size: 7.3, font, color: GRAY });
 
   ctx.page.drawImage(qrImg, { x: PAGE.w - PAGE.margin - 58, y: ctx.y - 42, width: 58, height: 58 });
   ctx.page.drawText("Scan to verify", { x: PAGE.w - PAGE.margin - 55, y: ctx.y - 53, size: 6.8, font, color: GRAY });
@@ -199,9 +227,7 @@ async function buildBase(meta: {
   drawLines(ctx, wrap(meta.title, bold, 15.2, PAGE.w - 2 * PAGE.margin), { size: 15.2, bold: true, lead: 18, gap: 4 });
   const metaLine1 = `${meta.reference} · ${new Date().toISOString().slice(0, 10)} · ${meta.statusLine}`;
   drawLines(ctx, wrap(metaLine1, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10, gap: 1 });
-  for (const extra of meta.extraHeader ?? []) {
-    drawLines(ctx, wrap(extra, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10 });
-  }
+  for (const extra of meta.extraHeader ?? []) drawLines(ctx, wrap(extra, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10 });
   ctx.y -= 7;
   ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y + 3 }, end: { x: PAGE.w - PAGE.margin, y: ctx.y + 3 }, thickness: 0.35, color: LIGHT });
   ctx.y -= 8;
@@ -252,16 +278,7 @@ function renderTextPage(ctx: Ctx, html: string) {
   }
 }
 
-export async function renderDocumentPdf(input: {
-  documentId: string;
-  title: string;
-  type: string;
-  status: string;
-  html: string;
-  clientName?: string | null;
-  caseNumber?: string | null;
-  signatureStatus?: string | null;
-}): Promise<Uint8Array> {
+export async function renderDocumentPdf(input: { documentId: string; title: string; type: string; status: string; html: string; clientName?: string | null; caseNumber?: string | null; signatureStatus?: string | null }): Promise<Uint8Array> {
   const normalizedHtml = normalizeDocumentHtmlInput(input.html);
   const { ctx, finish } = await buildBase({
     title: input.title,
@@ -276,41 +293,17 @@ export async function renderDocumentPdf(input: {
 
   const logicalPages = parseDocumentPages(normalizedHtml).filter((p) => cleanBodyText(p.html).length > 0);
   const pages = logicalPages.length ? logicalPages : [{ id: "page-1", rotation: 0 as const, html: normalizedHtml }];
-
   for (let i = 0; i < pages.length; i++) {
     const logical = pages[i];
-    if (i === 0) {
-      ctx.rotation = logical.rotation;
-      applyRotation(ctx.page, logical.rotation);
-    } else {
-      newPage(ctx, logical.rotation);
-    }
+    if (i === 0) { ctx.rotation = logical.rotation; applyRotation(ctx.page, logical.rotation); }
+    else newPage(ctx, logical.rotation);
     renderTextPage(ctx, logical.html);
   }
   return finish();
 }
 
-export async function renderReceiptPdf(input: {
-  reference: string;
-  clientName: string;
-  clientInternalId: string;
-  amount: number;
-  currency: string;
-  method: string;
-  paymentReference: string;
-  paidAt: Date;
-  issuedAt: Date;
-  caseNumber?: string | null;
-  reason?: string | null;
-  issuerName: string;
-}): Promise<Uint8Array> {
-  const { ctx, finish } = await buildBase({
-    title: "Official Payment Receipt",
-    reference: input.reference,
-    verifyPath: `/verify/${input.reference}`,
-    statusLine: "RECEIPT · ISSUED",
-  });
-
+export async function renderReceiptPdf(input: { reference: string; clientName: string; clientInternalId: string; amount: number; currency: string; method: string; paymentReference: string; paidAt: Date; issuedAt: Date; caseNumber?: string | null; reason?: string | null; issuerName: string }): Promise<Uint8Array> {
+  const { ctx, finish } = await buildBase({ title: "Official Payment Receipt", reference: input.reference, verifyPath: `/verify/${input.reference}`, statusLine: "RECEIPT · ISSUED" });
   const rows: [string, string][] = [
     ["Receipt number", input.reference],
     ["Client", `${input.clientName} (${input.clientInternalId})`],
@@ -328,12 +321,10 @@ export async function renderReceiptPdf(input: {
     if (ctx.y < PAGE.margin + 60) newPage(ctx);
     ctx.page.drawText(key, { x: PAGE.margin, y: ctx.y, size: 9.4, font: ctx.bold, color: NIGHT });
     const valueLines = wrap(value, ctx.font, 9.4, PAGE.w - 2 * PAGE.margin - 165);
-    valueLines.forEach((line, index) => {
-      ctx.page.drawText(line, { x: PAGE.margin + 165, y: ctx.y - index * 12, size: 9.4, font: ctx.font, color: NIGHT });
-    });
+    valueLines.forEach((line, index) => ctx.page.drawText(line, { x: PAGE.margin + 165, y: ctx.y - index * 12, size: 9.4, font: ctx.font, color: NIGHT }));
     ctx.y -= Math.max(1, valueLines.length) * 12 + 4;
   }
   ctx.y -= 6;
-  drawLines(ctx, ["This receipt is issued electronically by JUN CREATIF AND TRAVEL LLC and can be authenticated using the QR code above."], { size: 8.6, color: GRAY });
+  drawLines(ctx, ["This receipt is issued electronically and can be authenticated using the QR code above."], { size: 8.6, color: GRAY });
   return finish();
 }
