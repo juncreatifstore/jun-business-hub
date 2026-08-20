@@ -18,6 +18,7 @@ export type NativeSigningPayload = {
   requestId: string;
   email: string;
   order: number;
+  verified?: boolean;
 };
 
 export function nativeSigningExpiry(from = new Date()) {
@@ -26,7 +27,7 @@ export function nativeSigningExpiry(from = new Date()) {
 
 export async function createNativeSigningToken(payload: NativeSigningPayload, expiresAt?: Date) {
   const expiry = expiresAt ?? nativeSigningExpiry();
-  return new SignJWT({ email: payload.email, order: payload.order })
+  return new SignJWT({ email: payload.email, order: payload.order, ...(payload.verified ? { verified: true } : {}) })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(payload.requestId)
     .setIssuer(ISSUER)
@@ -42,10 +43,14 @@ export async function verifyNativeSigningToken(token: string): Promise<NativeSig
     if (typeof payload.sub !== "string" || typeof payload.email !== "string") return null;
     const order = Number(payload.order);
     if (!Number.isInteger(order) || order < 1) return null;
-    return { requestId: payload.sub, email: payload.email, order };
+    return { requestId: payload.sub, email: payload.email, order, verified: payload.verified === true };
   } catch {
     return null;
   }
+}
+
+export async function createVerifiedNativeSigningToken(payload: Omit<NativeSigningPayload, "verified">, expiresAt?: Date) {
+  return createNativeSigningToken({ ...payload, verified: true }, expiresAt);
 }
 
 export async function nativeSigningUrl(requestId: string, email: string, order: number, expiresAt?: Date) {
