@@ -16,21 +16,21 @@ export async function saveDocumentPages(documentId: string, formData: FormData) 
     where: { id: documentId },
     include: { versions: { orderBy: { version: "desc" }, take: 1 } },
   });
-  if (!doc || !doc.versions[0]) redirect(`/app/editor?toast_error=${encodeURIComponent("Document not found")}`);
+  if (!doc || !doc.versions[0]) redirect(`/app/documents?toast_error=${encodeURIComponent("Document not found")}`);
   if (doc.status !== "DRAFT" || isDocumentFrozen(doc.status)) {
-    redirect(`/app/editor/${documentId}?toast_error=${encodeURIComponent("Create a revision before reorganizing a finalized document")}`);
+    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Create a revision before reorganizing a finalized document")}`);
   }
 
   const raw = String(formData.get("content") ?? "").slice(0, 500_000);
   const content = sanitizeDocumentHtml(raw);
   const pages = parseDocumentPages(content);
   if (!content.trim() || pages.length === 0 || pages.length > 250) {
-    redirect(`/app/editor/${documentId}/pages?error=${encodeURIComponent("Invalid page structure")}`);
+    redirect(`/app/documents/${documentId}/pages?error=${encodeURIComponent("Invalid page structure")}`);
   }
 
   const current = doc.versions[0];
   if (sha256(content) === sha256(current.content)) {
-    redirect(`/app/editor/${documentId}/pages?toast=${encodeURIComponent("No page changes to save")}`);
+    redirect(`/app/documents/${documentId}/pages?toast=${encodeURIComponent("No page changes to save")}`);
   }
   const version = current.version + 1;
   await prisma.documentVersion.create({
@@ -57,7 +57,6 @@ export async function saveDocumentPages(documentId: string, formData: FormData) 
     clientId: doc.clientId,
     caseId: doc.caseId,
   });
-  revalidatePath(`/app/editor/${documentId}`);
   revalidatePath(`/app/documents/${documentId}`);
-  redirect(`/app/editor/${documentId}/pages?toast=${encodeURIComponent(`Page layout saved as version ${version}`)}`);
+  redirect(`/app/documents/${documentId}/pages?toast=${encodeURIComponent(`Page layout saved as version ${version}`)}`);
 }
