@@ -2,6 +2,7 @@
 import { useState, Suspense } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { ContextBack } from "./context-back";
 import { Toaster } from "@/components/ui/toast";
 
 export function AppShell({
@@ -19,7 +20,7 @@ export function AppShell({
       <Sidebar open={open} onClose={() => setOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header user={user} unread={unread} onMenu={() => setOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6"><ContextBack />{children}</main>
       </div>
       <Suspense fallback={null}><Toaster /></Suspense>
     </div>
