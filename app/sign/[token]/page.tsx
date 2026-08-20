@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyNativeSigningToken } from "@/lib/native-signature";
 import { signatureRecipients } from "@/lib/signature-recipients";
 import { completeJunNativeSignature } from "@/services/native-signatures";
-import { CheckCircle2, FileSignature2, LockKeyhole } from "lucide-react";
+import { CheckCircle2, FileSignature, LockKeyhole } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,7 @@ export default async function NativeSignPage({ params, searchParams }: { params:
             <section className="rounded-2xl border border-line bg-white p-3 shadow-sm">
               <div className="mb-3 flex items-center justify-between px-2 py-1">
                 <div><p className="font-medium">{request.document.title}</p><p className="text-xs text-muted2">{request.document.documentId}</p></div>
-                <FileSignature2 className="h-5 w-5 text-electric" />
+                <FileSignature className="h-5 w-5 text-electric" />
               </div>
               <iframe title="Document to sign" src={`/api/sign/${encodeURIComponent(token)}/pdf`} className="h-[760px] w-full rounded-xl border border-line bg-surface" />
             </section>
