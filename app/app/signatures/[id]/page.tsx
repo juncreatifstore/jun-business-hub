@@ -7,7 +7,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { mockSignRecipient, voidSignatureRequest } from "@/services/signatures";
+import { mockSignRecipient } from "@/services/signatures";
+import { voidTrackedSignatureRequest } from "@/services/signature-actions";
 import { signatureRecipients } from "@/lib/signature-recipients";
 import { CheckCircle2 } from "lucide-react";
 
@@ -33,7 +34,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
       <PageHeader
         title={`Signature — ${request.document.documentId}`}
         subtitle={request.document.title}
-        actions={canSign && open ? <form action={voidSignatureRequest.bind(null, request.id)}><Button variant="danger">Void request</Button></form> : undefined}
+        actions={canSign && open ? <form action={voidTrackedSignatureRequest.bind(null, request.id)}><Button variant="danger">Void request</Button></form> : undefined}
       />
 
       {request.provider === "DOCUSIGN" && open ? (
@@ -52,8 +53,8 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
               {recipients.length === 0 ? <p className="py-3 text-sm text-muted2">No recipients recorded.</p> : recipients.map((s, index) => (
                 <div key={`${s.email}-${index}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div>
-                    <p className="font-medium">{s.name}</p>
-                    <p className="text-sm text-muted2">{s.email} · order {s.order}</p>
+                    <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{s.name}</p>{s.role ? <span className="rounded bg-white/5 px-2 py-0.5 text-xs text-muted2">{s.role.replaceAll("_", " ")}</span> : null}</div>
+                    <p className="text-sm text-muted2">{s.email} · routing order {s.order}</p>
                   </div>
                   {s.signedAt ? (
                     <span className="flex items-center gap-2 text-sm text-emerald-400"><CheckCircle2 className="h-4 w-4" /> Signed {formatDateTime(new Date(s.signedAt))}</span>
@@ -72,6 +73,8 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
             <CardContent className="space-y-2 text-sm">
               <p><span className="text-muted2">Created:</span> {formatDateTime(request.createdAt)}</p>
               {request.sentAt ? <p><span className="text-muted2">Sent:</span> {formatDateTime(request.sentAt)}</p> : null}
+              {request.status === "VIEWED" ? <p><span className="text-muted2">Latest provider event:</span> Viewed</p> : null}
+              {request.status === "PARTIALLY_SIGNED" ? <p><span className="text-muted2">Latest provider event:</span> Partially signed</p> : null}
               {request.completedAt ? <p><span className="text-muted2">Completed:</span> {formatDateTime(request.completedAt)}</p> : null}
             </CardContent>
           </Card>
@@ -83,6 +86,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between"><span className="text-muted2">Status</span><StatusBadge status={request.status} /></div>
               <div className="flex justify-between"><span className="text-muted2">Provider</span><span>{request.provider}</span></div>
+              <div className="flex justify-between"><span className="text-muted2">Signers</span><span>{recipients.length}</span></div>
               <div className="flex justify-between"><span className="text-muted2">Envelope</span><span className="registry-id text-xs">{request.providerEnvelopeId ?? "—"}</span></div>
               <div className="flex justify-between"><span className="text-muted2">Created</span><span>{formatDate(request.createdAt)}</span></div>
               <div className="flex justify-between"><span className="text-muted2">Created by</span><span>{request.createdBy.firstName} {request.createdBy.lastName}</span></div>
