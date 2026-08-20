@@ -28,12 +28,17 @@ export type SignatureRecipient = {
   declinedAt?: string | null;
   declineReason?: string | null;
   reminderSentAt?: string | null;
+  linkVersion?: number;
+  replacedAt?: string | null;
+  replacedByEmail?: string | null;
   fields?: SignatureField[];
 };
 
 export type SignatureRequestMeta = {
   message?: string;
   expiresAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
 };
 
 const FIELD_TYPES = new Set<SignatureFieldType>(["SIGNATURE", "INITIALS", "DATE_SIGNED", "NAME"]);
@@ -83,6 +88,8 @@ export function signatureRequestMeta(value: unknown): SignatureRequestMeta {
     return {
       message: typeof meta.message === "string" ? meta.message : undefined,
       expiresAt: typeof meta.expiresAt === "string" ? meta.expiresAt : undefined,
+      cancelledAt: typeof meta.cancelledAt === "string" ? meta.cancelledAt : undefined,
+      cancelReason: typeof meta.cancelReason === "string" ? meta.cancelReason : undefined,
     };
   }
   return {};
@@ -102,6 +109,7 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
     const r = v as Record<string, unknown>;
     if ("_meta" in r) return;
     const method = typeof r.signatureMethod === "string" ? r.signatureMethod.toUpperCase() : null;
+    const rawLinkVersion = Number(r.linkVersion ?? 1);
     recipients.push({
       name: typeof r.name === "string" ? r.name : "Signer",
       email: typeof r.email === "string" ? r.email : "",
@@ -121,6 +129,9 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
       declinedAt: optionalString(r.declinedAt),
       declineReason: optionalString(r.declineReason),
       reminderSentAt: optionalString(r.reminderSentAt),
+      linkVersion: Number.isInteger(rawLinkVersion) && rawLinkVersion > 0 ? rawLinkVersion : 1,
+      replacedAt: optionalString(r.replacedAt),
+      replacedByEmail: optionalString(r.replacedByEmail),
       fields: signatureFields(r.fields),
     });
   });
@@ -129,5 +140,10 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
 }
 
 export function signatureRecipientsPayload(recipients: SignatureRecipient[], meta: SignatureRequestMeta = {}) {
-  return [{ _meta: { message: meta.message ?? "", ...(meta.expiresAt ? { expiresAt: meta.expiresAt } : {}) } }, ...recipients];
+  return [{ _meta: {
+    message: meta.message ?? "",
+    ...(meta.expiresAt ? { expiresAt: meta.expiresAt } : {}),
+    ...(meta.cancelledAt ? { cancelledAt: meta.cancelledAt } : {}),
+    ...(meta.cancelReason ? { cancelReason: meta.cancelReason } : {}),
+  } }, ...recipients];
 }
