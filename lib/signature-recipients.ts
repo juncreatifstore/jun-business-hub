@@ -15,6 +15,11 @@ export type SignatureRecipient = {
   order: number;
   role?: string | null;
   viewedAt?: string | null;
+  verifiedAt?: string | null;
+  otpHash?: string | null;
+  otpExpiresAt?: string | null;
+  otpSentAt?: string | null;
+  otpAttempts?: number;
   signedAt?: string | null;
   declinedAt?: string | null;
   declineReason?: string | null;
@@ -98,6 +103,11 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
       order: typeof r.order === "number" ? r.order : index + 1,
       role: optionalString(r.role),
       viewedAt: optionalString(r.viewedAt),
+      verifiedAt: optionalString(r.verifiedAt),
+      otpHash: optionalString(r.otpHash),
+      otpExpiresAt: optionalString(r.otpExpiresAt),
+      otpSentAt: optionalString(r.otpSentAt),
+      otpAttempts: Number.isInteger(Number(r.otpAttempts)) ? Math.max(0, Number(r.otpAttempts)) : 0,
       signedAt: optionalString(r.signedAt),
       declinedAt: optionalString(r.declinedAt),
       declineReason: optionalString(r.declineReason),
