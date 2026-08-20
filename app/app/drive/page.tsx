@@ -18,18 +18,23 @@ export const dynamic = "force-dynamic";
 
 const CATEGORIES = ["IDENTITY", "PASSPORT", "CONTRACT", "PAYMENT_PROOF", "RECEIPT", "REFUND", "VISA", "FLIGHT", "INVOICE", "COMPANY", "LEGAL", "TAX", "EMPLOYEE", "VENDOR", "OTHER"];
 
+type DriveFolderCrumb = { id: string; name: string; parentId: string | null };
+
 function humanSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-async function getBreadcrumbs(folderId?: string) {
-  if (!folderId) return [] as { id: string; name: string }[];
+async function getBreadcrumbs(folderId?: string): Promise<Array<{ id: string; name: string }> | null> {
+  if (!folderId) return [];
   const out: { id: string; name: string }[] = [];
   let current: string | null = folderId;
   for (let i = 0; current && i < 20; i++) {
-    const folder = await prisma.folder.findFirst({ where: { id: current, isVault: false }, select: { id: true, name: true, parentId: true } });
+    const folder: DriveFolderCrumb | null = await prisma.folder.findFirst({
+      where: { id: current, isVault: false },
+      select: { id: true, name: true, parentId: true },
+    });
     if (!folder) return null;
     out.unshift({ id: folder.id, name: folder.name });
     current = folder.parentId;
