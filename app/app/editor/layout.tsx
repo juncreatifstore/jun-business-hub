@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { FileText, LayoutDashboard, Layers3, PenLine, Send, Inbox, Users, ArrowLeft } from "lucide-react";
 
 const nav = [
@@ -12,6 +15,11 @@ const nav = [
 ];
 
 export default function EditorLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isDashboard = pathname === "/app/editor";
+
+  if (!isDashboard) return <>{children}</>;
+
   return (
     <div className="flex min-h-screen bg-[#f5f6f8]">
       <aside className="hidden w-[286px] shrink-0 border-r border-slate-200 bg-white lg:flex lg:flex-col">
