@@ -19,19 +19,12 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
 
   const signer = signatureRecipients(request.recipients).find((r) => r.email.toLowerCase() === payload.email.toLowerCase() && r.order === payload.order);
   if (!signer) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!payload.verified && !signer.verifiedAt) return NextResponse.json({ error: "Email verification required" }, { status: 403 });
 
   let bytes: Buffer | null = null;
-
-  // Prefer the latest signed PDF, then the immutable final PDF. If private storage
-  // is temporarily unavailable, fall back to a freshly rendered read-only copy so
-  // the signer never sees a blank preview without the document itself being corrupt.
   const preferredKey = request.signedPdfKey ?? request.document.finalPdfKey;
   if (preferredKey) {
-    try {
-      bytes = await storage().download(preferredKey);
-    } catch {
-      bytes = null;
-    }
+    try { bytes = await storage().download(preferredKey); } catch { bytes = null; }
   }
 
   if (!bytes) {
