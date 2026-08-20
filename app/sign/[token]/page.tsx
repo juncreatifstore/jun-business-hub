@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyNativeSigningToken } from "@/lib/native-signature";
 import { signatureRecipients } from "@/lib/signature-recipients";
 import { completeJunNativeSignature } from "@/services/native-signatures";
-import { CheckCircle2, FileSignature, LockKeyhole } from "lucide-react";
+import { CheckCircle2, ExternalLink, FileSignature, LockKeyhole } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +35,7 @@ export default async function NativeSignPage({ params, searchParams }: { params:
   const isTurn = !signer.signedAt && firstUnsigned?.email.toLowerCase() === signer.email.toLowerCase();
   const done = Boolean(searchParams?.done) || Boolean(signer.signedAt);
   const error = errorMessage(searchParams?.error);
+  const pdfUrl = `/api/sign/${encodeURIComponent(token)}/pdf`;
 
   return (
     <main className="min-h-screen bg-surface px-4 py-8 text-night sm:px-6 lg:px-8">
@@ -56,11 +57,15 @@ export default async function NativeSignPage({ params, searchParams }: { params:
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
             <section className="rounded-2xl border border-line bg-white p-3 shadow-sm">
-              <div className="mb-3 flex items-center justify-between px-2 py-1">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-2 py-1">
                 <div><p className="font-medium">{request.document.title}</p><p className="text-xs text-muted2">{request.document.documentId}</p></div>
-                <FileSignature className="h-5 w-5 text-electric" />
+                <div className="flex items-center gap-3">
+                  <a href={pdfUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium hover:bg-surface"><ExternalLink className="h-3.5 w-3.5" /> Open document</a>
+                  <FileSignature className="h-5 w-5 text-electric" />
+                </div>
               </div>
-              <iframe title="Document to sign" src={`/api/sign/${encodeURIComponent(token)}/pdf`} className="h-[760px] w-full rounded-xl border border-line bg-surface" />
+              <iframe title="Document to sign" src={pdfUrl} className="h-[760px] w-full rounded-xl border border-line bg-surface" />
+              <p className="px-2 pt-2 text-xs text-muted2">If the embedded preview does not appear on your browser, use Open document above. Review the document before signing.</p>
             </section>
 
             <aside className="space-y-4">
