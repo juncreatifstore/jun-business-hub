@@ -148,7 +148,7 @@ export async function uploadDriveNewVersion(fileId: string, formData: FormData):
     createdBy: `${user.firstName} ${user.lastName}`,
   };
   await prisma.$transaction([
-    prisma.appSetting.create({ key: `${VERSION_PREFIX}${file.id}.${versionId}`, value: JSON.stringify(versionMeta) }),
+    prisma.appSetting.create({ data: { key: `${VERSION_PREFIX}${file.id}.${versionId}`, value: JSON.stringify(versionMeta) } }),
     prisma.file.update({ where: { id: file.id }, data: { storageKey: replacementKey, mimeType: mime, sizeBytes: raw.size } }),
   ]);
   await storage().remove(file.storageKey);
