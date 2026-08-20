@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
+import { canAccessPublicDriveFile } from "@/lib/drive-public";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const suppliedToken = new URL(req.url).searchParams.get("key");
+  if (!(await canAccessPublicDriveFile(params.id, suppliedToken))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const file = await prisma.file.findFirst({
     where: { id: params.id, isVault: false, archivedAt: null },
     select: { storageKey: true, mimeType: true, name: true },
