@@ -11,6 +11,30 @@ import { VAULT_CATEGORIES } from "@/lib/utils";
 
 const CATEGORIES = new Set(["IDENTITY", "PASSPORT", "CONTRACT", "PAYMENT_PROOF", "RECEIPT", "REFUND", "VISA", "FLIGHT", "INVOICE", "COMPANY", "LEGAL", "TAX", "EMPLOYEE", "VENDOR", "OTHER"]);
 
+function driveDest(folderId?: string | null) {
+  return folderId ? `/app/drive?folder=${encodeURIComponent(folderId)}` : "/app/drive";
+}
+
+export async function createFolder(formData: FormData): Promise<void> {
+  const user = await assertPermission("FILE_UPLOAD");
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
+  const parentId = emptyToNull(String(formData.get("parentId") ?? ""));
+  if (!name) redirect(`${driveDest(parentId)}&toast_error=Folder name is required`.replace("?&", "?"));
+
+  if (parentId) {
+    const parent = await prisma.folder.findFirst({ where: { id: parentId, isVault: false }, select: { id: true } });
+    if (!parent) redirect("/app/drive?toast_error=Parent folder not found");
+  }
+
+  const existing = await prisma.folder.findFirst({ where: { name, parentId, isVault: false }, select: { id: true } });
+  if (existing) redirect(`${driveDest(parentId)}${parentId ? "&" : "?"}toast_error=A folder with this name already exists`);
+
+  const folder = await prisma.folder.create({ data: { name, parentId, isVault: false } });
+  await audit({ userId: user.id, action: "FOLDER_CREATE", resourceType: "Folder", resourceId: folder.id, after: { name, parentId } });
+  revalidatePath("/app/drive");
+  redirect(`${driveDest(parentId)}${parentId ? "&" : "?"}toast=Folder created`);
+}
+
 export async function uploadFile(formData: FormData): Promise<void> {
   const isVault = String(formData.get("isVault") ?? "") === "1";
   const user = await assertPermission(isVault ? "VAULT_MANAGE" : "FILE_UPLOAD");
@@ -33,13 +57,16 @@ export async function uploadFile(formData: FormData): Promise<void> {
   const vaultCategory = isVault && (VAULT_CATEGORIES as readonly string[]).includes(vaultCategoryRaw) ? vaultCategoryRaw : null;
   const clientId = emptyToNull(String(formData.get("clientId") ?? ""));
   const caseId = emptyToNull(String(formData.get("caseId") ?? ""));
+  const folderId = isVault ? null : emptyToNull(String(formData.get("folderId") ?? ""));
 
-  // Referential integrity: linked records must exist.
   if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) {
     redirect("/app/drive?toast_error=Linked client not found");
   }
   if (caseId && !(await prisma.case.findUnique({ where: { id: caseId }, select: { id: true } }))) {
     redirect("/app/drive?toast_error=Linked case not found");
+  }
+  if (folderId && !(await prisma.folder.findFirst({ where: { id: folderId, isVault: false }, select: { id: true } }))) {
+    redirect("/app/drive?toast_error=Folder not found");
   }
 
   const key = makeStorageKey(isVault ? "vault" : "drive", raw.name);
@@ -53,6 +80,7 @@ export async function uploadFile(formData: FormData): Promise<void> {
       mimeType: mime,
       sizeBytes: raw.size,
       category,
+      folderId,
       isVault,
       vaultCategory,
       clientId,
@@ -61,12 +89,12 @@ export async function uploadFile(formData: FormData): Promise<void> {
     },
   });
 
-  await audit({ userId: user.id, action: isVault ? "VAULT_UPLOAD" : "FILE_UPLOAD", resourceType: "File", resourceId: record.id, after: { name: record.name, sizeBytes: raw.size, category, isVault } });
+  await audit({ userId: user.id, action: isVault ? "VAULT_UPLOAD" : "FILE_UPLOAD", resourceType: "File", resourceId: record.id, after: { name: record.name, sizeBytes: raw.size, category, isVault, folderId } });
   await logActivity({ userId: user.id, type: "FILE_UPLOADED", message: `Uploaded ${record.name}`, clientId: clientId ?? undefined, caseId: caseId ?? undefined });
 
-  const dest = isVault ? "/app/vault" : "/app/drive";
-  revalidatePath(dest);
-  redirect(`${dest}?toast=File uploaded`);
+  const dest = isVault ? "/app/vault" : driveDest(folderId);
+  revalidatePath(isVault ? "/app/vault" : "/app/drive");
+  redirect(`${dest}${dest.includes("?") ? "&" : "?"}toast=File uploaded`);
 }
 
 export async function deleteFile(fileId: string): Promise<void> {
@@ -76,9 +104,9 @@ export async function deleteFile(fileId: string): Promise<void> {
 
   await storage().remove(file.storageKey);
   await prisma.file.delete({ where: { id: file.id } });
-  await audit({ userId: user.id, action: "FILE_DELETE", resourceType: "File", resourceId: file.id, before: { name: file.name, isVault: file.isVault } });
+  await audit({ userId: user.id, action: "FILE_DELETE", resourceType: "File", resourceId: file.id, before: { name: file.name, isVault: file.isVault, folderId: file.folderId } });
 
-  const dest = file.isVault ? "/app/vault" : "/app/drive";
-  revalidatePath(dest);
-  redirect(`${dest}?toast=File deleted`);
+  const dest = file.isVault ? "/app/vault" : driveDest(file.folderId);
+  revalidatePath(file.isVault ? "/app/vault" : "/app/drive");
+  redirect(`${dest}${dest.includes("?") ? "&" : "?"}toast=File deleted`);
 }
