@@ -29,6 +29,16 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   optimizeFonts: false, // fonts load via <link>; avoids build-time fetch to Google
+
+  // Prisma 6 with engineType="client" loads query_compiler_bg.wasm at runtime.
+  // Vercel's output-file tracer can otherwise omit this asset from serverless bundles.
+  outputFileTracingIncludes: {
+    "/*": [
+      "./node_modules/.prisma/client/**/*",
+      "./node_modules/@prisma/client/**/*",
+    ],
+  },
+
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
