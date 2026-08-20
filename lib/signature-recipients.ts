@@ -23,6 +23,8 @@ export type SignatureRecipient = {
   signedAt?: string | null;
   signatureMethod?: "TYPE" | "DRAW" | null;
   signatureImageHash?: string | null;
+  invitationSentAt?: string | null;
+  completionEmailSentAt?: string | null;
   declinedAt?: string | null;
   declineReason?: string | null;
   reminderSentAt?: string | null;
@@ -90,11 +92,6 @@ function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-function signatureMethod(value: unknown): "TYPE" | "DRAW" | null {
-  const method = typeof value === "string" ? value.toUpperCase() : "";
-  return method === "TYPE" || method === "DRAW" ? method : null;
-}
-
 export function signatureRecipients(value: unknown): SignatureRecipient[] {
   if (!Array.isArray(value)) return [];
 
@@ -104,6 +101,7 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
     if (!v || typeof v !== "object") return;
     const r = v as Record<string, unknown>;
     if ("_meta" in r) return;
+    const method = typeof r.signatureMethod === "string" ? r.signatureMethod.toUpperCase() : null;
     recipients.push({
       name: typeof r.name === "string" ? r.name : "Signer",
       email: typeof r.email === "string" ? r.email : "",
@@ -116,8 +114,10 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
       otpSentAt: optionalString(r.otpSentAt),
       otpAttempts: Number.isInteger(Number(r.otpAttempts)) ? Math.max(0, Number(r.otpAttempts)) : 0,
       signedAt: optionalString(r.signedAt),
-      signatureMethod: signatureMethod(r.signatureMethod),
+      signatureMethod: method === "DRAW" ? "DRAW" : method === "TYPE" ? "TYPE" : null,
       signatureImageHash: optionalString(r.signatureImageHash),
+      invitationSentAt: optionalString(r.invitationSentAt),
+      completionEmailSentAt: optionalString(r.completionEmailSentAt),
       declinedAt: optionalString(r.declinedAt),
       declineReason: optionalString(r.declineReason),
       reminderSentAt: optionalString(r.reminderSentAt),
