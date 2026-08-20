@@ -14,7 +14,7 @@ import { sendPreparedSignatureRequest } from "@/services/signature-center";
 import { activateJunNativeSigning, sendJunNativeReminder } from "@/services/native-signatures";
 import { nativeSigningExpiry, nativeSigningUrl } from "@/lib/native-signature";
 import { signatureRecipients, signatureRequestMeta } from "@/lib/signature-recipients";
-import { CheckCircle2, Download, ExternalLink, Eye, FileCheck2, Mail, MapPin, Move, Send, ShieldCheck, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, ExternalLink, Eye, FileCheck2, Mail, MapPin, Move, Send, ShieldCheck, XCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -49,14 +49,19 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
       <PageHeader
         title={`Signature — ${request.document.documentId}`}
         subtitle={request.document.title}
-        actions={canSign && open ? (
+        actions={
           <div className="flex flex-wrap gap-2">
-            {request.status === "READY_FOR_SIGNATURE" ? <Link href={`/app/signatures/${request.id}/prepare`}><Button variant="secondary"><Move className="mr-2 h-4 w-4" />Edit field placement</Button></Link> : null}
-            {request.status === "READY_FOR_SIGNATURE" ? <form action={activateJunNativeSigning.bind(null, request.id)}><Button variant="gold"><ShieldCheck className="mr-2 h-4 w-4" />Start JUN signing</Button></form> : null}
-            {request.status === "READY_FOR_SIGNATURE" && docusignReady ? <form action={sendPreparedSignatureRequest.bind(null, request.id)}><Button variant="secondary"><Send className="mr-2 h-4 w-4" />Send via DocuSign</Button></form> : null}
-            <form action={voidTrackedSignatureRequest.bind(null, request.id)}><Button variant="danger">Void request</Button></form>
+            <Link href="/app/signatures"><Button variant="secondary"><ArrowLeft className="mr-2 h-4 w-4" />Back to Signatures</Button></Link>
+            {canSign && open ? (
+              <>
+                {request.status === "READY_FOR_SIGNATURE" ? <Link href={`/app/signatures/${request.id}/prepare`}><Button variant="secondary"><Move className="mr-2 h-4 w-4" />Edit field placement</Button></Link> : null}
+                {request.status === "READY_FOR_SIGNATURE" ? <form action={activateJunNativeSigning.bind(null, request.id)}><Button variant="gold"><ShieldCheck className="mr-2 h-4 w-4" />Start JUN signing</Button></form> : null}
+                {request.status === "READY_FOR_SIGNATURE" && docusignReady ? <form action={sendPreparedSignatureRequest.bind(null, request.id)}><Button variant="secondary"><Send className="mr-2 h-4 w-4" />Send via DocuSign</Button></form> : null}
+                <form action={voidTrackedSignatureRequest.bind(null, request.id)}><Button variant="danger">Void request</Button></form>
+              </>
+            ) : null}
           </div>
-        ) : undefined}
+        }
       />
 
       {request.status === "READY_FOR_SIGNATURE" ? <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm"><span className="font-medium text-amber-700">Prepared — not sent.</span><span className="text-muted2"> All signers and PDF fields are stored in JUN. You can start JUN Secure Sign now{docusignReady ? " or use DocuSign." : "."}</span></div> : null}
@@ -71,7 +76,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
             <div className="flex flex-wrap gap-3">
               <Link href={signedPdfBase} target="_blank"><Button variant="secondary"><ExternalLink className="mr-2 h-4 w-4" />View signed PDF</Button></Link>
               <Link href={`${signedPdfBase}?download=1`}><Button variant="secondary"><Download className="mr-2 h-4 w-4" />Download signed PDF</Button></Link>
-              <Link href={`/api/signatures/${request.id}/certificate`}><Button variant="gold"><FileCheck2 className="mr-2 h-4 w-4" />Certificate / audit trail</Button></Link>
+              <Link href={`/api/signatures/${request.id}/certificate`} target="_blank"><Button variant="gold"><FileCheck2 className="mr-2 h-4 w-4" />Certificate / audit trail</Button></Link>
             </div>
             <p className="mt-3 text-xs text-muted2">The archived signed PDF is protected by its SHA-256 integrity hash shown in Details.</p>
           </CardContent>
