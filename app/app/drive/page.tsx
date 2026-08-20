@@ -23,6 +23,10 @@ type DriveFolderCrumb = { id: string; name: string; parentId: string | null };
 
 const FAVORITE_PREFIX = "drive.favorite.";
 const SHARE_PREFIX = "drive.share.";
+const NOTE_PREFIX = "drive.note.";
+const PUBLIC_DISABLED_PREFIX = "drive.public.disabled.";
+const PUBLIC_TOKEN_PREFIX = "drive.public.token.";
+const VERSION_PREFIX = "drive.version.";
 
 async function getBreadcrumbs(folderId?: string): Promise<Array<{ id: string; name: string }> | null> {
   if (!folderId) return [];
@@ -120,6 +124,57 @@ export default async function DrivePage({ searchParams }: { searchParams: { cate
     }),
   ]);
 
+  const fileIds = files.map((f) => f.id);
+  const [manageSettings, auditRows] = fileIds.length ? await Promise.all([
+    prisma.appSetting.findMany({ where: { OR: [
+      { key: { startsWith: NOTE_PREFIX } },
+      { key: { startsWith: PUBLIC_DISABLED_PREFIX } },
+      { key: { startsWith: PUBLIC_TOKEN_PREFIX } },
+      { key: { startsWith: VERSION_PREFIX } },
+    ] }, select: { key: true, value: true } }),
+    prisma.auditLog.findMany({
+      where: { resourceType: "File", resourceId: { in: fileIds } },
+      orderBy: { createdAt: "desc" },
+      take: 1000,
+      include: { user: { select: { firstName: true, lastName: true } } },
+    }),
+  ]) : [[], []];
+
+  const currentIdSet = new Set(fileIds);
+  const noteMap = new Map<string, string>();
+  const publicDisabledSet = new Set<string>();
+  const publicTokenMap = new Map<string, string>();
+  const versionsMap = new Map<string, Array<{ versionId: string; name: string; mimeType: string; sizeBytes: number; createdAt: string; createdBy: string }>>();
+
+  for (const setting of manageSettings) {
+    if (setting.key.startsWith(NOTE_PREFIX)) {
+      const id = setting.key.slice(NOTE_PREFIX.length); if (currentIdSet.has(id)) noteMap.set(id, setting.value);
+    } else if (setting.key.startsWith(PUBLIC_DISABLED_PREFIX)) {
+      const id = setting.key.slice(PUBLIC_DISABLED_PREFIX.length); if (currentIdSet.has(id)) publicDisabledSet.add(id);
+    } else if (setting.key.startsWith(PUBLIC_TOKEN_PREFIX)) {
+      const id = setting.key.slice(PUBLIC_TOKEN_PREFIX.length); if (currentIdSet.has(id)) publicTokenMap.set(id, setting.value);
+    } else if (setting.key.startsWith(VERSION_PREFIX)) {
+      const id = fileIds.find((fileId) => setting.key.startsWith(`${VERSION_PREFIX}${fileId}.`));
+      if (!id) continue;
+      try {
+        const parsed = JSON.parse(setting.value) as { versionId: string; name: string; mimeType: string; sizeBytes: number; createdAt: string; createdBy: string };
+        const list = versionsMap.get(id) ?? [];
+        list.push(parsed);
+        versionsMap.set(id, list);
+      } catch {}
+    }
+  }
+  for (const list of versionsMap.values()) list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const activityMap = new Map<string, Array<{ id: string; action: string; createdAt: string; user: string }>>();
+  for (const row of auditRows) {
+    if (!row.resourceId) continue;
+    const list = activityMap.get(row.resourceId) ?? [];
+    if (list.length >= 12) continue;
+    list.push({ id: row.id, action: row.action, createdAt: row.createdAt.toISOString(), user: row.user ? `${row.user.firstName} ${row.user.lastName}` : "System" });
+    activityMap.set(row.resourceId, list);
+  }
+
   const currentFolder = breadcrumbs?.[breadcrumbs.length - 1];
   const returnTo = driveUrl(view, folderId, q, category);
   const viewLabel = NAV.find((item) => item.view === view)?.label ?? "My Drive";
@@ -134,11 +189,16 @@ export default async function DrivePage({ searchParams }: { searchParams: { cate
     clientLabel: f.client ? `${f.client.firstName} ${f.client.lastName}` : null,
     caseNumber: f.case?.caseNumber ?? null,
     starred: favoriteSet.has(f.id),
+    note: noteMap.get(f.id) ?? "",
+    publicDisabled: publicDisabledSet.has(f.id),
+    publicToken: publicTokenMap.get(f.id) ?? null,
+    versions: versionsMap.get(f.id) ?? [],
+    activity: activityMap.get(f.id) ?? [],
   }));
 
   return (
     <div>
-      <PageHeader title="Drive" subtitle="Company storage with folders, public links, sharing, recovery, preview and bulk organization." />
+      <PageHeader title="Drive" subtitle="Company storage with folders, public links, sharing, recovery, preview, versions and audit history." />
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside>
           <nav className="sticky top-5 space-y-1 rounded-xl border border-white/10 bg-white/[0.025] p-2">
@@ -161,7 +221,7 @@ export default async function DrivePage({ searchParams }: { searchParams: { cate
           {canUpload && view === "my" ? (
             <div className="mb-6 grid gap-4 xl:grid-cols-[300px_1fr]">
               <Card><CardHeader><CardTitle>New folder</CardTitle></CardHeader><CardContent><form action={createFolder} className="space-y-3"><input type="hidden" name="parentId" value={folderId ?? ""} /><input name="name" required maxLength={120} placeholder="Folder name" className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-electric" /><Button type="submit" variant="secondary"><FolderPlus className="mr-2 h-4 w-4" />Create folder</Button></form></CardContent></Card>
-              <Card><CardHeader><CardTitle>Upload to {currentFolder?.name ?? "My Drive"}</CardTitle></CardHeader><CardContent><FileUploadForm action={uploadFile} folderId={folderId} categories={CATEGORIES} clients={clients.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName} (${c.internalId})` }))} cases={cases.map((c) => ({ id: c.id, label: `${c.caseNumber} — ${c.title}` }))} /><p className="mt-2 text-xs text-muted2">Drag files onto a folder after upload to reorganize them. Public JUN links remain stable when files move.</p></CardContent></Card>
+              <Card><CardHeader><CardTitle>Upload to {currentFolder?.name ?? "My Drive"}</CardTitle></CardHeader><CardContent><FileUploadForm action={uploadFile} folderId={folderId} categories={CATEGORIES} clients={clients.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName} (${c.internalId})` }))} cases={cases.map((c) => ({ id: c.id, label: `${c.caseNumber} — ${c.title}` }))} /><p className="mt-2 text-xs text-muted2">Public JUN links remain stable when files move. Phase 4 adds version history and revocable public links.</p></CardContent></Card>
             </div>
           ) : null}
 
@@ -183,6 +243,7 @@ export default async function DrivePage({ searchParams }: { searchParams: { cate
               view={view}
               returnTo={returnTo}
               canDelete={canDelete}
+              canManage={canUpload}
             />
           )}
         </main>
