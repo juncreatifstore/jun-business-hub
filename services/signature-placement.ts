@@ -3,7 +3,12 @@
 import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { signatureEnvelope, type SignatureField } from "@/lib/signature-recipients";
+import {
+  signatureRecipients,
+  signatureRequestMeta,
+  signatureRecipientsPayload,
+  type SignatureField,
+} from "@/lib/signature-recipients";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -29,9 +34,10 @@ export async function saveSignaturePlacements(requestId: string, formData: FormD
 
   if (!Array.isArray(parsed)) redirect(`/app/signatures/${request.id}/prepare?toast_error=Invalid field placement data`);
 
-  const envelope = signatureEnvelope(request.recipients);
-  const byEmail = new Map(envelope.recipients.map((r) => [r.email.toLowerCase(), r]));
-  envelope.recipients.forEach((r) => { r.fields = []; });
+  const recipients = signatureRecipients(request.recipients);
+  const meta = signatureRequestMeta(request.recipients);
+  const byEmail = new Map(recipients.map((r) => [r.email.toLowerCase(), r]));
+  recipients.forEach((r) => { r.fields = []; });
 
   for (const item of parsed) {
     if (!item || typeof item !== "object") continue;
@@ -47,14 +53,14 @@ export async function saveSignaturePlacements(requestId: string, formData: FormD
     recipient.fields = [...(recipient.fields ?? []), { type, page, x, y }];
   }
 
-  if (envelope.recipients.some((r) => !(r.fields ?? []).some((f) => f.type === "SIGNATURE"))) {
+  if (recipients.some((r) => !(r.fields ?? []).some((f) => f.type === "SIGNATURE"))) {
     redirect(`/app/signatures/${request.id}/prepare?toast_error=Each signer needs at least one Signature field`);
   }
 
-  const fieldCount = envelope.recipients.reduce((n, r) => n + (r.fields?.length ?? 0), 0);
+  const fieldCount = recipients.reduce((n, r) => n + (r.fields?.length ?? 0), 0);
   await prisma.signatureRequest.update({
     where: { id: request.id },
-    data: { recipients: { recipients: envelope.recipients, message: envelope.message } as never },
+    data: { recipients: signatureRecipientsPayload(recipients, meta) as never },
   });
 
   await audit({
@@ -62,7 +68,7 @@ export async function saveSignaturePlacements(requestId: string, formData: FormD
     action: "SIGNATURE_FIELDS_POSITIONED",
     resourceType: "SignatureRequest",
     resourceId: request.id,
-    after: { signerCount: envelope.recipients.length, fieldCount },
+    after: { signerCount: recipients.length, fieldCount },
   });
 
   revalidatePath(`/app/signatures/${request.id}`);
