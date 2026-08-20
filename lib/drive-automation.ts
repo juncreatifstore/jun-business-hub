@@ -2,7 +2,6 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { indexDriveFile, getDriveIntelligence } from "@/lib/drive-intelligence";
-import type { FileCategory } from "@prisma/client";
 
 export const DRIVE_AUTOMATION_RULE_PREFIX = "drive.automation.rule.";
 export const DRIVE_AUTOMATION_PROPOSAL_PREFIX = "drive.automation.proposal.";
@@ -39,7 +38,7 @@ export type DriveAutomationProposal = {
   id: string;
   fileId: string;
   ruleId: string | null;
-  type: "CATEGORY" | "LINK_CLIENT" | "LINK_CASE" | "EXPIRY";
+  type: "CATEGORY" | "LINK_CLIENT" | "LINK_CASE" | "EXPIRY" | "MOVE";
   value: string;
   label: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
@@ -112,9 +111,15 @@ export async function processDriveAutomation(fileId: string, actorUserId: string
       await prisma.appSetting.upsert({ where: { key }, update: { value: JSON.stringify(tags) }, create: { key, value: JSON.stringify(tags) } });
     }
 
-    if (a.moveToFolderId !== undefined && !a.requireApproval && a.moveToFolderId !== file.folderId) {
+    if (a.moveToFolderId !== undefined && a.moveToFolderId !== file.folderId) {
       const targetOk = a.moveToFolderId === null || Boolean(await prisma.folder.findFirst({ where: { id: a.moveToFolderId, isVault: false }, select: { id: true } }));
-      if (targetOk) await prisma.file.update({ where: { id: file.id }, data: { folderId: a.moveToFolderId } });
+      if (targetOk && a.requireApproval) {
+        const targetLabel = a.moveToFolderId === null ? "My Drive root" : (await prisma.folder.findUnique({ where: { id: a.moveToFolderId }, select: { name: true } }))?.name ?? "folder";
+        await upsertAutomationProposal({ fileId: file.id, ruleId: rule.id, type: "MOVE", value: a.moveToFolderId ?? "__ROOT__", label: `Move file to ${targetLabel}` });
+        proposalCount++;
+      } else if (targetOk) {
+        await prisma.file.update({ where: { id: file.id }, data: { folderId: a.moveToFolderId } });
+      }
     }
 
     if (a.suggestCategory && DRIVE_CATEGORIES.includes(a.suggestCategory as typeof DRIVE_CATEGORIES[number]) && a.suggestCategory !== file.category) {
