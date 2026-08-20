@@ -119,6 +119,8 @@ export async function createSignatureCenterRequest(formData: FormData): Promise<
     },
   });
 
+  const roles: string[] = recipients.map((r) => r.role ?? "OTHER");
+
   await audit({
     userId: user.id,
     action: "SIGNATURE_CENTER_REQUEST_CREATE",
@@ -128,7 +130,7 @@ export async function createSignatureCenterRequest(formData: FormData): Promise<
       documentId: doc.documentId,
       provider,
       signerCount: recipients.length,
-      roles: recipients.map((r) => r.role),
+      roles,
       messageIncluded: Boolean(message),
     },
   });
