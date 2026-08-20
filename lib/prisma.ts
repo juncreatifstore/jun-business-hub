@@ -1,8 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
 // Server-only Prisma singleton using Prisma's standard query engine.
-// This avoids the query_compiler_bg.wasm runtime dependency that was missing
-// from Vercel when engineType = "client" + @prisma/adapter-pg was used.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function pickConnectionString() {
@@ -14,14 +12,28 @@ function pickConnectionString() {
   );
 }
 
-function createClient() {
-  const connectionString = pickConnectionString();
-  if (!/^postgres(?:ql)?:\/\//i.test(connectionString)) {
+function normalizeConnectionString(raw: string) {
+  if (!/^postgres(?:ql)?:\/\//i.test(raw)) {
     throw new Error(
       "No valid PostgreSQL connection string found. Expected POSTGRES_PRISMA_URL, POSTGRES_URL, or DATABASE_URL.",
     );
   }
 
+  const url = new URL(raw);
+  const isSupabaseTransactionPooler =
+    /\.pooler\.supabase\.com$/i.test(url.hostname) && url.port === "6543";
+
+  if (isSupabaseTransactionPooler) {
+    if (!url.searchParams.has("pgbouncer")) url.searchParams.set("pgbouncer", "true");
+    if (!url.searchParams.has("connection_limit")) url.searchParams.set("connection_limit", "1");
+    if (!url.searchParams.has("sslmode")) url.searchParams.set("sslmode", "require");
+  }
+
+  return url.toString();
+}
+
+function createClient() {
+  const connectionString = normalizeConnectionString(pickConnectionString());
   return new PrismaClient({
     datasources: { db: { url: connectionString } },
   });
