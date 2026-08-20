@@ -11,6 +11,7 @@ import {
   uploadDriveNewVersion,
 } from "@/services/drive-manage";
 import { saveDrivePublicSecurity } from "@/services/drive-public-security";
+import { DriveIntelligencePanel } from "@/components/app/drive-intelligence-panel";
 
 export type DriveVersionInfo = { versionId: string; name: string; mimeType: string; sizeBytes: number; createdAt: string; createdBy: string };
 export type DriveActivityInfo = { id: string; action: string; createdAt: string; user: string };
@@ -56,7 +57,7 @@ export function DriveFileManager({ file, returnTo, onClose }: {
   return (
     <div className="fixed inset-0 z-[60] bg-black/25" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <aside className="absolute inset-y-0 right-0 w-full max-w-2xl overflow-y-auto border-l border-line bg-surface p-5 text-ink shadow-2xl">
-        <div className="mb-6 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Manage file</h2><p className="mt-1 text-xs text-muted2">Metadata, versions, activity and secure public sharing.</p></div><button type="button" onClick={onClose} className="rounded-md p-2 text-muted2 hover:bg-white hover:text-ink"><X className="h-5 w-5" /></button></div>
+        <div className="mb-6 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Manage file</h2><p className="mt-1 text-xs text-muted2">Metadata, intelligence, versions, activity and secure public sharing.</p></div><button type="button" onClick={onClose} className="rounded-md p-2 text-muted2 hover:bg-white hover:text-ink"><X className="h-5 w-5" /></button></div>
 
         <section className={sectionClass}>
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Pencil className="h-4 w-4" /> Name & duplicate</h3>
@@ -68,6 +69,8 @@ export function DriveFileManager({ file, returnTo, onClose }: {
           <h3 className="mb-3 text-sm font-semibold">Internal note</h3>
           <form action={saveDriveFileNote.bind(null, file.id)}><input type="hidden" name="returnTo" value={returnTo} /><textarea name="note" defaultValue={file.note} rows={4} maxLength={4000} placeholder="Internal information about this file…" className={`w-full p-3 text-sm ${inputClass}`} /><button className="mt-2 rounded-lg bg-electric px-3 py-2 text-sm font-medium text-white hover:opacity-90">Save note</button></form>
         </section>
+
+        <DriveIntelligencePanel fileId={file.id} returnTo={returnTo} />
 
         <section className={sectionClass}>
           <div className="mb-3 flex items-center justify-between gap-3"><h3 className="flex items-center gap-2 text-sm font-semibold"><Link2 className="h-4 w-4" /> Public viewing link</h3><span className={`rounded-full px-2 py-1 text-[10px] font-medium ${disabled ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{disabled ? "DISABLED" : "ACTIVE"}</span></div>
