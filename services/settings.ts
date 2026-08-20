@@ -7,10 +7,14 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 const ALLOWED_KEYS = new Set([
-  "company.name", "company.tagline", "company.email", "company.phone", "company.whatsapp",
-  "company.po_box", "company.address", "company.website", "company.registration", "company.tax_id",
+  "company.name", "company.trade_name", "company.tagline", "company.email", "company.finance_email",
+  "company.documents_email", "company.support_email", "company.phone", "company.phone_secondary", "company.whatsapp",
+  "company.po_box", "company.address", "company.mailing_address", "company.website", "company.registration",
+  "company.tax_id", "company.legal_representative", "company.representative_title", "company.registration_country",
+  "company.registration_state", "company.formation_date", "company.bank_details",
   "brand.primary", "brand.secondary", "brand.accent",
   "document.watermark_opacity", "document.seal_size", "document.footer_label",
+  "document.show_logo", "document.show_seal", "document.show_signature", "document.show_qr", "document.show_tax_id",
   "numbering.year_reset",
 ]);
 
@@ -18,7 +22,7 @@ const HSL_RE = /^\d{1,3}(?:\.\d+)?\s+\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%$/;
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_BRAND_ASSET = 5 * 1024 * 1024;
 
-type AssetName = "logo" | "seal";
+type AssetName = "logo" | "seal" | "signature";
 
 async function currentSetting(key: string) {
   return prisma.appSetting.findUnique({ where: { key } });
@@ -62,7 +66,8 @@ export async function saveSettings(formData: FormData): Promise<void> {
   const updates: { key: string; value: string }[] = [];
   for (const [key, raw] of formData.entries()) {
     if (!ALLOWED_KEYS.has(key)) continue;
-    const value = String(raw).trim().slice(0, 500);
+    const maxLength = key === "company.bank_details" ? 2000 : 500;
+    const value = String(raw).trim().slice(0, maxLength);
     if (key.startsWith("brand.") && value && !HSL_RE.test(value)) {
       redirect(`/app/settings?toast_error=${encodeURIComponent(`${key} must be HSL like “222 47% 11%”`)}`);
     }
@@ -77,6 +82,10 @@ export async function saveSettings(formData: FormData): Promise<void> {
     updates.push({ key, value });
   }
 
+  for (const checkboxKey of ["document.show_logo", "document.show_seal", "document.show_signature", "document.show_qr", "document.show_tax_id"]) {
+    if (!formData.has(checkboxKey)) updates.push({ key: checkboxKey, value: "off" });
+  }
+
   try {
     for (const u of updates) {
       if (u.value === "") {
@@ -86,9 +95,10 @@ export async function saveSettings(formData: FormData): Promise<void> {
       }
     }
 
-    const [logo, seal] = await Promise.all([
+    const [logo, seal, signature] = await Promise.all([
       handleAsset(formData, "logo"),
       handleAsset(formData, "seal"),
+      handleAsset(formData, "signature"),
     ]);
 
     await audit({
@@ -99,6 +109,7 @@ export async function saveSettings(formData: FormData): Promise<void> {
         keys: updates.map((u) => u.key),
         logo: logo.action,
         seal: seal.action,
+        signature: signature.action,
       },
     });
   } catch (error) {
