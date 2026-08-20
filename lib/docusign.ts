@@ -28,23 +28,20 @@ function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** OAuth JWT grant → access token (cached ~50 min). */
 let cached: { token: string; exp: number } | null = null;
 export async function docusignAccessToken(): Promise<string> {
   if (cached && cached.exp > Date.now() + 60_000) return cached.token;
   const oauthBase = process.env.DOCUSIGN_OAUTH_BASE ?? "account-d.docusign.com";
   const now = Math.floor(Date.now() / 1000);
   const headerB = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claimB = b64url(
-    JSON.stringify({
-      iss: process.env.DOCUSIGN_CLIENT_ID,
-      sub: process.env.DOCUSIGN_USER_ID,
-      aud: oauthBase,
-      iat: now,
-      exp: now + 3600,
-      scope: "signature impersonation",
-    })
-  );
+  const claimB = b64url(JSON.stringify({
+    iss: process.env.DOCUSIGN_CLIENT_ID,
+    sub: process.env.DOCUSIGN_USER_ID,
+    aud: oauthBase,
+    iat: now,
+    exp: now + 3600,
+    scope: "signature impersonation",
+  }));
   const key = (process.env.DOCUSIGN_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
   const signer = createSign("RSA-SHA256");
   signer.update(`${headerB}.${claimB}`);
@@ -65,19 +62,21 @@ function api(path: string) {
   return `${process.env.DOCUSIGN_BASE_PATH}/restapi/v2.1/accounts/${process.env.DOCUSIGN_ACCOUNT_ID}${path}`;
 }
 
-/** Create and send an envelope with the final PDF; signers get anchor-less signing on last page. */
 export async function docusignCreateEnvelope(input: {
-  documentId: string; // JUN-CTR-…
+  documentId: string;
   title: string;
   pdfBytes: Uint8Array;
   signers: { name: string; email: string; order: number }[];
+  message?: string;
 }): Promise<{ envelopeId: string }> {
   const token = await docusignAccessToken();
+  const emailBlurb = input.message?.trim().slice(0, 1000);
   const res = await fetch(api("/envelopes"), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       emailSubject: `Signature request — ${input.title} (${input.documentId})`,
+      ...(emailBlurb ? { emailBlurb } : {}),
       status: "sent",
       documents: [{ documentBase64: Buffer.from(input.pdfBytes).toString("base64"), name: `${input.documentId}.pdf`, fileExtension: "pdf", documentId: "1" }],
       recipients: {
@@ -96,7 +95,6 @@ export async function docusignCreateEnvelope(input: {
   return { envelopeId: data.envelopeId };
 }
 
-/** Download the combined signed PDF for a completed envelope. */
 export async function docusignSignedPdf(envelopeId: string): Promise<Uint8Array> {
   const token = await docusignAccessToken();
   const res = await fetch(api(`/envelopes/${envelopeId}/documents/combined`), { headers: { Authorization: `Bearer ${token}` } });
