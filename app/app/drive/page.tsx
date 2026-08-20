@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FileUploadForm } from "@/components/app/file-upload-form";
 import { DriveBrowser } from "@/components/app/drive-browser";
 import { uploadFile, createFolder } from "@/services/files";
-import { FOLDER_TRASH_PREFIX, FOLDER_SHARE_PREFIX } from "@/services/drive-folders";
+import { FOLDER_TRASH_PREFIX, FOLDER_SHARE_PREFIX } from "@/lib/drive-folder-constants";
 import { FolderOpen, FolderPlus, Home, ChevronRight, Clock3, Star, Users, Trash2, HardDrive } from "lucide-react";
 
 export const dynamic = "force-dynamic";
