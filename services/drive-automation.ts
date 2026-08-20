@@ -137,6 +137,10 @@ export async function reviewDriveAutomationProposal(proposalId: string, formData
       if (!Number.isFinite(time)) redirect(toast(returnTo, "toast_error", "Suggested expiration date is invalid"));
       const expiryKey = `${DRIVE_EXPIRY_PREFIX}${file.id}`;
       await prisma.appSetting.upsert({ where: { key: expiryKey }, update: { value: new Date(time).toISOString() }, create: { key: expiryKey, value: new Date(time).toISOString() } });
+    } else if (proposal.type === "MOVE") {
+      const targetId = proposal.value === "__ROOT__" ? null : proposal.value;
+      if (targetId && !(await prisma.folder.findFirst({ where: { id: targetId, isVault: false }, select: { id: true } }))) redirect(toast(returnTo, "toast_error", "Destination folder no longer exists"));
+      await prisma.file.update({ where: { id: file.id }, data: { folderId: targetId } });
     }
   }
 
