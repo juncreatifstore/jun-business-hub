@@ -24,8 +24,21 @@ function safeImageSrc(src: string | undefined): string {
   return "";
 }
 
+/**
+ * Templates/AI sometimes return otherwise-valid HTML wrapped in Markdown fences.
+ * Strip only outer fences so literal user text inside the document is preserved.
+ */
+export function normalizeDocumentHtmlInput(input: string): string {
+  let value = String(input ?? "").trim();
+  value = value.replace(/^\s*```(?:html|htm)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  // Some imported templates contain a lone leading "html" line without backticks.
+  if (/^html\s*[\r\n]+\s*</i.test(value)) value = value.replace(/^html\s*[\r\n]+/i, "").trim();
+  return value;
+}
+
 export function sanitizeDocumentHtml(dirty: string): string {
-  return sanitizeHtml(dirty ?? "", {
+  const normalized = normalizeDocumentHtmlInput(dirty);
+  return sanitizeHtml(normalized, {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: {
       a: ["href", "rel", "target"],
@@ -63,7 +76,7 @@ export function sanitizeDocumentHtml(dirty: string): string {
             src,
             alt: (attribs.alt ?? (isDraw ? "Hand drawing" : "Document image")).slice(0, 300),
             title: (attribs.title ?? "").slice(0, 300),
-            width: String(Math.min(1200, Math.max(1, Number(attribs.width) || (isDraw ? 640 : 640)))),
+            width: String(Math.min(1200, Math.max(1, Number(attribs.width) || 640))),
             height: String(Math.min(1600, Math.max(1, Number(attribs.height) || (isDraw ? 176 : 360)))),
             "data-jun-image": "true",
             ...(isDraw ? { "data-jun-draw": "true" } : {}),
@@ -84,8 +97,10 @@ export function sanitizeDocumentHtml(dirty: string): string {
 
 /** Plain-text extraction (for AI context minimization, previews, PDF fallback). */
 export function htmlToText(html: string): string {
-  return sanitizeHtml(html ?? "", { allowedTags: [], allowedAttributes: {} })
+  const normalized = normalizeDocumentHtmlInput(html);
+  return sanitizeHtml(normalized, { allowedTags: [], allowedAttributes: {} })
     .replace(/\s+\n/g, "\n")
     .replace(/[ \t]{2,}/g, " ")
+    .replace(/^\s*html\s*$/gim, "")
     .trim();
 }
