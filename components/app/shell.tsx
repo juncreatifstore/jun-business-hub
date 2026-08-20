@@ -1,5 +1,6 @@
 "use client";
 import { useState, Suspense } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { ContextBack } from "./context-back";
@@ -15,6 +16,18 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const editorWorkspace = pathname.startsWith("/app/editor");
+
+  if (editorWorkspace) {
+    return (
+      <div className="min-h-screen bg-[#f5f6f8] text-slate-900">
+        {children}
+        <Suspense fallback={null}><Toaster /></Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar open={open} onClose={() => setOpen(false)} />
