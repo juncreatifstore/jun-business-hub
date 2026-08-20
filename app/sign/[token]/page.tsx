@@ -2,25 +2,29 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { verifyNativeSigningToken } from "@/lib/native-signature";
 import { signatureRecipients } from "@/lib/signature-recipients";
-import { completeJunNativeSignature } from "@/services/native-signatures";
-import { CheckCircle2, Download, ExternalLink, FileSignature, LockKeyhole } from "lucide-react";
+import { completeJunNativeSignature, declineJunNativeSignature, markNativeSignatureViewed } from "@/services/native-signatures";
+import { CheckCircle2, Download, ExternalLink, FileSignature, LockKeyhole, XCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 function errorMessage(code?: string) {
   if (code === "consent_required") return "Please accept the electronic signature consent before signing.";
   if (code === "signature_name_required") return "Enter your full name as your electronic signature.";
+  if (code === "decline_reason_required") return "Please enter a short reason before declining the document.";
   if (code === "waiting_for_previous_signer") return "Another signer must complete their signature before it is your turn.";
+  if (code === "request_expired") return "This signature request has expired. Contact JUN for a new request.";
   if (code === "request_not_available") return "This signature request is no longer available.";
   if (code === "signer_not_found") return "This signing link does not match a signer on the request.";
   if (code === "invalid_or_expired_link") return "This signing link is invalid or has expired.";
   return null;
 }
 
-export default async function NativeSignPage({ params, searchParams }: { params: { token: string }; searchParams?: { error?: string; done?: string } }) {
+export default async function NativeSignPage({ params, searchParams }: { params: { token: string }; searchParams?: { error?: string; done?: string; declined?: string } }) {
   const token = params.token;
   const payload = await verifyNativeSigningToken(token);
   if (!payload) notFound();
+
+  await markNativeSignatureViewed(token);
 
   const request = await prisma.signatureRequest.findUnique({
     where: { id: payload.requestId },
@@ -32,8 +36,10 @@ export default async function NativeSignPage({ params, searchParams }: { params:
   const signer = recipients.find((r) => r.email.toLowerCase() === payload.email.toLowerCase() && r.order === payload.order);
   if (!signer) notFound();
   const firstUnsigned = recipients.find((r) => !r.signedAt);
-  const isTurn = !signer.signedAt && firstUnsigned?.email.toLowerCase() === signer.email.toLowerCase();
+  const isTurn = !signer.signedAt && !signer.declinedAt && firstUnsigned?.email.toLowerCase() === signer.email.toLowerCase();
   const done = Boolean(searchParams?.done) || Boolean(signer.signedAt);
+  const declined = Boolean(searchParams?.declined) || Boolean(signer.declinedAt) || request.status === "DECLINED";
+  const expired = request.status === "EXPIRED";
   const error = errorMessage(searchParams?.error);
   const pdfUrl = `/api/sign/${encodeURIComponent(token)}/pdf`;
   const signedPdfUrl = `/api/sign/${encodeURIComponent(token)}/signed-pdf`;
@@ -61,6 +67,18 @@ export default async function NativeSignPage({ params, searchParams }: { params:
               </div>
             ) : null}
             <p className="mt-5 text-xs text-muted2">Keep this signing link private. You may close this page after saving your copy.</p>
+          </div>
+        ) : declined ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+            <XCircle className="mx-auto h-12 w-12 text-red-600" />
+            <h1 className="mt-4 text-2xl font-semibold">Signature declined</h1>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-muted2">Your decision not to sign {request.document.documentId} has been recorded. JUN has been notified.</p>
+            {signer.declineReason ? <p className="mx-auto mt-4 max-w-xl rounded-lg border border-red-200 bg-white p-3 text-sm">Reason: {signer.declineReason}</p> : null}
+          </div>
+        ) : expired ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
+            <h1 className="text-2xl font-semibold">Signing link expired</h1>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-muted2">This signature request is no longer active. Contact JUN CREATIF AND TRAVEL LLC for a new signing request.</p>
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -92,20 +110,28 @@ export default async function NativeSignPage({ params, searchParams }: { params:
                   <p className="mt-2 text-sm text-muted2">This link is valid, but the document must be signed in routing order. Return to this same link after the previous signer has completed.</p>
                 </div>
               ) : (
-                <form action={completeJunNativeSignature.bind(null, token)} className="rounded-2xl border border-line bg-white p-5 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted2">Electronic signature</p>
-                  <label className="mt-4 block text-sm font-medium" htmlFor="signatureName">Type your full name</label>
-                  <input id="signatureName" name="signatureName" required defaultValue={signer.name} maxLength={160} className="mt-2 h-12 w-full rounded-lg border border-line px-3 text-xl italic outline-none focus:border-electric focus:ring-2 focus:ring-electric/20" />
-                  <p className="mt-2 text-xs text-muted2">Your typed name will be placed in the Signature field. Name, date and initials fields are completed automatically.</p>
+                <>
+                  <form action={completeJunNativeSignature.bind(null, token)} className="rounded-2xl border border-line bg-white p-5 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted2">Electronic signature</p>
+                    <label className="mt-4 block text-sm font-medium" htmlFor="signatureName">Type your full name</label>
+                    <input id="signatureName" name="signatureName" required defaultValue={signer.name} maxLength={160} className="mt-2 h-12 w-full rounded-lg border border-line px-3 text-xl italic outline-none focus:border-electric focus:ring-2 focus:ring-electric/20" />
+                    <p className="mt-2 text-xs text-muted2">Your typed name will be placed in the Signature field. Name, date and initials fields are completed automatically.</p>
 
-                  <label className="mt-5 flex items-start gap-3 rounded-lg border border-line bg-surface p-3 text-sm">
-                    <input type="checkbox" name="consent" className="mt-1" required />
-                    <span>I have reviewed this document and agree to use my typed name as my electronic signature. I understand that submitting this form records my consent, signing time and document integrity information.</span>
-                  </label>
+                    <label className="mt-5 flex items-start gap-3 rounded-lg border border-line bg-surface p-3 text-sm">
+                      <input type="checkbox" name="consent" className="mt-1" required />
+                      <span>I have reviewed this document and agree to use my typed name as my electronic signature. I understand that submitting this form records my consent, signing time and document integrity information.</span>
+                    </label>
 
-                  <button type="submit" className="mt-5 h-11 w-full rounded-lg bg-night px-4 text-sm font-medium text-white hover:bg-night-soft">Accept & sign document</button>
-                  <p className="mt-3 text-center text-xs text-muted2">Do not sign if the document is incorrect. Contact JUN before continuing.</p>
-                </form>
+                    <button type="submit" className="mt-5 h-11 w-full rounded-lg bg-night px-4 text-sm font-medium text-white hover:bg-night-soft">Accept & sign document</button>
+                  </form>
+
+                  <form action={declineJunNativeSignature.bind(null, token)} className="rounded-2xl border border-red-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Cannot sign?</p>
+                    <label className="mt-3 block text-sm font-medium" htmlFor="reason">Reason for declining</label>
+                    <textarea id="reason" name="reason" required maxLength={500} rows={3} placeholder="Explain briefly what needs to be corrected." className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-red-400" />
+                    <button type="submit" className="mt-3 h-10 w-full rounded-lg border border-red-300 text-sm font-medium text-red-700 hover:bg-red-50">Decline to sign</button>
+                  </form>
+                </>
               )}
             </aside>
           </div>
