@@ -1,5 +1,7 @@
 import "server-only";
 import { SignJWT, jwtVerify } from "jose";
+import { prisma } from "@/lib/prisma";
+import { signatureRecipients } from "@/lib/signature-recipients";
 
 const ISSUER = "jun-business-hub";
 const AUDIENCE = "jun-native-signature";
@@ -53,12 +55,25 @@ export async function verifyNativeSigningToken(token: string): Promise<NativeSig
   }
 }
 
+export function nativeTokenMatchesRecipient(payload: NativeSigningPayload, recipient: { email: string; order: number; linkVersion?: number | null }) {
+  return payload.email.toLowerCase() === recipient.email.toLowerCase()
+    && payload.order === recipient.order
+    && (payload.linkVersion ?? 1) === (recipient.linkVersion ?? 1);
+}
+
 export async function createVerifiedNativeSigningToken(payload: Omit<NativeSigningPayload, "verified">, expiresAt?: Date) {
   return createNativeSigningToken({ ...payload, verified: true }, expiresAt);
 }
 
-export async function nativeSigningUrl(requestId: string, email: string, order: number, expiresAt?: Date, linkVersion = 1) {
-  const token = await createNativeSigningToken({ requestId, email, order, linkVersion }, expiresAt);
+async function currentLinkVersion(requestId: string, email: string, order: number) {
+  const request = await prisma.signatureRequest.findUnique({ where: { id: requestId }, select: { recipients: true } }).catch(() => null);
+  const recipient = request ? signatureRecipients(request.recipients).find((r) => r.email.toLowerCase() === email.toLowerCase() && r.order === order) : null;
+  return recipient?.linkVersion ?? 1;
+}
+
+export async function nativeSigningUrl(requestId: string, email: string, order: number, expiresAt?: Date, linkVersion?: number) {
+  const version = linkVersion ?? await currentLinkVersion(requestId, email, order);
+  const token = await createNativeSigningToken({ requestId, email, order, linkVersion: version }, expiresAt);
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.juncreatif.org").replace(/\/$/, "");
   return `${base}/sign/${encodeURIComponent(token)}`;
 }
