@@ -24,7 +24,7 @@ const SECTION_CATEGORY: Record<number,string> = {
 
 type CatalogEntry = { number: number; name: string; category: string };
 
-export function parseAdministrativeTemplateCatalog(markdown: string): CatalogEntry[] {
+function parseAdministrativeTemplateCatalog(markdown: string): CatalogEntry[] {
   const entries: CatalogEntry[] = [];
   let category = "GENERAL";
   for (const rawLine of markdown.split(/\r?\n/)) {
