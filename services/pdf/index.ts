@@ -84,8 +84,8 @@ function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont) {
   const top = PAGE.h - 120;
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const cx = left + (right - left) * (cols === 1 ? 0.5 : col / (cols - 1));
-      const cy = bottom + (top - bottom) * (rows === 1 ? 0.5 : row / (rows - 1));
+      const cx = left + (right - left) * (col / (cols - 1));
+      const cy = bottom + (top - bottom) * (row / (rows - 1));
       if (logo) {
         const maxW = 82;
         const maxH = 46;
@@ -178,7 +178,6 @@ async function buildBase(meta: {
   decoratePage(page);
   const ctx: Ctx = { pdf, page, y: PAGE.h - PAGE.margin, font, bold, pageNo: 1, rotation: 0, assets, footer, decoratePage };
 
-  // Preserve the current JUN header layout.
   if (logo) {
     const maxW = 62;
     const maxH = 50;
@@ -233,7 +232,6 @@ function renderTextPage(ctx: Ctx, html: string) {
   }
 }
 
-/** Render a document's HTML content into a final branded PDF. JUN page markers are hard page breaks. */
 export async function renderDocumentPdf(input: {
   documentId: string;
   title: string;
@@ -269,7 +267,6 @@ export async function renderDocumentPdf(input: {
   return finish();
 }
 
-/** Render an official payment receipt PDF. */
 export async function renderReceiptPdf(input: {
   reference: string;
   clientName: string;
