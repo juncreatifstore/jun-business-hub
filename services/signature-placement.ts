@@ -7,6 +7,7 @@ import {
   signatureRecipients,
   signatureRequestMeta,
   signatureRecipientsPayload,
+  defaultSignatureFieldSize,
   type SignatureField,
 } from "@/lib/signature-recipients";
 import { redirect } from "next/navigation";
@@ -47,10 +48,13 @@ export async function saveSignaturePlacements(requestId: string, formData: FormD
     const recipient = byEmail.get(email);
     if (!recipient || !FIELD_TYPES.has(type)) continue;
 
+    const defaults = defaultSignatureFieldSize(type);
     const page = clamp(Math.round(Number(v.page) || 1), 1, 200);
     const x = clamp(Math.round(Number(v.x) || 0), 0, 612);
     const y = clamp(Math.round(Number(v.y) || 0), 0, 792);
-    recipient.fields = [...(recipient.fields ?? []), { type, page, x, y }];
+    const width = clamp(Math.round(Number(v.width) || defaults.width), 24, 300);
+    const height = clamp(Math.round(Number(v.height) || defaults.height), 18, 120);
+    recipient.fields = [...(recipient.fields ?? []), { type, page, x, y, width, height }];
   }
 
   if (recipients.some((r) => !(r.fields ?? []).some((f) => f.type === "SIGNATURE"))) {
