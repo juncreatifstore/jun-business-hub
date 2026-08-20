@@ -34,14 +34,6 @@ const nextConfig = {
   reactStrictMode: true,
   optimizeFonts: false, // fonts load via <link>; avoids build-time fetch to Google
 
-  // Prisma runtime assets must be present in Vercel serverless bundles.
-  outputFileTracingIncludes: {
-    "/*": [
-      "./node_modules/.prisma/client/**/*",
-      "./node_modules/@prisma/client/**/*",
-    ],
-  },
-
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
