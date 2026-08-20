@@ -7,7 +7,7 @@ import { randomBytes, randomUUID } from "crypto";
 export type ForgotPasswordState = { message?: string; error?: string };
 
 function safeResetCode(error: unknown): string {
-  const e = error as { name?: string; code?: string; message?: string };
+  const e = error as { name?: string; code?: string; message?: string; path?: string };
   const msg = String(e?.message ?? "");
   if (/No valid PostgreSQL connection string/i.test(msg)) return "DB_URL";
   if (/password authentication failed|authentication failed/i.test(msg)) return "DB_AUTH";
@@ -15,6 +15,15 @@ function safeResetCode(error: unknown): string {
   if (/ECONNREFUSED|connection refused/i.test(msg)) return "DB_REFUSED";
   if (/timeout|timed out/i.test(msg)) return "DB_TIMEOUT";
   if (/prepared statement|pgbouncer/i.test(msg)) return "DB_POOLER";
+  if (e?.code === "ENOENT" || /ENOENT/i.test(msg)) {
+    const rawPath = String(e?.path ?? msg.match(/(?:open|stat|access) ['\"]([^'\"]+)['\"]/i)?.[1] ?? "");
+    const artifact = rawPath.split(/[\\/]/).filter(Boolean).pop()?.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80);
+    return artifact ? `PRISMA_ENOENT_${artifact}` : "PRISMA_ENOENT";
+  }
+  if (/Cannot find module/i.test(msg)) {
+    const mod = msg.match(/Cannot find module ['\"]([^'\"]+)['\"]/i)?.[1]?.split(/[\\/]/).pop()?.replace(/[^a-zA-Z0-9._@-]/g, "").slice(0, 80);
+    return mod ? `MODULE_${mod}` : "MODULE_MISSING";
+  }
   if (/Prisma/i.test(msg) || /Prisma/i.test(String(e?.name ?? ""))) return `PRISMA${e?.code ? `_${e.code}` : ""}`;
   return `SERVER${e?.code ? `_${e.code}` : ""}`;
 }
