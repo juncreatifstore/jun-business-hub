@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +41,12 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
 
   return (
     <div>
+      <div className="mb-4">
+        <Link href="/app/documents" className="inline-flex items-center gap-2 text-sm font-medium text-muted2 hover:text-electric">
+          <ArrowLeft className="h-4 w-4" /> Back to Documents
+        </Link>
+      </div>
+
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="registry-id text-muted2">{doc.documentId}</p>
@@ -55,7 +62,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
         </div>
         <div className="flex flex-wrap gap-2">
           <a href={`/api/documents/${doc.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Download PDF</Button></a>
-          <Link href={`/app/documents/${doc.id}/print`}><Button variant="ghost">Print view</Button></Link>
+          <Link href={`/app/documents/${doc.id}/print`} target="_blank"><Button variant="ghost">Print view</Button></Link>
           {doc.status === "DRAFT" && can(user, "DOCUMENT_EDIT") ? (
             <form action={finalizeDocument.bind(null, doc.id)}><Button variant="gold">Finalize</Button></form>
           ) : null}
