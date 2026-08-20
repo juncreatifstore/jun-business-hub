@@ -11,6 +11,7 @@ import {
   verifyDrivePublicAccess,
 } from "@/lib/drive-public-security";
 import { drivePublicPolicyAllows, getDriveEnterpriseSettings } from "@/lib/drive-enterprise";
+import { drivePrivacyCookieName, getDrivePrivacyPolicy, verifyDrivePrivacyConsent } from "@/lib/drive-privacy";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,17 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   });
   if (!file) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [security, enterprise] = await Promise.all([getDrivePublicSecurity(file.id), getDriveEnterpriseSettings()]);
+  const [security, enterprise, privacy] = await Promise.all([
+    getDrivePublicSecurity(file.id),
+    getDriveEnterpriseSettings(),
+    getDrivePrivacyPolicy(file.id),
+  ]);
   if (security.disabled || publicLinkExpired(security) || !publicTokenMatches(security, suppliedToken) || !drivePublicPolicyAllows(enterprise, security)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (privacy.required) {
+    const accepted = await verifyDrivePrivacyConsent(req.cookies.get(drivePrivacyCookieName(file.id))?.value, file.id, privacy.version);
+    if (!accepted) return NextResponse.json({ error: "Confidentiality acceptance required" }, { status: 428 });
   }
   if (security.passwordHash) {
     const unlocked = await verifyDrivePublicAccess(req.cookies.get(publicAccessCookieName(file.id))?.value, file.id);
@@ -34,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   await recordDrivePublicAccess(file.id, download ? "FILE_PUBLIC_DOWNLOAD" : "FILE_PUBLIC_OPEN", {
     ...requestPublicMeta(req.headers),
-    after: { download },
+    after: { download, privacyVersion: privacy.version },
   });
 
   if (process.env.STORAGE_DRIVER === "SUPABASE") {
