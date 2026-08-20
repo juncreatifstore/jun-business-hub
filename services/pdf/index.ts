@@ -1,23 +1,20 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, degrees, type PDFFont, type PDFPage, type PDFImage } from "pdf-lib";
 import QRCode from "qrcode";
-import { htmlToText } from "@/lib/sanitize";
+import { htmlToText, normalizeDocumentHtmlInput } from "@/lib/sanitize";
 import { parseDocumentPages } from "@/lib/document-pages";
 
 /**
  * Server-side PDF generation (pdf-lib — pure JS, no headless browser).
- * Every final PDF carries: JUN letterhead, company info, unique reference,
- * verification QR (→ /verify/[id]), date, pagination and footer.
- * Optional premium logo + seal images can be provided with environment URLs:
- *   JUN_PDF_LOGO_URL
- *   JUN_PDF_SEAL_URL
- * The caller stores the bytes and records sha256(pdf) for tamper detection.
+ * Official documents keep the JUN letterhead, company information, QR,
+ * repeated premium watermark, seal, reference and pagination.
  */
 
 const NIGHT = rgb(0.055, 0.09, 0.16);
 const GOLD = rgb(0.79, 0.62, 0.2);
 const GRAY = rgb(0.45, 0.48, 0.55);
-const PAGE = { w: 595.28, h: 841.89, margin: 56 }; // A4 portrait base; rotation is page metadata.
+const LIGHT = rgb(0.91, 0.92, 0.94);
+const PAGE = { w: 595.28, h: 841.89, margin: 56 };
 
 const COMPANY = {
   name: "JUN CREATIF AND TRAVEL LLC",
@@ -49,12 +46,15 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
     const words = raw.split(/\s+/).filter(Boolean);
     if (words.length === 0) { out.push(""); continue; }
     let line = "";
-    for (const w of words) {
-      const probe = line ? `${line} ${w}` : w;
+    for (const word of words) {
+      const probe = line ? `${line} ${word}` : word;
       if (font.widthOfTextAtSize(probe, size) <= maxWidth) line = probe;
-      else { if (line) out.push(line); line = w; }
+      else {
+        if (line) out.push(line);
+        line = word;
+      }
     }
-    out.push(line);
+    if (line) out.push(line);
   }
   return out;
 }
@@ -74,7 +74,6 @@ async function embedRemoteImage(pdf: PDFDocument, url?: string): Promise<PDFImag
   }
 }
 
-/** Small repeated premium watermark marks across the printable area. */
 function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont) {
   const cols = 3;
   const rows = 5;
@@ -87,17 +86,17 @@ function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont) {
       const cx = left + (right - left) * (col / (cols - 1));
       const cy = bottom + (top - bottom) * (row / (rows - 1));
       if (logo) {
-        const maxW = 82;
-        const maxH = 46;
+        const maxW = 78;
+        const maxH = 42;
         const scale = Math.min(maxW / logo.width, maxH / logo.height);
         const w = logo.width * scale;
         const h = logo.height * scale;
-        page.drawImage(logo, { x: cx - w / 2, y: cy - h / 2, width: w, height: h, opacity: 0.045 });
+        page.drawImage(logo, { x: cx - w / 2, y: cy - h / 2, width: w, height: h, opacity: 0.038 });
       } else {
         const text = "JUN";
-        const size = 16;
+        const size = 15;
         const w = bold.widthOfTextAtSize(text, size);
-        page.drawText(text, { x: cx - w / 2, y: cy, size, font: bold, color: GRAY, opacity: 0.04 });
+        page.drawText(text, { x: cx - w / 2, y: cy, size, font: bold, color: GRAY, opacity: 0.035 });
       }
     }
   }
@@ -109,13 +108,7 @@ function drawSeal(page: PDFPage, seal: PDFImage | null) {
   const scale = Math.min(max / seal.width, max / seal.height);
   const w = seal.width * scale;
   const h = seal.height * scale;
-  page.drawImage(seal, {
-    x: PAGE.w - PAGE.margin - w,
-    y: 54,
-    width: w,
-    height: h,
-    opacity: 0.92,
-  });
+  page.drawImage(seal, { x: PAGE.w - PAGE.margin - w, y: 50, width: w, height: h, opacity: 0.92 });
 }
 
 function applyRotation(page: PDFPage, rotation: PageRotation) {
@@ -129,16 +122,17 @@ function newPage(ctx: Ctx, rotation: PageRotation = ctx.rotation) {
   ctx.rotation = rotation;
   applyRotation(ctx.page, rotation);
   ctx.decoratePage(ctx.page);
-  ctx.y = PAGE.h - PAGE.margin;
+  ctx.y = PAGE.h - 72;
 }
 
-function drawLines(ctx: Ctx, lines: string[], opts: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb>; gap?: number } = {}) {
-  const size = opts.size ?? 10.5;
+function drawLines(ctx: Ctx, lines: string[], opts: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb>; gap?: number; lead?: number; indent?: number } = {}) {
+  const size = opts.size ?? 9.7;
   const font = opts.bold ? ctx.bold : ctx.font;
-  const lead = size * 1.45;
+  const lead = opts.lead ?? size * 1.28;
+  const x = PAGE.margin + (opts.indent ?? 0);
   for (const line of lines) {
-    if (ctx.y < PAGE.margin + 40) newPage(ctx);
-    if (line) ctx.page.drawText(line, { x: PAGE.margin, y: ctx.y, size, font, color: opts.color ?? NIGHT });
+    if (ctx.y < PAGE.margin + 52) newPage(ctx);
+    if (line) ctx.page.drawText(line, { x, y: ctx.y, size, font, color: opts.color ?? NIGHT });
     ctx.y -= lead;
   }
   ctx.y -= opts.gap ?? 0;
@@ -169,9 +163,10 @@ async function buildBase(meta: {
   const decoratePage = (p: PDFPage) => drawWatermark(p, assets.logo, bold);
   const footer = (p: PDFPage, n: number) => {
     drawSeal(p, assets.seal);
-    p.drawLine({ start: { x: PAGE.margin, y: 44 }, end: { x: PAGE.w - PAGE.margin, y: 44 }, thickness: 0.5, color: GRAY });
-    p.drawText(`${COMPANY.name} · ${COMPANY.site}`, { x: PAGE.margin, y: 30, size: 8, font, color: GRAY });
-    p.drawText(`${meta.reference} — page ${n}`, { x: PAGE.w - PAGE.margin - font.widthOfTextAtSize(`${meta.reference} — page ${n}`, 8), y: 30, size: 8, font, color: GRAY });
+    p.drawLine({ start: { x: PAGE.margin, y: 43 }, end: { x: PAGE.w - PAGE.margin, y: 43 }, thickness: 0.45, color: LIGHT });
+    p.drawText(`${COMPANY.name} · ${COMPANY.site}`, { x: PAGE.margin, y: 29, size: 7.4, font, color: GRAY });
+    const pageText = `${meta.reference} · ${n}`;
+    p.drawText(pageText, { x: PAGE.w - PAGE.margin - font.widthOfTextAtSize(pageText, 7.4), y: 29, size: 7.4, font, color: GRAY });
   };
 
   const page = pdf.addPage([PAGE.w, PAGE.h]);
@@ -191,44 +186,69 @@ async function buildBase(meta: {
 
   const infoX = PAGE.margin + 70;
   ctx.page.drawText(COMPANY.name, { x: infoX, y: ctx.y + 7, size: 11, font: bold, color: NIGHT });
-  ctx.page.drawText(COMPANY.tagline, { x: infoX, y: ctx.y - 5, size: 8.5, font, color: GRAY });
-  ctx.page.drawText(COMPANY.mailingAddress, { x: infoX, y: ctx.y - 17, size: 7.5, font, color: GRAY });
+  ctx.page.drawText(COMPANY.tagline, { x: infoX, y: ctx.y - 5, size: 8.2, font, color: GRAY });
+  ctx.page.drawText(COMPANY.mailingAddress, { x: infoX, y: ctx.y - 17, size: 7.3, font, color: GRAY });
   const contact = [COMPANY.phone, COMPANY.email].filter(Boolean).join(" · ");
-  if (contact) ctx.page.drawText(contact, { x: infoX, y: ctx.y - 28, size: 7.5, font, color: GRAY });
+  if (contact) ctx.page.drawText(contact, { x: infoX, y: ctx.y - 28, size: 7.3, font, color: GRAY });
 
-  ctx.page.drawImage(qrImg, { x: PAGE.w - PAGE.margin - 60, y: ctx.y - 44, width: 60, height: 60 });
-  ctx.page.drawText("Scan to verify", { x: PAGE.w - PAGE.margin - 57, y: ctx.y - 55, size: 7, font, color: GRAY });
-  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y - 38 }, end: { x: PAGE.w - PAGE.margin - 76, y: ctx.y - 38 }, thickness: 1, color: GOLD });
-  ctx.y -= 94;
+  ctx.page.drawImage(qrImg, { x: PAGE.w - PAGE.margin - 58, y: ctx.y - 42, width: 58, height: 58 });
+  ctx.page.drawText("Scan to verify", { x: PAGE.w - PAGE.margin - 55, y: ctx.y - 53, size: 6.8, font, color: GRAY });
+  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y - 38 }, end: { x: PAGE.w - PAGE.margin - 74, y: ctx.y - 38 }, thickness: 1, color: GOLD });
+  ctx.y -= 86;
 
-  drawLines(ctx, wrap(meta.title, bold, 17, PAGE.w - 2 * PAGE.margin), { size: 17, bold: true, gap: 2 });
-  drawLines(ctx, [
-    `Reference: ${meta.reference}`,
-    `Date: ${new Date().toISOString().slice(0, 10)}   ·   ${meta.statusLine}`,
-    `Verify: ${verifyUrl}`,
-    ...(meta.extraHeader ?? []),
-  ], { size: 9, color: GRAY, gap: 10 });
+  drawLines(ctx, wrap(meta.title, bold, 15.2, PAGE.w - 2 * PAGE.margin), { size: 15.2, bold: true, lead: 18, gap: 4 });
+  const metaLine1 = `${meta.reference} · ${new Date().toISOString().slice(0, 10)} · ${meta.statusLine}`;
+  drawLines(ctx, wrap(metaLine1, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10, gap: 1 });
+  for (const extra of meta.extraHeader ?? []) {
+    drawLines(ctx, wrap(extra, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10 });
+  }
+  ctx.y -= 7;
+  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y + 3 }, end: { x: PAGE.w - PAGE.margin, y: ctx.y + 3 }, thickness: 0.35, color: LIGHT });
+  ctx.y -= 8;
 
   return {
     ctx,
     finish: async () => {
       ctx.footer(ctx.page, ctx.pageNo);
       const pages = pdf.getPages();
-      pages.forEach((p) => {
-        p.drawText(`of ${pages.length}`, { x: PAGE.w - PAGE.margin - font.widthOfTextAtSize(`of ${pages.length}`, 8), y: 20, size: 8, font, color: GRAY });
+      pages.forEach((p, index) => {
+        const total = `${index + 1}/${pages.length}`;
+        p.drawText(total, { x: PAGE.w / 2 - font.widthOfTextAtSize(total, 7.2) / 2, y: 29, size: 7.2, font, color: GRAY });
       });
       return pdf.save();
     },
   };
 }
 
+function cleanBodyText(html: string): string {
+  return htmlToText(normalizeDocumentHtmlInput(html))
+    .replace(/^\s*[`*_~]+\s*html\s*[`*_~]*\s*$/gim, "")
+    .replace(/^\s*```.*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function isHeadingLine(block: string): boolean {
+  const text = block.trim();
+  if (!text || text.length > 90 || text.split(/\s+/).length > 12) return false;
+  if (/^\[[^\]]+\]$/.test(text)) return false;
+  if (/^(Date|Dat|From|To|Ant|Ak|Objet|Objè|Reference|Référence|Client|Case|Dossier)\s*:/i.test(text)) return false;
+  return /^[A-ZÀ-ÖØ-Þ0-9]/.test(text) && !/[.!?]$/.test(text);
+}
+
 function renderTextPage(ctx: Ctx, html: string) {
-  const text = htmlToText(html);
+  const text = cleanBodyText(html);
+  if (!text) return;
   const width = PAGE.w - 2 * PAGE.margin;
-  for (const block of text.split(/\n/)) {
-    const isHeading = block.length > 0 && block.length < 80 && block === block.replace(/[.:]$/, "") && /^[A-Z0-9]/.test(block) && !/[a-z]{40}/.test(block) && block.split(" ").length <= 10 && text.indexOf(block) !== text.length;
-    if (block.trim() === "") { ctx.y -= 6; continue; }
-    drawLines(ctx, wrap(block, isHeading ? ctx.bold : ctx.font, isHeading ? 12.5 : 10.5, width), { size: isHeading ? 12.5 : 10.5, bold: isHeading, gap: isHeading ? 2 : 4 });
+  const blocks = text.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+  for (const block of blocks) {
+    const heading = isHeadingLine(block);
+    if (heading) {
+      if (ctx.y < PAGE.margin + 92) newPage(ctx);
+      drawLines(ctx, wrap(block, ctx.bold, 10.5, width), { size: 10.5, bold: true, lead: 13.2, gap: 2.5 });
+    } else {
+      drawLines(ctx, wrap(block, ctx.font, 9.35, width), { size: 9.35, lead: 12.1, gap: 2.2 });
+    }
   }
 }
 
@@ -242,20 +262,23 @@ export async function renderDocumentPdf(input: {
   caseNumber?: string | null;
   signatureStatus?: string | null;
 }): Promise<Uint8Array> {
+  const normalizedHtml = normalizeDocumentHtmlInput(input.html);
   const { ctx, finish } = await buildBase({
     title: input.title,
     reference: input.documentId,
     verifyPath: `/verify/${input.documentId}`,
-    statusLine: `Type: ${input.type}   ·   Status: ${input.status}${input.signatureStatus ? `   ·   Signature: ${input.signatureStatus}` : ""}`,
+    statusLine: `${input.type.replaceAll("_", " ")} · ${input.status}${input.signatureStatus ? ` · Signature ${input.signatureStatus}` : ""}`,
     extraHeader: [
       ...(input.clientName ? [`Client: ${input.clientName}`] : []),
       ...(input.caseNumber ? [`Case: ${input.caseNumber}`] : []),
     ],
   });
 
-  const logicalPages = parseDocumentPages(input.html);
-  for (let i = 0; i < logicalPages.length; i++) {
-    const logical = logicalPages[i];
+  const logicalPages = parseDocumentPages(normalizedHtml).filter((p) => cleanBodyText(p.html).length > 0);
+  const pages = logicalPages.length ? logicalPages : [{ id: "page-1", rotation: 0 as const, html: normalizedHtml }];
+
+  for (let i = 0; i < pages.length; i++) {
+    const logical = pages[i];
     if (i === 0) {
       ctx.rotation = logical.rotation;
       applyRotation(ctx.page, logical.rotation);
@@ -285,7 +308,7 @@ export async function renderReceiptPdf(input: {
     title: "Official Payment Receipt",
     reference: input.reference,
     verifyPath: `/verify/${input.reference}`,
-    statusLine: `Status: ISSUED`,
+    statusLine: "RECEIPT · ISSUED",
   });
 
   const rows: [string, string][] = [
@@ -300,17 +323,17 @@ export async function renderReceiptPdf(input: {
     ...(input.reason ? [["Details", input.reason] as [string, string]] : []),
     ["Issued by", input.issuerName],
   ];
-  ctx.y -= 6;
-  for (const [k, v] of rows) {
+  ctx.y -= 4;
+  for (const [key, value] of rows) {
     if (ctx.y < PAGE.margin + 60) newPage(ctx);
-    ctx.page.drawText(k, { x: PAGE.margin, y: ctx.y, size: 10, font: ctx.bold, color: NIGHT });
-    for (const line of wrap(v, ctx.font, 10, PAGE.w - 2 * PAGE.margin - 170)) {
-      ctx.page.drawText(line, { x: PAGE.margin + 170, y: ctx.y, size: 10, font: ctx.font, color: NIGHT });
-      ctx.y -= 15;
-    }
-    ctx.y -= 6;
+    ctx.page.drawText(key, { x: PAGE.margin, y: ctx.y, size: 9.4, font: ctx.bold, color: NIGHT });
+    const valueLines = wrap(value, ctx.font, 9.4, PAGE.w - 2 * PAGE.margin - 165);
+    valueLines.forEach((line, index) => {
+      ctx.page.drawText(line, { x: PAGE.margin + 165, y: ctx.y - index * 12, size: 9.4, font: ctx.font, color: NIGHT });
+    });
+    ctx.y -= Math.max(1, valueLines.length) * 12 + 4;
   }
-  ctx.y -= 8;
-  drawLines(ctx, ["This receipt is issued electronically by JUN CREATIF AND TRAVEL LLC and can be authenticated at any time using the QR code above or the verification link."], { size: 9, color: GRAY });
+  ctx.y -= 6;
+  drawLines(ctx, ["This receipt is issued electronically by JUN CREATIF AND TRAVEL LLC and can be authenticated using the QR code above."], { size: 8.6, color: GRAY });
   return finish();
 }
