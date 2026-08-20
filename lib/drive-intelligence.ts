@@ -13,6 +13,9 @@ export type DriveIntelligence = {
   contentExcerpt: string;
   searchableText: string;
   summary?: string;
+  detailedDescription?: string;
+  documentPurpose?: string;
+  visualDescription?: string;
   language?: string;
   suggestedCategory?: string;
   tags?: string[];
@@ -20,6 +23,9 @@ export type DriveIntelligence = {
   organizations?: string[];
   importantDates?: string[];
   keyFacts?: string[];
+  actionItems?: string[];
+  risks?: string[];
+  missingInformation?: string[];
   aiAnalyzedAt?: string;
 };
 
@@ -75,6 +81,9 @@ export async function indexDriveFile(fileId: string, suppliedBuffer?: Buffer) {
     contentExcerpt: content.slice(0, 5000),
     searchableText: `${metadataText} ${content}`.slice(0, 60_000),
     ...(previous.summary ? { summary: previous.summary } : {}),
+    ...(previous.detailedDescription ? { detailedDescription: previous.detailedDescription } : {}),
+    ...(previous.documentPurpose ? { documentPurpose: previous.documentPurpose } : {}),
+    ...(previous.visualDescription ? { visualDescription: previous.visualDescription } : {}),
     ...(previous.language ? { language: previous.language } : {}),
     ...(previous.suggestedCategory ? { suggestedCategory: previous.suggestedCategory } : {}),
     ...(previous.tags ? { tags: previous.tags } : {}),
@@ -82,6 +91,9 @@ export async function indexDriveFile(fileId: string, suppliedBuffer?: Buffer) {
     ...(previous.organizations ? { organizations: previous.organizations } : {}),
     ...(previous.importantDates ? { importantDates: previous.importantDates } : {}),
     ...(previous.keyFacts ? { keyFacts: previous.keyFacts } : {}),
+    ...(previous.actionItems ? { actionItems: previous.actionItems } : {}),
+    ...(previous.risks ? { risks: previous.risks } : {}),
+    ...(previous.missingInformation ? { missingInformation: previous.missingInformation } : {}),
     ...(previous.aiAnalyzedAt ? { aiAnalyzedAt: previous.aiAnalyzedAt } : {}),
   };
 
