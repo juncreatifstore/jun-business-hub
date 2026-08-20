@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
-import { BUILTIN_TEMPLATE_VARIABLES, TEMPLATE_CATEGORIES } from "@/lib/document-templates";
+import { BUILTIN_TEMPLATE_VARIABLES, TEMPLATE_CATEGORIES } from "@/lib/document-template-constants";
 import { Code2, Eye, PlusCircle } from "lucide-react";
 
 const TYPES = ["CONTRACT","AGREEMENT","REFUND_AGREEMENT","RECEIPT","INVOICE","LETTER","ATTESTATION","AUTHORIZATION","REPORT","CUSTOM"];
