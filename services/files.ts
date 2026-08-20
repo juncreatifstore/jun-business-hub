@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { FileCategory } from "@prisma/client";
 import { VAULT_CATEGORIES } from "@/lib/utils";
+import { processDriveAutomation } from "@/lib/drive-automation";
 
 const CATEGORIES = new Set(["IDENTITY", "PASSPORT", "CONTRACT", "PAYMENT_PROOF", "RECEIPT", "REFUND", "VISA", "FLIGHT", "INVOICE", "COMPANY", "LEGAL", "TAX", "EMPLOYEE", "VENDOR", "OTHER"]);
 const FAVORITE_PREFIX = "drive.favorite.";
@@ -84,9 +85,11 @@ export async function uploadFile(formData: FormData): Promise<void> {
 
   await audit({ userId: user.id, action: isVault ? "VAULT_UPLOAD" : "FILE_UPLOAD", resourceType: "File", resourceId: record.id, after: { name: record.name, sizeBytes: raw.size, category, isVault, folderId } });
   await logActivity({ userId: user.id, type: "FILE_UPLOADED", message: `Uploaded ${record.name}`, clientId: clientId ?? undefined, caseId: caseId ?? undefined });
+  if (!isVault) await processDriveAutomation(record.id, user.id, buf).catch(() => null);
 
   const dest = isVault ? "/app/vault" : driveDest(folderId);
   revalidatePath(isVault ? "/app/vault" : "/app/drive");
+  revalidatePath("/app/drive/automation");
   redirect(appendToast(dest, "toast", "File uploaded"));
 }
 
