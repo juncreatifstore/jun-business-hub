@@ -5,6 +5,8 @@ export type SignatureField = {
   page: number;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
 };
 
 export type SignatureRecipient = {
@@ -22,6 +24,15 @@ export type SignatureRequestMeta = {
 
 const FIELD_TYPES = new Set<SignatureFieldType>(["SIGNATURE", "INITIALS", "DATE_SIGNED", "NAME"]);
 
+export function defaultSignatureFieldSize(type: SignatureFieldType): { width: number; height: number } {
+  switch (type) {
+    case "SIGNATURE": return { width: 150, height: 48 };
+    case "INITIALS": return { width: 72, height: 36 };
+    case "DATE_SIGNED": return { width: 110, height: 28 };
+    case "NAME": return { width: 140, height: 28 };
+  }
+}
+
 function signatureFields(value: unknown): SignatureField[] {
   if (!Array.isArray(value)) return [];
   const out: SignatureField[] = [];
@@ -33,11 +44,16 @@ function signatureFields(value: unknown): SignatureField[] {
     const x = Number(f.x);
     const y = Number(f.y);
     if (!type || !FIELD_TYPES.has(type) || !Number.isFinite(page) || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const defaults = defaultSignatureFieldSize(type);
+    const width = Number(f.width);
+    const height = Number(f.height);
     out.push({
       type,
       page: Math.max(1, Math.floor(page)),
       x: Math.max(0, Math.floor(x)),
       y: Math.max(0, Math.floor(y)),
+      width: Number.isFinite(width) ? Math.max(24, Math.floor(width)) : defaults.width,
+      height: Number.isFinite(height) ? Math.max(18, Math.floor(height)) : defaults.height,
     });
   }
   return out;
