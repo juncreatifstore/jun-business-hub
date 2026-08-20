@@ -3,10 +3,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   Grid2X2, List as ListIcon, ArrowUpDown, Eye, Info, Download, Star, Share2,
-  Trash2, RotateCcw, FolderOpen, FileText, X, Move, CheckSquare, Square, Link2,
+  Trash2, RotateCcw, FolderOpen, FileText, X, Move, CheckSquare, Square, Link2, Settings2,
 } from "lucide-react";
 import { toggleFavorite, shareFile, deleteFile, restoreFile, permanentlyDeleteFile } from "@/services/files";
 import { moveFiles, trashFiles, restoreFiles, permanentlyDeleteFiles } from "@/services/drive-bulk";
+import { DriveFileManager, type DriveVersionInfo, type DriveActivityInfo } from "@/components/app/drive-file-manager";
 
 type DriveView = "my" | "recent" | "starred" | "shared" | "trash";
 export type DriveBrowserFile = {
@@ -20,6 +21,11 @@ export type DriveBrowserFile = {
   clientLabel: string | null;
   caseNumber: string | null;
   starred: boolean;
+  note: string;
+  publicDisabled: boolean;
+  publicToken: string | null;
+  versions: DriveVersionInfo[];
+  activity: DriveActivityInfo[];
 };
 export type DriveBrowserFolder = { id: string; name: string; files: number; children: number };
 export type DriveMoveFolder = { id: string; label: string };
@@ -35,7 +41,7 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "2-digit" }).format(new Date(value));
 }
 
-export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, returnTo, canDelete }: {
+export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, returnTo, canDelete, canManage }: {
   files: DriveBrowserFile[];
   folders: DriveBrowserFolder[];
   moveFolders: DriveMoveFolder[];
@@ -43,6 +49,7 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
   view: DriveView;
   returnTo: string;
   canDelete: boolean;
+  canManage: boolean;
 }) {
   const [layout, setLayout] = useState<"grid" | "list">("list");
   const [sort, setSort] = useState<"date" | "name" | "size" | "category">("date");
@@ -50,6 +57,7 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<DriveBrowserFile | null>(null);
   const [details, setDetails] = useState<DriveBrowserFile | null>(null);
+  const [manage, setManage] = useState<DriveBrowserFile | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -85,9 +93,7 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
       return next;
     });
   }
-  function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(sorted.map((f) => f.id)));
-  }
+  function toggleAll() { setSelected(allSelected ? new Set() : new Set(sorted.map((f) => f.id))); }
 
   function moveDragged(folderId: string) {
     if (!draggedId || pending) return;
@@ -99,9 +105,14 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
     setDraggedId(null);
   }
 
-  function copyPublic(fileId: string) {
-    const url = `${window.location.origin}/view/file/${fileId}`;
-    navigator.clipboard.writeText(url).then(() => window.alert("Public link copied"));
+  function publicUrl(file: DriveBrowserFile) {
+    const suffix = file.publicToken ? `?key=${encodeURIComponent(file.publicToken)}` : "";
+    return `${window.location.origin}/view/file/${file.id}${suffix}`;
+  }
+
+  function copyPublic(file: DriveBrowserFile) {
+    if (file.publicDisabled) { window.alert("This public link is disabled. Enable it from Manage file first."); return; }
+    navigator.clipboard.writeText(publicUrl(file)).then(() => window.alert("Public link copied"));
   }
 
   const bulkJson = JSON.stringify(selectedIds);
@@ -113,20 +124,8 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-white/45">Folders</h3>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {folders.map((folder) => (
-              <Link
-                key={folder.id}
-                href={`/app/drive?folder=${encodeURIComponent(folder.id)}`}
-                onDragOver={(e) => { if (draggedId) e.preventDefault(); }}
-                onDrop={(e) => { e.preventDefault(); moveDragged(folder.id); }}
-                className={`group rounded-xl border p-4 transition ${draggedId ? "border-electric/40 bg-electric/[0.06]" : "border-white/10 bg-white/[0.035] hover:border-electric/40 hover:bg-white/[0.06]"}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-electric/10 p-2 text-electric"><FolderOpen className="h-5 w-5" /></div>
-                  <div className="min-w-0">
-                    <div className="truncate font-medium group-hover:text-electric">{folder.name}</div>
-                    <div className="mt-0.5 text-xs text-white/45">{folder.children} folders · {folder.files} files</div>
-                  </div>
-                </div>
+              <Link key={folder.id} href={`/app/drive?folder=${encodeURIComponent(folder.id)}`} onDragOver={(e) => { if (draggedId) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); moveDragged(folder.id); }} className={`group rounded-xl border p-4 transition ${draggedId ? "border-electric/40 bg-electric/[0.06]" : "border-white/10 bg-white/[0.035] hover:border-electric/40 hover:bg-white/[0.06]"}`}>
+                <div className="flex items-center gap-3"><div className="rounded-lg bg-electric/10 p-2 text-electric"><FolderOpen className="h-5 w-5" /></div><div className="min-w-0"><div className="truncate font-medium group-hover:text-electric">{folder.name}</div><div className="mt-0.5 text-xs text-white/45">{folder.children} folders · {folder.files} files</div></div></div>
               </Link>
             ))}
           </div>
@@ -136,30 +135,17 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={toggleAll} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/5">
-            {allSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />} Select all
-          </button>
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="h-9 rounded-lg border border-white/10 bg-night px-2 text-xs text-white">
-            <option value="date">Date</option><option value="name">Name</option><option value="size">Size</option><option value="category">Category</option>
-          </select>
+          <button type="button" onClick={toggleAll} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-xs text-white/70 hover:bg-white/5">{allSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />} Select all</button>
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className="h-9 rounded-lg border border-white/10 bg-night px-2 text-xs text-white"><option value="date">Date</option><option value="name">Name</option><option value="size">Size</option><option value="category">Category</option></select>
           <button type="button" onClick={() => setDirection((d) => d === "asc" ? "desc" : "asc")} className="rounded-lg border border-white/10 p-2 text-white/60 hover:bg-white/5" title="Reverse sort"><ArrowUpDown className="h-4 w-4" /></button>
         </div>
-        <div className="flex rounded-lg border border-white/10 p-1">
-          <button type="button" onClick={() => chooseLayout("list")} className={`rounded-md p-1.5 ${layout === "list" ? "bg-white/10 text-white" : "text-white/45"}`} title="List view"><ListIcon className="h-4 w-4" /></button>
-          <button type="button" onClick={() => chooseLayout("grid")} className={`rounded-md p-1.5 ${layout === "grid" ? "bg-white/10 text-white" : "text-white/45"}`} title="Grid view"><Grid2X2 className="h-4 w-4" /></button>
-        </div>
+        <div className="flex rounded-lg border border-white/10 p-1"><button type="button" onClick={() => chooseLayout("list")} className={`rounded-md p-1.5 ${layout === "list" ? "bg-white/10 text-white" : "text-white/45"}`} title="List view"><ListIcon className="h-4 w-4" /></button><button type="button" onClick={() => chooseLayout("grid")} className={`rounded-md p-1.5 ${layout === "grid" ? "bg-white/10 text-white" : "text-white/45"}`} title="Grid view"><Grid2X2 className="h-4 w-4" /></button></div>
       </div>
 
       {selected.size > 0 ? (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-electric/20 bg-electric/[0.06] p-3">
           <span className="mr-1 text-sm font-medium text-electric">{selected.size} selected</span>
-          {view !== "trash" ? (
-            <form action={moveFiles} className="flex items-center gap-2">
-              <input type="hidden" name="fileIds" value={bulkJson} /><input type="hidden" name="returnTo" value={returnTo} />
-              <select name="folderId" defaultValue="" className="h-8 rounded-md border border-white/10 bg-night px-2 text-xs text-white"><option value="">My Drive</option>{moveFolders.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select>
-              <button className="inline-flex h-8 items-center gap-1 rounded-md bg-white/10 px-2.5 text-xs hover:bg-white/15"><Move className="h-3.5 w-3.5" /> Move</button>
-            </form>
-          ) : null}
+          {view !== "trash" ? <form action={moveFiles} className="flex items-center gap-2"><input type="hidden" name="fileIds" value={bulkJson} /><input type="hidden" name="returnTo" value={returnTo} /><select name="folderId" defaultValue="" className="h-8 rounded-md border border-white/10 bg-night px-2 text-xs text-white"><option value="">My Drive</option>{moveFolders.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select><button className="inline-flex h-8 items-center gap-1 rounded-md bg-white/10 px-2.5 text-xs hover:bg-white/15"><Move className="h-3.5 w-3.5" /> Move</button></form> : null}
           {canDelete && view !== "trash" ? <form action={trashFiles}><input type="hidden" name="fileIds" value={bulkJson} /><input type="hidden" name="returnTo" value={returnTo} /><button className="inline-flex h-8 items-center gap-1 rounded-md bg-red-500/10 px-2.5 text-xs text-red-300 hover:bg-red-500/15"><Trash2 className="h-3.5 w-3.5" /> Trash</button></form> : null}
           {canDelete && view === "trash" ? <form action={restoreFiles}><input type="hidden" name="fileIds" value={bulkJson} /><input type="hidden" name="returnTo" value={returnTo} /><button className="inline-flex h-8 items-center gap-1 rounded-md bg-white/10 px-2.5 text-xs"><RotateCcw className="h-3.5 w-3.5" /> Restore</button></form> : null}
           {canDelete && view === "trash" ? <form action={permanentlyDeleteFiles} onSubmit={(e) => { if (!window.confirm("Permanently delete selected files? This cannot be undone.")) e.preventDefault(); }}><input type="hidden" name="fileIds" value={bulkJson} /><input type="hidden" name="returnTo" value={returnTo} /><button className="inline-flex h-8 items-center gap-1 rounded-md bg-red-500/10 px-2.5 text-xs text-red-300"><Trash2 className="h-3.5 w-3.5" /> Delete permanently</button></form> : null}
@@ -171,16 +157,9 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {sorted.map((f) => (
             <article key={f.id} draggable={view !== "trash"} onDragStart={() => setDraggedId(f.id)} onDragEnd={() => setDraggedId(null)} className={`rounded-xl border p-4 transition ${selected.has(f.id) ? "border-electric/50 bg-electric/[0.07]" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.045]"}`}>
-              <div className="mb-4 flex items-start justify-between gap-2">
-                <button type="button" onClick={() => toggle(f.id)} className="text-white/45 hover:text-white">{selected.has(f.id) ? <CheckSquare className="h-4 w-4 text-electric" /> : <Square className="h-4 w-4" />}</button>
-                <span className="rounded-md bg-white/5 px-2 py-1 text-[10px] text-white/50">{f.category.replace(/_/g, " ")}</span>
-              </div>
-              <button type="button" onDoubleClick={() => setPreview(f)} onClick={() => setDetails(f)} className="block w-full text-left">
-                <FileText className="mb-3 h-9 w-9 text-electric/80" />
-                <div className="truncate font-medium">{f.name}</div>
-                <div className="mt-1 text-xs text-white/45">{humanSize(f.sizeBytes)} · {formatDate(f.createdAt)}</div>
-              </button>
-              <FileActions file={f} view={view} returnTo={returnTo} teamUsers={teamUsers} canDelete={canDelete} onPreview={() => setPreview(f)} onDetails={() => setDetails(f)} onCopy={() => copyPublic(f.id)} />
+              <div className="mb-4 flex items-start justify-between gap-2"><button type="button" onClick={() => toggle(f.id)} className="text-white/45 hover:text-white">{selected.has(f.id) ? <CheckSquare className="h-4 w-4 text-electric" /> : <Square className="h-4 w-4" />}</button><span className="rounded-md bg-white/5 px-2 py-1 text-[10px] text-white/50">{f.category.replace(/_/g, " ")}</span></div>
+              <button type="button" onDoubleClick={() => setPreview(f)} onClick={() => setDetails(f)} className="block w-full text-left"><FileText className="mb-3 h-9 w-9 text-electric/80" /><div className="truncate font-medium">{f.name}</div><div className="mt-1 text-xs text-white/45">{humanSize(f.sizeBytes)} · {formatDate(f.createdAt)}</div></button>
+              <FileActions file={f} view={view} returnTo={returnTo} teamUsers={teamUsers} canDelete={canDelete} onPreview={() => setPreview(f)} onDetails={() => setDetails(f)} onCopy={() => copyPublic(f)} />
             </article>
           ))}
         </div>
@@ -192,11 +171,8 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
               {sorted.map((f) => <tr key={f.id} draggable={view !== "trash"} onDragStart={() => setDraggedId(f.id)} onDragEnd={() => setDraggedId(null)} className={selected.has(f.id) ? "bg-electric/[0.06]" : "hover:bg-white/[0.025]"}>
                 <td className="p-3"><button type="button" onClick={() => toggle(f.id)} className="text-white/45">{selected.has(f.id) ? <CheckSquare className="h-4 w-4 text-electric" /> : <Square className="h-4 w-4" />}</button></td>
                 <td className="p-3"><button type="button" onClick={() => setDetails(f)} onDoubleClick={() => setPreview(f)} className="flex max-w-[340px] items-center gap-2 text-left font-medium hover:text-electric"><FileText className="h-4 w-4 shrink-0 text-white/40" /><span className="truncate">{f.name}</span></button><div className="ml-6 text-xs text-white/35">{f.mimeType}</div></td>
-                <td className="p-3 text-white/60">{f.category.replace(/_/g, " ")}</td>
-                <td className="p-3 text-white/50">{[f.clientLabel, f.caseNumber].filter(Boolean).join(" · ") || "—"}</td>
-                <td className="p-3 text-white/50">{humanSize(f.sizeBytes)}</td>
-                <td className="p-3 text-white/50">{formatDate(f.createdAt)}<div className="text-xs">{f.uploadedBy}</div></td>
-                <td className="p-3"><FileActions file={f} view={view} returnTo={returnTo} teamUsers={teamUsers} canDelete={canDelete} onPreview={() => setPreview(f)} onDetails={() => setDetails(f)} onCopy={() => copyPublic(f.id)} /></td>
+                <td className="p-3 text-white/60">{f.category.replace(/_/g, " ")}</td><td className="p-3 text-white/50">{[f.clientLabel, f.caseNumber].filter(Boolean).join(" · ") || "—"}</td><td className="p-3 text-white/50">{humanSize(f.sizeBytes)}</td><td className="p-3 text-white/50">{formatDate(f.createdAt)}<div className="text-xs">{f.uploadedBy}</div></td>
+                <td className="p-3"><FileActions file={f} view={view} returnTo={returnTo} teamUsers={teamUsers} canDelete={canDelete} onPreview={() => setPreview(f)} onDetails={() => setDetails(f)} onCopy={() => copyPublic(f)} /></td>
               </tr>)}
             </tbody>
           </table>
@@ -204,7 +180,8 @@ export function DriveBrowser({ files, folders, moveFolders, teamUsers, view, ret
       )}
 
       {preview ? <PreviewModal file={preview} onClose={() => setPreview(null)} /> : null}
-      {details ? <DetailsPanel file={details} onClose={() => setDetails(null)} onPreview={() => { setPreview(details); setDetails(null); }} onCopy={() => copyPublic(details.id)} /> : null}
+      {details ? <DetailsPanel file={details} canManage={canManage && view !== "trash"} onClose={() => setDetails(null)} onPreview={() => { setPreview(details); setDetails(null); }} onCopy={() => copyPublic(details)} onManage={() => { setManage(details); setDetails(null); }} /> : null}
+      {manage ? <DriveFileManager file={manage} returnTo={returnTo} onClose={() => setManage(null)} /> : null}
       {pending ? <div className="fixed bottom-5 right-5 rounded-lg border border-white/10 bg-night px-4 py-2 text-sm shadow-xl">Moving file…</div> : null}
     </div>
   );
@@ -214,7 +191,7 @@ function FileActions({ file, view, returnTo, teamUsers, canDelete, onPreview, on
   return <div className="mt-3 flex flex-wrap items-center gap-1">
     {view !== "trash" ? <button type="button" onClick={onPreview} title="Preview" className="rounded-md p-1.5 text-white/45 hover:bg-white/5 hover:text-white"><Eye className="h-4 w-4" /></button> : null}
     <button type="button" onClick={onDetails} title="Details" className="rounded-md p-1.5 text-white/45 hover:bg-white/5 hover:text-white"><Info className="h-4 w-4" /></button>
-    {view !== "trash" ? <button type="button" onClick={onCopy} title="Copy public link" className="rounded-md p-1.5 text-white/45 hover:bg-white/5 hover:text-white"><Link2 className="h-4 w-4" /></button> : null}
+    {view !== "trash" ? <button type="button" onClick={onCopy} title={file.publicDisabled ? "Public link disabled" : "Copy public link"} className={`rounded-md p-1.5 hover:bg-white/5 ${file.publicDisabled ? "text-red-300/60" : "text-white/45 hover:text-white"}`}><Link2 className="h-4 w-4" /></button> : null}
     {view !== "trash" ? <a href={`/api/files/${file.id}`} target="_blank" rel="noreferrer" title="Open file" className="rounded-md p-1.5 text-white/45 hover:bg-white/5 hover:text-white"><Download className="h-4 w-4" /></a> : null}
     {view !== "trash" ? <form action={toggleFavorite.bind(null, file.id)}><input type="hidden" name="returnTo" value={returnTo} /><button title={file.starred ? "Unstar" : "Star"} className={`rounded-md p-1.5 hover:bg-white/5 ${file.starred ? "text-amber-300" : "text-white/45"}`}><Star className={`h-4 w-4 ${file.starred ? "fill-current" : ""}`} /></button></form> : null}
     {view !== "trash" && teamUsers.length ? <form action={shareFile.bind(null, file.id)} className="flex items-center"><input type="hidden" name="returnTo" value={returnTo} /><select name="userId" required defaultValue="" className="h-7 max-w-28 rounded-md border border-white/10 bg-night px-1 text-[10px]"><option value="" disabled>Share…</option>{teamUsers.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}</select><button title="Share" className="p-1.5 text-white/45"><Share2 className="h-4 w-4" /></button></form> : null}
@@ -225,20 +202,16 @@ function FileActions({ file, view, returnTo, teamUsers, canDelete, onPreview, on
 }
 
 function PreviewModal({ file, onClose }: { file: DriveBrowserFile; onClose: () => void }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-    <div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-night shadow-2xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div className="min-w-0"><div className="truncate font-medium">{file.name}</div><div className="text-xs text-white/40">{file.mimeType} · {humanSize(file.sizeBytes)}</div></div><button onClick={onClose} className="rounded-md p-2 text-white/60 hover:bg-white/5 hover:text-white"><X className="h-5 w-5" /></button></div>
-      <iframe src={`/api/files/${file.id}`} title={file.name} className="min-h-0 flex-1 bg-white" />
-    </div>
-  </div>;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-night shadow-2xl"><div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div className="min-w-0"><div className="truncate font-medium">{file.name}</div><div className="text-xs text-white/40">{file.mimeType} · {humanSize(file.sizeBytes)}</div></div><button onClick={onClose} className="rounded-md p-2 text-white/60 hover:bg-white/5 hover:text-white"><X className="h-5 w-5" /></button></div><iframe src={`/api/files/${file.id}`} title={file.name} className="min-h-0 flex-1 bg-white" /></div></div>;
 }
 
-function DetailsPanel({ file, onClose, onPreview, onCopy }: { file: DriveBrowserFile; onClose: () => void; onPreview: () => void; onCopy: () => void }) {
+function DetailsPanel({ file, canManage, onClose, onPreview, onCopy, onManage }: { file: DriveBrowserFile; canManage: boolean; onClose: () => void; onPreview: () => void; onCopy: () => void; onManage: () => void }) {
   return <div className="fixed inset-0 z-40 bg-black/35" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><aside className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto border-l border-white/10 bg-night p-5 shadow-2xl">
     <div className="mb-6 flex items-center justify-between"><h3 className="font-semibold">File details</h3><button onClick={onClose} className="p-2 text-white/50"><X className="h-5 w-5" /></button></div>
     <div className="mb-5 flex h-32 items-center justify-center rounded-xl border border-white/10 bg-white/[0.025]"><FileText className="h-14 w-14 text-electric/70" /></div>
     <h4 className="break-words font-medium">{file.name}</h4>
-    <dl className="mt-5 grid grid-cols-[110px_1fr] gap-y-3 text-sm"><dt className="text-white/40">Type</dt><dd>{file.mimeType}</dd><dt className="text-white/40">Category</dt><dd>{file.category.replace(/_/g, " ")}</dd><dt className="text-white/40">Size</dt><dd>{humanSize(file.sizeBytes)}</dd><dt className="text-white/40">Uploaded</dt><dd>{formatDate(file.createdAt)}</dd><dt className="text-white/40">Uploaded by</dt><dd>{file.uploadedBy}</dd><dt className="text-white/40">Client</dt><dd>{file.clientLabel || "—"}</dd><dt className="text-white/40">Case</dt><dd>{file.caseNumber || "—"}</dd></dl>
-    <div className="mt-6 flex flex-wrap gap-2"><button onClick={onPreview} className="inline-flex h-9 items-center gap-2 rounded-lg bg-electric px-3 text-sm font-medium text-night"><Eye className="h-4 w-4" /> Preview</button><button onClick={onCopy} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm"><Link2 className="h-4 w-4" /> Public link</button></div>
+    <dl className="mt-5 grid grid-cols-[110px_1fr] gap-y-3 text-sm"><dt className="text-white/40">Type</dt><dd>{file.mimeType}</dd><dt className="text-white/40">Category</dt><dd>{file.category.replace(/_/g, " ")}</dd><dt className="text-white/40">Size</dt><dd>{humanSize(file.sizeBytes)}</dd><dt className="text-white/40">Uploaded</dt><dd>{formatDate(file.createdAt)}</dd><dt className="text-white/40">Uploaded by</dt><dd>{file.uploadedBy}</dd><dt className="text-white/40">Client</dt><dd>{file.clientLabel || "—"}</dd><dt className="text-white/40">Case</dt><dd>{file.caseNumber || "—"}</dd><dt className="text-white/40">Public link</dt><dd className={file.publicDisabled ? "text-red-300" : "text-emerald-300"}>{file.publicDisabled ? "Disabled" : "Active"}</dd><dt className="text-white/40">Versions</dt><dd>{file.versions.length}</dd></dl>
+    {file.note ? <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.025] p-3"><div className="mb-1 text-xs font-medium text-white/40">Internal note</div><p className="whitespace-pre-wrap text-sm text-white/70">{file.note}</p></div> : null}
+    <div className="mt-6 flex flex-wrap gap-2"><button onClick={onPreview} className="inline-flex h-9 items-center gap-2 rounded-lg bg-electric px-3 text-sm font-medium text-night"><Eye className="h-4 w-4" /> Preview</button><button onClick={onCopy} disabled={file.publicDisabled} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm disabled:opacity-40"><Link2 className="h-4 w-4" /> Public link</button>{canManage ? <button onClick={onManage} className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3 text-sm hover:bg-white/5"><Settings2 className="h-4 w-4" /> Manage</button> : null}</div>
   </aside></div>;
 }
