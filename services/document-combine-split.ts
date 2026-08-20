@@ -16,11 +16,11 @@ export async function combineDocuments(formData: FormData) {
   const user = await assertPermission("DOCUMENT_CREATE");
   const sourceIds = formData.getAll("sourceIds").map(String).filter(Boolean).slice(0, MAX_SOURCE_DOCUMENTS);
   if (sourceIds.length < 2) {
-    redirect(`/app/editor/combine?error=${encodeURIComponent("Select at least two documents to combine")}`);
+    redirect(`/app/documents/combine?error=${encodeURIComponent("Select at least two documents to combine")}`);
   }
 
   const title = String(formData.get("title") ?? "").trim().slice(0, 180);
-  if (!title) redirect(`/app/editor/combine?error=${encodeURIComponent("A title is required")}`);
+  if (!title) redirect(`/app/documents/combine?error=${encodeURIComponent("A title is required")}`);
 
   const docs = await prisma.document.findMany({
     where: { id: { in: sourceIds } },
@@ -29,12 +29,12 @@ export async function combineDocuments(formData: FormData) {
   const byId = new Map(docs.map((d) => [d.id, d]));
   const ordered = sourceIds.map((id) => byId.get(id)).filter((d): d is NonNullable<typeof d> => Boolean(d?.versions[0]));
   if (ordered.length !== sourceIds.length) {
-    redirect(`/app/editor/combine?error=${encodeURIComponent("One or more selected documents are unavailable")}`);
+    redirect(`/app/documents/combine?error=${encodeURIComponent("One or more selected documents are unavailable")}`);
   }
 
   const pages = ordered.flatMap((doc) => parseDocumentPages(doc.versions[0].content));
   if (pages.length === 0 || pages.length > MAX_OUTPUT_PAGES) {
-    redirect(`/app/editor/combine?error=${encodeURIComponent(`Combined document must contain between 1 and ${MAX_OUTPUT_PAGES} pages`)}`);
+    redirect(`/app/documents/combine?error=${encodeURIComponent(`Combined document must contain between 1 and ${MAX_OUTPUT_PAGES} pages`)}`);
   }
 
   const first = ordered[0];
@@ -83,7 +83,7 @@ export async function combineDocuments(formData: FormData) {
     caseId: combined.caseId,
   });
 
-  redirect(`/app/editor/${combined.id}/pages?toast=${encodeURIComponent(`Combined ${ordered.length} documents into ${pages.length} pages`)}`);
+  redirect(`/app/documents/${combined.id}/pages?toast=${encodeURIComponent(`Combined ${ordered.length} documents into ${pages.length} pages`)}`);
 }
 
 export async function splitDocument(documentId: string, formData: FormData) {
@@ -93,7 +93,7 @@ export async function splitDocument(documentId: string, formData: FormData) {
     include: { versions: { orderBy: { version: "desc" }, take: 1 } },
   });
   if (!source || !source.versions[0]) {
-    redirect(`/app/editor/${documentId}?toast_error=${encodeURIComponent("Source document is unavailable")}`);
+    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Source document is unavailable")}`);
   }
 
   const pages = parseDocumentPages(source.versions[0].content);
@@ -103,7 +103,7 @@ export async function splitDocument(documentId: string, formData: FormData) {
     .filter((n, i, arr) => arr.indexOf(n) === i)
     .sort((a, b) => a - b);
   if (!selected.length) {
-    redirect(`/app/editor/${documentId}/split?error=${encodeURIComponent("Select at least one page to split")}`);
+    redirect(`/app/documents/${documentId}/split?error=${encodeURIComponent("Select at least one page to split")}`);
   }
 
   const baseTitle = String(formData.get("titlePrefix") ?? "").trim().slice(0, 120) || source.title;
@@ -154,5 +154,5 @@ export async function splitDocument(documentId: string, formData: FormData) {
     caseId: source.caseId,
   });
 
-  redirect(`/app/editor?toast=${encodeURIComponent(`${created.length} split document(s) created`)}`);
+  redirect(`/app/documents?toast=${encodeURIComponent(`${created.length} split document(s) created`)}`);
 }
