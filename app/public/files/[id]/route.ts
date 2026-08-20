@@ -1,22 +1,40 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
-import { canAccessPublicDriveFile } from "@/lib/drive-public";
+import {
+  getDrivePublicSecurity,
+  publicAccessCookieName,
+  publicLinkExpired,
+  publicTokenMatches,
+  recordDrivePublicAccess,
+  requestPublicMeta,
+  verifyDrivePublicAccess,
+} from "@/lib/drive-public-security";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  const suppliedToken = new URL(req.url).searchParams.get("key");
-  if (!(await canAccessPublicDriveFile(params.id, suppliedToken))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const suppliedToken = req.nextUrl.searchParams.get("key");
+  const download = req.nextUrl.searchParams.get("download") === "1";
   const file = await prisma.file.findFirst({
     where: { id: params.id, isVault: false, archivedAt: null },
-    select: { storageKey: true, mimeType: true, name: true },
+    select: { id: true, storageKey: true, mimeType: true, name: true },
   });
-
   if (!file) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const security = await getDrivePublicSecurity(file.id);
+  if (security.disabled || publicLinkExpired(security) || !publicTokenMatches(security, suppliedToken)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (security.passwordHash) {
+    const unlocked = await verifyDrivePublicAccess(req.cookies.get(publicAccessCookieName(file.id))?.value, file.id);
+    if (!unlocked) return NextResponse.json({ error: "Password required" }, { status: 401 });
+  }
+
+  await recordDrivePublicAccess(file.id, download ? "FILE_PUBLIC_DOWNLOAD" : "FILE_PUBLIC_OPEN", {
+    ...requestPublicMeta(req.headers),
+    after: { download },
+  });
 
   if (process.env.STORAGE_DRIVER === "SUPABASE") {
     const url = await storage().getSignedUrl(file.storageKey, 300);
@@ -31,7 +49,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": file.mimeType,
-        "Content-Disposition": `inline; filename="${file.name.replace(/[^a-zA-Z0-9._ -]/g, "_")}"`,
+        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${file.name.replace(/[^a-zA-Z0-9._ -]/g, "_")}"`,
         "Cache-Control": "private, no-store",
         "X-Robots-Tag": "noindex, nofollow, noarchive",
       },
