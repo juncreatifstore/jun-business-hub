@@ -1,8 +1,5 @@
 "use client";
-// Production rich-text editor built on Tiptap. Same public API as the previous
-// contentEditable version: { initialContent, action, readOnly }.
-// Content is ALSO sanitized server-side on save — the editor is UX, not security.
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -13,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered,
   Quote, Heading1, Heading2, Heading3, AlignLeft, AlignCenter, AlignRight,
-  Undo2, Redo2, Link as LinkIcon, Minus,
+  Undo2, Redo2, Link as LinkIcon, Minus, Pilcrow, Eraser, CheckCircle2,
+  AlertCircle, RotateCcw,
 } from "lucide-react";
 
 function TBtn({ active, onClick, title, children }: { active?: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
@@ -30,16 +28,25 @@ function TBtn({ active, onClick, title, children }: { active?: boolean; onClick:
   );
 }
 
+type LocalDraft = { content: string; savedAt: string; baseContent: string };
+
 export function DocumentEditor({
+  documentId,
   initialContent,
   action,
   readOnly,
 }: {
+  documentId: string;
   initialContent: string;
   action: (formData: FormData) => Promise<void>;
   readOnly: boolean;
 }) {
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [lastDraftAt, setLastDraftAt] = useState<Date | null>(null);
+  const [recoveredDraft, setRecoveredDraft] = useState<LocalDraft | null>(null);
+  const lastServerContent = useRef(initialContent);
+  const storageKey = useMemo(() => `jun:document-draft:${documentId}`, [documentId]);
 
   const editor = useEditor({
     editable: !readOnly,
@@ -51,19 +58,74 @@ export function DocumentEditor({
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
     content: initialContent,
+    onUpdate: ({ editor }) => {
+      setDirty(editor.getHTML() !== lastServerContent.current);
+    },
     editorProps: {
-      attributes: { class: "doc-prose min-h-[420px] rounded-b-xl border border-t-0 border-white/10 bg-white px-6 py-5 text-[15px] text-night outline-none" },
+      attributes: { class: "doc-prose min-h-[520px] rounded-b-xl border border-t-0 border-white/10 bg-white px-6 py-5 text-[15px] text-night outline-none" },
     },
   });
 
+  useEffect(() => {
+    if (readOnly || !editor) return;
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as LocalDraft;
+      if (draft?.content && draft.content !== initialContent) setRecoveredDraft(draft);
+    } catch {}
+  }, [editor, initialContent, readOnly, storageKey]);
+
+  useEffect(() => {
+    if (readOnly || !editor) return;
+    const timer = window.setInterval(() => {
+      const html = editor.getHTML();
+      if (html === lastServerContent.current) return;
+      const draft: LocalDraft = { content: html, baseContent: lastServerContent.current, savedAt: new Date().toISOString() };
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(draft));
+        setLastDraftAt(new Date(draft.savedAt));
+      } catch {}
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [editor, readOnly, storageKey]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, readOnly]);
+
   async function save(formData: FormData) {
-    formData.set("content", editor?.getHTML() ?? "");
+    const html = editor?.getHTML() ?? "";
+    formData.set("content", html);
     setSaving(true);
     try {
+      try { window.localStorage.removeItem(storageKey); } catch {}
+      setDirty(false);
+      lastServerContent.current = html;
       await action(formData);
     } finally {
       setSaving(false);
     }
+  }
+
+  function restoreLocalDraft() {
+    if (!editor || !recoveredDraft) return;
+    editor.commands.setContent(recoveredDraft.content);
+    setDirty(true);
+    setLastDraftAt(new Date(recoveredDraft.savedAt));
+    setRecoveredDraft(null);
+  }
+
+  function discardLocalDraft() {
+    try { window.localStorage.removeItem(storageKey); } catch {}
+    setRecoveredDraft(null);
   }
 
   function setLink() {
@@ -75,35 +137,54 @@ export function DocumentEditor({
     else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }
 
-  if (!editor) return <div className="min-h-[420px] rounded-xl border border-white/10 bg-white/5" />;
+  if (!editor) return <div className="min-h-[520px] rounded-xl border border-white/10 bg-white/5" />;
+
+  const words = editor.getText().trim() ? editor.getText().trim().split(/\s+/).length : 0;
 
   return (
     <form action={save}>
-      {!readOnly ? (
-        <div className="flex flex-wrap items-center gap-0.5 rounded-t-xl border border-white/10 bg-white/[0.04] px-2 py-1">
-          <TBtn title="Heading 1" active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 className="h-4 w-4" /></TBtn>
-          <TBtn title="Heading 2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 className="h-4 w-4" /></TBtn>
-          <TBtn title="Heading 3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 className="h-4 w-4" /></TBtn>
-          <span className="mx-1 h-5 w-px bg-white/10" />
-          <TBtn title="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></TBtn>
-          <TBtn title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></TBtn>
-          <TBtn title="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></TBtn>
-          <TBtn title="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-4 w-4" /></TBtn>
-          <span className="mx-1 h-5 w-px bg-white/10" />
-          <TBtn title="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></TBtn>
-          <TBtn title="Ordered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></TBtn>
-          <TBtn title="Blockquote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote className="h-4 w-4" /></TBtn>
-          <TBtn title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus className="h-4 w-4" /></TBtn>
-          <span className="mx-1 h-5 w-px bg-white/10" />
-          <TBtn title="Align left" active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()}><AlignLeft className="h-4 w-4" /></TBtn>
-          <TBtn title="Align center" active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()}><AlignCenter className="h-4 w-4" /></TBtn>
-          <TBtn title="Align right" active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()}><AlignRight className="h-4 w-4" /></TBtn>
-          <span className="mx-1 h-5 w-px bg-white/10" />
-          <TBtn title="Link" active={editor.isActive("link")} onClick={setLink}><LinkIcon className="h-4 w-4" /></TBtn>
-          <span className="mx-1 h-5 w-px bg-white/10" />
-          <TBtn title="Undo" onClick={() => editor.chain().focus().undo().run()}><Undo2 className="h-4 w-4" /></TBtn>
-          <TBtn title="Redo" onClick={() => editor.chain().focus().redo().run()}><Redo2 className="h-4 w-4" /></TBtn>
+      {!readOnly && recoveredDraft ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+          <div><p className="font-medium text-amber-900">Unsaved draft recovered</p><p className="text-xs text-amber-700">Autosaved {new Date(recoveredDraft.savedAt).toLocaleString()}.</p></div>
+          <div className="flex gap-2"><Button type="button" variant="outline" onClick={discardLocalDraft}>Discard</Button><Button type="button" variant="primary" onClick={restoreLocalDraft}><RotateCcw className="mr-1.5 h-4 w-4" />Restore draft</Button></div>
         </div>
+      ) : null}
+
+      {!readOnly ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-xl border border-white/10 bg-night px-3 py-2 text-white">
+            <div className="flex flex-wrap items-center gap-0.5">
+              <TBtn title="Paragraph" active={editor.isActive("paragraph")} onClick={() => editor.chain().focus().setParagraph().run()}><Pilcrow className="h-4 w-4" /></TBtn>
+              <TBtn title="Heading 1" active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 className="h-4 w-4" /></TBtn>
+              <TBtn title="Heading 2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 className="h-4 w-4" /></TBtn>
+              <TBtn title="Heading 3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}><Heading3 className="h-4 w-4" /></TBtn>
+              <span className="mx-1 h-5 w-px bg-white/10" />
+              <TBtn title="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></TBtn>
+              <TBtn title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></TBtn>
+              <TBtn title="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></TBtn>
+              <TBtn title="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-4 w-4" /></TBtn>
+              <span className="mx-1 h-5 w-px bg-white/10" />
+              <TBtn title="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></TBtn>
+              <TBtn title="Ordered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></TBtn>
+              <TBtn title="Blockquote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote className="h-4 w-4" /></TBtn>
+              <TBtn title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus className="h-4 w-4" /></TBtn>
+              <span className="mx-1 h-5 w-px bg-white/10" />
+              <TBtn title="Align left" active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()}><AlignLeft className="h-4 w-4" /></TBtn>
+              <TBtn title="Align center" active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()}><AlignCenter className="h-4 w-4" /></TBtn>
+              <TBtn title="Align right" active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()}><AlignRight className="h-4 w-4" /></TBtn>
+              <span className="mx-1 h-5 w-px bg-white/10" />
+              <TBtn title="Link" active={editor.isActive("link")} onClick={setLink}><LinkIcon className="h-4 w-4" /></TBtn>
+              <TBtn title="Clear formatting" onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}><Eraser className="h-4 w-4" /></TBtn>
+              <span className="mx-1 h-5 w-px bg-white/10" />
+              <TBtn title="Undo" onClick={() => editor.chain().focus().undo().run()}><Undo2 className="h-4 w-4" /></TBtn>
+              <TBtn title="Redo" onClick={() => editor.chain().focus().redo().run()}><Redo2 className="h-4 w-4" /></TBtn>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-white/60">{words} words</span>
+              {dirty ? <span className="inline-flex items-center gap-1 text-amber-300"><AlertCircle className="h-3.5 w-3.5" />Unsaved</span> : <span className="inline-flex items-center gap-1 text-emerald-300"><CheckCircle2 className="h-3.5 w-3.5" />Saved</span>}
+            </div>
+          </div>
+        </>
       ) : null}
 
       <EditorContent editor={editor} />
@@ -112,8 +193,9 @@ export function DocumentEditor({
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div className="min-w-64 flex-1">
             <Input name="changeNote" placeholder="Change note (what changed in this version?)" maxLength={300} />
+            <p className="mt-1 text-xs text-muted2">{dirty && lastDraftAt ? `Local autosave: ${lastDraftAt.toLocaleTimeString()}` : "Official history changes only when you save a new version."}</p>
           </div>
-          <Button type="submit" variant="primary" disabled={saving}>{saving ? "Saving…" : "Save new version"}</Button>
+          <Button type="submit" variant="primary" disabled={saving || !dirty}>{saving ? "Saving…" : dirty ? "Save new version" : "Saved"}</Button>
         </div>
       ) : null}
     </form>
