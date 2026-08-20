@@ -6,13 +6,34 @@ import { assertPermission, requestMeta } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { sha256 } from "@/lib/hash";
 import { makeStorageKey, storage } from "@/lib/storage";
-import { signatureRecipients, signatureRequestMeta, signatureRecipientsPayload, type SignatureField, type SignatureRecipient } from "@/lib/signature-recipients";
+import { signatureRecipients, signatureRequestMeta, signatureRecipientsPayload, type SignatureRecipient } from "@/lib/signature-recipients";
 import { verifyNativeSigningToken } from "@/lib/native-signature";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 4).map((p) => p[0]?.toUpperCase() ?? "").join("");
+}
+
+async function renderFallbackPdf(request: {
+  document: {
+    documentId: string;
+    title: string;
+    type: string;
+    status: string;
+    client: { firstName: string; lastName: string } | null;
+    versions: { content: string }[];
+  };
+}) {
+  const { renderDocumentPdf } = await import("@/services/pdf");
+  return Buffer.from(await renderDocumentPdf({
+    documentId: request.document.documentId,
+    title: request.document.title,
+    type: request.document.type as never,
+    status: request.document.status as never,
+    html: request.document.versions[0]?.content ?? "",
+    clientName: request.document.client ? `${request.document.client.firstName} ${request.document.client.lastName}` : null,
+  }));
 }
 
 async function sourcePdf(request: {
@@ -28,17 +49,26 @@ async function sourcePdf(request: {
     versions: { content: string }[];
   };
 }) {
-  if (request.signedPdfKey) return storage().download(request.signedPdfKey);
-  if (request.document.finalPdfKey) return storage().download(request.document.finalPdfKey);
-  const { renderDocumentPdf } = await import("@/services/pdf");
-  return Buffer.from(await renderDocumentPdf({
-    documentId: request.document.documentId,
-    title: request.document.title,
-    type: request.document.type as never,
-    status: request.document.status as never,
-    html: request.document.versions[0]?.content ?? "",
-    clientName: request.document.client ? `${request.document.client.firstName} ${request.document.client.lastName}` : null,
-  }));
+  if (request.signedPdfKey) {
+    try {
+      return await storage().download(request.signedPdfKey);
+    } catch {
+      // Continue to the finalized source or a live render. A stale storage key
+      // must never prevent the next signer from completing the document.
+    }
+  }
+
+  if (request.document.finalPdfKey) {
+    try {
+      return await storage().download(request.document.finalPdfKey);
+    } catch {
+      // Same fallback used by the public signing PDF route: regenerate a
+      // readable source from the locked document if the stored object cannot
+      // be retrieved.
+    }
+  }
+
+  return renderFallbackPdf(request);
 }
 
 function fitSize(font: { widthOfTextAtSize(text: string, size: number): number }, text: string, desired: number, width: number) {
@@ -163,13 +193,13 @@ export async function completeJunNativeSignature(token: string, formData: FormDa
     resourceType: "SignatureRequest",
     resourceId: request.id,
     after: { signer: recipient.email, order: recipient.order, consent: true, signedAt: now.toISOString(), ipHash, pdfHash: hash, complete },
-  });
+  }).catch(() => undefined);
 
   if (complete) {
     await prisma.notification.create({
       data: { userId: request.createdById, type: "CONTRACT_SIGNED", title: `${request.document.documentId} signed in JUN`, body: "All signers completed. The signed PDF was archived with a SHA-256 integrity hash." },
     }).catch(() => undefined);
-    await logActivity({ userId: request.createdById, type: "SIGNATURE_COMPLETED", message: `Native signature completed for ${request.document.documentId}`, clientId: request.document.clientId ?? undefined, caseId: request.document.caseId ?? undefined });
+    await logActivity({ userId: request.createdById, type: "SIGNATURE_COMPLETED", message: `Native signature completed for ${request.document.documentId}`, clientId: request.document.clientId ?? undefined, caseId: request.document.caseId ?? undefined }).catch(() => undefined);
   }
 
   revalidatePath(`/app/signatures/${request.id}`);
