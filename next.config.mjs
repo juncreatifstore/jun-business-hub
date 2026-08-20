@@ -3,6 +3,9 @@ const isProd = process.env.NODE_ENV === "production";
 
 // CSP: no third-party scripts; inline styles are required by Next/Tailwind;
 // data:/blob: images for QR data-URLs and previews; Google fonts stylesheets.
+// Same-origin framing is allowed so authenticated JUN PDF previews can render
+// inside internal tools such as the visual signature field editor. External
+// origins still cannot frame JUN.
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
@@ -10,7 +13,8 @@ const csp = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "connect-src 'self'",
-  "frame-ancestors 'none'",
+  "frame-src 'self'",
+  "frame-ancestors 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self' https://accounts.google.com",
@@ -19,7 +23,7 @@ const csp = [
 
 const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
-  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
@@ -30,8 +34,7 @@ const nextConfig = {
   reactStrictMode: true,
   optimizeFonts: false, // fonts load via <link>; avoids build-time fetch to Google
 
-  // Prisma 6 with engineType="client" loads query_compiler_bg.wasm at runtime.
-  // Vercel's output-file tracer can otherwise omit this asset from serverless bundles.
+  // Prisma runtime assets must be present in Vercel serverless bundles.
   outputFileTracingIncludes: {
     "/*": [
       "./node_modules/.prisma/client/**/*",
