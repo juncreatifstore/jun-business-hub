@@ -10,6 +10,9 @@ type TemplateRow = {
   name: string;
   type: string;
   content: string;
+  category: string;
+  language: string;
+  variables: unknown;
 };
 
 export default async function NewDocumentPage({
@@ -30,9 +33,10 @@ export default async function NewDocumentPage({
       select: { id: true, caseNumber: true, title: true, clientId: true },
     }),
     prisma.$queryRaw<TemplateRow[]>`
-      SELECT id, name, type::text AS type, content
+      SELECT id,name,type::text AS type,content,category,language,variables
       FROM "DocumentTemplate"
-      ORDER BY name ASC
+      WHERE "isActive"=true AND "isReference"=false
+      ORDER BY category ASC,name ASC
     `.catch(() => [] as TemplateRow[]),
   ]);
 
@@ -40,7 +44,7 @@ export default async function NewDocumentPage({
     <div>
       <PageHeader
         title="New document"
-        subtitle="Start blank, reuse a JUN template, or generate a draft with JUN AI. A registry ID is assigned automatically."
+        subtitle="Start blank, reuse an active JUN template, or generate a draft with JUN AI. A registry ID is assigned automatically."
       />
       <DocumentCreateForm
         clients={clients}
