@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { TEMPLATE_CATEGORIES, type DocumentTemplateRow } from "@/lib/document-templates";
+import { type DocumentTemplateRow } from "@/lib/document-templates";
+import { TEMPLATE_CATEGORIES } from "@/lib/document-template-constants";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, THead, TH, TR, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { BookOpen, FileStack, Library, Search, Sparkles } from "lucide-react";
+import { BookOpen, FileStack, Library, Search, Sparkles, Upload } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export default async function TemplateLibraryPage({ searchParams }: { searchPara
       <div className="mb-5 flex flex-wrap gap-2">
         <Link href="/app/documents"><Button variant="outline">Back to Documents</Button></Link>
         <Link href="/app/documents/templates/new"><Button variant="primary">New template</Button></Link>
+        <Link href="/app/documents/templates/import"><Button variant="outline"><Upload className="mr-1.5 h-4 w-4" />Import catalog</Button></Link>
       </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
