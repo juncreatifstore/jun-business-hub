@@ -14,23 +14,40 @@ const PAGE = { w: 595.28, h: 841.89, margin: 56 };
 
 const DEFAULT_COMPANY = {
   name: "JUN CREATIF AND TRAVEL LLC",
+  tradeName: "",
   site: "www.juncreatif.org",
   tagline: "Travel · Documents · Business Services",
   mailingAddress: "PO Box 770064, Orlando, FL 32877",
+  poBox: "PO Box 770064, Orlando, FL 32877",
   address: "",
   phone: "+1 480-954-1260",
+  phoneSecondary: "",
   whatsapp: "",
   email: "",
+  financeEmail: "",
+  documentsEmail: "",
+  supportEmail: "",
   registration: "",
   taxId: "",
+  legalRepresentative: "",
+  representativeTitle: "",
+  registrationCountry: "",
+  registrationState: "",
+  formationDate: "",
+  bankDetails: "",
   footerLabel: "",
   watermarkOpacity: 0.055,
   sealSize: 72,
+  showLogo: true,
+  showSeal: true,
+  showSignature: true,
+  showQr: true,
+  showTaxId: true,
 };
 
 type OfficialCompany = typeof DEFAULT_COMPANY;
 type PageRotation = 0 | 90 | 180 | 270;
-type BrandAssets = { logo: PDFImage | null; seal: PDFImage | null };
+type BrandAssets = { logo: PDFImage | null; seal: PDFImage | null; signature: PDFImage | null };
 type Ctx = {
   pdf: PDFDocument;
   page: PDFPage;
@@ -44,14 +61,22 @@ type Ctx = {
   decoratePage: (p: PDFPage) => void;
 };
 
-async function loadOfficialCompany(): Promise<OfficialCompany & { logoKey: string; sealKey: string }> {
+function settingEnabled(value: string | undefined, fallback = true) {
+  if (value == null || value === "") return fallback;
+  return !["off", "false", "0", "no"].includes(value.toLowerCase());
+}
+
+async function loadOfficialCompany(): Promise<OfficialCompany & { logoKey: string; sealKey: string; signatureKey: string }> {
   try {
     const rows = await prisma.appSetting.findMany({
       where: { key: { in: [
-        "company.name", "company.tagline", "company.website", "company.po_box", "company.address",
-        "company.phone", "company.whatsapp", "company.email", "company.registration", "company.tax_id",
+        "company.name", "company.trade_name", "company.tagline", "company.website", "company.po_box", "company.address", "company.mailing_address",
+        "company.phone", "company.phone_secondary", "company.whatsapp", "company.email", "company.finance_email", "company.documents_email", "company.support_email",
+        "company.registration", "company.tax_id", "company.legal_representative", "company.representative_title", "company.registration_country",
+        "company.registration_state", "company.formation_date", "company.bank_details",
         "document.footer_label", "document.watermark_opacity", "document.seal_size",
-        "document.logo_key", "document.seal_key",
+        "document.logo_key", "document.seal_key", "document.signature_key",
+        "document.show_logo", "document.show_seal", "document.show_signature", "document.show_qr", "document.show_tax_id",
       ] } },
     });
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
@@ -60,24 +85,70 @@ async function loadOfficialCompany(): Promise<OfficialCompany & { logoKey: strin
     const sealSize = Number(s["document.seal_size"] ?? DEFAULT_COMPANY.sealSize);
     return {
       name: s["company.name"] || DEFAULT_COMPANY.name,
+      tradeName: s["company.trade_name"] || "",
       site: website,
       tagline: s["company.tagline"] || DEFAULT_COMPANY.tagline,
-      mailingAddress: s["company.po_box"] || DEFAULT_COMPANY.mailingAddress,
+      mailingAddress: s["company.mailing_address"] || s["company.po_box"] || DEFAULT_COMPANY.mailingAddress,
+      poBox: s["company.po_box"] || DEFAULT_COMPANY.poBox,
       address: s["company.address"] || "",
       phone: s["company.phone"] || DEFAULT_COMPANY.phone,
+      phoneSecondary: s["company.phone_secondary"] || "",
       whatsapp: s["company.whatsapp"] || "",
       email: s["company.email"] || "",
+      financeEmail: s["company.finance_email"] || "",
+      documentsEmail: s["company.documents_email"] || "",
+      supportEmail: s["company.support_email"] || "",
       registration: s["company.registration"] || "",
       taxId: s["company.tax_id"] || "",
+      legalRepresentative: s["company.legal_representative"] || "",
+      representativeTitle: s["company.representative_title"] || "",
+      registrationCountry: s["company.registration_country"] || "",
+      registrationState: s["company.registration_state"] || "",
+      formationDate: s["company.formation_date"] || "",
+      bankDetails: s["company.bank_details"] || "",
       footerLabel: s["document.footer_label"] || "",
       watermarkOpacity: Number.isFinite(opacity) ? Math.min(0.12, Math.max(0.02, opacity)) : DEFAULT_COMPANY.watermarkOpacity,
       sealSize: Number.isFinite(sealSize) ? Math.min(120, Math.max(40, sealSize)) : DEFAULT_COMPANY.sealSize,
+      showLogo: settingEnabled(s["document.show_logo"], true),
+      showSeal: settingEnabled(s["document.show_seal"], true),
+      showSignature: settingEnabled(s["document.show_signature"], true),
+      showQr: settingEnabled(s["document.show_qr"], true),
+      showTaxId: settingEnabled(s["document.show_tax_id"], true),
       logoKey: s["document.logo_key"] || "",
       sealKey: s["document.seal_key"] || "",
+      signatureKey: s["document.signature_key"] || "",
     };
   } catch {
-    return { ...DEFAULT_COMPANY, logoKey: "", sealKey: "" };
+    return { ...DEFAULT_COMPANY, logoKey: "", sealKey: "", signatureKey: "" };
   }
+}
+
+function replaceCompanyTokens(html: string, company: OfficialCompany): string {
+  const values: Record<string, string> = {
+    "company.name": company.name,
+    "company.trade_name": company.tradeName,
+    "company.tagline": company.tagline,
+    "company.website": company.site,
+    "company.po_box": company.poBox,
+    "company.address": company.address,
+    "company.mailing_address": company.mailingAddress,
+    "company.phone": company.phone,
+    "company.phone_secondary": company.phoneSecondary,
+    "company.whatsapp": company.whatsapp,
+    "company.email": company.email,
+    "company.finance_email": company.financeEmail,
+    "company.documents_email": company.documentsEmail,
+    "company.support_email": company.supportEmail,
+    "company.registration": company.registration,
+    "company.tax_id": company.taxId,
+    "company.legal_representative": company.legalRepresentative,
+    "company.representative_title": company.representativeTitle,
+    "company.registration_country": company.registrationCountry,
+    "company.registration_state": company.registrationState,
+    "company.formation_date": company.formationDate,
+    "company.bank_details": company.bankDetails,
+  };
+  return html.replace(/\{\{\s*(company\.[a-z0-9_]+)\s*\}\}/gi, (match, key: string) => values[key.toLowerCase()] ?? match);
 }
 
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -145,7 +216,15 @@ function drawSeal(page: PDFPage, seal: PDFImage | null, max: number) {
   const scale = Math.min(max / seal.width, max / seal.height);
   const w = seal.width * scale;
   const h = seal.height * scale;
-  page.drawImage(seal, { x: PAGE.w - PAGE.margin - w, y: 50, width: w, height: h, opacity: 0.92 });
+  page.drawImage(seal, { x: PAGE.w - PAGE.margin - w, y: 48, width: w, height: h, opacity: 0.92 });
+}
+
+function drawSignature(page: PDFPage, signature: PDFImage | null) {
+  if (!signature) return;
+  const scale = Math.min(92 / signature.width, 30 / signature.height);
+  const w = signature.width * scale;
+  const h = signature.height * scale;
+  page.drawImage(signature, { x: PAGE.margin, y: 48, width: w, height: h, opacity: 0.96 });
 }
 
 function applyRotation(page: PDFPage, rotation: PageRotation) { page.setRotation(degrees(rotation)); }
@@ -179,22 +258,25 @@ async function buildBase(meta: { title: string; reference: string; verifyPath: s
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const company = await loadOfficialCompany();
 
-  const [logo, seal] = await Promise.all([
+  const [logo, seal, signature] = await Promise.all([
     embedStoredImage(pdf, company.logoKey, process.env.JUN_PDF_LOGO_URL),
     embedStoredImage(pdf, company.sealKey, process.env.JUN_PDF_SEAL_URL),
+    embedStoredImage(pdf, company.signatureKey),
   ]);
-  const assets: BrandAssets = { logo, seal };
+  const assets: BrandAssets = { logo, seal, signature };
 
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.juncreatif.org").replace(/\/$/, "");
   const verifyUrl = `${base}${meta.verifyPath}`;
-  const qrImg = await pdf.embedPng(await QRCode.toBuffer(verifyUrl, { margin: 0, width: 240 }));
+  const qrImg = company.showQr ? await pdf.embedPng(await QRCode.toBuffer(verifyUrl, { margin: 0, width: 240 })) : null;
 
-  const decoratePage = (p: PDFPage) => drawWatermark(p, assets.logo, bold, company.watermarkOpacity);
+  const decoratePage = (p: PDFPage) => drawWatermark(p, company.showLogo ? assets.logo : null, bold, company.watermarkOpacity);
   const footer = (p: PDFPage, n: number) => {
-    drawSeal(p, assets.seal, company.sealSize);
+    if (company.showSignature) drawSignature(p, assets.signature);
+    if (company.showSeal) drawSeal(p, assets.seal, company.sealSize);
     p.drawLine({ start: { x: PAGE.margin, y: 43 }, end: { x: PAGE.w - PAGE.margin, y: 43 }, thickness: 0.45, color: LIGHT });
-    const leftFooter = company.footerLabel || `${company.name} · ${company.site}`;
-    p.drawText(leftFooter.slice(0, 75), { x: PAGE.margin, y: 29, size: 7.4, font, color: GRAY });
+    const taxSuffix = company.showTaxId && company.taxId ? ` · EIN/Tax ID ${company.taxId}` : "";
+    const leftFooter = company.footerLabel || `${company.name} · ${company.site}${taxSuffix}`;
+    p.drawText(leftFooter.slice(0, 92), { x: PAGE.margin, y: 29, size: 7.4, font, color: GRAY });
     const pageText = `${meta.reference} · ${n}`;
     p.drawText(pageText, { x: PAGE.w - PAGE.margin - font.widthOfTextAtSize(pageText, 7.4), y: 29, size: 7.4, font, color: GRAY });
   };
@@ -203,7 +285,7 @@ async function buildBase(meta: { title: string; reference: string; verifyPath: s
   decoratePage(page);
   const ctx: Ctx = { pdf, page, y: PAGE.h - PAGE.margin, font, bold, pageNo: 1, rotation: 0, assets, footer, decoratePage };
 
-  if (logo) {
+  if (company.showLogo && logo) {
     const scale = Math.min(62 / logo.width, 50 / logo.height);
     const w = logo.width * scale;
     const h = logo.height * scale;
@@ -219,9 +301,11 @@ async function buildBase(meta: { title: string; reference: string; verifyPath: s
   const contact = [company.phone, company.email].filter(Boolean).join(" · ");
   if (contact) ctx.page.drawText(contact.slice(0, 85), { x: infoX, y: ctx.y - 28, size: 7.3, font, color: GRAY });
 
-  ctx.page.drawImage(qrImg, { x: PAGE.w - PAGE.margin - 58, y: ctx.y - 42, width: 58, height: 58 });
-  ctx.page.drawText("Scan to verify", { x: PAGE.w - PAGE.margin - 55, y: ctx.y - 53, size: 6.8, font, color: GRAY });
-  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y - 38 }, end: { x: PAGE.w - PAGE.margin - 74, y: ctx.y - 38 }, thickness: 1, color: GOLD });
+  if (qrImg) {
+    ctx.page.drawImage(qrImg, { x: PAGE.w - PAGE.margin - 58, y: ctx.y - 42, width: 58, height: 58 });
+    ctx.page.drawText("Scan to verify", { x: PAGE.w - PAGE.margin - 55, y: ctx.y - 53, size: 6.8, font, color: GRAY });
+  }
+  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y - 38 }, end: { x: PAGE.w - PAGE.margin - (qrImg ? 74 : 0), y: ctx.y - 38 }, thickness: 1, color: GOLD });
   ctx.y -= 86;
 
   drawLines(ctx, wrap(meta.title, bold, 15.2, PAGE.w - 2 * PAGE.margin), { size: 15.2, bold: true, lead: 18, gap: 4 });
@@ -279,7 +363,8 @@ function renderTextPage(ctx: Ctx, html: string) {
 }
 
 export async function renderDocumentPdf(input: { documentId: string; title: string; type: string; status: string; html: string; clientName?: string | null; caseNumber?: string | null; signatureStatus?: string | null }): Promise<Uint8Array> {
-  const normalizedHtml = normalizeDocumentHtmlInput(input.html);
+  const company = await loadOfficialCompany();
+  const normalizedHtml = normalizeDocumentHtmlInput(replaceCompanyTokens(input.html, company));
   const { ctx, finish } = await buildBase({
     title: input.title,
     reference: input.documentId,
