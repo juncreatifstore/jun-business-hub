@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, GitCompareArrows, RotateCcw, ShieldCheck, PanelsTopLeft, Scissors } from "lucide-react";
+import { ArrowLeft, GitCompareArrows, RotateCcw, ShieldCheck, PanelsTopLeft, Scissors, Printer, Copy, Archive } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -54,16 +54,10 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
           {doc.finalPdfHash ? <p className="registry-id mt-1 text-muted2">PDF SHA-256 {shortHash(doc.finalPdfHash)}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/app/documents/${doc.id}/pages`}><Button variant="outline"><PanelsTopLeft className="mr-1.5 h-4 w-4" />Pages</Button></Link>
-          {can(user, "DOCUMENT_CREATE") ? <Link href={`/app/documents/${doc.id}/split`}><Button variant="outline"><Scissors className="mr-1.5 h-4 w-4" />Split</Button></Link> : null}
-          <Link href={`/app/documents/${doc.id}/versions`}><Button variant="outline"><GitCompareArrows className="mr-1.5 h-4 w-4" />Versions</Button></Link>
           <Link href={`/app/documents/${doc.id}/fill`}><Button variant="outline">Preview / Fill</Button></Link>
-          <a href={`/api/documents/${doc.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">PDF</Button></a>
-          <Link href={`/app/documents/${doc.id}/print`} target="_blank"><Button variant="ghost">Print</Button></Link>
+          <a href={`/api/documents/${doc.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Open PDF</Button></a>
           {canEditDraft ? <Link href={`/app/documents/${doc.id}/finalize`}><Button variant="gold">Review & finalize</Button></Link> : null}
           {doc.status === "FINAL" && can(user, "DOCUMENT_SIGN") ? <form action={createSignatureRequest.bind(null, doc.id)}><Button variant="primary">Send for signature</Button></form> : null}
-          {can(user, "DOCUMENT_CREATE") ? <form action={duplicateDocument.bind(null, doc.id)}><Button variant="ghost">Duplicate</Button></form> : null}
-          {can(user, "DOCUMENT_DELETE") && doc.status !== "ARCHIVED" ? <form action={archiveDocument.bind(null, doc.id)}><Button variant="ghost" className="text-red-600">Archive</Button></form> : null}
         </div>
       </div>
 
@@ -71,7 +65,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
-          <CardHeader><CardTitle>{canEditDraft ? "Edit document" : "Document preview"}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{canEditDraft ? "Document content" : "Document preview"}</CardTitle></CardHeader>
           <CardContent>
             {canEditDraft ? (
               <DocumentEditor documentId={doc.id} initialContent={latest?.content ?? "<p></p>"} action={saveDocumentVersion.bind(null, doc.id)} readOnly={false} />
@@ -80,7 +74,20 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
             )}
           </CardContent>
         </Card>
+
         <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>Document tools</CardTitle></CardHeader>
+            <CardContent className="grid gap-2">
+              <Link href={`/app/documents/${doc.id}/pages`}><Button className="w-full justify-start" variant="outline"><PanelsTopLeft className="mr-2 h-4 w-4" />Manage pages</Button></Link>
+              {can(user, "DOCUMENT_CREATE") ? <Link href={`/app/documents/${doc.id}/split`}><Button className="w-full justify-start" variant="outline"><Scissors className="mr-2 h-4 w-4" />Split document</Button></Link> : null}
+              <Link href={`/app/documents/${doc.id}/versions`}><Button className="w-full justify-start" variant="outline"><GitCompareArrows className="mr-2 h-4 w-4" />Versions & compare</Button></Link>
+              <Link href={`/app/documents/${doc.id}/print`} target="_blank"><Button className="w-full justify-start" variant="outline"><Printer className="mr-2 h-4 w-4" />Print</Button></Link>
+              {can(user, "DOCUMENT_CREATE") ? <form action={duplicateDocument.bind(null, doc.id)}><Button className="w-full justify-start" variant="ghost"><Copy className="mr-2 h-4 w-4" />Duplicate</Button></form> : null}
+              {can(user, "DOCUMENT_DELETE") && doc.status !== "ARCHIVED" ? <form action={archiveDocument.bind(null, doc.id)}><Button className="w-full justify-start text-red-600" variant="ghost"><Archive className="mr-2 h-4 w-4" />Archive</Button></form> : null}
+            </CardContent>
+          </Card>
+
           <Card><CardHeader><div className="flex items-center justify-between gap-2"><CardTitle>Versions</CardTitle><Link href={`/app/documents/${doc.id}/versions`} className="text-xs font-medium text-electric hover:underline">Compare</Link></div></CardHeader><CardContent className="p-0"><ul className="divide-y divide-line">{doc.versions.map((v, index) => <li key={v.id} className="px-4 py-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-medium">Version {v.version}{index === 0 ? " · Current" : ""}</p><StatusBadge status={v.status} /></div><p className="text-xs text-muted2">{v.author.firstName} {v.author.lastName} · {formatDateTime(v.createdAt)}</p>{v.changeNote ? <p className="mt-1 text-xs text-muted2">{v.changeNote}</p> : null}<p className="registry-id mt-1 text-[10px] text-muted2">{shortHash(v.hash)}</p>{canEditDraft && index > 0 ? <form action={restoreDocumentVersion.bind(null, doc.id, v.id)} className="mt-2"><Button type="submit" variant="ghost" className="h-8 px-2 text-xs"><RotateCcw className="mr-1 h-3.5 w-3.5" />Restore as new version</Button></form> : null}</li>)}</ul></CardContent></Card>
           {doc.signatures.length > 0 ? <Card><CardHeader><CardTitle>Signature</CardTitle></CardHeader><CardContent className="p-0"><ul className="divide-y divide-line">{doc.signatures.map((s) => <li key={s.id} className="px-4 py-2.5"><div className="flex items-center justify-between"><Link href={`/app/signatures/${s.id}`} className="text-sm font-medium hover:text-electric">{s.provider} request</Link><StatusBadge status={s.status} /></div><p className="text-xs text-muted2">{recipientCount(s.recipients)} signer(s) · {formatDateTime(s.createdAt)}</p></li>)}</ul></CardContent></Card> : null}
         </div>
