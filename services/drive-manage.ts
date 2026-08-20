@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { storage, makeStorageKey, MAX_UPLOAD_BYTES, ALLOWED_MIME } from "@/lib/storage";
+import { assertDriveQuotaForUpload } from "@/lib/drive-enterprise";
 
 const NOTE_PREFIX = "drive.note.";
 const PUBLIC_DISABLED_PREFIX = "drive.public.disabled.";
@@ -24,6 +25,10 @@ function toast(path: string, key: "toast" | "toast_error", message: string) {
 
 async function activeDriveFile(fileId: string) {
   return prisma.file.findFirst({ where: { id: fileId, isVault: false, archivedAt: null } });
+}
+
+function quotaMessage(quota: Awaited<ReturnType<typeof assertDriveQuotaForUpload>>) {
+  return `Drive quota exceeded (${(quota.usage.totalBytes / 1073741824).toFixed(2)} GB used / ${(quota.settings.quotaBytes / 1073741824).toFixed(0)} GB)`;
 }
 
 export async function renameDriveFile(fileId: string, formData: FormData): Promise<void> {
@@ -46,6 +51,8 @@ export async function duplicateDriveFile(fileId: string, formData: FormData): Pr
   const returnTo = safeReturn(formData);
   const file = await activeDriveFile(fileId);
   if (!file) redirect(toast(returnTo, "toast_error", "File not found"));
+  const quota = await assertDriveQuotaForUpload(file.sizeBytes);
+  if (!quota.allowed) redirect(toast(returnTo, "toast_error", quotaMessage(quota)));
   const buf = await storage().download(file.storageKey);
   const requested = String(formData.get("name") ?? "").trim();
   const name = (requested || `Copy of ${file.name}`).slice(0, 200);
@@ -127,6 +134,8 @@ export async function uploadDriveNewVersion(fileId: string, formData: FormData):
   if (raw.size > MAX_UPLOAD_BYTES) redirect(toast(returnTo, "toast_error", "File exceeds the 15 MB limit"));
   const mime = raw.type || "application/octet-stream";
   if (!ALLOWED_MIME.includes(mime)) redirect(toast(returnTo, "toast_error", `File type not allowed (${mime})`));
+  const quota = await assertDriveQuotaForUpload(raw.size);
+  if (!quota.allowed) redirect(toast(returnTo, "toast_error", quotaMessage(quota)));
 
   const previous = await storage().download(file.storageKey);
   const versionId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
