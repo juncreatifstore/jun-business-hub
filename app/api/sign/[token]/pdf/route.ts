@@ -36,7 +36,8 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     }));
   }
 
-  return new NextResponse(bytes, {
+  const body = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return new NextResponse(body, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${request.document.documentId}.pdf"`,
