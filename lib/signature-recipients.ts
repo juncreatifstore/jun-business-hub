@@ -21,6 +21,8 @@ export type SignatureRecipient = {
   otpSentAt?: string | null;
   otpAttempts?: number;
   signedAt?: string | null;
+  signatureMethod?: "TYPE" | "DRAW" | null;
+  signatureImageHash?: string | null;
   declinedAt?: string | null;
   declineReason?: string | null;
   reminderSentAt?: string | null;
@@ -88,6 +90,11 @@ function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function signatureMethod(value: unknown): "TYPE" | "DRAW" | null {
+  const method = typeof value === "string" ? value.toUpperCase() : "";
+  return method === "TYPE" || method === "DRAW" ? method : null;
+}
+
 export function signatureRecipients(value: unknown): SignatureRecipient[] {
   if (!Array.isArray(value)) return [];
 
@@ -109,6 +116,8 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
       otpSentAt: optionalString(r.otpSentAt),
       otpAttempts: Number.isInteger(Number(r.otpAttempts)) ? Math.max(0, Number(r.otpAttempts)) : 0,
       signedAt: optionalString(r.signedAt),
+      signatureMethod: signatureMethod(r.signatureMethod),
+      signatureImageHash: optionalString(r.signatureImageHash),
       declinedAt: optionalString(r.declinedAt),
       declineReason: optionalString(r.declineReason),
       reminderSentAt: optionalString(r.reminderSentAt),
