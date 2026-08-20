@@ -41,6 +41,11 @@ export async function createNativeSigningToken(payload: NativeSigningPayload, ex
     .sign(secret());
 }
 
+async function currentRecipient(requestId: string, email: string, order: number) {
+  const request = await prisma.signatureRequest.findUnique({ where: { id: requestId }, select: { recipients: true } }).catch(() => null);
+  return request ? signatureRecipients(request.recipients).find((r) => r.email.toLowerCase() === email.toLowerCase() && r.order === order) ?? null : null;
+}
+
 export async function verifyNativeSigningToken(token: string): Promise<NativeSigningPayload | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER, audience: AUDIENCE });
@@ -49,6 +54,8 @@ export async function verifyNativeSigningToken(token: string): Promise<NativeSig
     if (!Number.isInteger(order) || order < 1) return null;
     const rawVersion = Number(payload.linkVersion ?? 1);
     const linkVersion = Number.isInteger(rawVersion) && rawVersion > 0 ? rawVersion : 1;
+    const recipient = await currentRecipient(payload.sub, payload.email, order);
+    if (!recipient || (recipient.linkVersion ?? 1) !== linkVersion) return null;
     return { requestId: payload.sub, email: payload.email, order, verified: payload.verified === true, linkVersion };
   } catch {
     return null;
@@ -62,13 +69,12 @@ export function nativeTokenMatchesRecipient(payload: NativeSigningPayload, recip
 }
 
 export async function createVerifiedNativeSigningToken(payload: Omit<NativeSigningPayload, "verified">, expiresAt?: Date) {
-  return createNativeSigningToken({ ...payload, verified: true }, expiresAt);
+  const version = payload.linkVersion ?? (await currentRecipient(payload.requestId, payload.email, payload.order))?.linkVersion ?? 1;
+  return createNativeSigningToken({ ...payload, linkVersion: version, verified: true }, expiresAt);
 }
 
 async function currentLinkVersion(requestId: string, email: string, order: number) {
-  const request = await prisma.signatureRequest.findUnique({ where: { id: requestId }, select: { recipients: true } }).catch(() => null);
-  const recipient = request ? signatureRecipients(request.recipients).find((r) => r.email.toLowerCase() === email.toLowerCase() && r.order === order) : null;
-  return recipient?.linkVersion ?? 1;
+  return (await currentRecipient(requestId, email, order))?.linkVersion ?? 1;
 }
 
 export async function nativeSigningUrl(requestId: string, email: string, order: number, expiresAt?: Date, linkVersion?: number) {
