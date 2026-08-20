@@ -20,10 +20,21 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
   const signer = signatureRecipients(request.recipients).find((r) => r.email.toLowerCase() === payload.email.toLowerCase() && r.order === payload.order);
   if (!signer) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let bytes: Buffer;
-  if (request.signedPdfKey) bytes = await storage().download(request.signedPdfKey);
-  else if (request.document.finalPdfKey) bytes = await storage().download(request.document.finalPdfKey);
-  else {
+  let bytes: Buffer | null = null;
+
+  // Prefer the latest signed PDF, then the immutable final PDF. If private storage
+  // is temporarily unavailable, fall back to a freshly rendered read-only copy so
+  // the signer never sees a blank preview without the document itself being corrupt.
+  const preferredKey = request.signedPdfKey ?? request.document.finalPdfKey;
+  if (preferredKey) {
+    try {
+      bytes = await storage().download(preferredKey);
+    } catch {
+      bytes = null;
+    }
+  }
+
+  if (!bytes) {
     bytes = Buffer.from(await renderDocumentPdf({
       documentId: request.document.documentId,
       title: request.document.title,
@@ -36,14 +47,15 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     }));
   }
 
-  // Copy into a plain ArrayBuffer so the Web Response body type remains
-  // compatible with Next.js 14 / TypeScript's BodyInit definition.
   const body = Uint8Array.from(bytes).buffer;
   return new Response(body, {
+    status: 200,
     headers: {
       "Content-Type": "application/pdf",
+      "Content-Length": String(bytes.byteLength),
       "Content-Disposition": `inline; filename="${request.document.documentId}.pdf"`,
-      "Cache-Control": "private, no-store",
+      "Cache-Control": "private, no-store, max-age=0",
+      "X-Content-Type-Options": "nosniff",
       "X-Robots-Tag": "noindex, nofollow, noarchive",
     },
   });
