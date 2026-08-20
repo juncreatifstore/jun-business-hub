@@ -11,7 +11,7 @@ const ALLOWED_TAGS = [
   "strong", "b", "em", "i", "u", "s", "sub", "sup", "mark", "code", "pre",
   "ul", "ol", "li", "blockquote",
   "table", "thead", "tbody", "tr", "th", "td",
-  "a", "span", "div",
+  "a", "span", "div", "img",
 ];
 
 export function sanitizeDocumentHtml(dirty: string): string {
@@ -19,25 +19,40 @@ export function sanitizeDocumentHtml(dirty: string): string {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: {
       a: ["href", "rel", "target"],
+      img: ["src", "alt", "title", "width", "height", "data-jun-image"],
       th: ["colspan", "rowspan"],
       td: ["colspan", "rowspan"],
       p: ["style"],
       h1: ["style"], h2: ["style"], h3: ["style"],
-      span: [], div: [],
+      mark: ["data-jun-mark"],
+      span: ["data-jun-mark"],
+      div: ["data-jun-block", "data-kind", "data-text"],
     },
-    // Only safe protocols; blocks javascript:, data:, vbscript: …
+    // Only safe protocols. Image sources deliberately exclude data: and javascript:.
     allowedSchemes: ["http", "https", "mailto", "tel"],
-    allowedSchemesAppliedToAttributes: ["href"],
-    // text-align only (Tiptap alignment) — everything else stripped
+    allowedSchemesAppliedToAttributes: ["href", "src"],
+    // Tiptap text alignment only. Annotation appearance is reconstructed by the
+    // editor from data-jun-* attributes rather than trusting arbitrary CSS.
     allowedStyles: {
       "*": { "text-align": [/^(left|right|center|justify)$/] },
     },
     disallowedTagsMode: "discard",
-    // Force safe link behavior
+    // Force safe link behavior and normalized safe image attributes.
     transformTags: {
-      a: (tagName, attribs) => ({
+      a: (_tagName, attribs) => ({
         tagName: "a",
         attribs: { ...attribs, rel: "noopener noreferrer nofollow", target: "_blank" },
+      }),
+      img: (_tagName, attribs) => ({
+        tagName: "img",
+        attribs: {
+          src: attribs.src ?? "",
+          alt: (attribs.alt ?? "Document image").slice(0, 300),
+          title: (attribs.title ?? "").slice(0, 300),
+          width: String(Math.min(1200, Math.max(1, Number(attribs.width) || 640))),
+          height: String(Math.min(1600, Math.max(1, Number(attribs.height) || 360))),
+          "data-jun-image": "true",
+        },
       }),
     },
     // sanitize-html strips event handlers (on*) and script/iframe/object/embed
