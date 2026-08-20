@@ -14,11 +14,14 @@ export async function POST(req: NextRequest) {
   if (!can(user, "FILE_READ")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const form = await req.formData();
-  let ids: string[] = [];
-  try {
-    const parsed = JSON.parse(String(form.get("fileIds") ?? "[]"));
-    if (Array.isArray(parsed)) ids = [...new Set(parsed.map(String).filter(Boolean))];
-  } catch {}
+  let ids = form.getAll("fileId").map(String).filter(Boolean);
+  if (!ids.length) {
+    try {
+      const parsed = JSON.parse(String(form.get("fileIds") ?? "[]"));
+      if (Array.isArray(parsed)) ids = parsed.map(String).filter(Boolean);
+    } catch {}
+  }
+  ids = [...new Set(ids)];
 
   const settings = await getDriveEnterpriseSettings();
   if (!ids.length) return NextResponse.json({ error: "No files selected" }, { status: 400 });
