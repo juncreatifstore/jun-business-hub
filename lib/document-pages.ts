@@ -1,9 +1,13 @@
 export type JunDocumentPage = { id: string; rotation: 0 | 90 | 180 | 270; html: string };
 
-const PAGE_RE = /<div\b[^>]*data-jun-block=["']true["'][^>]*data-kind=["']page["'][^>]*>[\s\S]*?<\/div>/gi;
+const DIV_RE = /<div\b[^>]*>[\s\S]*?<\/div>/gi;
 
 function attr(tag: string, name: string): string {
   return tag.match(new RegExp(`${name}=["']([^"']*)["']`, "i"))?.[1] ?? "";
+}
+
+function isPageMarker(tag: string) {
+  return /data-jun-block=["']true["']/i.test(tag) && /data-kind=["']page["']/i.test(tag);
 }
 
 function pageId() {
@@ -22,7 +26,7 @@ function parseMeta(marker: string) {
 
 export function parseDocumentPages(html: string): JunDocumentPage[] {
   const source = html || "<p></p>";
-  const matches = [...source.matchAll(PAGE_RE)];
+  const matches = [...source.matchAll(DIV_RE)].filter((m) => isPageMarker(m[0]));
   if (!matches.length) return [{ id: pageId(), rotation: 0, html: source }];
   const pages: JunDocumentPage[] = [];
   for (let i = 0; i < matches.length; i++) {
