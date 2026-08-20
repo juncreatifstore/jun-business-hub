@@ -37,6 +37,13 @@ function senderEmail(fromEmail: string | null, accountEmail: string): string | n
   return matches.find((email) => email.toLowerCase() !== accountEmail.toLowerCase()) ?? matches[0] ?? null;
 }
 
+function automatedSender(email: string): boolean {
+  const value = email.toLowerCase();
+  const [local = "", domain = ""] = value.split("@");
+  return /(^|[._+-])(no-?reply|do-?not-?reply|newsletter|notifications?|alerts?|mailer|updates?)($|[._+-])/i.test(local)
+    || /(^|\.)(newsletter|mailer|notifications?)\./i.test(domain);
+}
+
 async function generateReplyText(input: { subject: string; message: string; recipient: string }): Promise<{ text: string; mode: "MODEL" | "OFFLINE_TEMPLATE" }> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
@@ -45,7 +52,6 @@ async function generateReplyText(input: { subject: string; message: string; reci
       text: `Bonjour,\n\nMerci pour votre message concernant « ${input.subject} ». Nous avons bien reçu votre demande et nous allons la vérifier. Nous vous répondrons avec les informations nécessaires dès que possible.\n\nCordialement,\nJUN CREATIF AND TRAVEL LLC`,
     };
   }
-
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -54,14 +60,8 @@ async function generateReplyText(input: { subject: string; message: string; reci
         model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
         temperature: 0.3,
         messages: [
-          {
-            role: "system",
-            content: "You draft concise, professional email replies for JUN CREATIF AND TRAVEL LLC. Draft only; never claim an action was completed unless the incoming message proves it. Do not promise visa approvals, refunds, payments, legal outcomes, or guaranteed travel results. Return only the email body.",
-          },
-          {
-            role: "user",
-            content: `Recipient: ${input.recipient}\nSubject: ${input.subject}\nIncoming message:\n${input.message.slice(0, 6000)}`,
-          },
+          { role: "system", content: "You draft concise, professional email replies for JUN CREATIF AND TRAVEL LLC. Draft only; never claim an action was completed unless the incoming message proves it. Do not promise visa approvals, refunds, payments, legal outcomes, or guaranteed travel results. Return only the email body." },
+          { role: "user", content: `Recipient: ${input.recipient}\nSubject: ${input.subject}\nIncoming message:\n${input.message.slice(0, 6000)}` },
         ],
       }),
     });
@@ -81,13 +81,18 @@ async function generateReplyText(input: { subject: string; message: string; reci
 export async function draftReplyWithJunAI(threadId: string): Promise<void> {
   const user = await assertPermission("EMAIL_DRAFT");
   if (!(await rateLimitAsync(`jun-ai-mail-draft:${user.id}`, 12, 60_000))) redirect(`/app/mail?thread=${threadId}&toast_error=AI draft rate limit — wait a minute`);
-
   const thread = await prisma.mailThread.findUnique({ where: { id: threadId }, include: { account: true } });
   if (!thread) redirect("/app/mail?toast_error=Thread not found");
   if (thread.aiDraft) redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=This thread already has a draft`);
-
   const recipient = senderEmail(thread.fromEmail, thread.account.email);
   if (!recipient) redirect(`/app/mail?thread=${thread.id}&toast_error=Could not determine the sender email`);
+
+  if (automatedSender(recipient)) {
+    await prisma.mailThread.update({ where: { id: thread.id }, data: { requiresAttention: true, aiSummary: "Automated/newsletter sender detected. JUN AI did not prepare a reply." } });
+    await audit({ userId: user.id, action: "AI_EMAIL_REPLY_AUTOMATED_SENDER_BLOCKED", resourceType: "MailThread", resourceId: thread.id, after: { recipient } });
+    revalidatePath("/app/mail");
+    redirect(`/app/mail?folder=AI_REVIEW&thread=${thread.id}&toast_error=${encodeURIComponent("Automated or newsletter sender detected — reply drafting was blocked")}`);
+  }
 
   const { classifyEmailAILevel } = await import("@/services/ai");
   const sourceText = thread.snippet ?? "";
@@ -101,7 +106,6 @@ export async function draftReplyWithJunAI(threadId: string): Promise<void> {
 
   const generated = await generateReplyText({ subject: thread.subject ?? "(no subject)", message: sourceText, recipient });
   const replySubject = /^re:/i.test(thread.subject ?? "") ? (thread.subject ?? "(no subject)") : `Re: ${thread.subject ?? "(no subject)"}`;
-
   await prisma.mailThread.update({
     where: { id: thread.id },
     data: {
@@ -109,22 +113,28 @@ export async function draftReplyWithJunAI(threadId: string): Promise<void> {
       toEmails: [recipient],
       aiDraft: generated.text,
       aiLevel: "APPROVAL_REQUIRED",
-      aiSummary: generated.mode === "MODEL"
-        ? "JUN AI prepared a reply draft. Review it before sending."
-        : "Offline reply template prepared because no AI model was available. Review it before sending.",
+      aiSummary: generated.mode === "MODEL" ? "JUN AI prepared a reply draft. Review it before sending." : "Offline reply template prepared because no AI model was available. Review it before sending.",
       requiresAttention: true,
     },
   });
-
-  await audit({
-    userId: user.id,
-    action: "AI_EMAIL_REPLY_DRAFTED",
-    resourceType: "MailThread",
-    resourceId: thread.id,
-    after: { recipient, mode: generated.mode, sent: false },
-  });
+  await audit({ userId: user.id, action: "AI_EMAIL_REPLY_DRAFTED", resourceType: "MailThread", resourceId: thread.id, after: { recipient, mode: generated.mode, sent: false } });
   revalidatePath("/app/mail");
   redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=${encodeURIComponent(generated.mode === "MODEL" ? "JUN AI reply draft created — review before sending" : "Offline reply template created — review before sending")}`);
+}
+
+export async function updateMailDraft(threadId: string, formData: FormData): Promise<void> {
+  const user = await assertPermission("EMAIL_DRAFT");
+  const thread = await prisma.mailThread.findUnique({ where: { id: threadId } });
+  if (!thread || !thread.aiDraft) redirect("/app/mail?folder=DRAFTS&toast_error=Draft not found");
+  const to = String(formData.get("to") ?? "").trim().toLowerCase().slice(0, 320);
+  const subject = String(formData.get("subject") ?? "").trim().slice(0, 200);
+  const body = String(formData.get("body") ?? "").trim().slice(0, 20000);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=Enter a valid recipient email`);
+  if (!subject || !body) redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=Subject and message are required`);
+  await prisma.mailThread.update({ where: { id: threadId }, data: { toEmails: [to], subject, aiDraft: body, requiresAttention: true } });
+  await audit({ userId: user.id, action: "EMAIL_DRAFT_EDITED", resourceType: "MailThread", resourceId: threadId, after: { to, subject } });
+  revalidatePath("/app/mail");
+  redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast=Draft updated`);
 }
 
 export async function sendDraftViaGmail(threadId: string): Promise<void> {
@@ -134,13 +144,11 @@ export async function sendDraftViaGmail(threadId: string): Promise<void> {
   if (thread.aiLevel === "BLOCKED") redirect(`/app/mail?thread=${threadId}&toast_error=This topic requires manual handling`);
   const to = thread.toEmails[0];
   if (!to) redirect(`/app/mail?thread=${threadId}&toast_error=No recipient on this draft`);
+  if (automatedSender(to)) redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("Sending to an automated/newsletter address is blocked. Edit the recipient if you have a valid reply address.")}`);
   const { gmailSend } = await import("@/lib/google/gmail");
   try {
     await gmailSend(thread.mailAccountId, { to, subject: thread.subject ?? "(no subject)", text: thread.aiDraft });
-    await prisma.mailThread.update({
-      where: { id: thread.id },
-      data: { snippet: thread.aiDraft.slice(0, 500), aiDraft: null, lastMessageAt: new Date(), requiresAttention: false },
-    });
+    await prisma.mailThread.update({ where: { id: thread.id }, data: { snippet: thread.aiDraft.slice(0, 500), aiDraft: null, lastMessageAt: new Date(), requiresAttention: false } });
     await audit({ userId: user.id, action: "EMAIL_SEND_GMAIL", resourceType: "MailThread", resourceId: thread.id, after: { to, subject: thread.subject, mailbox: thread.account.email } });
     revalidatePath("/app/mail");
     redirect(`/app/mail?folder=SENT&thread=${thread.id}&toast=Email sent via ${thread.account.email}`);
