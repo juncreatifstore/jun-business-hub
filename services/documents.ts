@@ -18,7 +18,6 @@ export async function createDocument(_prev: FormState, formData: FormData): Prom
   const parsed = documentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
   const d = parsed.data;
-
   const clientId = emptyToNull(d.clientId);
   const caseId = emptyToNull(d.caseId);
   if (caseId) {
@@ -26,53 +25,32 @@ export async function createDocument(_prev: FormState, formData: FormData): Prom
     if (!selectedCase) return { message: "The selected case is no longer available." };
     if (clientId && selectedCase.clientId !== clientId) return { message: "The selected case does not belong to the selected client." };
   }
-
   let template: TemplateRow | null = null;
   if (d.templateId) {
-    const rows = await prisma.$queryRaw<TemplateRow[]>`
-      SELECT id, name, type::text AS type, content
-      FROM "DocumentTemplate"
-      WHERE id = ${d.templateId}
-      LIMIT 1
-    `.catch(() => [] as TemplateRow[]);
+    const rows = await prisma.$queryRaw<TemplateRow[]>`SELECT id, name, type::text AS type, content FROM "DocumentTemplate" WHERE id = ${d.templateId} LIMIT 1`.catch(() => [] as TemplateRow[]);
     template = rows[0] ?? null;
     if (!template) return { message: "The selected template is no longer available." };
   }
-
   let content = d.content;
   if (!content && template?.content) content = template.content;
   if (!content) content = `<h1>${d.title}</h1><p></p>`;
   content = sanitizeDocumentHtml(content);
-
   const sourceNote = template ? `Template: ${template.name}` : "Blank / custom";
   const changeNote = `Initial draft · Language: ${d.language} · Source: ${sourceNote}`.slice(0, 300);
   const documentId = await nextNumber(DOC_PREFIX[d.type] ?? "JUN-DOC");
-  const doc = await prisma.document.create({
-    data: {
-      documentId,
-      type: d.type,
-      title: d.title,
-      clientId,
-      caseId,
-      authorId: user.id,
-      versions: { create: { version: 1, content, authorId: user.id, changeNote, hash: sha256(content) } },
-    },
-  });
+  const doc = await prisma.document.create({ data: { documentId, type: d.type, title: d.title, clientId, caseId, authorId: user.id, versions: { create: { version: 1, content, authorId: user.id, changeNote, hash: sha256(content) } } } });
   await audit({ userId: user.id, action: "DOCUMENT_CREATE", resourceType: "Document", resourceId: doc.id, after: { documentId, type: d.type, title: d.title, language: d.language, templateId: template?.id ?? null, templateName: template?.name ?? null } });
   await logActivity({ type: "DOCUMENT_CREATED", message: `Document ${documentId} created: ${d.title}`, userId: user.id, clientId: doc.clientId, caseId: doc.caseId });
   redirect(`/app/documents/${doc.id}?toast=${encodeURIComponent(`Document ${documentId} created`)}`);
 }
 
-// Saves a NEW working version. FINAL/SIGNED/VOIDED documents are never silently reopened.
 export async function saveDocumentVersion(documentId: string, formData: FormData) {
   const user = await assertPermission("DOCUMENT_EDIT");
   const content = sanitizeDocumentHtml(String(formData.get("content") ?? "").slice(0, 500_000));
   const changeNote = String(formData.get("changeNote") ?? "").trim().slice(0, 300) || null;
   const doc = await prisma.document.findUnique({ where: { id: documentId }, include: { versions: { orderBy: { version: "desc" }, take: 1 } } });
   if (!doc) return;
-  if (doc.status !== "DRAFT" || isDocumentFrozen(doc.status)) {
-    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Create a revision before editing a finalized document")}`);
-  }
+  if (doc.status !== "DRAFT" || isDocumentFrozen(doc.status)) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Create a revision before editing a finalized document")}`);
   const latest = doc.versions[0];
   const nextVersion = (latest?.version ?? 0) + 1;
   await prisma.$transaction([
@@ -89,28 +67,15 @@ export async function createDocumentRevision(documentId: string, formData: FormD
   const user = await assertPermission("DOCUMENT_EDIT");
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 300);
   const doc = await prisma.document.findUnique({ where: { id: documentId }, include: { versions: { orderBy: { version: "desc" }, take: 1 } } });
-  if (!doc || doc.status !== "FINAL" || !doc.versions[0]) {
-    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Only a FINAL document can be reopened as a revision")}`);
-  }
+  if (!doc || doc.status !== "FINAL" || !doc.versions[0]) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Only a FINAL document can be reopened as a revision")}`);
   if (!reason) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("A revision reason is required")}`);
-
   const base = doc.versions[0];
   const nextVersion = base.version + 1;
   await prisma.$transaction([
-    prisma.documentVersion.create({
-      data: {
-        documentId,
-        version: nextVersion,
-        content: base.content,
-        authorId: user.id,
-        changeNote: `Revision from FINAL v${base.version}: ${reason}`.slice(0, 300),
-        hash: sha256(base.content),
-        status: "DRAFT",
-      },
-    }),
+    prisma.documentVersion.create({ data: { documentId, version: nextVersion, content: base.content, authorId: user.id, changeNote: `Revision from FINAL v${base.version}: ${reason}`.slice(0, 300), hash: sha256(base.content), status: "DRAFT" } }),
     prisma.document.update({ where: { id: documentId }, data: { status: "DRAFT" } }),
   ]);
-  await audit({ userId: user.id, action: "DOCUMENT_REVISION_CREATE", resourceType: "Document", resourceId: documentId, before: { status: "FINAL", version: base.version, finalPdfHash: doc.finalPdfHash }, after: { status: "DRAFT", version: nextVersion, reason } });
+  await audit({ userId: user.id, action: "DOCUMENT_REVISION_CREATE", resourceType: "Document", resourceId: documentId, before: { status: "FINAL", version: base.version, finalPdfHash: doc.finalPdfHash, finalPdfKey: doc.finalPdfKey }, after: { status: "DRAFT", version: nextVersion, reason } });
   await logActivity({ type: "DOCUMENT_REVISION_CREATED", message: `Document ${doc.documentId} reopened as revision v${nextVersion}`, userId: user.id, clientId: doc.clientId, caseId: doc.caseId });
   revalidatePath(`/app/documents/${documentId}`);
   redirect(`/app/documents/${documentId}?toast=${encodeURIComponent(`Revision v${nextVersion} created from FINAL v${base.version}`)}`);
@@ -119,30 +84,26 @@ export async function createDocumentRevision(documentId: string, formData: FormD
 export async function finalizeDocument(documentId: string, formData?: FormData) {
   const user = await assertPermission("DOCUMENT_EDIT");
   const confirmed = String(formData?.get("confirm") ?? "") === "FINALIZE";
-  if (!confirmed) redirect(`/app/documents/${documentId}/finalize?error=${encodeURIComponent("Explicit confirmation is required")}`);
+  const acknowledged = String(formData?.get("acknowledge") ?? "") === "yes";
+  const expectedVersion = Number(formData?.get("expectedVersion") ?? 0);
+  const expectedHash = String(formData?.get("expectedHash") ?? "");
+  if (!confirmed || !acknowledged) redirect(`/app/documents/${documentId}/finalize?error=${encodeURIComponent("Explicit confirmation is required")}`);
 
-  const doc = await prisma.document.findUnique({
-    where: { id: documentId },
-    include: { versions: { orderBy: { version: "desc" }, take: 1 }, client: true, case: true },
-  });
+  const doc = await prisma.document.findUnique({ where: { id: documentId }, include: { versions: { orderBy: { version: "desc" }, take: 1 }, client: true, case: true } });
   if (!doc || doc.versions.length === 0) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Document has no version to finalize")}`);
   if (doc.status !== "DRAFT") redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Only a DRAFT document can be finalized")}`);
   const latest = doc.versions[0];
   const contentHash = sha256(latest.content);
+  if (latest.version !== expectedVersion || contentHash !== expectedHash) {
+    await audit({ userId: user.id, action: "DOCUMENT_FINALIZE_STALE_PREVIEW", resourceType: "Document", resourceId: documentId, after: { expectedVersion, actualVersion: latest.version, expectedHash, actualHash: contentHash } });
+    redirect(`/app/documents/${documentId}/finalize?error=${encodeURIComponent("The document changed after this preview was opened. Review the latest version before finalizing.")}`);
+  }
 
   let finalPdfKey: string;
   let finalPdfHash: string;
   try {
     const [{ renderDocumentPdf }, { storage, makeStorageKey }] = await Promise.all([import("@/services/pdf"), import("@/lib/storage")]);
-    const bytes = await renderDocumentPdf({
-      documentId: doc.documentId,
-      title: doc.title,
-      type: doc.type,
-      status: "FINAL",
-      html: latest.content,
-      clientName: doc.client ? `${doc.client.firstName} ${doc.client.lastName}` : null,
-      caseNumber: doc.case?.caseNumber ?? null,
-    });
+    const bytes = await renderDocumentPdf({ documentId: doc.documentId, title: doc.title, type: doc.type, status: "FINAL", html: latest.content, clientName: doc.client ? `${doc.client.firstName} ${doc.client.lastName}` : null, caseNumber: doc.case?.caseNumber ?? null });
     const pdfBuffer = Buffer.from(bytes);
     finalPdfHash = sha256(pdfBuffer);
     finalPdfKey = makeStorageKey("documents/final", `${doc.documentId}-v${latest.version}-${finalPdfHash.slice(0, 12)}.pdf`);
