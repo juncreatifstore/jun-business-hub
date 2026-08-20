@@ -56,9 +56,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   y -= 24;
   for (const r of recipients) {
     page.drawText(`${r.order}. ${r.name}`, { x: 54, y, size: 10, font: bold });
-    page.drawText(`${r.email}  ·  ${r.role ?? "SIGNER"}`, { x: 74, y: y - 15, size: 8.5, font: regular, color: rgb(0.35, 0.39, 0.47) });
+    page.drawText(`${r.email}  ·  ${r.role ?? "SIGNER"}  ·  Method: ${r.signatureMethod ?? "TYPE"}`, { x: 74, y: y - 15, size: 8.5, font: regular, color: rgb(0.35, 0.39, 0.47) });
     page.drawText(`Email verified: ${fmt(r.verifiedAt)}  ·  Signed: ${fmt(r.signedAt)}`, { x: 74, y: y - 29, size: 8.2, font: regular, color: rgb(0.35, 0.39, 0.47) });
-    y -= 54;
+    if (r.signatureImageHash) page.drawText(`Drawn signature SHA-256: ${r.signatureImageHash.slice(0, 32)}...`, { x: 74, y: y - 43, size: 7.6, font: mono, color: rgb(0.35, 0.39, 0.47) });
+    y -= r.signatureImageHash ? 68 : 54;
   }
 
   y -= 4;
@@ -69,7 +70,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   page.drawText(hash.slice(0, 40), { x: 110, y, size: 8, font: mono });
   page.drawText(hash.slice(40), { x: 110, y: y - 13, size: 8, font: mono });
 
-  page.drawText("This certificate records signer email verification, completion metadata and the cryptographic fingerprint of the signed PDF archived by JUN.", { x: 54, y: 74, size: 8, font: regular, color: rgb(0.35, 0.39, 0.47), maxWidth: 500 });
+  page.drawText("This certificate records signer email verification, signature method, completion metadata and the cryptographic fingerprint of the signed PDF archived by JUN.", { x: 54, y: 74, size: 8, font: regular, color: rgb(0.35, 0.39, 0.47), maxWidth: 500 });
   page.drawText(`Generated ${fmt(new Date())}`, { x: 54, y: 54, size: 8, font: regular, color: rgb(0.35, 0.39, 0.47) });
 
   const bytes = await pdf.save();
