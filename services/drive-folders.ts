@@ -4,11 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { storage } from "@/lib/storage";
+import { FOLDER_SHARE_PREFIX, FOLDER_TRASH_PREFIX } from "@/lib/drive-folder-constants";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
-export const FOLDER_TRASH_PREFIX = "drive.folder.trash.";
-export const FOLDER_SHARE_PREFIX = "drive.folder.share.";
 const VERSION_PREFIX = "drive.version.";
 
 function safeReturn(formData?: FormData, fallback = "/app/drive") {
