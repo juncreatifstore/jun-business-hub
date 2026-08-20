@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, CopyPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type FieldMeta = {
   el: HTMLElement;
@@ -28,7 +29,6 @@ function evalSimpleFormula(formula: string, values: Record<string, string | bool
     if (/^\d/.test(token) || /^[()+\-*/]$/.test(token)) return token;
     return String(numberValue(values[token]));
   });
-  // Only digits/operators/parens remain after normalization.
   const expression = normalized.join(" ");
   if (!/^[0-9+\-*/().\s]+$/.test(expression)) return "";
   try {
@@ -40,12 +40,33 @@ function evalSimpleFormula(formula: string, values: Record<string, string | bool
   }
 }
 
-export function DocumentFillPreview({ documentId, title, html }: { documentId: string; title: string; html: string }) {
+function valueLabel(value: string | boolean | undefined, type: string): string {
+  if (type === "CHECKBOX") return value === true ? "✓ Yes" : "☐ No";
+  return String(value ?? "").trim();
+}
+
+export function DocumentFillPreview({
+  documentId,
+  title,
+  html,
+  createFilledCopy,
+  serverError,
+}: {
+  documentId: string;
+  title: string;
+  html: string;
+  createFilledCopy: (formData: FormData) => Promise<void>;
+  serverError?: string | null;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const valuesRef = useRef<HTMLInputElement>(null);
+  const htmlRef = useRef<HTMLInputElement>(null);
   const [fields, setFields] = useState<FieldMeta[]>([]);
   const [current, setCurrent] = useState(0);
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [errors, setErrors] = useState<string[]>([]);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -137,16 +158,72 @@ export function DocumentFillPreview({ documentId, title, html }: { documentId: s
     fields[next].el.querySelector<HTMLElement>("[data-fill-control=true], input, select")?.focus();
   }
 
-  function validate() {
-    const missing = fields.filter((field) => field.required && field.type !== "FORMULA" && !values[field.name]).map((field) => field.name);
+  function missingRequired(): string[] {
+    return fields
+      .filter((field) => field.required && field.type !== "FORMULA" && !(field.type === "CHECKBOX" ? values[field.name] === true : String(values[field.name] ?? "").trim()))
+      .map((field) => field.name);
+  }
+
+  function validate(): boolean {
+    const missing = missingRequired();
     setErrors(missing);
     if (missing.length) {
       const first = fields.findIndex((field) => field.name === missing[0]);
       if (first >= 0) focusField(first);
-      return;
+      return false;
     }
     setErrors([]);
-    window.alert("All required fields are complete. This preview is ready for the next workflow step.");
+    return true;
+  }
+
+  function buildFilledHtml(): string {
+    const root = rootRef.current;
+    if (!root) return "";
+    const clone = root.cloneNode(true) as HTMLElement;
+    const clonedFields = Array.from(clone.querySelectorAll<HTMLElement>('[data-jun-field="true"]'));
+    for (const el of clonedFields) {
+      const name = el.dataset.fieldName || "Field";
+      const type = (el.dataset.fieldType || "TEXT").toUpperCase();
+      let output = "";
+      if (type === "FORMULA") {
+        const original = fields.find((f) => f.name === name && f.type === "FORMULA");
+        output = original?.el.querySelector<HTMLInputElement>("input[data-formula-field]")?.value ?? "";
+      } else {
+        output = valueLabel(values[name], type);
+      }
+      el.removeAttribute("data-jun-field");
+      el.removeAttribute("data-jun-block");
+      el.removeAttribute("data-kind");
+      el.removeAttribute("data-field-type");
+      el.removeAttribute("data-field-name");
+      el.removeAttribute("data-required");
+      el.removeAttribute("data-help");
+      el.removeAttribute("data-options");
+      el.removeAttribute("data-order");
+      el.removeAttribute("data-validation");
+      el.removeAttribute("data-formula");
+      el.removeAttribute("style");
+      el.removeAttribute("class");
+      el.innerHTML = "";
+      const label = document.createElement("strong");
+      label.textContent = `${name}: `;
+      el.append(label, document.createTextNode(output || "—"));
+    }
+    clone.querySelectorAll("input, select, button").forEach((el) => el.remove());
+    return clone.innerHTML;
+  }
+
+  function createCopy() {
+    if (!validate()) return;
+    const frozen = buildFilledHtml();
+    if (!frozen.trim()) {
+      window.alert("The filled document could not be prepared.");
+      return;
+    }
+    if (valuesRef.current) valuesRef.current.value = JSON.stringify(values);
+    if (htmlRef.current) htmlRef.current.value = frozen;
+    setCreating(true);
+    formRef.current?.requestSubmit();
   }
 
   return (
@@ -157,11 +234,18 @@ export function DocumentFillPreview({ documentId, title, html }: { documentId: s
       </div>
       <div className="mb-4 rounded-xl border border-line bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-sm font-semibold">Preview / Fill</p><p className="text-xs text-muted2">{title} · Required fields must be completed before continuing.</p></div>
-          <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => focusField(current - 1)} disabled={current <= 0}>Previous</Button><Button type="button" variant="outline" onClick={() => focusField(current + 1)} disabled={current >= fields.length - 1}>Next <ArrowRight className="ml-1 h-4 w-4" /></Button><Button type="button" variant="primary" onClick={validate}><CheckCircle2 className="mr-1.5 h-4 w-4" />Validate</Button></div>
+          <div><p className="text-sm font-semibold">Preview / Fill</p><p className="text-xs text-muted2">{title} · Required fields must be completed before creating a filled copy.</p></div>
+          <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => focusField(current - 1)} disabled={current <= 0}>Previous</Button><Button type="button" variant="outline" onClick={() => focusField(current + 1)} disabled={current >= fields.length - 1}>Next <ArrowRight className="ml-1 h-4 w-4" /></Button><Button type="button" variant="outline" onClick={() => validate()}><CheckCircle2 className="mr-1.5 h-4 w-4" />Validate</Button></div>
         </div>
-        {errors.length ? <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>Required: {errors.join(", ")}</span></div> : null}
+        {(errors.length || serverError) ? <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{serverError || `Required: ${errors.join(", ")}`}</span></div> : null}
+        <form ref={formRef} action={createFilledCopy} className="mt-4 flex flex-wrap items-end gap-3">
+          <input ref={valuesRef} type="hidden" name="values" />
+          <input ref={htmlRef} type="hidden" name="filledHtml" />
+          <div className="min-w-64 flex-1"><Input name="copyTitle" placeholder={`${title} — Filled copy`} maxLength={180} /><p className="mt-1 text-xs text-muted2">Optional: give the new independent document a different title.</p></div>
+          <Button type="button" variant="primary" disabled={creating || fields.length === 0} onClick={createCopy}><CopyPlus className="mr-1.5 h-4 w-4" />{creating ? "Creating…" : "Create filled copy"}</Button>
+        </form>
       </div>
+      {fields.length === 0 ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This document has no fillable fields yet. Add fields in the Document Editor first.</div> : null}
       <div className="mx-auto max-w-[850px] rounded-xl border border-line bg-white shadow-sm"><div ref={rootRef} className="doc-prose min-h-[900px] px-12 py-10 text-[15px] text-night" dangerouslySetInnerHTML={{ __html: html }} /></div>
     </div>
   );
