@@ -20,13 +20,14 @@ const tools = [
   { label: "Edit document", description: "Open a draft in the full editor", href: "/app/editor?view=drafts", icon: PenLine },
   { label: "Request e-signatures", description: "Prepare a document for other signers", href: "/app/signatures", icon: UserRoundPen },
   { label: "Collected forms", description: "Review filled copies and form results", href: "/app/editor?view=filled", icon: Link2 },
-  { label: "Combine", description: "Merge documents — implementation queued", href: "/app/editor?view=combine", icon: Files },
-  { label: "Reorganize", description: "Manage document pages — implementation queued", href: "/app/editor?view=pages", icon: PanelsTopLeft },
+  { label: "Combine", description: "Merge multiple JUN documents into one", href: "/app/editor/combine", icon: Files },
+  { label: "Reorganize", description: "Choose a document and manage its pages", href: "/app/editor?view=drafts", icon: PanelsTopLeft },
 ] as const;
 
 export default async function EditorDashboard({ searchParams }: { searchParams?: SearchParams }) {
   await requirePermission("DOCUMENT_READ");
   const q = (searchParams?.q ?? "").trim().toLowerCase();
+  const view = searchParams?.view ?? "recent";
   const docs = await prisma.document.findMany({
     orderBy: { updatedAt: "desc" },
     take: 200,
@@ -37,11 +38,19 @@ export default async function EditorDashboard({ searchParams }: { searchParams?:
     },
   });
 
-  const filtered = q ? docs.filter((d) => [d.documentId, d.title, d.type, d.author.firstName, d.author.lastName].join(" ").toLowerCase().includes(q)) : docs;
+  const staleCutoff = Date.now() - 7 * 86_400_000;
+  const byView = docs.filter((d) => {
+    if (view === "drafts") return d.status === "DRAFT";
+    if (view === "action") return d.status === "DRAFT" && d.updatedAt.getTime() < staleCutoff;
+    if (view === "filled") return d.title.toLowerCase().includes("filled") || d.versions[0]?.changeNote?.toLowerCase().includes("filled copy");
+    if (view === "waiting") return d.signatures.some((s) => ["READY_FOR_SIGNATURE", "SENT", "VIEWED", "PARTIALLY_SIGNED"].includes(s.status));
+    if (view === "completed") return ["FINAL", "SIGNED"].includes(d.status);
+    return true;
+  });
+  const filtered = q ? byView.filter((d) => [d.documentId, d.title, d.type, d.author.firstName, d.author.lastName].join(" ").toLowerCase().includes(q)) : byView;
   const drafts = docs.filter((d) => d.status === "DRAFT").length;
   const waiting = docs.filter((d) => d.signatures.some((s) => ["READY_FOR_SIGNATURE", "SENT", "VIEWED", "PARTIALLY_SIGNED"].includes(s.status))).length;
   const completed = docs.filter((d) => ["FINAL", "SIGNED"].includes(d.status)).length;
-  const staleCutoff = Date.now() - 7 * 86_400_000;
   const actionRequired = docs.filter((d) => d.status === "DRAFT" && d.updatedAt.getTime() < staleCutoff).length;
 
   return (
@@ -51,6 +60,7 @@ export default async function EditorDashboard({ searchParams }: { searchParams?:
       <div className="mb-6 flex flex-wrap gap-3">
         <form method="get" className="relative min-w-[260px] flex-1 max-w-xl">
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted2" />
+          <input type="hidden" name="view" value={view} />
           <input name="q" defaultValue={searchParams?.q ?? ""} placeholder="Search editor documents…" className="h-10 w-full rounded-lg border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-electric" />
         </form>
         <Link href="/app/documents/new"><Button variant="primary">Add new</Button></Link>
@@ -68,7 +78,7 @@ export default async function EditorDashboard({ searchParams }: { searchParams?:
         <Link href="/app/editor"><Card><CardContent className="flex items-center gap-3 p-4"><Clock3 className="h-4 w-4 text-electric" /><div><p className="text-xs text-muted2">Recent</p><p className="font-semibold">{docs.length}</p></div></CardContent></Card></Link>
         <Link href="/app/editor?view=action"><Card><CardContent className="flex items-center gap-3 p-4"><AlertTriangle className="h-4 w-4 text-amber-600" /><div><p className="text-xs text-muted2">Action required</p><p className="font-semibold">{actionRequired}</p></div></CardContent></Card></Link>
         <Link href="/app/editor?view=drafts"><Card><CardContent className="flex items-center gap-3 p-4"><FileEdit className="h-4 w-4 text-muted2" /><div><p className="text-xs text-muted2">Drafts</p><p className="font-semibold">{drafts}</p></div></CardContent></Card></Link>
-        <div className="grid grid-cols-2 gap-2"><Card><CardContent className="flex items-center gap-2 p-4"><UsersRound className="h-4 w-4 text-muted2" /><div><p className="text-[11px] text-muted2">Waiting</p><p className="font-semibold">{waiting}</p></div></CardContent></Card><Card><CardContent className="flex items-center gap-2 p-4"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><div><p className="text-[11px] text-muted2">Completed</p><p className="font-semibold">{completed}</p></div></CardContent></Card></div>
+        <div className="grid grid-cols-2 gap-2"><Link href="/app/editor?view=waiting"><Card><CardContent className="flex items-center gap-2 p-4"><UsersRound className="h-4 w-4 text-muted2" /><div><p className="text-[11px] text-muted2">Waiting</p><p className="font-semibold">{waiting}</p></div></CardContent></Card></Link><Link href="/app/editor?view=completed"><Card><CardContent className="flex items-center gap-2 p-4"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><div><p className="text-[11px] text-muted2">Completed</p><p className="font-semibold">{completed}</p></div></CardContent></Card></Link></div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-line bg-white">
