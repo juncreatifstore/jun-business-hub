@@ -16,6 +16,10 @@ export type SignatureRecipient = {
   fields?: SignatureField[];
 };
 
+export type SignatureRequestMeta = {
+  message?: string;
+};
+
 const FIELD_TYPES = new Set<SignatureFieldType>(["SIGNATURE", "INITIALS", "DATE_SIGNED", "NAME"]);
 
 function signatureFields(value: unknown): SignatureField[] {
@@ -39,6 +43,18 @@ function signatureFields(value: unknown): SignatureField[] {
   return out;
 }
 
+export function signatureRequestMeta(value: unknown): SignatureRequestMeta {
+  if (!Array.isArray(value)) return {};
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    if (!("_meta" in r) || !r._meta || typeof r._meta !== "object") continue;
+    const meta = r._meta as Record<string, unknown>;
+    return { message: typeof meta.message === "string" ? meta.message : undefined };
+  }
+  return {};
+}
+
 export function signatureRecipients(value: unknown): SignatureRecipient[] {
   if (!Array.isArray(value)) return [];
 
@@ -46,8 +62,8 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
 
   value.forEach((v, index) => {
     if (!v || typeof v !== "object") return;
-
     const r = v as Record<string, unknown>;
+    if ("_meta" in r) return;
     recipients.push({
       name: typeof r.name === "string" ? r.name : "Signer",
       email: typeof r.email === "string" ? r.email : "",
@@ -59,4 +75,8 @@ export function signatureRecipients(value: unknown): SignatureRecipient[] {
   });
 
   return recipients;
+}
+
+export function signatureRecipientsPayload(recipients: SignatureRecipient[], meta: SignatureRequestMeta = {}) {
+  return [{ _meta: { message: meta.message ?? "" } }, ...recipients];
 }
