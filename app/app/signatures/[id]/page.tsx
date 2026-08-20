@@ -11,7 +11,7 @@ import { mockSignRecipient } from "@/services/signatures";
 import { voidTrackedSignatureRequest } from "@/services/signature-actions";
 import { sendPreparedSignatureRequest } from "@/services/signature-center";
 import { signatureRecipients, signatureRequestMeta } from "@/lib/signature-recipients";
-import { CheckCircle2, MapPin, Send } from "lucide-react";
+import { CheckCircle2, MapPin, Send, Move } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
         actions={
           canSign && open ? (
             <div className="flex flex-wrap gap-2">
+              {request.status === "READY_FOR_SIGNATURE" ? <Link href={`/app/signatures/${request.id}/prepare`}><Button variant="secondary"><Move className="mr-2 h-4 w-4" />Edit field placement</Button></Link> : null}
               {request.status === "READY_FOR_SIGNATURE" && docusignReady ? <form action={sendPreparedSignatureRequest.bind(null, request.id)}><Button variant="gold"><Send className="mr-2 h-4 w-4" />Send via DocuSign</Button></form> : null}
               <form action={voidTrackedSignatureRequest.bind(null, request.id)}><Button variant="danger">Void request</Button></form>
             </div>
