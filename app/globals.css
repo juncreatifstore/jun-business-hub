@@ -38,3 +38,4 @@ body { @apply bg-surface text-ink antialiased; }
 .doc-prose ul { @apply list-disc pl-6 my-2; }
 .doc-prose table { @apply w-full border-collapse my-3; }
 .doc-prose td, .doc-prose th { @apply border border-line p-2 text-sm; }
+.doc-prose [data-jun-block="true"][data-kind="page"] { display: none !important; }
