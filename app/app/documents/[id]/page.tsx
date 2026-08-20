@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, GitCompareArrows, RotateCcw, ShieldCheck, PanelsTopLeft } from "lucide-react";
+import { ArrowLeft, GitCompareArrows, RotateCcw, ShieldCheck, PanelsTopLeft, Scissors } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,7 +7,8 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { createDocumentRevision, duplicateDocument, archiveDocument } from "@/services/documents";
+import { DocumentEditor } from "@/components/app/document-editor";
+import { createDocumentRevision, duplicateDocument, archiveDocument, saveDocumentVersion } from "@/services/documents";
 import { restoreDocumentVersion } from "@/services/document-versions";
 import { createSignatureRequest } from "@/services/signatures";
 import { formatDateTime } from "@/lib/utils";
@@ -53,11 +54,12 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
           {doc.finalPdfHash ? <p className="registry-id mt-1 text-muted2">PDF SHA-256 {shortHash(doc.finalPdfHash)}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/app/editor/${doc.id}`}><Button variant="primary"><PanelsTopLeft className="mr-1.5 h-4 w-4" />Open in Editor</Button></Link>
-          <Link href={`/app/documents/${doc.id}/versions`}><Button variant="outline"><GitCompareArrows className="mr-1.5 h-4 w-4" />Compare versions</Button></Link>
+          <Link href={`/app/documents/${doc.id}/pages`}><Button variant="outline"><PanelsTopLeft className="mr-1.5 h-4 w-4" />Pages</Button></Link>
+          {can(user, "DOCUMENT_CREATE") ? <Link href={`/app/documents/${doc.id}/split`}><Button variant="outline"><Scissors className="mr-1.5 h-4 w-4" />Split</Button></Link> : null}
+          <Link href={`/app/documents/${doc.id}/versions`}><Button variant="outline"><GitCompareArrows className="mr-1.5 h-4 w-4" />Versions</Button></Link>
           <Link href={`/app/documents/${doc.id}/fill`}><Button variant="outline">Preview / Fill</Button></Link>
-          <a href={`/api/documents/${doc.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Download PDF</Button></a>
-          <Link href={`/app/documents/${doc.id}/print`} target="_blank"><Button variant="ghost">Print view</Button></Link>
+          <a href={`/api/documents/${doc.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">PDF</Button></a>
+          <Link href={`/app/documents/${doc.id}/print`} target="_blank"><Button variant="ghost">Print</Button></Link>
           {canEditDraft ? <Link href={`/app/documents/${doc.id}/finalize`}><Button variant="gold">Review & finalize</Button></Link> : null}
           {doc.status === "FINAL" && can(user, "DOCUMENT_SIGN") ? <form action={createSignatureRequest.bind(null, doc.id)}><Button variant="primary">Send for signature</Button></form> : null}
           {can(user, "DOCUMENT_CREATE") ? <form action={duplicateDocument.bind(null, doc.id)}><Button variant="ghost">Duplicate</Button></form> : null}
@@ -67,10 +69,16 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
 
       {doc.status === "FINAL" ? <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_420px]"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" />Final document sealed</p><p className="mt-1">The official PDF and its SHA-256 hash are frozen. Direct editing is disabled.</p></div>{canCreateRevision ? <form action={createDocumentRevision.bind(null, doc.id)} className="rounded-xl border border-line bg-white p-4"><p className="text-sm font-semibold">Create a new revision</p><p className="mt-1 text-xs text-muted2">Creates a new DRAFT from the current FINAL version while preserving the sealed PDF.</p><div className="mt-3 flex gap-2"><Input name="reason" required maxLength={300} placeholder="Reason for revision" /><Button type="submit" variant="outline">Create revision</Button></div></form> : null}</div> : null}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
-          <CardHeader><div className="flex items-center justify-between"><CardTitle>Document preview</CardTitle><Link href={`/app/editor/${doc.id}`} className="text-xs font-semibold text-electric hover:underline">Open full Editor</Link></div></CardHeader>
-          <CardContent><div className="doc-prose min-h-[520px] rounded-lg border border-line bg-white px-8 py-7 text-[15px] text-night" dangerouslySetInnerHTML={{ __html: latest?.content ?? "<p></p>" }} /></CardContent>
+          <CardHeader><CardTitle>{canEditDraft ? "Edit document" : "Document preview"}</CardTitle></CardHeader>
+          <CardContent>
+            {canEditDraft ? (
+              <DocumentEditor documentId={doc.id} initialContent={latest?.content ?? "<p></p>"} action={saveDocumentVersion.bind(null, doc.id)} readOnly={false} />
+            ) : (
+              <div className="doc-prose min-h-[520px] rounded-lg border border-line bg-white px-8 py-7 text-[15px] text-night" dangerouslySetInnerHTML={{ __html: latest?.content ?? "<p></p>" }} />
+            )}
+          </CardContent>
         </Card>
         <div className="space-y-4">
           <Card><CardHeader><div className="flex items-center justify-between gap-2"><CardTitle>Versions</CardTitle><Link href={`/app/documents/${doc.id}/versions`} className="text-xs font-medium text-electric hover:underline">Compare</Link></div></CardHeader><CardContent className="p-0"><ul className="divide-y divide-line">{doc.versions.map((v, index) => <li key={v.id} className="px-4 py-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-medium">Version {v.version}{index === 0 ? " · Current" : ""}</p><StatusBadge status={v.status} /></div><p className="text-xs text-muted2">{v.author.firstName} {v.author.lastName} · {formatDateTime(v.createdAt)}</p>{v.changeNote ? <p className="mt-1 text-xs text-muted2">{v.changeNote}</p> : null}<p className="registry-id mt-1 text-[10px] text-muted2">{shortHash(v.hash)}</p>{canEditDraft && index > 0 ? <form action={restoreDocumentVersion.bind(null, doc.id, v.id)} className="mt-2"><Button type="submit" variant="ghost" className="h-8 px-2 text-xs"><RotateCcw className="mr-1 h-3.5 w-3.5" />Restore as new version</Button></form> : null}</li>)}</ul></CardContent></Card>
