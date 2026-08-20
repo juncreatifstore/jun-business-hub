@@ -64,10 +64,26 @@ function fitSize(font: { widthOfTextAtSize(text: string, size: number): number }
   return size;
 }
 
-async function stampSigner(pdfBytes: Buffer, recipient: SignatureRecipient, signatureName: string, signedAt: Date) {
+function parseDrawSignature(value: FormDataEntryValue | null): Buffer | null {
+  if (typeof value !== "string") return null;
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(value);
+  if (!match || match[1].length > 900_000) return null;
+  try {
+    const bytes = Buffer.from(match[1], "base64");
+    if (!bytes.length || bytes.length > 500_000) return null;
+    // PNG magic bytes.
+    if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) return null;
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+async function stampSigner(pdfBytes: Buffer, recipient: SignatureRecipient, signatureName: string, signedAt: Date, signatureImage: Buffer | null) {
   const pdf = await PDFDocument.load(pdfBytes);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const italic = await pdf.embedFont(StandardFonts.TimesRomanItalic);
+  const drawn = signatureImage ? await pdf.embedPng(signatureImage) : null;
   const dateText = signedAt.toISOString().slice(0, 10);
 
   for (const field of recipient.fields ?? []) {
@@ -78,7 +94,22 @@ async function stampSigner(pdfBytes: Buffer, recipient: SignatureRecipient, sign
     const fieldHeight = Math.max(18, field.height ?? (field.type === "SIGNATURE" ? 42 : 24));
     const x = Math.max(0, field.x);
     const topY = Math.max(0, field.y);
-    const y = Math.max(0, height - topY - fieldHeight + 5);
+    const fieldBottom = Math.max(0, height - topY - fieldHeight);
+
+    if (field.type === "SIGNATURE" && drawn) {
+      const maxWidth = Math.max(12, width - 6);
+      const maxHeight = Math.max(12, fieldHeight - 6);
+      const scale = Math.min(maxWidth / drawn.width, maxHeight / drawn.height);
+      const imageWidth = drawn.width * scale;
+      const imageHeight = drawn.height * scale;
+      page.drawImage(drawn, {
+        x: x + 3,
+        y: fieldBottom + Math.max(3, (fieldHeight - imageHeight) / 2),
+        width: imageWidth,
+        height: imageHeight,
+      });
+      continue;
+    }
 
     let text = signatureName;
     let font = regular;
@@ -89,7 +120,7 @@ async function stampSigner(pdfBytes: Buffer, recipient: SignatureRecipient, sign
     else if (field.type === "NAME") { text = signatureName; desired = 10; }
 
     const size = fitSize(font, text, desired, width - 6);
-    page.drawText(text, { x: x + 3, y, size, font, color: rgb(0.06, 0.09, 0.16), maxWidth: width - 6 });
+    page.drawText(text, { x: x + 3, y: fieldBottom + 5, size, font, color: rgb(0.06, 0.09, 0.16), maxWidth: width - 6 });
   }
 
   return Buffer.from(await pdf.save());
@@ -234,8 +265,11 @@ export async function completeJunNativeSignature(token: string, formData: FormDa
 
   const consent = String(formData.get("consent") ?? "") === "on";
   const signatureName = String(formData.get("signatureName") ?? "").trim().replace(/\s+/g, " ").slice(0, 160);
+  const signatureMethod = String(formData.get("signatureMethod") ?? "TYPE").toUpperCase() === "DRAW" ? "DRAW" as const : "TYPE" as const;
+  const signatureImage = signatureMethod === "DRAW" ? parseDrawSignature(formData.get("signatureData")) : null;
   if (!consent) redirect(`/sign/${encodeURIComponent(token)}?error=consent_required`);
   if (signatureName.length < 2) redirect(`/sign/${encodeURIComponent(token)}?error=signature_name_required`);
+  if (signatureMethod === "DRAW" && !signatureImage) redirect(`/sign/${encodeURIComponent(token)}?error=signature_draw_required`);
 
   const request = await prisma.signatureRequest.findUnique({
     where: { id: payload.requestId },
@@ -266,12 +300,19 @@ export async function completeJunNativeSignature(token: string, formData: FormDa
 
   const now = new Date();
   const before = await sourcePdf(request as never);
-  const stamped = await stampSigner(before, recipient, signatureName, now);
+  const stamped = await stampSigner(before, recipient, signatureName, now, signatureImage);
   const key = makeStorageKey("signed/native", `${request.document.documentId}-${recipient.order}.pdf`);
   await storage().upload(key, stamped, "application/pdf");
   const hash = sha256(stamped);
+  const signatureImageHash = signatureImage ? sha256(signatureImage) : null;
 
-  recipients[index] = { ...recipient, viewedAt: recipient.viewedAt ?? now.toISOString(), signedAt: now.toISOString() };
+  recipients[index] = {
+    ...recipient,
+    viewedAt: recipient.viewedAt ?? now.toISOString(),
+    signedAt: now.toISOString(),
+    signatureMethod,
+    signatureImageHash,
+  };
   const complete = recipients.every((r) => Boolean(r.signedAt));
   const reqMeta = requestMeta();
   const ipHash = reqMeta.ip ? sha256(reqMeta.ip) : null;
@@ -298,7 +339,7 @@ export async function completeJunNativeSignature(token: string, formData: FormDa
     action: complete ? "JUN_NATIVE_SIGNATURE_COMPLETED" : "JUN_NATIVE_SIGNER_COMPLETED",
     resourceType: "SignatureRequest",
     resourceId: request.id,
-    after: { signer: recipient.email, order: recipient.order, consent: true, signedAt: now.toISOString(), ipHash, pdfHash: hash, complete },
+    after: { signer: recipient.email, order: recipient.order, consent: true, signedAt: now.toISOString(), signatureMethod, signatureImageHash, ipHash, pdfHash: hash, complete },
   }).catch(() => undefined);
 
   if (complete) {
