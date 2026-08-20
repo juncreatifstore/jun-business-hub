@@ -7,6 +7,7 @@ import { audit, logActivity } from "@/lib/audit";
 import { nextNumber, DOC_PREFIX } from "@/lib/sequence";
 import { sanitizeDocumentHtml } from "@/lib/sanitize";
 import { sha256 } from "@/lib/hash";
+import { validateDocumentField } from "@/lib/document-field-validation";
 
 function decodeAttr(value: string): string {
   return value
@@ -17,22 +18,35 @@ function decodeAttr(value: string): string {
     .replace(/&gt;/g, ">");
 }
 
-function requiredFields(html: string): Array<{ name: string; type: string }> {
-  const fields: Array<{ name: string; type: string }> = [];
-  const tags = html.match(/<div\b[^>]*data-jun-field=["']true["'][^>]*>/gi) ?? [];
-  for (const tag of tags) {
-    const required = /data-required=["']true["']/i.test(tag);
-    if (!required) continue;
-    const name = tag.match(/data-field-name=["']([^"']*)["']/i)?.[1] ?? "";
-    const type = (tag.match(/data-field-type=["']([^"']*)["']/i)?.[1] ?? "TEXT").toUpperCase();
-    if (name && type !== "FORMULA") fields.push({ name: decodeAttr(name), type });
-  }
-  return fields;
+type ParsedField = {
+  name: string;
+  type: string;
+  required: boolean;
+  validation: string;
+  options: string[];
+};
+
+function attr(tag: string, name: string): string {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return decodeAttr(tag.match(new RegExp(`${escaped}=["']([^"']*)["']`, "i"))?.[1] ?? "");
 }
 
-function hasValue(value: unknown, type: string): boolean {
-  if (type === "CHECKBOX") return value === true || value === "true";
-  return typeof value === "string" ? value.trim().length > 0 : Boolean(value);
+function parseFields(html: string): ParsedField[] {
+  const fields: ParsedField[] = [];
+  const tags = html.match(/<div\b[^>]*data-jun-field=["']true["'][^>]*>/gi) ?? [];
+  for (const tag of tags) {
+    const name = attr(tag, "data-field-name");
+    const type = (attr(tag, "data-field-type") || "TEXT").toUpperCase();
+    if (!name || type === "FORMULA") continue;
+    fields.push({
+      name,
+      type,
+      required: /data-required=["']true["']/i.test(tag),
+      validation: attr(tag, "data-validation"),
+      options: attr(tag, "data-options").split(",").map((x) => x.trim()).filter(Boolean),
+    });
+  }
+  return fields;
 }
 
 export async function createFilledDocument(sourceDocumentId: string, formData: FormData) {
@@ -55,11 +69,11 @@ export async function createFilledDocument(sourceDocumentId: string, formData: F
     redirect(`/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent("The filled values could not be validated")}`);
   }
 
-  const missing = requiredFields(sourceVersion.content)
-    .filter((field) => !hasValue(values[field.name], field.type))
-    .map((field) => field.name);
-  if (missing.length) {
-    redirect(`/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent(`Required fields missing: ${missing.join(", ")}`)}`);
+  const invalid = parseFields(sourceVersion.content)
+    .map((field) => validateDocumentField(field, values[field.name] as string | boolean | undefined))
+    .filter((error): error is string => Boolean(error));
+  if (invalid.length) {
+    redirect(`/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent(invalid.slice(0, 5).join(" · "))}`);
   }
 
   const rawFilledHtml = String(formData.get("filledHtml") ?? "").slice(0, 500_000);
@@ -104,6 +118,7 @@ export async function createFilledDocument(sourceDocumentId: string, formData: F
       sourceVersion: sourceVersion.version,
       fieldNames: valueNames,
       fieldCount: valueNames.length,
+      validation: "server_verified",
     },
   });
   await logActivity({
