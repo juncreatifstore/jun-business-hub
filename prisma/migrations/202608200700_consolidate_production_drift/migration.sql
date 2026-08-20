@@ -63,8 +63,10 @@ ALTER TABLE "Payment" ADD COLUMN IF NOT EXISTS "recordedById" TEXT;
 UPDATE "Payment" SET "recordedById"="createdById" WHERE "recordedById" IS NULL AND "createdById" IS NOT NULL;
 ALTER TABLE "Payment" ALTER COLUMN "paidAt" DROP NOT NULL;
 DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Payment' AND column_name='recordedById')
-     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Payment_recordedById_fkey') THEN
+  IF NOT EXISTS (SELECT 1 FROM "Payment" WHERE "recordedById" IS NULL) THEN
+    ALTER TABLE "Payment" ALTER COLUMN "recordedById" SET NOT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Payment_recordedById_fkey') THEN
     ALTER TABLE "Payment" ADD CONSTRAINT "Payment_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
   END IF;
 END $$;
@@ -73,23 +75,33 @@ END $$;
 ALTER TABLE "Refund" ADD COLUMN IF NOT EXISTS "refundNumber" TEXT;
 UPDATE "Refund" SET "refundNumber"="reference" WHERE "refundNumber" IS NULL AND "reference" IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS "Refund_refundNumber_key" ON "Refund"("refundNumber");
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM "Refund" WHERE "refundNumber" IS NULL) THEN ALTER TABLE "Refund" ALTER COLUMN "refundNumber" SET NOT NULL; END IF; END $$;
 ALTER TABLE "RefundInstallment" ADD COLUMN IF NOT EXISTS "number" INTEGER;
 WITH ranked AS (
   SELECT id, ROW_NUMBER() OVER (PARTITION BY "refundId" ORDER BY "dueDate", id)::int rn FROM "RefundInstallment"
 ) UPDATE "RefundInstallment" r SET "number"=ranked.rn FROM ranked WHERE r.id=ranked.id AND r."number" IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS "RefundInstallment_refundId_number_key" ON "RefundInstallment"("refundId","number");
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM "RefundInstallment" WHERE "number" IS NULL) THEN ALTER TABLE "RefundInstallment" ALTER COLUMN "number" SET NOT NULL; END IF; END $$;
 
 -- AIAction current shape, while keeping legacy columns compatible
 ALTER TABLE "AIAction" ADD COLUMN IF NOT EXISTS "userId" TEXT;
 ALTER TABLE "AIAction" ADD COLUMN IF NOT EXISTS "tool" TEXT;
 ALTER TABLE "AIAction" ADD COLUMN IF NOT EXISTS "args" JSONB;
 ALTER TABLE "AIAction" ADD COLUMN IF NOT EXISTS "result" JSONB;
+ALTER TABLE "AIAction" ADD COLUMN IF NOT EXISTS "executedAt" TIMESTAMP(3);
 UPDATE "AIAction" SET "userId"="proposedById" WHERE "userId" IS NULL AND "proposedById" IS NOT NULL;
 UPDATE "AIAction" SET "tool"="type" WHERE "tool" IS NULL AND "type" IS NOT NULL;
 UPDATE "AIAction" SET "args"="payload" WHERE "args" IS NULL AND "payload" IS NOT NULL;
 ALTER TABLE "AIAction" ALTER COLUMN "type" DROP NOT NULL;
 ALTER TABLE "AIAction" ALTER COLUMN "payload" DROP NOT NULL;
 ALTER TABLE "AIAction" ALTER COLUMN "proposedById" DROP NOT NULL;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM "AIAction" WHERE "userId" IS NULL OR "tool" IS NULL OR "args" IS NULL) THEN
+    ALTER TABLE "AIAction" ALTER COLUMN "userId" SET NOT NULL;
+    ALTER TABLE "AIAction" ALTER COLUMN "tool" SET NOT NULL;
+    ALTER TABLE "AIAction" ALTER COLUMN "args" SET NOT NULL;
+  END IF;
+END $$;
 ALTER TABLE "AIConversation" ALTER COLUMN "title" DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS "AIAction_userId_idx" ON "AIAction"("userId");
 CREATE INDEX IF NOT EXISTS "AIAction_status_idx" ON "AIAction"("status");
@@ -136,7 +148,7 @@ END; $$;
 DROP TRIGGER IF EXISTS trg_jun_signature_apply_retention ON "SignatureRequest";
 CREATE TRIGGER trg_jun_signature_apply_retention BEFORE INSERT OR UPDATE ON "SignatureRequest" FOR EACH ROW EXECUTE FUNCTION public.jun_signature_apply_retention();
 
--- Backfill retention metadata for already active/completed native signature requests.
+-- Backfill retention metadata for already active/completed signature requests.
 UPDATE "SignatureRequest"
 SET "recipients" = jsonb_set("recipients", '{0,_meta,retentionUntil}', to_jsonb(to_char(COALESCE("completedAt","sentAt","createdAt") + interval '7 years','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')), true)
 WHERE jsonb_typeof("recipients")='array' AND jsonb_array_length("recipients")>0
