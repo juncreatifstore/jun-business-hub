@@ -11,7 +11,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered,
   Quote, Heading1, Heading2, Heading3, AlignLeft, AlignCenter, AlignRight,
   Undo2, Redo2, Link as LinkIcon, Minus, Pilcrow, Eraser, CheckCircle2,
-  AlertCircle, RotateCcw,
+  AlertCircle, RotateCcw, CalendarDays, Check, X, Circle,
 } from "lucide-react";
 
 function TBtn({ active, onClick, title, children }: { active?: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
@@ -137,6 +137,15 @@ export function DocumentEditor({
     else editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }
 
+  function insertText(value: string) {
+    editor?.chain().focus().insertContent(value).run();
+  }
+
+  function insertToday() {
+    const today = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date());
+    insertText(today);
+  }
+
   if (!editor) return <div className="min-h-[520px] rounded-xl border border-white/10 bg-white/5" />;
 
   const words = editor.getText().trim() ? editor.getText().trim().split(/\s+/).length : 0;
@@ -163,6 +172,11 @@ export function DocumentEditor({
               <TBtn title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></TBtn>
               <TBtn title="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></TBtn>
               <TBtn title="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-4 w-4" /></TBtn>
+              <span className="mx-1 h-5 w-px bg-white/10" />
+              <TBtn title="Insert date" onClick={insertToday}><CalendarDays className="h-4 w-4" /></TBtn>
+              <TBtn title="Insert checkmark" onClick={() => insertText("✓")}><Check className="h-4 w-4" /></TBtn>
+              <TBtn title="Insert crossmark" onClick={() => insertText("✕")}><X className="h-4 w-4" /></TBtn>
+              <TBtn title="Insert circle" onClick={() => insertText("○")}><Circle className="h-4 w-4" /></TBtn>
               <span className="mx-1 h-5 w-px bg-white/10" />
               <TBtn title="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></TBtn>
               <TBtn title="Ordered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></TBtn>
