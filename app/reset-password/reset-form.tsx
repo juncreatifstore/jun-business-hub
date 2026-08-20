@@ -16,7 +16,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     return (
       <div className="space-y-4">
         <p className="rounded-lg bg-muted p-3 text-sm">Your password has been changed. All previous sessions were signed out.</p>
-        <Button asChild variant="primary" size="lg" className="w-full"><Link href="/login">Sign in</Link></Button>
+        <Link href="/login" className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-electric px-6 text-sm font-medium text-white hover:brightness-110">Sign in</Link>
       </div>
     );
   }
