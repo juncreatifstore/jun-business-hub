@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, GitCompareArrows, Eye, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, FileText, GitCompareArrows, Eye, CheckCircle2, PanelsTopLeft } from "lucide-react";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ export default async function EditorWorkspace({ params }: { params: { id: string
             <StatusBadge status={doc.status} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Link href={`/app/editor/${doc.id}/pages`}><Button variant="outline"><PanelsTopLeft className="mr-1.5 h-4 w-4" />Pages</Button></Link>
             <Link href={`/app/documents/${doc.id}`}><Button variant="ghost"><FileText className="mr-1.5 h-4 w-4" />Document info</Button></Link>
             <Link href={`/app/documents/${doc.id}/versions`}><Button variant="outline"><GitCompareArrows className="mr-1.5 h-4 w-4" />Versions</Button></Link>
             <Link href={`/app/documents/${doc.id}/fill`}><Button variant="outline"><Eye className="mr-1.5 h-4 w-4" />Preview / Fill</Button></Link>
@@ -40,11 +41,12 @@ export default async function EditorWorkspace({ params }: { params: { id: string
 
       <div className="flex min-h-[calc(100vh-61px)]">
         <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white p-3 xl:block">
-          <div className="flex items-center justify-between px-2 py-2"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Pages</p><span className="text-xs text-slate-400">1</span></div>
-          <div className="rounded-lg border-2 border-blue-500 bg-white p-2 shadow-sm">
-            <div className="flex aspect-[0.72] items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-400">Page 1</div>
-            <p className="mt-2 text-center text-xs font-medium text-slate-700">1</p>
-          </div>
+          <div className="flex items-center justify-between px-2 py-2"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Pages</p><Link href={`/app/editor/${doc.id}/pages`} className="text-[10px] font-semibold text-electric hover:underline">Manage</Link></div>
+          <Link href={`/app/editor/${doc.id}/pages`} className="block rounded-lg border-2 border-blue-500 bg-white p-2 shadow-sm hover:bg-blue-50/40">
+            <div className="flex aspect-[0.72] items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-400">Page manager</div>
+            <p className="mt-2 text-center text-xs font-medium text-slate-700">Open pages</p>
+          </Link>
+          <p className="mt-3 text-[11px] leading-4 text-slate-400">Reorder, rotate, duplicate, add and delete pages.</p>
         </aside>
 
         <main className="min-w-0 flex-1 overflow-x-auto px-4 py-5 sm:px-6">
