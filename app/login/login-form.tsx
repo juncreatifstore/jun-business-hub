@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useFormState, useFormStatus } from "react-dom";
 import { login, type LoginState } from "./actions";
 import { Input, Field } from "@/components/ui/input";
@@ -20,11 +21,11 @@ export function LoginForm({ next }: { next?: string }) {
       <input type="hidden" name="next" value={next ?? ""} />
       <Field label="Work email"><Input name="email" type="email" autoComplete="email" required /></Field>
       <Field label="Password"><Input name="password" type="password" autoComplete="current-password" required /></Field>
+      <div className="-mt-2 text-right">
+        <Link href="/forgot-password" className="text-xs font-medium underline underline-offset-4">Forgot password?</Link>
+      </div>
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
       <Submit />
-      <p className="text-center text-xs text-muted2">
-        Forgot your password? Ask an administrator to reset it from Team.
-      </p>
     </form>
   );
 }
