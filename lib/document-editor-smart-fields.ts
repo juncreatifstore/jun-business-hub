@@ -23,6 +23,26 @@ const SMART_FIELDS = [
   { type: "GENDER", label: "Gender", validation: "gender", help: "Select an option", options: "Female,Male,Non-binary,Prefer not to say,Other" },
 ] as const;
 
+const COMPANY_TOKENS = [
+  { label: "Legal name", token: "{{company.name}}" },
+  { label: "Trade name", token: "{{company.trade_name}}" },
+  { label: "Tagline", token: "{{company.tagline}}" },
+  { label: "Representative", token: "{{company.legal_representative}}" },
+  { label: "Rep. title", token: "{{company.representative_title}}" },
+  { label: "Address", token: "{{company.address}}" },
+  { label: "Mailing", token: "{{company.mailing_address}}" },
+  { label: "PO Box", token: "{{company.po_box}}" },
+  { label: "Phone", token: "{{company.phone}}" },
+  { label: "WhatsApp", token: "{{company.whatsapp}}" },
+  { label: "Email", token: "{{company.email}}" },
+  { label: "Website", token: "{{company.website}}" },
+  { label: "Registration", token: "{{company.registration}}" },
+  { label: "EIN / Tax ID", token: "{{company.tax_id}}" },
+  { label: "Country", token: "{{company.registration_country}}" },
+  { label: "State", token: "{{company.registration_state}}" },
+  { label: "Formation date", token: "{{company.formation_date}}" },
+] as const;
+
 function collectFields(view: EditorView) {
   const fields: Array<{ pos: number; attrs: Record<string, unknown> }> = [];
   view.state.doc.descendants((node, pos) => {
@@ -54,6 +74,11 @@ function insertSmartField(view: EditorView, preset: typeof SMART_FIELDS[number])
   view.focus();
 }
 
+function insertCompanyToken(view: EditorView, token: string) {
+  view.dispatch(view.state.tr.insertText(token).scrollIntoView());
+  view.focus();
+}
+
 function button(label: string, title: string, click: () => void) {
   const b = document.createElement("button");
   b.type = "button";
@@ -63,6 +88,31 @@ function button(label: string, title: string, click: () => void) {
   b.addEventListener("mousedown", (e) => e.preventDefault());
   b.addEventListener("click", click);
   return b;
+}
+
+function openCompanyVariables(view: EditorView) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:20px";
+  const card = document.createElement("div");
+  card.style.cssText = "width:min(760px,96vw);max-height:85vh;overflow:auto;background:#fff;border-radius:14px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.35);font-family:system-ui,sans-serif";
+  const heading = document.createElement("div");
+  heading.innerHTML = '<div style="font-weight:750;color:#0f172a">Company variables</div><div style="font-size:12px;color:#64748b;margin-top:3px">Insert a variable. It is replaced with the current Settings value when an official PDF is generated.</div>';
+  const grid = document.createElement("div");
+  grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin:14px 0";
+  COMPANY_TOKENS.forEach(({ label, token }) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.style.cssText = "text-align:left;border:1px solid #e2e8f0;border-radius:9px;padding:9px 10px;background:#fff;cursor:pointer";
+    item.innerHTML = '<div style="font-size:12px;font-weight:700;color:#0f172a"></div><div style="font-size:11px;color:#64748b;margin-top:2px"></div>';
+    (item.children[0] as HTMLElement).textContent = label;
+    (item.children[1] as HTMLElement).textContent = token;
+    item.addEventListener("click", () => { insertCompanyToken(view, token); overlay.remove(); });
+    grid.append(item);
+  });
+  const footer = document.createElement("div"); footer.style.cssText = "display:flex;justify-content:flex-end";
+  const close = button("Close", "Close company variables", () => { overlay.remove(); view.focus(); });
+  footer.append(close); card.append(heading, grid, footer); overlay.append(card); document.body.append(overlay);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close.click(); });
 }
 
 function openFieldOrder(view: EditorView) {
@@ -116,6 +166,7 @@ function buildToolbar(view: EditorView) {
   const label = document.createElement("span"); label.textContent = "Smart fields"; label.style.cssText = "font-size:11px;font-weight:700;color:#94a3b8;margin-right:4px"; bar.append(label);
   SMART_FIELDS.forEach((preset) => bar.append(button(preset.label, `Add ${preset.label} smart field`, () => insertSmartField(view, preset))));
   const sep = document.createElement("span"); sep.style.cssText = "width:1px;height:22px;background:#334155;margin:0 3px"; bar.append(sep);
+  bar.append(button("Company variables", "Insert company information from Settings", () => openCompanyVariables(view)));
   bar.append(button("Field order", "Reorder Wizard / Tab sequence", () => openFieldOrder(view)));
   return bar;
 }
