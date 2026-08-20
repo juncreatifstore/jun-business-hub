@@ -10,6 +10,7 @@ import {
   requestPublicMeta,
   verifyDrivePublicAccess,
 } from "@/lib/drive-public-security";
+import { drivePublicPolicyAllows, getDriveEnterpriseSettings } from "@/lib/drive-enterprise";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   });
   if (!file) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const security = await getDrivePublicSecurity(file.id);
-  if (security.disabled || publicLinkExpired(security) || !publicTokenMatches(security, suppliedToken)) {
+  const [security, enterprise] = await Promise.all([getDrivePublicSecurity(file.id), getDriveEnterpriseSettings()]);
+  if (security.disabled || publicLinkExpired(security) || !publicTokenMatches(security, suppliedToken) || !drivePublicPolicyAllows(enterprise, security)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (security.passwordHash) {
