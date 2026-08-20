@@ -61,6 +61,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href={`/app/documents/${doc.id}/versions`}><Button variant="outline"><GitCompareArrows className="mr-1.5 h-4 w-4" />Compare versions</Button></Link>
+          <Link href={`/app/documents/${doc.id}/fill`}><Button variant="outline">Preview / Fill</Button></Link>
           <a href={`/api/documents/${doc.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Download PDF</Button></a>
           <Link href={`/app/documents/${doc.id}/print`} target="_blank"><Button variant="ghost">Print view</Button></Link>
           {doc.status === "DRAFT" && can(user, "DOCUMENT_EDIT") ? <Link href={`/app/documents/${doc.id}/finalize`}><Button variant="gold">Review & finalize</Button></Link> : null}
