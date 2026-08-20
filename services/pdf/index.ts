@@ -1,7 +1,8 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type PDFImage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, degrees, type PDFFont, type PDFPage, type PDFImage } from "pdf-lib";
 import QRCode from "qrcode";
 import { htmlToText } from "@/lib/sanitize";
+import { parseDocumentPages } from "@/lib/document-pages";
 
 /**
  * Server-side PDF generation (pdf-lib — pure JS, no headless browser).
@@ -16,7 +17,7 @@ import { htmlToText } from "@/lib/sanitize";
 const NIGHT = rgb(0.055, 0.09, 0.16);
 const GOLD = rgb(0.79, 0.62, 0.2);
 const GRAY = rgb(0.45, 0.48, 0.55);
-const PAGE = { w: 595.28, h: 841.89, margin: 56 }; // A4 portrait
+const PAGE = { w: 595.28, h: 841.89, margin: 56 }; // A4 portrait base; rotation is page metadata.
 
 const COMPANY = {
   name: "JUN CREATIF AND TRAVEL LLC",
@@ -27,6 +28,7 @@ const COMPANY = {
   email: process.env.JUN_OFFICIAL_EMAIL ?? "",
 };
 
+type PageRotation = 0 | 90 | 180 | 270;
 type BrandAssets = { logo: PDFImage | null; seal: PDFImage | null };
 type Ctx = {
   pdf: PDFDocument;
@@ -35,6 +37,7 @@ type Ctx = {
   font: PDFFont;
   bold: PDFFont;
   pageNo: number;
+  rotation: PageRotation;
   assets: BrandAssets;
   footer: (p: PDFPage, n: number) => void;
   decoratePage: (p: PDFPage) => void;
@@ -71,22 +74,33 @@ async function embedRemoteImage(pdf: PDFDocument, url?: string): Promise<PDFImag
   }
 }
 
+/** Small repeated premium watermark marks across the printable area. */
 function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont) {
-  const cx = PAGE.w / 2;
-  const cy = PAGE.h / 2;
-  if (logo) {
-    const maxW = 285;
-    const maxH = 180;
-    const scale = Math.min(maxW / logo.width, maxH / logo.height);
-    const w = logo.width * scale;
-    const h = logo.height * scale;
-    page.drawImage(logo, { x: cx - w / 2, y: cy - h / 2, width: w, height: h, opacity: 0.055 });
-    return;
+  const cols = 3;
+  const rows = 5;
+  const left = PAGE.margin + 22;
+  const right = PAGE.w - PAGE.margin - 22;
+  const bottom = 90;
+  const top = PAGE.h - 120;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const cx = left + (right - left) * (cols === 1 ? 0.5 : col / (cols - 1));
+      const cy = bottom + (top - bottom) * (rows === 1 ? 0.5 : row / (rows - 1));
+      if (logo) {
+        const maxW = 82;
+        const maxH = 46;
+        const scale = Math.min(maxW / logo.width, maxH / logo.height);
+        const w = logo.width * scale;
+        const h = logo.height * scale;
+        page.drawImage(logo, { x: cx - w / 2, y: cy - h / 2, width: w, height: h, opacity: 0.045 });
+      } else {
+        const text = "JUN";
+        const size = 16;
+        const w = bold.widthOfTextAtSize(text, size);
+        page.drawText(text, { x: cx - w / 2, y: cy, size, font: bold, color: GRAY, opacity: 0.04 });
+      }
+    }
   }
-  const text = "JUN CREATIF AND TRAVEL LLC";
-  const size = 24;
-  const w = bold.widthOfTextAtSize(text, size);
-  page.drawText(text, { x: cx - w / 2, y: cy, size, font: bold, color: GRAY, opacity: 0.045 });
 }
 
 function drawSeal(page: PDFPage, seal: PDFImage | null) {
@@ -104,10 +118,16 @@ function drawSeal(page: PDFPage, seal: PDFImage | null) {
   });
 }
 
-function newPage(ctx: Ctx) {
+function applyRotation(page: PDFPage, rotation: PageRotation) {
+  page.setRotation(degrees(rotation));
+}
+
+function newPage(ctx: Ctx, rotation: PageRotation = ctx.rotation) {
   ctx.footer(ctx.page, ctx.pageNo);
   ctx.page = ctx.pdf.addPage([PAGE.w, PAGE.h]);
   ctx.pageNo += 1;
+  ctx.rotation = rotation;
+  applyRotation(ctx.page, rotation);
   ctx.decoratePage(ctx.page);
   ctx.y = PAGE.h - PAGE.margin;
 }
@@ -127,7 +147,7 @@ function drawLines(ctx: Ctx, lines: string[], opts: { size?: number; bold?: bool
 async function buildBase(meta: {
   title: string;
   reference: string;
-  verifyPath: string; // e.g. /verify/JUN-CTR-2026-000001
+  verifyPath: string;
   statusLine: string;
   extraHeader?: string[];
 }): Promise<{ ctx: Ctx; finish: () => Promise<Uint8Array> }> {
@@ -156,9 +176,9 @@ async function buildBase(meta: {
 
   const page = pdf.addPage([PAGE.w, PAGE.h]);
   decoratePage(page);
-  const ctx: Ctx = { pdf, page, y: PAGE.h - PAGE.margin, font, bold, pageNo: 1, assets, footer, decoratePage };
+  const ctx: Ctx = { pdf, page, y: PAGE.h - PAGE.margin, font, bold, pageNo: 1, rotation: 0, assets, footer, decoratePage };
 
-  // Official letterhead
+  // Preserve the current JUN header layout.
   if (logo) {
     const maxW = 62;
     const maxH = 50;
@@ -177,13 +197,11 @@ async function buildBase(meta: {
   const contact = [COMPANY.phone, COMPANY.email].filter(Boolean).join(" · ");
   if (contact) ctx.page.drawText(contact, { x: infoX, y: ctx.y - 28, size: 7.5, font, color: GRAY });
 
-  // QR top-right
   ctx.page.drawImage(qrImg, { x: PAGE.w - PAGE.margin - 60, y: ctx.y - 44, width: 60, height: 60 });
   ctx.page.drawText("Scan to verify", { x: PAGE.w - PAGE.margin - 57, y: ctx.y - 55, size: 7, font, color: GRAY });
   ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y - 38 }, end: { x: PAGE.w - PAGE.margin - 76, y: ctx.y - 38 }, thickness: 1, color: GOLD });
   ctx.y -= 94;
 
-  // Title + meta block
   drawLines(ctx, wrap(meta.title, bold, 17, PAGE.w - 2 * PAGE.margin), { size: 17, bold: true, gap: 2 });
   drawLines(ctx, [
     `Reference: ${meta.reference}`,
@@ -205,7 +223,17 @@ async function buildBase(meta: {
   };
 }
 
-/** Render a document's HTML content into a final branded PDF. */
+function renderTextPage(ctx: Ctx, html: string) {
+  const text = htmlToText(html);
+  const width = PAGE.w - 2 * PAGE.margin;
+  for (const block of text.split(/\n/)) {
+    const isHeading = block.length > 0 && block.length < 80 && block === block.replace(/[.:]$/, "") && /^[A-Z0-9]/.test(block) && !/[a-z]{40}/.test(block) && block.split(" ").length <= 10 && text.indexOf(block) !== text.length;
+    if (block.trim() === "") { ctx.y -= 6; continue; }
+    drawLines(ctx, wrap(block, isHeading ? ctx.bold : ctx.font, isHeading ? 12.5 : 10.5, width), { size: isHeading ? 12.5 : 10.5, bold: isHeading, gap: isHeading ? 2 : 4 });
+  }
+}
+
+/** Render a document's HTML content into a final branded PDF. JUN page markers are hard page breaks. */
 export async function renderDocumentPdf(input: {
   documentId: string;
   title: string;
@@ -227,12 +255,16 @@ export async function renderDocumentPdf(input: {
     ],
   });
 
-  const text = htmlToText(input.html);
-  const width = PAGE.w - 2 * PAGE.margin;
-  for (const block of text.split(/\n/)) {
-    const isHeading = block.length > 0 && block.length < 80 && block === block.replace(/[.:]$/, "") && /^[A-Z0-9]/.test(block) && !/[a-z]{40}/.test(block) && block.split(" ").length <= 10 && text.indexOf(block) !== text.length;
-    if (block.trim() === "") { ctx.y -= 6; continue; }
-    drawLines(ctx, wrap(block, isHeading ? ctx.bold : ctx.font, isHeading ? 12.5 : 10.5, width), { size: isHeading ? 12.5 : 10.5, bold: isHeading, gap: isHeading ? 2 : 4 });
+  const logicalPages = parseDocumentPages(input.html);
+  for (let i = 0; i < logicalPages.length; i++) {
+    const logical = logicalPages[i];
+    if (i === 0) {
+      ctx.rotation = logical.rotation;
+      applyRotation(ctx.page, logical.rotation);
+    } else {
+      newPage(ctx, logical.rotation);
+    }
+    renderTextPage(ctx, logical.html);
   }
   return finish();
 }
