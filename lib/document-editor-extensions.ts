@@ -1,4 +1,4 @@
-import { Mark, Node, mergeAttributes } from "@tiptap/core";
+import { Mark, Node, mergeAttributes, type CommandProps } from "@tiptap/core";
 
 export const JunHighlight = Mark.create({
   name: "junHighlight",
@@ -13,7 +13,7 @@ export const JunHighlight = Mark.create({
   },
   addCommands() {
     return {
-      toggleJunHighlight: () => ({ commands }) => commands.toggleMark(this.name),
+      toggleJunHighlight: () => ({ commands }: CommandProps) => commands.toggleMark(this.name),
     } as any;
   },
 });
@@ -32,7 +32,7 @@ export const JunBlackout = Mark.create({
   },
   addCommands() {
     return {
-      toggleJunBlackout: () => ({ commands }) => commands.toggleMark(this.name),
+      toggleJunBlackout: () => ({ commands }: CommandProps) => commands.toggleMark(this.name),
     } as any;
   },
 });
