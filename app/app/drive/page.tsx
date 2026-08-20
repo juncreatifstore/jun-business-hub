@@ -201,11 +201,11 @@ export default async function DrivePage({ searchParams }: { searchParams: { cate
       <PageHeader title="Drive" subtitle="Company storage with folders, public links, sharing, recovery, preview, versions and audit history." />
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside>
-          <nav className="sticky top-5 space-y-1 rounded-xl border border-white/10 bg-white/[0.025] p-2">
+          <nav className="sticky top-5 space-y-1 rounded-xl border border-line bg-white p-2 shadow-sm">
             {NAV.map((item) => {
               const Icon = item.icon;
               const active = item.view === view;
-              return <Link key={item.view} href={driveUrl(item.view)} className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition ${active ? "bg-electric/15 text-electric" : "text-muted2 hover:bg-white/5 hover:text-white"}`}><Icon className="h-4 w-4" />{item.label}</Link>;
+              return <Link key={item.view} href={driveUrl(item.view)} className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition ${active ? "bg-blue-50 text-electric" : "text-muted2 hover:bg-surface hover:text-ink"}`}><Icon className="h-4 w-4" />{item.label}</Link>;
             })}
           </nav>
         </aside>
@@ -213,23 +213,23 @@ export default async function DrivePage({ searchParams }: { searchParams: { cate
         <main className="min-w-0">
           {view === "my" ? (
             <div className="mb-5 flex flex-wrap items-center gap-1 text-sm text-muted2">
-              <Link href="/app/drive" className="inline-flex items-center gap-1 rounded-md px-2 py-1 hover:bg-white/5 hover:text-white"><Home className="h-4 w-4" /> My Drive</Link>
-              {breadcrumbs?.map((folder) => <span key={folder.id} className="inline-flex items-center gap-1"><ChevronRight className="h-4 w-4 text-white/25" /><Link href={`/app/drive?folder=${folder.id}`} className="rounded-md px-2 py-1 hover:bg-white/5 hover:text-white">{folder.name}</Link></span>)}
+              <Link href="/app/drive" className="inline-flex items-center gap-1 rounded-md px-2 py-1 hover:bg-surface hover:text-ink"><Home className="h-4 w-4" /> My Drive</Link>
+              {breadcrumbs?.map((folder) => <span key={folder.id} className="inline-flex items-center gap-1"><ChevronRight className="h-4 w-4 text-muted2" /><Link href={`/app/drive?folder=${folder.id}`} className="rounded-md px-2 py-1 hover:bg-surface hover:text-ink">{folder.name}</Link></span>)}
             </div>
-          ) : <div className="mb-5 flex items-center gap-2"><h2 className="text-lg font-semibold">{viewLabel}</h2><Badge className="bg-white/10 text-white/70">{files.length}</Badge></div>}
+          ) : <div className="mb-5 flex items-center gap-2"><h2 className="text-lg font-semibold">{viewLabel}</h2><Badge className="bg-surface text-muted2">{files.length}</Badge></div>}
 
           {canUpload && view === "my" ? (
             <div className="mb-6 grid gap-4 xl:grid-cols-[300px_1fr]">
-              <Card><CardHeader><CardTitle>New folder</CardTitle></CardHeader><CardContent><form action={createFolder} className="space-y-3"><input type="hidden" name="parentId" value={folderId ?? ""} /><input name="name" required maxLength={120} placeholder="Folder name" className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-electric" /><Button type="submit" variant="secondary"><FolderPlus className="mr-2 h-4 w-4" />Create folder</Button></form></CardContent></Card>
+              <Card><CardHeader><CardTitle>New folder</CardTitle></CardHeader><CardContent><form action={createFolder} className="space-y-3"><input type="hidden" name="parentId" value={folderId ?? ""} /><input name="name" required maxLength={120} placeholder="Folder name" className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-electric" /><Button type="submit" variant="secondary"><FolderPlus className="mr-2 h-4 w-4" />Create folder</Button></form></CardContent></Card>
               <Card><CardHeader><CardTitle>Upload to {currentFolder?.name ?? "My Drive"}</CardTitle></CardHeader><CardContent><FileUploadForm action={uploadFile} folderId={folderId} categories={CATEGORIES} clients={clients.map((c) => ({ id: c.id, label: `${c.firstName} ${c.lastName} (${c.internalId})` }))} cases={cases.map((c) => ({ id: c.id, label: `${c.caseNumber} — ${c.title}` }))} /><p className="mt-2 text-xs text-muted2">Public JUN links remain stable when files move. Phase 4 adds version history and revocable public links.</p></CardContent></Card>
             </div>
           ) : null}
 
           <form method="get" className="mb-5 flex flex-wrap gap-3">
             {view !== "my" ? <input type="hidden" name="view" value={view} /> : null}{folderId ? <input type="hidden" name="folder" value={folderId} /> : null}
-            <input name="q" defaultValue={q} placeholder={view === "my" ? "Search this folder…" : `Search ${viewLabel.toLowerCase()}…`} className="h-10 min-w-64 rounded-lg border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-electric" />
-            <select name="category" defaultValue={category ?? ""} className="h-10 rounded-lg border border-white/10 bg-night px-3 text-sm outline-none focus:border-electric"><option value="">All categories</option>{CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}</select>
-            <Button type="submit" variant="secondary">Filter</Button>{(q || category) ? <Link href={driveUrl(view, folderId)} className="inline-flex h-10 items-center rounded-lg px-3 text-sm text-muted2 hover:bg-white/5 hover:text-white">Clear</Link> : null}
+            <input name="q" defaultValue={q} placeholder={view === "my" ? "Search this folder…" : `Search ${viewLabel.toLowerCase()}…`} className="h-10 min-w-64 rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-electric" />
+            <select name="category" defaultValue={category ?? ""} className="h-10 rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-electric"><option value="">All categories</option>{CATEGORIES.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}</select>
+            <Button type="submit" variant="secondary">Filter</Button>{(q || category) ? <Link href={driveUrl(view, folderId)} className="inline-flex h-10 items-center rounded-lg px-3 text-sm text-muted2 hover:bg-surface hover:text-ink">Clear</Link> : null}
           </form>
 
           {files.length === 0 && folders.length === 0 ? (
