@@ -10,6 +10,7 @@ import {
   requestPublicMeta,
   verifyDrivePublicAccess,
 } from "@/lib/drive-public-security";
+import { drivePublicPolicyAllows, getDriveEnterpriseSettings } from "@/lib/drive-enterprise";
 import { FileText, ShieldCheck, Download, LockKeyhole, Clock3, ShieldX } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +33,9 @@ export default async function PublicFileViewer({ params, searchParams }: { param
   });
   if (!file) notFound();
 
-  const security = await getDrivePublicSecurity(file.id);
+  const [security, enterprise] = await Promise.all([getDrivePublicSecurity(file.id), getDriveEnterpriseSettings()]);
   if (!publicTokenMatches(security, suppliedToken)) notFound();
-  if (security.disabled) return <Unavailable />;
+  if (security.disabled || !drivePublicPolicyAllows(enterprise, security)) return <Unavailable />;
   if (publicLinkExpired(security)) return <Unavailable expired />;
 
   if (security.passwordHash) {
