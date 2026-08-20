@@ -95,7 +95,10 @@ export async function createRefund(_prev: FormState, formData: FormData): Promis
   }
 
   const refundNumber = await nextNumber("REF");
-  const installments = splitInstallments(d.amount, d.installments);
+  const installments = splitInstallments(d.amount, d.installments).map((installment, index) => ({
+    ...installment,
+    number: index + 1,
+  }));
 
   const refund = await prisma.refund.create({
     data: {
