@@ -108,12 +108,15 @@ export default async function MailPage({ searchParams }: { searchParams: { folde
               </CardHeader>
               <CardContent className="space-y-4">
                 {activeThread.aiDraft && canDraft ? (
-                  <form action={updateMailDraft.bind(null, activeThread.id)} className="space-y-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                    <Field label="To"><Input name="to" type="email" required defaultValue={activeThread.toEmails[0] ?? ""} /></Field>
-                    <Field label="Subject"><Input name="subject" required maxLength={200} defaultValue={activeThread.subject ?? ""} /></Field>
-                    <Field label="Message"><Textarea name="body" rows={10} required defaultValue={activeThread.aiDraft} /></Field>
-                    <div className="flex flex-wrap gap-2"><Button type="submit" variant="secondary">Save changes</Button>{canSend && gmailAccount ? <form action={sendDraftViaGmail.bind(null, activeThread.id)}><Button variant="gold">Send via {gmailAccount.email}</Button></form> : null}</div>
-                  </form>
+                  <>
+                    <form action={updateMailDraft.bind(null, activeThread.id)} className="space-y-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                      <Field label="To"><Input name="to" type="email" required defaultValue={activeThread.toEmails[0] ?? ""} /></Field>
+                      <Field label="Subject"><Input name="subject" required maxLength={200} defaultValue={activeThread.subject ?? ""} /></Field>
+                      <Field label="Message"><Textarea name="body" rows={10} required defaultValue={activeThread.aiDraft} /></Field>
+                      <Button type="submit" variant="secondary">Save changes</Button>
+                    </form>
+                    {canSend && gmailAccount ? <form action={sendDraftViaGmail.bind(null, activeThread.id)}><Button variant="gold">Send via {gmailAccount.email}</Button></form> : null}
+                  </>
                 ) : (
                   <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
                     <p className="text-xs text-muted2"><span className="font-medium text-white/80">{activeThread.fromEmail ?? activeThread.account.email}</span> → {activeThread.toEmails.join(", ") || "—"} · {formatDateTime(activeThread.lastMessageAt ?? activeThread.updatedAt)}</p>
