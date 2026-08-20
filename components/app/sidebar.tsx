@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Mail, Bell, Users, FolderKanban, CheckSquare, HardDrive,
   FileText, PenTool, Lock, CreditCard, ReceiptText, Undo2, BarChart3,
-  Sparkles, UsersRound, Building2, ScrollText, Settings, X, PanelsTopLeft,
+  Sparkles, UsersRound, Building2, ScrollText, Settings, X,
 } from "lucide-react";
 
 const sections: { label: string | null; items: { href: string; label: string; icon: any }[] }[] = [
@@ -30,7 +30,6 @@ const sections: { label: string | null; items: { href: string; label: string; ic
     items: [
       { href: "/app/drive", label: "Drive", icon: HardDrive },
       { href: "/app/documents", label: "Documents", icon: FileText },
-      { href: "/app/editor", label: "Document Editor", icon: PanelsTopLeft },
       { href: "/app/signatures", label: "Signatures", icon: PenTool },
       { href: "/app/vault", label: "Vault", icon: Lock },
     ],
