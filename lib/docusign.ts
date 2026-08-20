@@ -3,15 +3,6 @@ import { createSign } from "crypto";
 
 /**
  * Real DocuSign provider (eSignature REST v2.1, JWT grant — no interactive login).
- * STATUS: READY — CREDENTIALS REQUIRED:
- *   DOCUSIGN_CLIENT_ID       (Integration Key)
- *   DOCUSIGN_USER_ID         (API user GUID to impersonate)
- *   DOCUSIGN_ACCOUNT_ID
- *   DOCUSIGN_BASE_PATH       (e.g. https://demo.docusign.net or https://na3.docusign.net)
- *   DOCUSIGN_OAUTH_BASE      (account-d.docusign.com for demo, account.docusign.com for prod)
- *   DOCUSIGN_PRIVATE_KEY     (RSA private key, \n-escaped, for the JWT grant)
- *   DOCUSIGN_WEBHOOK_SECRET  (HMAC key configured in DocuSign Connect)
- * One-time consent URL: https://<oauth-base>/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=<id>&redirect_uri=<redirect>
  */
 
 export function docusignConfigured(): boolean {
@@ -62,11 +53,40 @@ function api(path: string) {
   return `${process.env.DOCUSIGN_BASE_PATH}/restapi/v2.1/accounts/${process.env.DOCUSIGN_ACCOUNT_ID}${path}`;
 }
 
+type DsField = { type: "SIGNATURE" | "INITIALS" | "DATE_SIGNED" | "NAME"; page: number; x: number; y: number };
+
+function docusignTabs(fields: DsField[]) {
+  const signHereTabs: object[] = [];
+  const initialHereTabs: object[] = [];
+  const dateSignedTabs: object[] = [];
+  const fullNameTabs: object[] = [];
+
+  for (const f of fields) {
+    const tab = {
+      documentId: "1",
+      pageNumber: String(Math.max(1, f.page)),
+      xPosition: String(Math.max(0, f.x)),
+      yPosition: String(Math.max(0, f.y)),
+    };
+    if (f.type === "SIGNATURE") signHereTabs.push(tab);
+    else if (f.type === "INITIALS") initialHereTabs.push(tab);
+    else if (f.type === "DATE_SIGNED") dateSignedTabs.push(tab);
+    else if (f.type === "NAME") fullNameTabs.push(tab);
+  }
+
+  return {
+    ...(signHereTabs.length ? { signHereTabs } : {}),
+    ...(initialHereTabs.length ? { initialHereTabs } : {}),
+    ...(dateSignedTabs.length ? { dateSignedTabs } : {}),
+    ...(fullNameTabs.length ? { fullNameTabs } : {}),
+  };
+}
+
 export async function docusignCreateEnvelope(input: {
   documentId: string;
   title: string;
   pdfBytes: Uint8Array;
-  signers: { name: string; email: string; order: number }[];
+  signers: { name: string; email: string; order: number; fields?: DsField[] }[];
   message?: string;
 }): Promise<{ envelopeId: string }> {
   const token = await docusignAccessToken();
@@ -80,13 +100,16 @@ export async function docusignCreateEnvelope(input: {
       status: "sent",
       documents: [{ documentBase64: Buffer.from(input.pdfBytes).toString("base64"), name: `${input.documentId}.pdf`, fileExtension: "pdf", documentId: "1" }],
       recipients: {
-        signers: input.signers.map((s, i) => ({
-          email: s.email,
-          name: s.name,
-          recipientId: String(i + 1),
-          routingOrder: String(s.order),
-          tabs: { signHereTabs: [{ documentId: "1", pageNumber: "1", xPosition: "72", yPosition: "700" }] },
-        })),
+        signers: input.signers.map((s, i) => {
+          const fields = s.fields?.length ? s.fields : [{ type: "SIGNATURE" as const, page: 1, x: 72, y: 700 }];
+          return {
+            email: s.email,
+            name: s.name,
+            recipientId: String(i + 1),
+            routingOrder: String(s.order),
+            tabs: docusignTabs(fields),
+          };
+        }),
       },
     }),
   });
