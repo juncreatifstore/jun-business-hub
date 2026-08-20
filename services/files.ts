@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import type { FileCategory } from "@prisma/client";
 import { VAULT_CATEGORIES } from "@/lib/utils";
 import { processDriveAutomation } from "@/lib/drive-automation";
+import { assertDriveQuotaForUpload } from "@/lib/drive-enterprise";
 
 const CATEGORIES = new Set(["IDENTITY", "PASSPORT", "CONTRACT", "PAYMENT_PROOF", "RECEIPT", "REFUND", "VISA", "FLIGHT", "INVOICE", "COMPANY", "LEGAL", "TAX", "EMPLOYEE", "VENDOR", "OTHER"]);
 const FAVORITE_PREFIX = "drive.favorite.";
@@ -74,6 +75,15 @@ export async function uploadFile(formData: FormData): Promise<void> {
   if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) redirect("/app/drive?toast_error=Linked%20client%20not%20found");
   if (caseId && !(await prisma.case.findUnique({ where: { id: caseId }, select: { id: true } }))) redirect("/app/drive?toast_error=Linked%20case%20not%20found");
   if (folderId && !(await prisma.folder.findFirst({ where: { id: folderId, isVault: false }, select: { id: true } }))) redirect("/app/drive?toast_error=Folder%20not%20found");
+
+  if (!isVault) {
+    const quota = await assertDriveQuotaForUpload(raw.size);
+    if (!quota.allowed) {
+      const usedGb = (quota.usage.totalBytes / 1073741824).toFixed(2);
+      const limitGb = (quota.settings.quotaBytes / 1073741824).toFixed(0);
+      redirect(`${driveDest(folderId)}${driveDest(folderId).includes("?") ? "&" : "?"}toast_error=${encodeURIComponent(`Drive quota exceeded (${usedGb} GB used / ${limitGb} GB)`)} `);
+    }
+  }
 
   const key = makeStorageKey(isVault ? "vault" : "drive", raw.name);
   const buf = Buffer.from(await raw.arrayBuffer());
