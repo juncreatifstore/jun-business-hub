@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, Input, Textarea, Select } from "@/components/ui/input";
 import { composeDraft, sendDraft, moveThread } from "@/services/mail";
-import { syncMailbox, sendDraftViaGmail } from "@/services/mailbox";
+import { syncMailbox, sendDraftViaGmail, draftReplyWithJunAI } from "@/services/mailbox";
 import { formatDateTime } from "@/lib/utils";
 import { Inbox, Send, FileEdit, Star, Bot, Mail } from "lucide-react";
 
@@ -152,6 +152,9 @@ export default async function MailPage({ searchParams }: { searchParams: { folde
                 <div className="flex flex-wrap gap-2 pt-2">
                   {activeThread.aiDraft && canSend ? (
                     gmailAccount ? <form action={sendDraftViaGmail.bind(null, activeThread.id)}><Button variant="gold">Send via {gmailAccount.email}</Button></form> : process.env.NODE_ENV !== "production" ? <form action={sendDraft.bind(null, activeThread.id)}><Button variant="secondary">Mark as sent</Button></form> : null
+                  ) : null}
+                  {!activeThread.aiDraft && canDraft && activeThread.fromEmail && !activeThread.fromEmail.toLowerCase().includes(activeThread.account.email.toLowerCase()) ? (
+                    <form action={draftReplyWithJunAI.bind(null, activeThread.id)}><Button variant="primary">Draft reply with JUN AI</Button></form>
                   ) : null}
                   {!activeThread.requiresAttention ? <form action={moveThread.bind(null, activeThread.id, "IMPORTANT")}><Button variant="secondary">Mark important</Button></form> : null}
                   {!activeThread.requiresAttention && activeThread.aiLevel !== "AUTO" ? <form action={moveThread.bind(null, activeThread.id, "AI_REVIEW")}><Button variant="secondary">Send to AI review</Button></form> : null}
