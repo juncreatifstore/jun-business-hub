@@ -164,16 +164,66 @@ export async function syncFolder(accountId: string, folder: "INBOX" | "SENT" | "
   return created;
 }
 
-export async function gmailSend(accountId: string, input: { to: string; subject: string; text: string; inReplyToGmailId?: string }): Promise<string> {
+type GmailAttachment = {
+  filename: string;
+  mimeType: string;
+  data: Buffer | Uint8Array;
+};
+
+function safeHeaderValue(value: string) {
+  return value.replace(/[\r\n]/g, " ");
+}
+
+function safeFilename(value: string) {
+  return value.replace(/[\r\n"\\]/g, "_").slice(0, 180) || "attachment";
+}
+
+function base64Lines(data: Buffer | Uint8Array) {
+  return Buffer.from(data).toString("base64").replace(/(.{76})/g, "$1\r\n");
+}
+
+function base64Url(value: string) {
+  return Buffer.from(value).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export async function gmailSend(accountId: string, input: { to: string; subject: string; text: string; inReplyToGmailId?: string; attachments?: GmailAttachment[] }): Promise<string> {
   const { token, email } = await accessTokenFor(accountId);
-  const headers = [
-    `From: ${email}`,
-    `To: ${input.to}`,
-    `Subject: ${input.subject.replace(/[\r\n]/g, " ")}`,
+  const attachments = input.attachments ?? [];
+  const common = [
+    `From: ${safeHeaderValue(email)}`,
+    `To: ${safeHeaderValue(input.to)}`,
+    `Subject: ${safeHeaderValue(input.subject)}`,
     "MIME-Version: 1.0",
-    'Content-Type: text/plain; charset="UTF-8"',
   ];
-  const raw = Buffer.from(`${headers.join("\r\n")}\r\n\r\n${input.text}`).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  let message: string;
+  if (!attachments.length) {
+    message = `${[...common, 'Content-Type: text/plain; charset="UTF-8"'].join("\r\n")}\r\n\r\n${input.text}`;
+  } else {
+    const boundary = `jun_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+    const parts = [
+      `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: 8bit",
+      "",
+      input.text,
+    ];
+    for (const attachment of attachments) {
+      const filename = safeFilename(attachment.filename);
+      parts.push(
+        `--${boundary}`,
+        `Content-Type: ${safeHeaderValue(attachment.mimeType || "application/octet-stream")}; name="${filename}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${filename}"`,
+        "",
+        base64Lines(attachment.data),
+      );
+    }
+    parts.push(`--${boundary}--`, "");
+    message = `${[...common, `Content-Type: multipart/mixed; boundary="${boundary}"`].join("\r\n")}\r\n\r\n${parts.join("\r\n")}`;
+  }
+
+  const raw = base64Url(message);
   const res = await gmail<{ id: string }>(token, "/messages/send", { method: "POST", body: JSON.stringify({ raw }) });
   return res.id;
 }
