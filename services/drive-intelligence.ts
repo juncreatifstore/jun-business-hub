@@ -10,6 +10,10 @@ import { DRIVE_INTEL_PREFIX, DRIVE_TAGS_PREFIX, getDriveIntelligence, indexDrive
 
 const CATEGORIES = ["IDENTITY", "PASSPORT", "CONTRACT", "PAYMENT_PROOF", "RECEIPT", "REFUND", "VISA", "FLIGHT", "INVOICE", "COMPANY", "LEGAL", "TAX", "EMPLOYEE", "VENDOR", "OTHER"] as const;
 
+type AnalysisResult =
+  | { ok: true; intelligence: DriveIntelligence }
+  | { ok: false; error: string };
+
 function safeReturn(formData?: FormData) {
   const value = String(formData?.get("returnTo") ?? "");
   return value.startsWith("/app/drive") ? value : "/app/drive";
@@ -29,12 +33,12 @@ function parseAIJson(text: string) {
   try { return JSON.parse(cleaned) as Record<string, unknown>; } catch { return null; }
 }
 
-async function runAnalysis(fileId: string) {
+async function runAnalysis(fileId: string): Promise<AnalysisResult> {
   const file = await prisma.file.findFirst({
     where: { id: fileId, isVault: false, archivedAt: null },
     include: { client: true, case: true, folder: true },
   });
-  if (!file) return { error: "File not found" as const };
+  if (!file) return { ok: false, error: "File not found" };
 
   const indexed = await indexDriveFile(file.id);
   const current = indexed?.intelligence ?? (await getDriveIntelligence(file.id)).intelligence;
@@ -49,7 +53,7 @@ async function runAnalysis(fileId: string) {
     excerpt ? `Extracted content:\n${excerpt.slice(0, 12000)}` : "Extracted content: unavailable for this file type. Analyze only from metadata and do not invent document contents.",
   ].filter(Boolean).join("\n");
 
-  if (!process.env.OPENAI_API_KEY) return { error: "OPENAI_API_KEY is not configured" as const };
+  if (!process.env.OPENAI_API_KEY) return { ok: false, error: "OPENAI_API_KEY is not configured" };
 
   try {
     const { generateText } = await import("ai");
@@ -61,7 +65,7 @@ async function runAnalysis(fileId: string) {
       temperature: 0.1,
     });
     const parsed = parseAIJson(result.text);
-    if (!parsed) return { error: "AI returned invalid JSON" as const };
+    if (!parsed) return { ok: false, error: "AI returned invalid JSON" };
     const suggestedCategory = CATEGORIES.includes(String(parsed.suggestedCategory ?? "OTHER") as typeof CATEGORIES[number]) ? String(parsed.suggestedCategory) : "OTHER";
     const intelligence: DriveIntelligence = {
       indexedAt: current?.indexedAt ?? new Date().toISOString(),
@@ -82,9 +86,9 @@ async function runAnalysis(fileId: string) {
       update: { value: JSON.stringify(intelligence) },
       create: { key: `${DRIVE_INTEL_PREFIX}${file.id}`, value: JSON.stringify(intelligence) },
     });
-    return { intelligence };
+    return { ok: true, intelligence };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "AI analysis failed" };
+    return { ok: false, error: e instanceof Error ? e.message : "AI analysis failed" };
   }
 }
 
@@ -93,7 +97,7 @@ export async function analyzeDriveFile(fileId: string, formData: FormData): Prom
   await assertPermission("FILE_READ");
   const returnTo = safeReturn(formData);
   const result = await runAnalysis(fileId);
-  if ("error" in result) redirect(toast(returnTo, "toast_error", result.error));
+  if (!result.ok) redirect(toast(returnTo, "toast_error", result.error));
   await audit({ userId: user.id, action: "FILE_AI_ANALYZE", resourceType: "File", resourceId: fileId, after: { suggestedCategory: result.intelligence.suggestedCategory } });
   await logActivity({ userId: user.id, type: "FILE_AI_ANALYZED", message: "AI document intelligence generated", resourceType: "File", resourceId: fileId });
   revalidatePath("/app/drive");
