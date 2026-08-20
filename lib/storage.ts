@@ -37,7 +37,7 @@ class SupabaseStorage implements StorageDriver {
   }
   async download(key: string) {
     const { data, error } = await this.client().storage.from(BUCKET).download(key);
-    if (error || !data) throw new Error(`Download failed: ${error?.message}`);
+    if (error || !data) throw new Error(`Download failed: ${error.message}`);
     return Buffer.from(await data.arrayBuffer());
   }
   async remove(key: string) {
@@ -72,7 +72,19 @@ class LocalStorage implements StorageDriver {
 }
 
 export function storage(): StorageDriver {
-  return process.env.STORAGE_DRIVER === "SUPABASE" ? new SupabaseStorage() : new LocalStorage();
+  const configured = (process.env.STORAGE_DRIVER ?? "").toUpperCase();
+
+  // Production must never use ephemeral local filesystem storage. If a driver is
+  // not explicitly configured, default to Supabase because production documents
+  // and signed PDFs must survive serverless restarts and redeployments.
+  if (process.env.NODE_ENV === "production") {
+    if (configured && configured !== "SUPABASE") {
+      throw new Error(`Unsupported production STORAGE_DRIVER: ${configured}`);
+    }
+    return new SupabaseStorage();
+  }
+
+  return configured === "SUPABASE" ? new SupabaseStorage() : new LocalStorage();
 }
 
 export function makeStorageKey(scope: string, filename: string) {
