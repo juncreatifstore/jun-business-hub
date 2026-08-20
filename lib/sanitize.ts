@@ -14,49 +14,64 @@ const ALLOWED_TAGS = [
   "a", "span", "div", "img",
 ];
 
+const SAFE_DRAW_PREFIX = "data:image/png;base64,";
+const MAX_DRAW_DATA_URL = 750_000;
+
+function safeImageSrc(src: string | undefined): string {
+  const value = src ?? "";
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith(SAFE_DRAW_PREFIX) && value.length <= MAX_DRAW_DATA_URL && /^[A-Za-z0-9+/=]+$/.test(value.slice(SAFE_DRAW_PREFIX.length))) return value;
+  return "";
+}
+
 export function sanitizeDocumentHtml(dirty: string): string {
   return sanitizeHtml(dirty ?? "", {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: {
       a: ["href", "rel", "target"],
-      img: ["src", "alt", "title", "width", "height", "data-jun-image"],
+      img: ["src", "alt", "title", "width", "height", "data-jun-image", "data-jun-draw"],
       th: ["colspan", "rowspan"],
       td: ["colspan", "rowspan"],
       p: ["style"],
       h1: ["style"], h2: ["style"], h3: ["style"],
       mark: ["data-jun-mark"],
       span: ["data-jun-mark"],
-      div: ["data-jun-block", "data-kind", "data-text"],
+      div: [
+        "data-jun-block", "data-kind", "data-text",
+        "data-jun-field", "data-field-type", "data-field-name", "data-required",
+        "data-help", "data-options", "data-order", "data-validation", "data-formula",
+      ],
     },
-    // Only safe protocols. Image sources deliberately exclude data: and javascript:.
-    allowedSchemes: ["http", "https", "mailto", "tel"],
+    // Links remain restricted to ordinary network/mail schemes. Image data URLs
+    // are accepted only after safeImageSrc validates PNG/base64/size below.
+    allowedSchemes: ["http", "https", "mailto", "tel", "data"],
     allowedSchemesAppliedToAttributes: ["href", "src"],
-    // Tiptap text alignment only. Annotation appearance is reconstructed by the
-    // editor from data-jun-* attributes rather than trusting arbitrary CSS.
     allowedStyles: {
       "*": { "text-align": [/^(left|right|center|justify)$/] },
     },
     disallowedTagsMode: "discard",
-    // Force safe link behavior and normalized safe image attributes.
     transformTags: {
       a: (_tagName, attribs) => ({
         tagName: "a",
         attribs: { ...attribs, rel: "noopener noreferrer nofollow", target: "_blank" },
       }),
-      img: (_tagName, attribs) => ({
-        tagName: "img",
-        attribs: {
-          src: attribs.src ?? "",
-          alt: (attribs.alt ?? "Document image").slice(0, 300),
-          title: (attribs.title ?? "").slice(0, 300),
-          width: String(Math.min(1200, Math.max(1, Number(attribs.width) || 640))),
-          height: String(Math.min(1600, Math.max(1, Number(attribs.height) || 360))),
-          "data-jun-image": "true",
-        },
-      }),
+      img: (_tagName, attribs) => {
+        const src = safeImageSrc(attribs.src);
+        const isDraw = src.startsWith(SAFE_DRAW_PREFIX);
+        return {
+          tagName: "img",
+          attribs: {
+            src,
+            alt: (attribs.alt ?? (isDraw ? "Hand drawing" : "Document image")).slice(0, 300),
+            title: (attribs.title ?? "").slice(0, 300),
+            width: String(Math.min(1200, Math.max(1, Number(attribs.width) || (isDraw ? 640 : 640)))),
+            height: String(Math.min(1600, Math.max(1, Number(attribs.height) || (isDraw ? 176 : 360)))),
+            "data-jun-image": "true",
+            ...(isDraw ? { "data-jun-draw": "true" } : {}),
+          },
+        };
+      },
     },
-    // sanitize-html strips event handlers (on*) and script/iframe/object/embed
-    // by virtue of the whitelist; keep parser defaults strict.
     parseStyleAttributes: true,
   });
 }
