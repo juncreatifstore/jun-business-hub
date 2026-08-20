@@ -40,10 +40,9 @@ export function sanitizeDocumentHtml(dirty: string): string {
         "data-jun-block", "data-kind", "data-text",
         "data-jun-field", "data-field-type", "data-field-name", "data-required",
         "data-help", "data-options", "data-order", "data-validation", "data-formula",
+        "data-jun-page", "data-page-id", "data-rotation",
       ],
     },
-    // Links remain restricted to ordinary network/mail schemes. Image data URLs
-    // are accepted only after safeImageSrc validates PNG/base64/size below.
     allowedSchemes: ["http", "https", "mailto", "tel", "data"],
     allowedSchemesAppliedToAttributes: ["href", "src"],
     allowedStyles: {
@@ -70,6 +69,13 @@ export function sanitizeDocumentHtml(dirty: string): string {
             ...(isDraw ? { "data-jun-draw": "true" } : {}),
           },
         };
+      },
+      div: (_tagName, attribs) => {
+        if (attribs["data-jun-page"] === "true") {
+          const rotation = ["0", "90", "180", "270"].includes(attribs["data-rotation"]) ? attribs["data-rotation"] : "0";
+          return { tagName: "div", attribs: { "data-jun-page": "true", "data-page-id": (attribs["data-page-id"] ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80), "data-rotation": rotation } };
+        }
+        return { tagName: "div", attribs };
       },
     },
     parseStyleAttributes: true,
