@@ -6,6 +6,7 @@ import { assertPermission, requestMeta } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { sha256 } from "@/lib/hash";
 import { makeStorageKey, storage } from "@/lib/storage";
+import { buildSignatureCertificate } from "@/lib/signature-certificate";
 import { signatureRecipients, signatureRequestMeta, signatureRecipientsPayload, type SignatureRecipient } from "@/lib/signature-recipients";
 import { nativeSigningExpiry, nativeSigningUrl, verifyNativeSigningToken } from "@/lib/native-signature";
 import { redirect } from "next/navigation";
@@ -71,7 +72,6 @@ function parseDrawSignature(value: FormDataEntryValue | null): Buffer | null {
   try {
     const bytes = Buffer.from(match[1], "base64");
     if (!bytes.length || bytes.length > 500_000) return null;
-    // PNG magic bytes.
     if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) return null;
     return bytes;
   } catch {
@@ -134,17 +134,81 @@ function requestExpiry(metaExpiresAt: string | undefined, sentAt: Date | null) {
   return nativeSigningExpiry(sentAt ?? new Date());
 }
 
+async function primaryMailAccount() {
+  return prisma.mailAccount.findFirst({ orderBy: { createdAt: "asc" } });
+}
+
+async function sendSigningInvitation(input: {
+  accountId: string;
+  requestId: string;
+  documentId: string;
+  documentTitle: string;
+  recipient: SignatureRecipient;
+  expiresAt: Date;
+  message?: string;
+  reminder?: boolean;
+}) {
+  const link = await nativeSigningUrl(input.requestId, input.recipient.email, input.recipient.order, input.expiresAt);
+  const { gmailSend } = await import("@/lib/google/gmail");
+  const intro = input.reminder
+    ? `This is a reminder that ${input.documentId} is waiting for your electronic signature.`
+    : `A document is ready for your secure electronic signature.`;
+  const extra = input.message?.trim() ? `\n\nMessage from JUN:\n${input.message.trim()}` : "";
+  return gmailSend(input.accountId, {
+    to: input.recipient.email,
+    subject: `${input.reminder ? "Signature reminder" : "Signature requested"} — ${input.documentTitle} (${input.documentId})`,
+    text: `Hello ${input.recipient.name},\n\n${intro}${extra}\n\nReview & sign securely:\n${link}\n\nFor your security, JUN will verify your email with a one-time code before displaying the document. This signing link expires on ${input.expiresAt.toISOString().slice(0, 10)}.\n\nIf the document is incorrect, you can decline it from the secure signing page.\n\nJUN CREATIF AND TRAVEL LLC`,
+  });
+}
+
+async function deliverCompletedPackage(input: {
+  accountId: string;
+  requestId: string;
+  documentId: string;
+  documentTitle: string;
+  pdf: Buffer;
+  pdfHash: string;
+  recipients: SignatureRecipient[];
+}) {
+  const certificate = await buildSignatureCertificate(input.requestId);
+  if (!certificate) throw new Error("Signature certificate is unavailable after completion");
+  const { gmailSend } = await import("@/lib/google/gmail");
+  const deliveredAt = new Date().toISOString();
+  const delivered = new Set<string>();
+
+  for (const recipient of input.recipients) {
+    try {
+      await gmailSend(input.accountId, {
+        to: recipient.email,
+        subject: `Signed document completed — ${input.documentTitle} (${input.documentId})`,
+        text: `Hello ${recipient.name},\n\nThe electronic signature process for ${input.documentId} is complete.\n\nAttached are:\n• the final signed PDF\n• the JUN electronic signature certificate / audit trail\n\nFinal PDF SHA-256:\n${input.pdfHash}\n\nPlease keep these files for your records.\n\nJUN CREATIF AND TRAVEL LLC`,
+        attachments: [
+          { filename: `${input.documentId}-signed.pdf`, mimeType: "application/pdf", data: input.pdf },
+          { filename: certificate.filename, mimeType: "application/pdf", data: certificate.bytes },
+        ],
+      });
+      delivered.add(recipient.email.toLowerCase());
+      await audit({ userId: null, action: "JUN_NATIVE_COMPLETION_EMAIL_SENT", resourceType: "SignatureRequest", resourceId: input.requestId, after: { signer: recipient.email, sentAt: deliveredAt, attachments: 2 } }).catch(() => undefined);
+    } catch (error) {
+      await audit({ userId: null, action: "JUN_NATIVE_COMPLETION_EMAIL_FAILED", resourceType: "SignatureRequest", resourceId: input.requestId, after: { signer: recipient.email, error: error instanceof Error ? error.message.slice(0, 300) : "unknown" } }).catch(() => undefined);
+    }
+  }
+  return { delivered, deliveredAt };
+}
+
 export async function activateJunNativeSigning(requestId: string): Promise<void> {
   const user = await assertPermission("DOCUMENT_SIGN");
   const request = await prisma.signatureRequest.findUnique({ where: { id: requestId }, include: { document: true } });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
   if (request.status !== "READY_FOR_SIGNATURE") redirect(`/app/signatures/${request.id}?toast_error=Request is not ready for activation`);
 
-  const recipients = signatureRecipients(request.recipients);
+  const recipients = signatureRecipients(request.recipients).sort((a, b) => a.order - b.order);
   const oldMeta = signatureRequestMeta(request.recipients);
   if (!recipients.length || recipients.some((r) => !(r.fields ?? []).some((f) => f.type === "SIGNATURE"))) {
     redirect(`/app/signatures/${request.id}/prepare?toast_error=Every signer needs a Signature field before activation`);
   }
+  const account = await primaryMailAccount();
+  if (!account) redirect(`/app/signatures/${request.id}?toast_error=Connect a Gmail account before starting JUN signing`);
 
   const now = new Date();
   const expiresAt = nativeSigningExpiry(now);
@@ -157,10 +221,32 @@ export async function activateJunNativeSigning(requestId: string): Promise<void>
       recipients: signatureRecipientsPayload(recipients, { ...oldMeta, expiresAt: expiresAt.toISOString() }) as never,
     },
   });
-  await audit({ userId: user.id, action: "JUN_NATIVE_SIGNATURE_ACTIVATED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: request.document.documentId, signerCount: recipients.length, expiresAt: expiresAt.toISOString() } });
+
+  try {
+    await sendSigningInvitation({
+      accountId: account.id,
+      requestId: request.id,
+      documentId: request.document.documentId,
+      documentTitle: request.document.title,
+      recipient: recipients[0],
+      expiresAt,
+      message: oldMeta.message,
+    });
+  } catch (error) {
+    await prisma.signatureRequest.update({
+      where: { id: request.id },
+      data: { provider: request.provider, status: "READY_FOR_SIGNATURE", sentAt: request.sentAt, recipients: request.recipients as never },
+    }).catch(() => undefined);
+    await audit({ userId: user.id, action: "JUN_NATIVE_INVITATION_FAILED", resourceType: "SignatureRequest", resourceId: request.id, after: { signer: recipients[0].email, error: error instanceof Error ? error.message.slice(0, 300) : "unknown" } }).catch(() => undefined);
+    redirect(`/app/signatures/${request.id}?toast_error=Could not send the first signing invitation. Request was not activated.`);
+  }
+
+  recipients[0] = { ...recipients[0], invitationSentAt: now.toISOString() };
+  await prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: signatureRecipientsPayload(recipients, { ...oldMeta, expiresAt: expiresAt.toISOString() }) as never } });
+  await audit({ userId: user.id, action: "JUN_NATIVE_SIGNATURE_ACTIVATED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: request.document.documentId, signerCount: recipients.length, firstInvitation: recipients[0].email, expiresAt: expiresAt.toISOString() } });
   revalidatePath(`/app/signatures/${request.id}`);
   revalidatePath("/app/signatures");
-  redirect(`/app/signatures/${request.id}?toast=JUN native signing activated`);
+  redirect(`/app/signatures/${request.id}?toast=JUN signing activated and first invitation sent`);
 }
 
 export async function markNativeSignatureViewed(token: string): Promise<void> {
@@ -242,15 +328,9 @@ export async function sendJunNativeReminder(requestId: string, signerEmail: stri
     redirect(`/app/signatures/${requestId}?toast_error=This signing request has expired`);
   }
 
-  const account = await prisma.mailAccount.findFirst({ orderBy: { createdAt: "asc" } });
+  const account = await primaryMailAccount();
   if (!account) redirect(`/app/signatures/${requestId}?toast_error=Connect a Gmail account before sending reminders`);
-  const link = await nativeSigningUrl(request.id, recipients[index].email, recipients[index].order, expiresAt);
-  const { gmailSend } = await import("@/lib/google/gmail");
-  await gmailSend(account.id, {
-    to: recipients[index].email,
-    subject: `Signature reminder — ${request.document.title} (${request.document.documentId})`,
-    text: `Hello ${recipients[index].name},\n\nThis is a reminder that ${request.document.documentId} is waiting for your electronic signature.\n\nSecure signing link:\n${link}\n\nThis link expires on ${expiresAt.toISOString().slice(0, 10)}.\n\nPlease review the document before signing. If something is incorrect, use the decline option or contact JUN CREATIF AND TRAVEL LLC.\n\nJUN CREATIF AND TRAVEL LLC`,
-  });
+  await sendSigningInvitation({ accountId: account.id, requestId: request.id, documentId: request.document.documentId, documentTitle: request.document.title, recipient: recipients[index], expiresAt, message: meta.message, reminder: true });
   const now = new Date().toISOString();
   recipients[index] = { ...recipients[index], reminderSentAt: now };
   await prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: signatureRecipientsPayload(recipients, meta) as never } });
@@ -342,11 +422,38 @@ export async function completeJunNativeSignature(token: string, formData: FormDa
     after: { signer: recipient.email, order: recipient.order, consent: true, signedAt: now.toISOString(), signatureMethod, signatureImageHash, ipHash, pdfHash: hash, complete },
   }).catch(() => undefined);
 
-  if (complete) {
+  const account = await primaryMailAccount();
+  if (!complete) {
+    const nextIndex = recipients.findIndex((r) => !r.signedAt && !r.declinedAt);
+    if (account && nextIndex >= 0) {
+      try {
+        await sendSigningInvitation({ accountId: account.id, requestId: request.id, documentId: request.document.documentId, documentTitle: request.document.title, recipient: recipients[nextIndex], expiresAt, message: meta.message });
+        recipients[nextIndex] = { ...recipients[nextIndex], invitationSentAt: new Date().toISOString() };
+        await prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: signatureRecipientsPayload(recipients, meta) as never } });
+        await audit({ userId: null, action: "JUN_NATIVE_NEXT_INVITATION_SENT", resourceType: "SignatureRequest", resourceId: request.id, after: { signer: recipients[nextIndex].email, order: recipients[nextIndex].order, sentAt: recipients[nextIndex].invitationSentAt } }).catch(() => undefined);
+      } catch (error) {
+        await prisma.notification.create({ data: { userId: request.createdById, type: "SIGNATURE_EMAIL_FAILED", title: `Invitation failed for ${request.document.documentId}`, body: `Signer ${recipients[nextIndex].name} is next, but JUN could not send the automatic invitation.` } }).catch(() => undefined);
+        await audit({ userId: null, action: "JUN_NATIVE_NEXT_INVITATION_FAILED", resourceType: "SignatureRequest", resourceId: request.id, after: { signer: recipients[nextIndex].email, error: error instanceof Error ? error.message.slice(0, 300) : "unknown" } }).catch(() => undefined);
+      }
+    }
+  } else {
     await prisma.notification.create({
       data: { userId: request.createdById, type: "CONTRACT_SIGNED", title: `${request.document.documentId} signed in JUN`, body: "All signers completed. The signed PDF was archived with a SHA-256 integrity hash." },
     }).catch(() => undefined);
     await logActivity({ userId: request.createdById, type: "SIGNATURE_COMPLETED", message: `Native signature completed for ${request.document.documentId}`, clientId: request.document.clientId ?? undefined, caseId: request.document.caseId ?? undefined }).catch(() => undefined);
+
+    if (account) {
+      try {
+        const delivery = await deliverCompletedPackage({ accountId: account.id, requestId: request.id, documentId: request.document.documentId, documentTitle: request.document.title, pdf: stamped, pdfHash: hash, recipients });
+        for (let i = 0; i < recipients.length; i++) {
+          if (delivery.delivered.has(recipients[i].email.toLowerCase())) recipients[i] = { ...recipients[i], completionEmailSentAt: delivery.deliveredAt };
+        }
+        await prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: signatureRecipientsPayload(recipients, meta) as never } });
+      } catch (error) {
+        await prisma.notification.create({ data: { userId: request.createdById, type: "SIGNATURE_EMAIL_FAILED", title: `Signed package email failed for ${request.document.documentId}`, body: "The signature is valid and archived, but JUN could not complete automatic email delivery. Use the Signed package buttons to send the files manually." } }).catch(() => undefined);
+        await audit({ userId: null, action: "JUN_NATIVE_COMPLETION_DELIVERY_FAILED", resourceType: "SignatureRequest", resourceId: request.id, after: { error: error instanceof Error ? error.message.slice(0, 300) : "unknown" } }).catch(() => undefined);
+      }
+    }
   }
 
   revalidatePath(`/app/signatures/${request.id}`);
