@@ -81,6 +81,42 @@ async function runTool(user: CurrentUser, name: string, arg: string): Promise<To
   }
 }
 
+function formatToolResult(result: ToolResult, query: string): string {
+  if (!result.ok) return `⚠ ${result.error ?? "The search could not be completed."}`;
+
+  const rows = Array.isArray(result.data) ? result.data as Record<string, unknown>[] : [];
+  if (rows.length === 0) {
+    const labels: Record<string, string> = {
+      searchClients: "client",
+      searchCases: "case",
+      searchDocuments: "document",
+      searchPayments: "payment",
+    };
+    const label = labels[result.tool] ?? "result";
+    return `I couldn't find any ${label} matching “${query}”.`;
+  }
+
+  switch (result.tool) {
+    case "searchClients":
+      return `I found ${rows.length} client${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => {
+        const name = `${String(r.firstName ?? "")} ${String(r.lastName ?? "")}`.trim();
+        const email = r.email ? ` · ${String(r.email)}` : "";
+        return `• ${name || "Unnamed client"} — ${String(r.internalId ?? "No ID")} · ${String(r.status ?? "UNKNOWN")}${email}`;
+      }).join("\n")}`;
+    case "searchCases":
+      return `I found ${rows.length} case${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => `• ${String(r.caseNumber ?? "No number")} — ${String(r.title ?? "Untitled")} · ${String(r.status ?? "UNKNOWN")} · ${String(r.priority ?? "")}`).join("\n")}`;
+    case "searchDocuments":
+      return `I found ${rows.length} document${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => `• ${String(r.documentId ?? "No ID")} — ${String(r.title ?? "Untitled")} · ${String(r.type ?? "")} · ${String(r.status ?? "UNKNOWN")}`).join("\n")}`;
+    case "searchPayments":
+      return `I found ${rows.length} payment${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => {
+        const amount = typeof r.amount === "number" ? r.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(r.amount ?? "0.00");
+        return `• ${String(r.reference ?? "No reference")} — ${String(r.currency ?? "USD")} ${amount} · ${String(r.status ?? "UNKNOWN")}`;
+      }).join("\n")}`;
+    default:
+      return `I found ${rows.length} result${rows.length === 1 ? "" : "s"}.`;
+  }
+}
+
 export async function sendAIMessage(conversationId: string | null, formData: FormData) {
   const user = await assertPermission("AI_USE");
   const { rateLimitAsync } = await import("@/lib/rate-limit");
@@ -104,12 +140,11 @@ export async function sendAIMessage(conversationId: string | null, formData: For
     const toolMatch = content.match(/^search (clients|cases|documents|payments)\s+(.+)/i);
     if (toolMatch) {
       const map: Record<string, string> = { clients: "searchClients", cases: "searchCases", documents: "searchDocuments", payments: "searchPayments" };
-      const result = await runTool(user, map[toolMatch[1].toLowerCase()], toolMatch[2]);
-      reply = result.ok
-        ? `Tool ${result.tool} results:\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``
-        : `⚠ ${result.error}`;
+      const query = toolMatch[2].trim();
+      const result = await runTool(user, map[toolMatch[1].toLowerCase()], query);
+      reply = formatToolResult(result, query);
     } else {
-      reply = "JUN AI is not connected to a model yet (OPENAI_API_KEY is not configured). You can still use tool commands: `search clients <name>`, `search cases <query>`, `search documents <query>`, `search payments <query>`.";
+      reply = "JUN AI is not connected to a model yet (OPENAI_API_KEY is not configured). You can still search JUN data with commands such as: search clients <name>, search cases <query>, search documents <query>, or search payments <query>.";
     }
   } else {
     const { generateText, stepCountIs } = await import("ai");
