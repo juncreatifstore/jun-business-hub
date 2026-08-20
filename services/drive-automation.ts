@@ -12,9 +12,7 @@ import {
   DRIVE_EXPIRY_PREFIX,
   DRIVE_AUTOMATION_LAST_SCAN,
   DRIVE_CATEGORIES,
-  getDriveAutomationProposals,
   getExpiringDriveFiles,
-  listDriveAutomationRules,
   processDriveAutomation,
   type DriveAutomationProposal,
   type DriveAutomationRule,
@@ -29,6 +27,10 @@ function toast(path: string, key: "toast" | "toast_error", message: string) {
   return `${path}${path.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(message)}`;
 }
 
+function text(value: FormDataEntryValue | null, max = 200) {
+  return String(value ?? "").trim().slice(0, max);
+}
+
 function csv(value: FormDataEntryValue | null, max = 20) {
   return String(value ?? "").split(",").map((v) => v.trim()).filter(Boolean).slice(0, max);
 }
@@ -36,14 +38,18 @@ function csv(value: FormDataEntryValue | null, max = 20) {
 export async function createDriveAutomationRule(formData: FormData): Promise<void> {
   const user = await assertPermission("FILE_UPLOAD");
   const returnTo = safeReturn(formData);
-  const name = String(formData.get("name") ?? "").trim().slice(0, 120);
+  const name = text(formData.get("name"), 120);
   if (!name) redirect(toast(returnTo, "toast_error", "Rule name is required"));
 
-  const category = String(formData.get("matchCategory") ?? "").trim();
-  const suggestCategory = String(formData.get("suggestCategory") ?? "").trim();
-  const moveToFolderIdRaw = String(formData.get("moveToFolderId") ?? "");
+  const category = text(formData.get("matchCategory"), 40);
+  const suggestCategory = text(formData.get("suggestCategory"), 40);
+  const filenameContains = text(formData.get("filenameContains"), 100);
+  const mimePrefix = text(formData.get("mimePrefix"), 100);
+  const tags = csv(formData.get("tags"), 20);
+  const notifyUserIds = csv(formData.get("notifyUserIds"), 20);
+  const moveToFolderIdRaw = text(formData.get("moveToFolderId"), 100);
   const moveToFolderId = moveToFolderIdRaw === "__ROOT__" ? null : (moveToFolderIdRaw || undefined);
-  const taskAssigneeId = String(formData.get("taskAssigneeId") ?? "").trim() || null;
+  const taskAssigneeId = text(formData.get("taskAssigneeId"), 100) || null;
   const taskDueDays = Math.max(0, Math.min(365, Number(formData.get("taskDueDays") ?? 2) || 2));
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
@@ -54,13 +60,13 @@ export async function createDriveAutomationRule(formData: FormData): Promise<voi
     enabled: true,
     match: {
       ...(category && DRIVE_CATEGORIES.includes(category as typeof DRIVE_CATEGORIES[number]) ? { categories: [category] } : {}),
-      ...(String(formData.get("filenameContains") ?? "").trim() ? { filenameContains: String(formData.get("filenameContains")).trim().slice(0, 100) } : {}),
-      ...(String(formData.get("mimePrefix") ?? "").trim() ? { mimePrefix: String(formData.get("mimePrefix")).trim().slice(0, 100) } : {}),
+      ...(filenameContains ? { filenameContains } : {}),
+      ...(mimePrefix ? { mimePrefix } : {}),
     },
     actions: {
-      ...(csv(formData.get("tags"), 20).length ? { addTags: csv(formData.get("tags"), 20) } : {}),
+      ...(tags.length ? { addTags: tags } : {}),
       ...(moveToFolderId !== undefined ? { moveToFolderId } : {}),
-      ...(csv(formData.get("notifyUserIds"), 20).length ? { notifyUserIds: csv(formData.get("notifyUserIds"), 20) } : {}),
+      ...(notifyUserIds.length ? { notifyUserIds } : {}),
       ...(String(formData.get("createTask") ?? "") === "1" ? { createTask: true, taskAssigneeId, taskDueDays } : {}),
       ...(suggestCategory && DRIVE_CATEGORIES.includes(suggestCategory as typeof DRIVE_CATEGORIES[number]) ? { suggestCategory } : {}),
       requireApproval: String(formData.get("requireApproval") ?? "") === "1",
