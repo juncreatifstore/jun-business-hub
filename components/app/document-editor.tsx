@@ -5,13 +5,15 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
+import { JunBlackout, JunBlock, JunHighlight, JunImage } from "@/lib/document-editor-extensions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered,
   Quote, Heading1, Heading2, Heading3, AlignLeft, AlignCenter, AlignRight,
   Undo2, Redo2, Link as LinkIcon, Minus, Pilcrow, Eraser, CheckCircle2,
-  AlertCircle, RotateCcw, CalendarDays, Check, X, Circle,
+  AlertCircle, RotateCcw, CalendarDays, Check, X, Circle, Image as ImageIcon,
+  Highlighter, EyeOff, Square, StickyNote, MessageSquare, ArrowRight,
 } from "lucide-react";
 
 function TBtn({ active, onClick, title, children }: { active?: boolean; onClick: () => void; title: string; children: React.ReactNode }) {
@@ -56,6 +58,10 @@ export function DocumentEditor({
       Underline,
       Link.configure({ openOnClick: false, autolink: true, protocols: ["http", "https", "mailto"] }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      JunHighlight,
+      JunBlackout,
+      JunBlock,
+      JunImage,
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {
@@ -146,6 +152,44 @@ export function DocumentEditor({
     insertText(today);
   }
 
+  function insertBlock(kind: "textbox" | "sticky" | "comment" | "line" | "arrow") {
+    if (!editor) return;
+    let text = "";
+    if (kind === "textbox") {
+      const value = window.prompt("Text box content");
+      if (value === null || !value.trim()) return;
+      text = value.trim();
+    } else if (kind === "sticky") {
+      const value = window.prompt("Sticky note");
+      if (value === null || !value.trim()) return;
+      text = value.trim();
+    } else if (kind === "comment") {
+      const value = window.prompt("Comment");
+      if (value === null || !value.trim()) return;
+      text = value.trim();
+    } else if (kind === "arrow") {
+      text = "────────►";
+    }
+    editor.chain().focus().insertContent({ type: "junBlock", attrs: { kind, text } }).run();
+  }
+
+  function insertImage() {
+    if (!editor) return;
+    const src = window.prompt("Image URL (HTTPS)", "https://");
+    if (!src) return;
+    let parsed: URL;
+    try { parsed = new URL(src); } catch { window.alert("Invalid image URL"); return; }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      window.alert("Only HTTP/HTTPS image URLs are allowed");
+      return;
+    }
+    const alt = window.prompt("Image description", "Document image") ?? "Document image";
+    editor.chain().focus().insertContent({
+      type: "junImage",
+      attrs: { src: parsed.toString(), alt: alt.slice(0, 300), title: alt.slice(0, 300), width: 640, height: 360 },
+    }).run();
+  }
+
   if (!editor) return <div className="min-h-[520px] rounded-xl border border-white/10 bg-white/5" />;
 
   const words = editor.getText().trim() ? editor.getText().trim().split(/\s+/).length : 0;
@@ -172,11 +216,19 @@ export function DocumentEditor({
               <TBtn title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></TBtn>
               <TBtn title="Underline" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></TBtn>
               <TBtn title="Strikethrough" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="h-4 w-4" /></TBtn>
+              <TBtn title="Highlight selection" active={editor.isActive("junHighlight")} onClick={() => editor.chain().focus().toggleJunHighlight().run()}><Highlighter className="h-4 w-4" /></TBtn>
+              <TBtn title="Blackout / redact selection" active={editor.isActive("junBlackout")} onClick={() => editor.chain().focus().toggleJunBlackout().run()}><EyeOff className="h-4 w-4" /></TBtn>
               <span className="mx-1 h-5 w-px bg-white/10" />
               <TBtn title="Insert date" onClick={insertToday}><CalendarDays className="h-4 w-4" /></TBtn>
               <TBtn title="Insert checkmark" onClick={() => insertText("✓")}><Check className="h-4 w-4" /></TBtn>
               <TBtn title="Insert crossmark" onClick={() => insertText("✕")}><X className="h-4 w-4" /></TBtn>
               <TBtn title="Insert circle" onClick={() => insertText("○")}><Circle className="h-4 w-4" /></TBtn>
+              <TBtn title="Insert image" onClick={insertImage}><ImageIcon className="h-4 w-4" /></TBtn>
+              <TBtn title="Text box" onClick={() => insertBlock("textbox")}><Square className="h-4 w-4" /></TBtn>
+              <TBtn title="Sticky note" onClick={() => insertBlock("sticky")}><StickyNote className="h-4 w-4" /></TBtn>
+              <TBtn title="Comment" onClick={() => insertBlock("comment")}><MessageSquare className="h-4 w-4" /></TBtn>
+              <TBtn title="Line" onClick={() => insertBlock("line")}><Minus className="h-4 w-4" /></TBtn>
+              <TBtn title="Arrow" onClick={() => insertBlock("arrow")}><ArrowRight className="h-4 w-4" /></TBtn>
               <span className="mx-1 h-5 w-px bg-white/10" />
               <TBtn title="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></TBtn>
               <TBtn title="Ordered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></TBtn>
