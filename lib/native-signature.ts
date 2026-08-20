@@ -19,6 +19,7 @@ export type NativeSigningPayload = {
   email: string;
   order: number;
   verified?: boolean;
+  linkVersion?: number;
 };
 
 export function nativeSigningExpiry(from = new Date()) {
@@ -27,7 +28,8 @@ export function nativeSigningExpiry(from = new Date()) {
 
 export async function createNativeSigningToken(payload: NativeSigningPayload, expiresAt?: Date) {
   const expiry = expiresAt ?? nativeSigningExpiry();
-  return new SignJWT({ email: payload.email, order: payload.order, ...(payload.verified ? { verified: true } : {}) })
+  const linkVersion = Number.isInteger(payload.linkVersion) && Number(payload.linkVersion) > 0 ? Number(payload.linkVersion) : 1;
+  return new SignJWT({ email: payload.email, order: payload.order, linkVersion, ...(payload.verified ? { verified: true } : {}) })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(payload.requestId)
     .setIssuer(ISSUER)
@@ -43,7 +45,9 @@ export async function verifyNativeSigningToken(token: string): Promise<NativeSig
     if (typeof payload.sub !== "string" || typeof payload.email !== "string") return null;
     const order = Number(payload.order);
     if (!Number.isInteger(order) || order < 1) return null;
-    return { requestId: payload.sub, email: payload.email, order, verified: payload.verified === true };
+    const rawVersion = Number(payload.linkVersion ?? 1);
+    const linkVersion = Number.isInteger(rawVersion) && rawVersion > 0 ? rawVersion : 1;
+    return { requestId: payload.sub, email: payload.email, order, verified: payload.verified === true, linkVersion };
   } catch {
     return null;
   }
@@ -53,8 +57,8 @@ export async function createVerifiedNativeSigningToken(payload: Omit<NativeSigni
   return createNativeSigningToken({ ...payload, verified: true }, expiresAt);
 }
 
-export async function nativeSigningUrl(requestId: string, email: string, order: number, expiresAt?: Date) {
-  const token = await createNativeSigningToken({ requestId, email, order }, expiresAt);
+export async function nativeSigningUrl(requestId: string, email: string, order: number, expiresAt?: Date, linkVersion = 1) {
+  const token = await createNativeSigningToken({ requestId, email, order, linkVersion }, expiresAt);
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.juncreatif.org").replace(/\/$/, "");
   return `${base}/sign/${encodeURIComponent(token)}`;
 }
