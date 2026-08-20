@@ -6,6 +6,7 @@ import Underline from "@tiptap/extension-underline";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import { JunBlackout, JunBlock, JunHighlight, JunImage } from "@/lib/document-editor-extensions";
+import { JunSmartFields } from "@/lib/document-editor-smart-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -62,6 +63,7 @@ export function DocumentEditor({
       JunBlackout,
       JunBlock,
       JunImage,
+      JunSmartFields,
     ],
     content: initialContent,
     onUpdate: ({ editor }) => {
