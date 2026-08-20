@@ -48,8 +48,10 @@ export function extractTemplateVariableKeys(content: string): string[] {
 }
 
 export function mergeVariableDefinitions(content: string, defined: TemplateVariableDefinition[]): TemplateVariableDefinition[] {
-  const builtins = new Map(BUILTIN_TEMPLATE_VARIABLES.map((v) => [v.key, v]));
-  const existing = new Map(defined.map((v) => [v.key, v]));
+  const builtins = new Map<string, { key: string; label: string; automatic: boolean }>(
+    BUILTIN_TEMPLATE_VARIABLES.map((v) => [v.key, v]),
+  );
+  const existing = new Map<string, TemplateVariableDefinition>(defined.map((v) => [v.key, v]));
   return extractTemplateVariableKeys(content).map((key) => {
     const custom = existing.get(key);
     const builtin = builtins.get(key);
