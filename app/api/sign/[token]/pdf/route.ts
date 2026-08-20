@@ -36,8 +36,10 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
     }));
   }
 
-  const body = new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return new NextResponse(body, {
+  // Copy into a plain ArrayBuffer so the Web Response body type remains
+  // compatible with Next.js 14 / TypeScript's BodyInit definition.
+  const body = Uint8Array.from(bytes).buffer;
+  return new Response(body, {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${request.document.documentId}.pdf"`,
