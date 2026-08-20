@@ -18,6 +18,7 @@ function SubmitBtn() {
 export function FileUploadForm({
   action,
   isVault = false,
+  folderId,
   categories,
   vaultCategories,
   clients,
@@ -25,6 +26,7 @@ export function FileUploadForm({
 }: {
   action: (formData: FormData) => Promise<void>;
   isVault?: boolean;
+  folderId?: string | null;
   categories: string[];
   vaultCategories?: readonly string[];
   clients?: { id: string; label: string }[];
@@ -34,6 +36,7 @@ export function FileUploadForm({
   return (
     <form action={action} className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <input type="hidden" name="isVault" value={isVault ? "1" : "0"} />
+      {!isVault ? <input type="hidden" name="folderId" value={folderId ?? ""} /> : null}
       <div className="lg:col-span-2">
         <Field label="File">
           <Input ref={fileRef} type="file" name="file" required className="file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-1 file:text-sm file:text-white" />
