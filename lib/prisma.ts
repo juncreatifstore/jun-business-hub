@@ -1,8 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 
-// Server-only Prisma singleton. The JS query engine + pg adapter avoids
-// native query-engine packaging/runtime issues on Vercel serverless.
+// Server-only Prisma singleton using Prisma's standard query engine.
+// This avoids the query_compiler_bg.wasm runtime dependency that was missing
+// from Vercel when engineType = "client" + @prisma/adapter-pg was used.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function pickConnectionString() {
@@ -22,8 +22,9 @@ function createClient() {
     );
   }
 
-  const adapter = new PrismaPg({ connectionString });
-  return new PrismaClient({ adapter });
+  return new PrismaClient({
+    datasources: { db: { url: connectionString } },
+  });
 }
 
 function getClient(): PrismaClient {
