@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyNativeSigningToken } from "@/lib/native-signature";
 import { signatureRecipients } from "@/lib/signature-recipients";
 import { completeJunNativeSignature } from "@/services/native-signatures";
-import { CheckCircle2, ExternalLink, FileSignature, LockKeyhole } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, FileSignature, LockKeyhole } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +36,7 @@ export default async function NativeSignPage({ params, searchParams }: { params:
   const done = Boolean(searchParams?.done) || Boolean(signer.signedAt);
   const error = errorMessage(searchParams?.error);
   const pdfUrl = `/api/sign/${encodeURIComponent(token)}/pdf`;
+  const signedPdfUrl = `/api/sign/${encodeURIComponent(token)}/signed-pdf`;
 
   return (
     <main className="min-h-screen bg-surface px-4 py-8 text-night sm:px-6 lg:px-8">
@@ -52,7 +53,14 @@ export default async function NativeSignPage({ params, searchParams }: { params:
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center">
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
             <h1 className="mt-4 text-2xl font-semibold">Signature recorded</h1>
-            <p className="mx-auto mt-2 max-w-xl text-sm text-muted2">Your electronic signature for {request.document.documentId} has been recorded securely. You may close this page.</p>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-muted2">Your electronic signature for {request.document.documentId} has been recorded securely.</p>
+            {request.signedPdfKey ? (
+              <div className="mt-6 flex flex-wrap justify-center gap-3">
+                <a href={signedPdfUrl} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-lg border border-emerald-300 bg-white px-4 text-sm font-medium hover:bg-emerald-50"><ExternalLink className="h-4 w-4" />View signed PDF</a>
+                <a href={`${signedPdfUrl}?download=1`} className="inline-flex h-11 items-center gap-2 rounded-lg bg-night px-4 text-sm font-medium text-white hover:bg-night-soft"><Download className="h-4 w-4" />Download signed copy</a>
+              </div>
+            ) : null}
+            <p className="mt-5 text-xs text-muted2">Keep this signing link private. You may close this page after saving your copy.</p>
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
