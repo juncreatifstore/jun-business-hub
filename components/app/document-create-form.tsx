@@ -16,7 +16,6 @@ const LANGUAGES = [
 ] as const;
 
 type Template = { id: string; name: string; type: string; content: string };
-
 type CaseOption = { id: string; caseNumber: string; title: string; clientId: string };
 
 function Submit() {
@@ -77,12 +76,11 @@ export function DocumentCreateForm({
   function writeWithAI() {
     setAiError(null);
     const fd = new FormData();
-    fd.set("instruction", instruction);
+    const languageName = LANGUAGES.find(([code]) => code === language)?.[1] ?? language;
+    const sourceContext = selectedTemplate ? ` Base the draft on the selected JUN template named "${selectedTemplate.name}".` : "";
+    fd.set("instruction", `Write the document in ${languageName}. Document type: ${type.replaceAll("_", " ")}.${sourceContext} ${instruction}`);
     fd.set("clientId", clientId);
     fd.set("caseId", caseId);
-    fd.set("language", language);
-    fd.set("documentType", type);
-    if (selectedTemplate) fd.set("templateName", selectedTemplate.name);
     startAI(async () => {
       const res = await generateDocumentDraft(fd);
       if (res.error) setAiError(res.error);
