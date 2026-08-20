@@ -1,7 +1,7 @@
 "use client";
 import { useFormState, useFormStatus } from "react-dom";
 import { useMemo, useState, useTransition } from "react";
-import { createDocument } from "@/services/documents";
+import { createDocumentD5 } from "@/services/document-create-d5";
 import { generateDocumentDraft } from "@/services/ai";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export function DocumentCreateForm({ clients, cases, templates, defaultClientId,
   defaultTemplateId?: string;
 }) {
   const initialTemplate = templates.find((t) => t.id === defaultTemplateId) ?? null;
-  const [state, action] = useFormState(createDocument, {});
+  const [state, action] = useFormState(createDocumentD5, {});
   const [source, setSource] = useState<"BLANK" | "TEMPLATE">(initialTemplate ? "TEMPLATE" : "BLANK");
   const [templateId, setTemplateId] = useState(initialTemplate?.id ?? "");
   const [content, setContent] = useState(initialTemplate?.content ?? "");
