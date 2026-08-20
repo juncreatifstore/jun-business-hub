@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, GitCompareArrows, Eye, CheckCircle2, PanelsTopLeft } from "lucide-react";
+import { ArrowLeft, FileText, GitCompareArrows, Eye, CheckCircle2, PanelsTopLeft, Scissors } from "lucide-react";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export default async function EditorWorkspace({ params }: { params: { id: string
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link href={`/app/editor/${doc.id}/pages`}><Button variant="outline"><PanelsTopLeft className="mr-1.5 h-4 w-4" />Pages</Button></Link>
+            <Link href={`/app/editor/${doc.id}/split`}><Button variant="outline"><Scissors className="mr-1.5 h-4 w-4" />Split</Button></Link>
             <Link href={`/app/documents/${doc.id}`}><Button variant="ghost"><FileText className="mr-1.5 h-4 w-4" />Document info</Button></Link>
             <Link href={`/app/documents/${doc.id}/versions`}><Button variant="outline"><GitCompareArrows className="mr-1.5 h-4 w-4" />Versions</Button></Link>
             <Link href={`/app/documents/${doc.id}/fill`}><Button variant="outline"><Eye className="mr-1.5 h-4 w-4" />Preview / Fill</Button></Link>
@@ -46,7 +47,7 @@ export default async function EditorWorkspace({ params }: { params: { id: string
             <div className="flex aspect-[0.72] items-center justify-center rounded border border-slate-200 bg-slate-50 text-xs text-slate-400">Page manager</div>
             <p className="mt-2 text-center text-xs font-medium text-slate-700">Open pages</p>
           </Link>
-          <p className="mt-3 text-[11px] leading-4 text-slate-400">Reorder, rotate, duplicate, add and delete pages.</p>
+          <p className="mt-3 text-[11px] leading-4 text-slate-400">Reorder, rotate, duplicate, add, delete and split pages.</p>
         </aside>
 
         <main className="min-w-0 flex-1 overflow-x-auto px-4 py-5 sm:px-6">
