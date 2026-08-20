@@ -11,31 +11,62 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/services/clients";
 
+type TemplateRow = { id: string; name: string; type: string; content: string };
+
 export async function createDocument(_prev: FormState, formData: FormData): Promise<FormState> {
   const user = await assertPermission("DOCUMENT_CREATE");
   const parsed = documentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
   const d = parsed.data;
 
+  const clientId = emptyToNull(d.clientId);
+  const caseId = emptyToNull(d.caseId);
+  if (caseId) {
+    const selectedCase = await prisma.case.findUnique({ where: { id: caseId }, select: { clientId: true } });
+    if (!selectedCase) return { message: "The selected case is no longer available." };
+    if (clientId && selectedCase.clientId !== clientId) return { message: "The selected case does not belong to the selected client." };
+  }
+
+  let template: TemplateRow | null = null;
+  if (d.templateId) {
+    const rows = await prisma.$queryRaw<TemplateRow[]>`
+      SELECT id, name, type::text AS type, content
+      FROM "DocumentTemplate"
+      WHERE id = ${d.templateId}
+      LIMIT 1
+    `.catch(() => [] as TemplateRow[]);
+    template = rows[0] ?? null;
+    if (!template) return { message: "The selected template is no longer available." };
+  }
+
   let content = d.content;
+  if (!content && template?.content) content = template.content;
   if (!content) content = `<h1>${d.title}</h1><p></p>`;
   content = sanitizeDocumentHtml(content);
 
+  const sourceNote = template ? `Template: ${template.name}` : "Blank / custom";
+  const changeNote = `Initial draft · Language: ${d.language} · Source: ${sourceNote}`.slice(0, 300);
   const documentId = await nextNumber(DOC_PREFIX[d.type] ?? "JUN-DOC");
   const doc = await prisma.document.create({
     data: {
       documentId,
       type: d.type,
       title: d.title,
-      clientId: emptyToNull(d.clientId),
-      caseId: emptyToNull(d.caseId),
+      clientId,
+      caseId,
       authorId: user.id,
       versions: {
-        create: { version: 1, content, authorId: user.id, changeNote: "Initial draft", hash: sha256(content) },
+        create: { version: 1, content, authorId: user.id, changeNote, hash: sha256(content) },
       },
     },
   });
-  await audit({ userId: user.id, action: "DOCUMENT_CREATE", resourceType: "Document", resourceId: doc.id, after: { documentId, type: d.type, title: d.title } });
+  await audit({
+    userId: user.id,
+    action: "DOCUMENT_CREATE",
+    resourceType: "Document",
+    resourceId: doc.id,
+    after: { documentId, type: d.type, title: d.title, language: d.language, templateId: template?.id ?? null, templateName: template?.name ?? null },
+  });
   await logActivity({ type: "DOCUMENT_CREATED", message: `Document ${documentId} created: ${d.title}`, userId: user.id, clientId: doc.clientId, caseId: doc.caseId });
   redirect(`/app/documents/${doc.id}?toast=${encodeURIComponent(`Document ${documentId} created`)}`);
 }
