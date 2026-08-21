@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { BarChart3, BrainCircuit, CreditCard, Gauge, Landmark, ReceiptText, Send, Undo2, WalletCards, BanknoteArrowDown } from "lucide-react";
+import { BarChart3, BrainCircuit, CreditCard, Gauge, Landmark, ReceiptText, Send, Undo2, WalletCards, CircleDollarSign } from "lucide-react";
 
 const links = [
   { href: "/app/finance", label: "Control Center", icon: Gauge },
   { href: "/app/finance/intelligence", label: "Intelligence", icon: BrainCircuit },
   { href: "/app/finance/payments", label: "Payments", icon: CreditCard },
-  { href: "/app/finance/expenses", label: "Expenses", icon: BanknoteArrowDown },
+  { href: "/app/finance/expenses", label: "Expenses", icon: CircleDollarSign },
   { href: "/app/finance/online-payments", label: "Online Payments", icon: WalletCards },
   { href: "/app/finance/accounts", label: "Accounts", icon: Landmark },
   { href: "/app/finance/manual-transfers", label: "Manual Transfers", icon: Send },
