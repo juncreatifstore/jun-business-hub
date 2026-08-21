@@ -1,57 +1,35 @@
 import { requirePermission } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { getFinanceControlCenter } from "@/lib/finance-control-center";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/utils";
+import { Download } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
   await requirePermission("PAYMENT_READ");
-  const yearStart = new Date(new Date().getFullYear(), 0, 1);
+  const data = await getFinanceControlCenter();
 
-  const [confirmed, pending, refundsPaid, refundsOpen, byMethod] = await Promise.all([
-    prisma.payment.aggregate({ _sum: { amount: true }, _count: true, where: { status: "CONFIRMED", paidAt: { gte: yearStart } } }),
-    prisma.payment.aggregate({ _sum: { amount: true }, _count: true, where: { status: "PENDING" } }),
-    prisma.refund.aggregate({ _sum: { amount: true }, _count: true, where: { status: "PAID" } }),
-    prisma.refund.aggregate({ _sum: { amount: true }, _count: true, where: { status: { in: ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PARTIALLY_PAID"] } } }),
-    prisma.payment.groupBy({ by: ["method"], _sum: { amount: true }, _count: true, where: { status: "CONFIRMED", paidAt: { gte: yearStart } } }),
-  ]);
+  return <div>
+    <PageHeader title="Finance reports" subtitle="Multi-currency collections, fees, refunds and cash position. Currencies are never combined." />
+    <div className="mb-4 flex justify-end"><a href="/api/finance/export.csv" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><Download className="h-4 w-4" />Export finance CSV</a></div>
 
-  const stats = [
-    { label: `Confirmed in ${yearStart.getFullYear()}`, value: formatMoney(Number(confirmed._sum.amount ?? 0)), sub: `${confirmed._count} payments` },
-    { label: "Pending confirmation", value: formatMoney(Number(pending._sum.amount ?? 0)), sub: `${pending._count} payments` },
-    { label: "Refunds paid out", value: formatMoney(Number(refundsPaid._sum.amount ?? 0)), sub: `${refundsPaid._count} refunds` },
-    { label: "Refund exposure", value: formatMoney(Number(refundsOpen._sum.amount ?? 0)), sub: `${refundsOpen._count} in progress` },
-  ];
-
-  return (
-    <div>
-      <PageHeader title="Reports" subtitle="Year-to-date view of money in and refund exposure." />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label}><CardContent className="p-4">
-            <p className="text-xs text-muted2">{s.label}</p>
-            <p className="mt-1 text-2xl font-semibold">{s.value}</p>
-            <p className="text-xs text-muted2">{s.sub}</p>
-          </CardContent></Card>
-        ))}
-      </div>
-      <Card className="mt-4 max-w-xl">
-        <CardHeader><CardTitle>Confirmed by method (YTD)</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          {byMethod.length === 0 ? <p className="p-5 text-sm text-muted2">No confirmed payments yet this year.</p> : (
-            <ul className="divide-y divide-line">
-              {byMethod.map((m) => (
-                <li key={m.method} className="flex items-center justify-between px-5 py-3 text-sm">
-                  <span>{m.method.replaceAll("_", " ")}</span>
-                  <span className="font-medium">{formatMoney(Number(m._sum.amount ?? 0))} <span className="text-xs text-muted2">({m._count})</span></span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {data.currencies.map((row) => <Card key={row.currency}><CardHeader><CardTitle>{row.currency}</CardTitle></CardHeader><CardContent className="space-y-2 text-sm">
+        <Line label="Collected" value={formatMoney(row.collected,row.currency)} />
+        <Line label="Estimated fees" value={formatMoney(row.fees,row.currency)} />
+        <Line label="Refunds paid" value={formatMoney(row.refundsPaid,row.currency)} />
+        <div className="border-t border-line pt-2"><Line label="Net cash" value={formatMoney(row.netCash,row.currency)} strong /></div>
+        <p className="text-xs text-muted2">{row.paymentCount} confirmed payment{row.paymentCount === 1 ? "" : "s"}</p>
+      </CardContent></Card>)}
     </div>
-  );
+
+    <div className="mt-4 grid gap-4 xl:grid-cols-2">
+      <Card><CardHeader><CardTitle>Current month</CardTitle></CardHeader><CardContent className="space-y-2">{data.monthCurrencies.length ? data.monthCurrencies.map((row) => <div key={row.currency} className="rounded-lg border border-line p-3"><div className="mb-2 registry-id">{row.currency}</div><Line label="Collections after fees" value={formatMoney(row.collected,row.currency)} /><Line label="Refund payouts" value={formatMoney(row.refunds,row.currency)} /><Line label="Net movement" value={formatMoney(row.net,row.currency)} strong /></div>) : <p className="text-sm text-muted2">No movement this month.</p>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>Payment methods</CardTitle></CardHeader><CardContent className="space-y-2">{data.methods.length ? data.methods.map((row) => <div key={row.method} className="rounded-lg border border-line p-3"><div className="flex items-center justify-between"><span className="text-sm font-medium">{row.method.replaceAll("_"," ")}</span><span className="text-xs text-muted2">{row.count} payment{row.count === 1 ? "" : "s"}</span></div><div className="mt-2 text-xs">{Object.entries(row.amountByCurrency).map(([currency,amount]) => <div key={currency}>{formatMoney(amount,currency)}</div>)}</div></div>) : <p className="text-sm text-muted2">No confirmed payments yet.</p>}</CardContent></Card>
+    </div>
+  </div>;
 }
+
+function Line({label,value,strong=false}:{label:string;value:string;strong?:boolean}) { return <div className="flex items-center justify-between gap-3"><span className="text-muted2">{label}</span><span className={strong ? "font-semibold" : "font-medium"}>{value}</span></div>; }
