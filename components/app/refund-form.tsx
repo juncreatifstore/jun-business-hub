@@ -42,7 +42,8 @@ export function RefundForm({ clients, cases, payments, defaultClientId, defaultC
       {err("amount") && <p className="mt-1 text-xs text-red-600">{err("amount")}</p>}
     </div>
     <Field label="Currency" hint={selectedPayment ? "Locked to original payment" : undefined}><Input name="currency" value={selectedPayment?.currency ?? undefined} defaultValue={selectedPayment ? undefined : "USD"} readOnly={Boolean(selectedPayment)} maxLength={3} required /></Field>
-    <Field label="Installments" hint="Monthly schedule starts next month"><Input name="installments" type="number" min={1} max={24} defaultValue={1} required /></Field>
+    <Field label="Installments" hint="Up to 24 scheduled payouts"><Input name="installments" type="number" min={1} max={24} defaultValue={1} required /></Field>
+    <Field label="First due date" hint="Following installments are scheduled monthly"><Input name="firstDueDate" type="date" /></Field>
     <div className="sm:col-span-2"><Field label="Reason" hint="Explain what is being refunded and why"><Textarea name="reason" rows={4} required /></Field>{err("reason") && <p className="mt-1 text-xs text-red-600">{err("reason")}</p>}</div>
     {state.message ? <p className="text-sm text-red-600 sm:col-span-2">{state.message}</p> : null}
     <div className="sm:col-span-2"><Submit /></div>
