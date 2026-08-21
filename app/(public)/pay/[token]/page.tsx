@@ -35,7 +35,7 @@ export default async function PublicOnlinePaymentPage({ params, searchParams }: 
         {active && session.checkoutUrl ? <a href={session.checkoutUrl} rel="nofollow noreferrer" className="flex w-full items-center justify-center rounded-xl bg-electric px-5 py-3 text-sm font-semibold text-white hover:opacity-90">Continue to {session.provider.replaceAll("_", " ")}</a> : null}
         {!paid && !active ? <div className="rounded-xl border border-line bg-surface p-4 text-sm text-muted2">This payment link is no longer active. Contact JUN to request a new secure payment link.</div> : null}
 
-        <div className="border-t border-line pt-4 text-xs leading-5 text-muted2">Never send card credentials, passwords, PINs or verification codes to an agent. Online card or wallet details are entered only on the selected provider's secure checkout.</div>
+        <div className="border-t border-line pt-4 text-xs leading-5 text-muted2">Never send card credentials, passwords, PINs or verification codes to an agent. Online card or wallet details are entered only on the selected provider&apos;s secure checkout.</div>
       </div>
     </div>
   </main>;
