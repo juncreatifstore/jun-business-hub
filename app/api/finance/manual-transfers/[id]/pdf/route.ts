@@ -8,13 +8,12 @@ export const runtime = "nodejs";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } | Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     await requirePermission("PAYMENT_READ");
 
-    // Compatible with both synchronous params and Next.js 15+ async params.
-    const { id } = await Promise.resolve(params);
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: "Missing manual transfer order id" }, { status: 400 });
     }
