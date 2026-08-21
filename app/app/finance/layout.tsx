@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { BarChart3, CreditCard, Landmark, ReceiptText, Send, Undo2 } from "lucide-react";
+import { BarChart3, CreditCard, Landmark, ReceiptText, Send, Undo2, WalletCards } from "lucide-react";
 
 const links = [
   { href: "/app/finance/payments", label: "Payments", icon: CreditCard },
+  { href: "/app/finance/online-payments", label: "Online Payments", icon: WalletCards },
   { href: "/app/finance/accounts", label: "Accounts", icon: Landmark },
   { href: "/app/finance/manual-transfers", label: "Manual Transfers", icon: Send },
   { href: "/app/finance/refunds", label: "Refunds", icon: Undo2 },
@@ -11,7 +12,7 @@ const links = [
 ];
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
-  return <div data-finance-release="phase2-5-manual-transfers-2026-08-20">
+  return <div data-finance-release="phase3-online-payments-2026-08-21">
     <div className="mb-4 flex flex-wrap justify-end gap-2">
       {links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium text-ink hover:bg-surface"><Icon className="h-4 w-4" />{label}</Link>)}
     </div>
