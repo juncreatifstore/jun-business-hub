@@ -7,7 +7,7 @@ import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/sequence";
-import { calculateInvoiceLines, getInvoice, invoiceFinancialState, saveInvoice, type FinanceInvoice, type InvoiceLine } from "@/lib/finance-invoices";
+import { calculateInvoiceLines, getInvoice, invoiceFinancialState, listInvoices, saveInvoice, type FinanceInvoice, type InvoiceLine } from "@/lib/finance-invoices";
 import { createProviderCheckout } from "@/lib/finance-online-providers";
 import { makeOnlinePublicToken, saveOnlinePaymentSession, type OnlinePaymentProvider, type OnlinePaymentSession } from "@/lib/finance-online-payments";
 
@@ -84,14 +84,19 @@ export async function cancelInvoice(id: string, formData: FormData) {
 export async function linkPaymentToInvoice(id: string, formData: FormData) {
   const user = await assertPermission("INVOICE_CREATE");
   const invoice = await getInvoice(id); if (!invoice) redirect("/app/finance/invoices");
-  if (invoice.status === "CANCELLED") redirect(dest(id, "Cancelled invoices cannot receive payments", true));
+  if (invoice.status === "CANCELLED" || invoice.status === "DRAFT") redirect(dest(id, "Send the invoice before linking payment", true));
   const paymentId = value(formData, "paymentId", 100);
   const payment = await prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true, clientId: true, currency: true, amount: true, reference: true } });
   if (!payment || payment.clientId !== invoice.clientId) redirect(dest(id, "Payment does not belong to invoice client", true));
   if (payment.currency !== invoice.currency) redirect(dest(id, "Payment currency does not match invoice currency", true));
   if (invoice.payments.some((p) => p.paymentId === payment.id)) redirect(dest(id, "Payment is already linked", true));
+  const allInvoices = await listInvoices(3000);
+  const alreadyLinkedElsewhere = allInvoices.some((other) => other.id !== invoice.id && other.payments.some((p) => p.paymentId === payment.id));
+  if (alreadyLinkedElsewhere) redirect(dest(id, "Payment is already linked to another invoice", true));
   const state = await invoiceFinancialState(invoice);
-  const amountApplied = Math.min(Number(payment.amount), state.balance);
+  const paymentAmount = Number(payment.amount);
+  if (paymentAmount > state.balance + 0.009) redirect(dest(id, "Payment amount exceeds the invoice balance. Use a matching partial payment instead.", true));
+  const amountApplied = paymentAmount;
   const next = { ...invoice, payments: [...invoice.payments, { paymentId: payment.id, linkedAt: new Date().toISOString(), linkedById: user.id, amountApplied }], updatedAt: new Date().toISOString() };
   await saveInvoice(next);
   await audit({ userId: user.id, action: "INVOICE_PAYMENT_LINK", resourceType: "FinanceInvoice", resourceId: id, after: { paymentId: payment.id, reference: payment.reference, amountApplied } });
