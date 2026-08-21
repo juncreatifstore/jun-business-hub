@@ -5,7 +5,7 @@ import { setManualTransferOrderStatus } from "@/services/finance-manual-transfer
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
-import { Copy, Printer } from "lucide-react";
+import { ManualTransferActions } from "@/components/app/manual-transfer-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export default async function ManualTransferOrderPage({ params }: { params: { id
       <Card><CardHeader><CardTitle>Receiver / bank information</CardTitle></CardHeader><CardContent><pre className="whitespace-pre-wrap break-words font-sans text-sm leading-6">{receiverPaymentDetails(r)}</pre>{r.complianceNote ? <div className="mt-4 rounded-lg border border-line bg-surface p-3 text-xs text-muted2">{r.complianceNote}</div> : null}</CardContent></Card>
     </div>
 
-    <Card className="mt-4"><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><CardTitle>Instructions to sender</CardTitle><div className="flex gap-2"><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium" onClick={undefined}><Copy className="h-4 w-4" />Copy</button><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium" onClick={undefined}><Printer className="h-4 w-4" />Print</button></div></div></CardHeader><CardContent><pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-surface p-4 font-sans text-sm leading-6">{order.instructions}</pre></CardContent></Card>
+    <Card className="mt-4"><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><CardTitle>Instructions to sender</CardTitle><ManualTransferActions text={order.instructions} /></div></CardHeader><CardContent><pre className="whitespace-pre-wrap break-words rounded-xl border border-line bg-surface p-4 font-sans text-sm leading-6">{order.instructions}</pre></CardContent></Card>
 
     {can(user, "PAYMENT_APPROVE") ? <Card className="mt-4"><CardHeader><CardTitle>Order status</CardTitle></CardHeader><CardContent className="flex flex-wrap gap-2"><form action={setManualTransferOrderStatus.bind(null, order.id)}><input type="hidden" name="status" value="ISSUED" /><Button variant="outline">Mark issued</Button></form><form action={setManualTransferOrderStatus.bind(null, order.id)}><input type="hidden" name="status" value="COMPLETED" /><Button variant="primary">Mark completed</Button></form><form action={setManualTransferOrderStatus.bind(null, order.id)}><input type="hidden" name="status" value="CANCELLED" /><Button variant="danger">Cancel order</Button></form></CardContent></Card> : null}
   </div>;
