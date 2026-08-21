@@ -16,6 +16,9 @@ export const dynamic = "force-dynamic";
 const STATUSES = ["PENDING","CONFIRMED","REJECTED","REFUNDED","PARTIALLY_REFUNDED"];
 const METHODS = ["ZELLE","STRIPE","PAYPAL","MERCADO_PAGO","BANK_TRANSFER","CASH","MONCASH","OTHER"];
 
+function roundMoney(value: number) { return Math.round((value + Number.EPSILON) * 100) / 100; }
+function netReceived(amount: number, feeAmount?: number | null) { return Math.max(0, roundMoney(amount - Number(feeAmount || 0))); }
+
 export default async function PaymentsPage({ searchParams }: { searchParams: { status?: string; method?: string; currency?: string; q?: string } }) {
   await requirePermission("PAYMENT_READ");
   const status = STATUSES.includes(String(searchParams.status)) ? String(searchParams.status) : "ALL";
@@ -37,22 +40,32 @@ export default async function PaymentsPage({ searchParams }: { searchParams: { s
     ] } : {}),
   };
 
-  const [payments, pendingCount, confirmedCount, confirmedByCurrency, proofCount] = await Promise.all([
+  const [payments, pendingCount, confirmedPayments, proofCount] = await Promise.all([
     prisma.payment.findMany({ where, orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }], take: 200, include: { client: true, case: true, files: { where: { category: "PAYMENT_PROOF", archivedAt: null }, select: { id: true } } } }),
     prisma.payment.count({ where: { status: "PENDING" } }),
-    prisma.payment.count({ where: { status: "CONFIRMED" } }),
-    prisma.payment.groupBy({ by: ["currency"], where: { status: "CONFIRMED" }, _sum: { amount: true }, orderBy: { currency: "asc" } }),
+    prisma.payment.findMany({ where: { status: "CONFIRMED" }, select: { id: true, amount: true, currency: true } }),
     prisma.file.count({ where: { isVault: false, archivedAt: null, category: "PAYMENT_PROOF", paymentId: { not: null } } }),
   ]);
-  const metaMap = await getPaymentCoreMetaMap(payments.map((p) => p.id));
-  const collected = confirmedByCurrency.length ? confirmedByCurrency.map((r) => `${r.currency} ${Number(r._sum.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join(" · ") : "—";
+
+  const allMetaIds = [...new Set([...payments.map((p) => p.id), ...confirmedPayments.map((p) => p.id)])];
+  const metaMap = await getPaymentCoreMetaMap(allMetaIds);
+  const confirmedCount = confirmedPayments.length;
+  const totals = new Map<string, number>();
+  for (const p of confirmedPayments) {
+    const meta = metaMap.get(p.id);
+    const net = netReceived(Number(p.amount), meta?.feeAmount);
+    totals.set(p.currency, roundMoney((totals.get(p.currency) || 0) + net));
+  }
+  const collected = totals.size
+    ? [...totals.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([cur, total]) => `${cur} ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join(" · ")
+    : "—";
 
   return (
     <div>
       <PageHeader title="Payments" subtitle="Finance register for money received, approvals, balances, evidence and receipts." actionHref="/app/finance/payments/new" actionLabel="Record payment" />
 
       <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={CircleDollarSign} label="Confirmed collected" value={collected} hint={`${confirmedCount} confirmed payments`} />
+        <Metric icon={CircleDollarSign} label="Confirmed collected" value={collected} hint={`${confirmedCount} confirmed payments · net after fees`} />
         <Metric icon={Clock3} label="Pending approval" value={String(pendingCount)} hint="Awaiting finance validation" />
         <Metric icon={FileCheck2} label="Payment proofs" value={String(proofCount)} hint="Evidence linked to payments" />
         <Metric icon={CreditCard} label="Current result set" value={String(payments.length)} hint="Up to 200 matching records" />
@@ -71,16 +84,19 @@ export default async function PaymentsPage({ searchParams }: { searchParams: { s
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line bg-white">
           <Table>
-            <THead><tr><TH>Reference</TH><TH>Client / service</TH><TH>Received</TH><TH>Expected / balance</TH><TH>Method</TH><TH>Proof</TH><TH>Status</TH><TH>Date</TH></tr></THead>
+            <THead><tr><TH>Reference</TH><TH>Client / service</TH><TH>Net received</TH><TH>Expected / balance</TH><TH>Method</TH><TH>Proof</TH><TH>Status</TH><TH>Date</TH></tr></THead>
             <tbody>
               {payments.map((p) => {
                 const meta = metaMap.get(p.id);
                 const expected = meta?.expectedAmount ?? null;
-                const balance = paymentBalance(Number(p.amount), expected);
+                const grossAmount = Number(p.amount);
+                const feeAmount = Number(meta?.feeAmount || 0);
+                const netAmount = netReceived(grossAmount, feeAmount);
+                const balance = paymentBalance(netAmount, expected);
                 return <TR key={p.id}>
                   <TD><Link href={`/app/finance/payments/${p.id}`} className="registry-id hover:text-electric">{p.reference}</Link>{p.providerRef ? <div className="mt-1 max-w-40 truncate text-[11px] text-muted2">{p.providerRef}</div> : null}</TD>
                   <TD><Link href={`/app/clients/${p.clientId}`} className="hover:text-electric">{p.client.firstName} {p.client.lastName}</Link><div className="mt-1 text-[11px] text-muted2">{meta?.serviceLabel || p.case?.caseNumber || "No service specified"}</div></TD>
-                  <TD className="font-medium">{formatMoney(Number(p.amount), p.currency)}</TD>
+                  <TD className="font-medium"><div>{formatMoney(netAmount, p.currency)}</div>{feeAmount > 0 ? <div className="mt-1 text-[11px] font-normal text-muted2">Gross {formatMoney(grossAmount,p.currency)} · fee {formatMoney(feeAmount,p.currency)}</div> : null}</TD>
                   <TD>{expected == null ? <span className="text-muted2">—</span> : <><div>{formatMoney(expected, p.currency)}</div><div className={`text-[11px] ${balance && balance > 0 ? "text-amber-700" : "text-emerald-700"}`}>{balance && balance > 0 ? `${formatMoney(balance, p.currency)} due` : balance && balance < 0 ? `${formatMoney(Math.abs(balance), p.currency)} overpaid` : "Paid in full"}</div></>}</TD>
                   <TD className="text-muted2">{p.method.replaceAll("_", " ")}</TD>
                   <TD>{p.files.length ? <span className="text-xs font-medium text-emerald-700">{p.files.length} attached</span> : <span className="text-xs text-muted2">Missing</span>}</TD>
