@@ -12,6 +12,7 @@ import {
 } from "@/services/drive-manage";
 import { saveDrivePublicSecurity } from "@/services/drive-public-security";
 import { DriveIntelligencePanel } from "@/components/app/drive-intelligence-panel";
+import { DriveMediaPreview } from "@/components/app/drive-media-preview";
 
 export type DriveVersionInfo = { versionId: string; name: string; mimeType: string; sizeBytes: number; createdAt: string; createdBy: string };
 export type DriveActivityInfo = { id: string; action: string; createdAt: string; user: string };
@@ -57,7 +58,9 @@ export function DriveFileManager({ file, returnTo, onClose }: {
   return (
     <div className="fixed inset-0 z-[60] bg-black/25" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <aside className="absolute inset-y-0 right-0 w-full max-w-2xl overflow-y-auto border-l border-line bg-surface p-5 text-ink shadow-2xl">
-        <div className="mb-6 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Manage file</h2><p className="mt-1 text-xs text-muted2">Metadata, intelligence, versions, activity and secure public sharing.</p></div><button type="button" onClick={onClose} className="rounded-md p-2 text-muted2 hover:bg-white hover:text-ink"><X className="h-5 w-5" /></button></div>
+        <div className="mb-6 flex items-center justify-between"><div><h2 className="text-lg font-semibold">Manage file</h2><p className="mt-1 text-xs text-muted2">Preview, metadata, intelligence, versions, activity and secure public sharing.</p></div><button type="button" onClick={onClose} className="rounded-md p-2 text-muted2 hover:bg-white hover:text-ink"><X className="h-5 w-5" /></button></div>
+
+        <DriveMediaPreview fileId={file.id} name={file.name} mimeType={file.mimeType} />
 
         <section className={sectionClass}>
           <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Pencil className="h-4 w-4" /> Name & duplicate</h3>
@@ -81,6 +84,7 @@ export function DriveFileManager({ file, returnTo, onClose }: {
             <form action={setDrivePublicEnabled.bind(null, file.id)}><input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="enabled" value={disabled ? "1" : "0"} /><button className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink hover:bg-surface">{disabled ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldOff className="h-3.5 w-3.5" />}{disabled ? "Enable link" : "Disable link"}</button></form>
             <form action={regenerateDrivePublicLink.bind(null, file.id)} onSubmit={(e) => { if (!window.confirm("Regenerate this public link? The previous shared URL will stop working.")) e.preventDefault(); }}><input type="hidden" name="returnTo" value={returnTo} /><button className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100">Regenerate & revoke old link</button></form>
           </div>
+          <p className="mt-3 text-xs text-muted2">Every public recipient must accept the current confidentiality policy before preview or download.</p>
         </section>
 
         <section className={sectionClass}>
