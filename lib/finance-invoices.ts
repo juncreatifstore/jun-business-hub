@@ -89,13 +89,31 @@ export async function listInvoices(limit = 1000) {
 export async function invoicePaymentFacts(invoice: FinanceInvoice) {
   const ids = [...new Set(invoice.payments.map((p) => p.paymentId).filter(Boolean))];
   if (!ids.length) return { confirmed: 0, pending: 0, confirmedPayments: [] as Array<{ id: string; reference: string; amount: number; currency: string; paidAt: Date | null }> };
+
+  const allocationByPayment = new Map<string, number>();
+  for (const link of invoice.payments) {
+    const amount = Math.max(0, Number(link.amountApplied || 0));
+    allocationByPayment.set(link.paymentId, round((allocationByPayment.get(link.paymentId) || 0) + amount));
+  }
+
   const rows = await prisma.payment.findMany({
     where: { id: { in: ids } },
     select: { id: true, reference: true, amount: true, currency: true, status: true, paidAt: true },
   });
-  const confirmedPayments = rows.filter((p) => ["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(p.status)).map((p) => ({ id: p.id, reference: p.reference, amount: Number(p.amount), currency: p.currency, paidAt: p.paidAt }));
+
+  const appliedAmount = (payment: { id: string; amount: unknown }) => {
+    const actual = Math.max(0, Number(payment.amount));
+    const allocated = allocationByPayment.get(payment.id);
+    return round(Math.min(actual, allocated == null ? actual : Math.max(0, allocated)));
+  };
+
+  const confirmedPayments = rows
+    .filter((p) => ["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(p.status))
+    .map((p) => ({ id: p.id, reference: p.reference, amount: appliedAmount(p), currency: p.currency, paidAt: p.paidAt }));
   const confirmed = round(confirmedPayments.reduce((s, p) => s + (p.currency === invoice.currency ? p.amount : 0), 0));
-  const pending = round(rows.filter((p) => p.status === "PENDING" && p.currency === invoice.currency).reduce((s, p) => s + Number(p.amount), 0));
+  const pending = round(rows
+    .filter((p) => p.status === "PENDING" && p.currency === invoice.currency)
+    .reduce((s, p) => s + appliedAmount(p), 0));
   return { confirmed, pending, confirmedPayments };
 }
 
