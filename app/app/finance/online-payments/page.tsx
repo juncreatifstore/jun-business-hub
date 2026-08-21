@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { listOnlinePaymentSessions } from "@/lib/finance-online-payments";
+import { listOnlinePaymentSessions, type OnlinePaymentSession } from "@/lib/finance-online-payments";
 import { createOnlinePaymentRequest } from "@/services/finance-online-payments";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,10 @@ import { Button } from "@/components/ui/button";
 import { formatDateTime, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+function effectiveStatus(s: OnlinePaymentSession) {
+  return ["CREATED", "PENDING"].includes(s.status) && new Date(s.expiresAt).getTime() <= Date.now() ? "EXPIRED" : s.status;
+}
 
 export default async function OnlinePaymentsPage() {
   await requirePermission("PAYMENT_READ");
@@ -20,9 +24,10 @@ export default async function OnlinePaymentsPage() {
   ]);
   const paymentRows = sessions.length ? await prisma.payment.findMany({ where: { id: { in: sessions.map((s) => s.paymentId) } }, select: { id: true, reference: true } }) : [];
   const refs = new Map(paymentRows.map((p) => [p.id, p.reference]));
-  const paid = sessions.filter((s) => s.status === "PAID").length;
-  const pending = sessions.filter((s) => s.status === "PENDING").length;
-  const failed = sessions.filter((s) => ["FAILED","CANCELLED","EXPIRED"].includes(s.status)).length;
+  const statuses = sessions.map(effectiveStatus);
+  const paid = statuses.filter((s) => s === "PAID").length;
+  const pending = statuses.filter((s) => s === "PENDING").length;
+  const failed = statuses.filter((s) => ["FAILED","CANCELLED","EXPIRED"].includes(s)).length;
 
   const providers = [
     { name: "Stripe", ready: Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET) },
@@ -51,7 +56,7 @@ export default async function OnlinePaymentsPage() {
       <Card><CardHeader><CardTitle>Provider readiness</CardTitle></CardHeader><CardContent className="space-y-3">{providers.map((p) => <div key={p.name} className="flex items-center justify-between rounded-xl border border-line p-3"><div><div className="text-sm font-medium">{p.name}</div><div className="text-xs text-muted2">Server credentials + webhook verification</div></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${p.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{p.ready ? "Ready" : "Needs configuration"}</span></div>)}</CardContent></Card>
     </div>
 
-    <Card className="mt-5"><CardHeader><CardTitle>Recent online payment requests</CardTitle></CardHeader><CardContent className="p-0">{sessions.length ? <div className="divide-y divide-line">{sessions.map((s) => <Link key={s.id} href={`/app/finance/online-payments/${s.id}`} className="grid gap-2 px-5 py-4 hover:bg-surface md:grid-cols-[1.2fr_.8fr_.8fr_.8fr_1fr]"><div><div className="text-sm font-medium">{refs.get(s.paymentId) || s.id}</div><div className="text-xs text-muted2">{s.clientName} · {s.description}</div></div><div className="text-sm">{s.provider.replaceAll("_", " ")}</div><div className="text-sm font-medium">{formatMoney(s.amount, s.currency)}</div><div><span className="rounded-full bg-surface px-2 py-1 text-xs">{s.status}</span></div><div className="text-xs text-muted2">{formatDateTime(new Date(s.updatedAt))}</div></Link>)}</div> : <div className="p-6 text-sm text-muted2">No online payment request yet.</div>}</CardContent></Card>
+    <Card className="mt-5"><CardHeader><CardTitle>Recent online payment requests</CardTitle></CardHeader><CardContent className="p-0">{sessions.length ? <div className="divide-y divide-line">{sessions.map((s) => { const status = effectiveStatus(s); return <Link key={s.id} href={`/app/finance/online-payments/${s.id}`} className="grid gap-2 px-5 py-4 hover:bg-surface md:grid-cols-[1.2fr_.8fr_.8fr_.8fr_1fr]"><div><div className="text-sm font-medium">{refs.get(s.paymentId) || s.id}</div><div className="text-xs text-muted2">{s.clientName} · {s.description}</div></div><div className="text-sm">{s.provider.replaceAll("_", " ")}</div><div className="text-sm font-medium">{formatMoney(s.amount, s.currency)}</div><div><span className="rounded-full bg-surface px-2 py-1 text-xs">{status}</span></div><div className="text-xs text-muted2">{formatDateTime(new Date(s.updatedAt))}</div></Link>; })}</div> : <div className="p-6 text-sm text-muted2">No online payment request yet.</div>}</CardContent></Card>
   </div>;
 }
 
