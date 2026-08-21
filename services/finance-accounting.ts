@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
-import { closeAccountingPeriod, syncAccountingLedger } from "@/lib/finance-accounting";
+import { closeAccountingPeriod, getClosedPeriods, syncAccountingLedger } from "@/lib/finance-accounting";
 
 export async function syncAccountingLedgerAction(){
   const user=await assertPermission("ACCOUNTING_POST");
@@ -23,6 +23,7 @@ export async function closeAccountingPeriodAction(formData:FormData){
   if(confirmation!=="CLOSE") redirect(`/app/finance/accounting/close?error=${encodeURIComponent("Type CLOSE to confirm the accounting period lock.")}`);
   let errorMessage="";
   try{
+    if((await getClosedPeriods()).some(p=>p.period===period)) throw new Error(`Period ${period} is already closed and cannot be modified.`);
     await syncAccountingLedger(user.id);
     const closed=await closeAccountingPeriod(period,user.id,note);
     await audit({userId:user.id,action:"ACCOUNTING_PERIOD_CLOSE",resourceType:"AccountingPeriod",resourceId:period,after:closed});
