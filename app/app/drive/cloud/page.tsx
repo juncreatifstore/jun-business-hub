@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Cloud, DownloadCloud, ExternalLink, HardDrive, Link2, Unplug } from "lucide-react";
+import { Cloud, DownloadCloud, ExternalLink, HardDrive, Link2, RefreshCw, Unplug } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { cloudOAuthConfig, getCloudConnection, isCloudAdmin, listCloudFiles, type CloudFile, type CloudProvider } from "@/lib/drive-cloud";
+import { googleWorkspaceConfigured } from "@/lib/google-workspace-drive";
 import { disconnectCloudProvider, importCloudFile } from "@/services/drive-cloud";
+import { syncGoogleWorkspaceDesktop } from "@/services/drive-workspace-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,9 @@ export default async function CloudDrivePage({ searchParams }: { searchParams: {
   const user = await requireUser();
   if (!isCloudAdmin(user.role)) redirect("/app/forbidden");
   const [google, microsoft] = await Promise.all([providerState(user.id, "google"), providerState(user.id, "microsoft")]);
+  const workspaceReady = googleWorkspaceConfigured();
+  const workspaceStorageActive = (process.env.STORAGE_DRIVER || "").toUpperCase() === "GOOGLE_WORKSPACE";
+  const syncFolder = (process.env.GOOGLE_WORKSPACE_SYNC_FOLDER_NAME || "Desktop Sync").trim() || "Desktop Sync";
 
   return <div className="space-y-6 text-ink">
     <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-sm font-medium text-electric"><Cloud className="h-4 w-4" /> Connected Cloud</div><h1 className="mt-1 text-2xl font-semibold">Google Drive & OneDrive</h1><p className="mt-2 max-w-3xl text-sm text-muted2">Admin and Super Admin accounts can connect a personal/work cloud drive, review files, and selectively import authorized files into JUN Drive. Imported files then receive JUN audit, AI, privacy and sharing controls.</p></div><Link href="/app/drive" className="rounded-lg border border-line bg-white px-3 py-2 text-sm hover:bg-surface">Back to Drive</Link></div>
@@ -42,6 +47,6 @@ export default async function CloudDrivePage({ searchParams }: { searchParams: {
       </section>;
     })}</div>
 
-    <section className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5"><h2 className="font-semibold">Central 2 TB architecture</h2><p className="mt-2 text-sm leading-6 text-muted2">For the central company storage, use a Google Workspace Shared Drive rather than a personal Google One drive. A dedicated Workspace storage identity / delegated service account can become the backend bridge, while Super Admins use Google Drive for desktop to work with the Shared Drive from macOS or Windows. JUN Business Hub will index the same files and apply its metadata, AI, audit and sharing policies.</p></section>
+    <section className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><h2 className="font-semibold">Central Google Workspace Shared Drive</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted2">Use Google Workspace Business Standard / Shared Drive as the company storage instead of personal Google One. When configured, JUN writes its physical files into the Shared Drive while the database keeps the business metadata, permissions, audit, AI and public-sharing rules.</p><div className="mt-3 flex flex-wrap gap-2 text-xs"><span className={`rounded-full px-2 py-1 ${workspaceReady ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{workspaceReady ? "Workspace credentials configured" : "Workspace credentials missing"}</span><span className={`rounded-full px-2 py-1 ${workspaceStorageActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>{workspaceStorageActive ? "GOOGLE_WORKSPACE is active storage" : "Current storage is not Google Workspace"}</span></div></div>{workspaceReady && workspaceStorageActive ? <form action={syncGoogleWorkspaceDesktop}><button className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"><RefreshCw className="h-4 w-4" /> Sync Workspace now</button></form> : null}</div><div className="mt-4 rounded-xl border border-blue-200 bg-white/70 p-4 text-sm leading-6 text-muted2"><strong className="text-ink">Computer workflow:</strong> install Google Drive for desktop on the Super Admin computer, open the Shared Drive, and use the folder <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-xs text-ink">{syncFolder}</span>. Files or folders placed there sync to Google automatically. “Sync Workspace now” then creates or updates the matching JUN Drive entries without duplicating items already mapped by their Google file ID.</div></section>
   </div>;
 }
