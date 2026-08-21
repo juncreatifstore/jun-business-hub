@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { shortHash } from "@/lib/hash";
 import { formatDateTime } from "@/lib/utils";
 import { getReceiptMeta, shortReceiptHash } from "@/lib/finance-receipts";
+import { getFinanceDocumentVerification } from "@/lib/finance-document-verification";
 import { ShieldCheck, ShieldX } from "lucide-react";
 import Link from "next/link";
 
@@ -11,7 +12,7 @@ export const metadata = { title: "Document verification" };
 // Public verification page. Deliberately exposes ONLY registry metadata.
 // It never exposes document contents, client names, payment amounts or banking details.
 export default async function VerifyPage({ params }: { params: { documentId: string } }) {
-  const id = decodeURIComponent(params.documentId).slice(0, 60);
+  const id = decodeURIComponent(params.documentId).slice(0, 120);
 
   const doc = await prisma.document.findUnique({
     where: { documentId: id },
@@ -39,7 +40,8 @@ export default async function VerifyPage({ params }: { params: { documentId: str
       !receiptVoided,
   );
 
-  const authentic = Boolean((doc && (doc.status === "FINAL" || doc.status === "SIGNED")) || validReceipt);
+  const financeVerification = !doc && !receiptPayment ? await getFinanceDocumentVerification(id) : null;
+  const authentic = Boolean((doc && (doc.status === "FINAL" || doc.status === "SIGNED")) || validReceipt || financeVerification);
 
   return (
     <div className="flex min-h-screen flex-col bg-night text-white">
@@ -51,14 +53,17 @@ export default async function VerifyPage({ params }: { params: { documentId: str
           {authentic ? (
             <div className="flex items-center gap-3">
               <ShieldCheck className="h-8 w-8 text-emerald-400" />
-              <div><p className="text-lg font-semibold text-emerald-300">Authentic</p><p className="text-sm text-white/60">This reference exists and is active in the JUN registry.</p></div>
+              <div>
+                <p className="text-lg font-semibold text-emerald-300">Authentic</p>
+                <p className="text-sm text-white/60">This reference exists and is active in the JUN registry.</p>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-3">
               <ShieldX className="h-8 w-8 text-red-400" />
               <div>
                 <p className="text-lg font-semibold text-red-300">{receiptVoided ? "Receipt voided" : "Invalid or not verifiable"}</p>
-                <p className="text-sm text-white/60">{receiptVoided ? "This receipt exists in the JUN registry but has been formally voided and must not be relied upon as an active receipt." : "No active final document or confirmed receipt with this reference exists in the JUN registry."}</p>
+                <p className="text-sm text-white/60">{receiptVoided ? "This receipt exists in the JUN registry but has been formally voided and must not be relied upon as an active receipt." : "No active final document, confirmed receipt or registered financial PDF with this reference exists in the JUN registry."}</p>
               </div>
             </div>
           )}
@@ -82,6 +87,14 @@ export default async function VerifyPage({ params }: { params: { documentId: str
                 {receiptPayment.paidAt ? <div className="flex justify-between gap-4"><dt className="text-white/50">Paid</dt><dd>{formatDateTime(receiptPayment.paidAt)}</dd></div> : null}
                 {receiptMeta?.pdfSha256 ? <div className="flex justify-between gap-4"><dt className="text-white/50">PDF integrity</dt><dd className="registry-id">{shortReceiptHash(receiptMeta.pdfSha256)}</dd></div> : null}
                 {receiptMeta?.voidedAt ? <div className="flex justify-between gap-4"><dt className="text-white/50">Voided</dt><dd>{formatDateTime(new Date(receiptMeta.voidedAt))}</dd></div> : null}
+              </>
+            ) : financeVerification ? (
+              <>
+                <div className="flex justify-between gap-4"><dt className="text-white/50">Type</dt><dd>{financeVerification.type}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-white/50">Status</dt><dd>{financeVerification.status.replaceAll("_", " ")}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-white/50">Issued</dt><dd>{formatDateTime(new Date(financeVerification.issuedAt))}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-white/50">Verification code</dt><dd className="registry-id">{financeVerification.verificationCode}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-white/50">Issuer</dt><dd>JUN CREATIF AND TRAVEL LLC</dd></div>
               </>
             ) : null}
           </dl>
