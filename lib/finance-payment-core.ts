@@ -7,24 +7,16 @@ export type PaymentCoreMeta = {
   expectedAmount: number | null;
   serviceLabel: string | null;
   providerRef: string | null;
-  accountId: string | null;
-  accountLabel: string | null;
-  accountDescriptor: string | null;
-  accountMethod: string | null;
-  accountCurrency: string | null;
-  feeAmount: number | null;
+  accountId?: string | null;
+  accountLabel?: string | null;
+  accountDescriptor?: string | null;
+  accountMethod?: string | null;
+  accountCurrency?: string | null;
+  feeAmount?: number | null;
 };
 
 export const EMPTY_PAYMENT_META: PaymentCoreMeta = {
-  expectedAmount: null,
-  serviceLabel: null,
-  providerRef: null,
-  accountId: null,
-  accountLabel: null,
-  accountDescriptor: null,
-  accountMethod: null,
-  accountCurrency: null,
-  feeAmount: null,
+  expectedAmount: null, serviceLabel: null, providerRef: null, accountId: null, accountLabel: null, accountDescriptor: null, accountMethod: null, accountCurrency: null, feeAmount: null,
 };
 
 function normalize(parsed: Partial<PaymentCoreMeta>): PaymentCoreMeta {
@@ -52,10 +44,7 @@ export async function getPaymentCoreMetaMap(paymentIds: string[]) {
   const map = new Map<string, PaymentCoreMeta>();
   if (!ids.length) return map;
   const rows = await prisma.appSetting.findMany({ where: { key: { in: ids.map((id) => `${PREFIX}${id}`) } }, select: { key: true, value: true } });
-  for (const row of rows) {
-    const id = row.key.slice(PREFIX.length);
-    try { map.set(id, normalize(JSON.parse(row.value) as Partial<PaymentCoreMeta>)); } catch {}
-  }
+  for (const row of rows) { const id = row.key.slice(PREFIX.length); try { map.set(id, normalize(JSON.parse(row.value) as Partial<PaymentCoreMeta>)); } catch {} }
   return map;
 }
 
