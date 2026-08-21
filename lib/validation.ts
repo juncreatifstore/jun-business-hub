@@ -40,6 +40,7 @@ export const taskSchema = z.object({
 export const paymentSchema = z.object({
   clientId: z.string().min(1, "Client is required"),
   caseId: z.string().optional().or(z.literal("")),
+  accountId: z.string().optional().or(z.literal("")),
   amount: z.coerce.number().positive("Amount must be positive").max(10_000_000),
   expectedAmount: z.union([z.coerce.number().positive().max(10_000_000), z.literal("")]).optional(),
   currency: z.string().trim().min(3).max(3).default("USD"),
