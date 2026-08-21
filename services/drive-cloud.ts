@@ -13,7 +13,7 @@ function safeProvider(value: string): CloudProvider | null {
   return value === "google" || value === "microsoft" ? value : null;
 }
 
-function cloudReturn(message: string, error = false) {
+function cloudReturn(message: string, error = false): never {
   redirect(`/app/drive/cloud?${error ? "error" : "toast"}=${encodeURIComponent(message)}`);
 }
 
