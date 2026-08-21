@@ -13,6 +13,7 @@ export type CheckoutRequest = {
   description: string;
   clientName: string;
   clientEmail?: string | null;
+  expiresAt: string;
 };
 
 export type CheckoutResult = {
@@ -50,7 +51,7 @@ async function stripeCheckout(req: CheckoutRequest): Promise<CheckoutResult> {
   body.set("payment_intent_data[metadata][jun_session_id]", req.sessionId);
   body.set("payment_intent_data[metadata][payment_id]", req.paymentId);
   if (req.clientEmail) body.set("customer_email", req.clientEmail);
-  body.set("expires_at", String(Math.floor(Date.now() / 1000) + 30 * 60));
+  body.set("expires_at", String(Math.floor(new Date(req.expiresAt).getTime() / 1000)));
   const res = await fetch("https://api.stripe.com/v1/checkout/sessions", { method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/x-www-form-urlencoded" }, body, cache: "no-store" });
   const data = await res.json();
   if (!res.ok || !data?.id || !data?.url) throw new Error(data?.error?.message || "Stripe checkout creation failed");
@@ -103,7 +104,7 @@ async function mercadoPagoCheckout(req: CheckoutRequest): Promise<CheckoutResult
   const token = process.env.MERCADO_PAGO_ACCESS_TOKEN;
   if (!token) throw new Error("Mercado Pago is not configured");
   const now = new Date();
-  const expires = new Date(now.getTime() + 30 * 60 * 1000);
+  const expires = new Date(req.expiresAt);
   const res = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Idempotency-Key": req.sessionId },
@@ -134,6 +135,21 @@ export async function createProviderCheckout(req: CheckoutRequest) {
   if (req.provider === "STRIPE") return stripeCheckout(req);
   if (req.provider === "PAYPAL") return paypalCheckout(req);
   return mercadoPagoCheckout(req);
+}
+
+export async function cancelProviderCheckout(provider: OnlinePaymentProvider, providerSessionId: string | null) {
+  if (!providerSessionId) return;
+  try {
+    if (provider === "STRIPE") {
+      const secret = process.env.STRIPE_SECRET_KEY;
+      if (!secret) return;
+      await fetch(`https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(providerSessionId)}/expire`, { method: "POST", headers: { Authorization: `Bearer ${secret}` }, cache: "no-store" });
+    } else if (provider === "MERCADO_PAGO") {
+      const token = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+      if (!token) return;
+      await fetch(`https://api.mercadopago.com/checkout/preferences/${encodeURIComponent(providerSessionId)}`, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ expires: true, expiration_date_to: new Date().toISOString() }), cache: "no-store" });
+    }
+  } catch {}
 }
 
 export function verifyStripeWebhook(rawBody: string, signatureHeader: string | null) {
