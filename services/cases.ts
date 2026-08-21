@@ -13,29 +13,30 @@ export async function createCase(_prev: FormState, formData: FormData): Promise<
   const parsed = caseSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
   const d = parsed.data;
-
   const client = await prisma.client.findUnique({ where: { id: d.clientId } });
   if (!client) return { message: "Selected client does not exist." };
-
   const caseNumber = await nextNumber("CASE");
-  const c = await prisma.case.create({
-    data: {
-      caseNumber,
-      clientId: d.clientId,
-      type: d.type,
-      title: d.title,
-      description: emptyToNull(d.description),
-      priority: d.priority,
-      status: d.status,
-      dueDate: parseDate(d.dueDate),
-      tags: parseTags(d.tags),
-      ownerId: user.id,
-      members: { create: { userId: user.id } },
-    },
-  });
+  const c = await prisma.case.create({ data: { caseNumber, clientId: d.clientId, type: d.type, title: d.title, description: emptyToNull(d.description), priority: d.priority, status: d.status, dueDate: parseDate(d.dueDate), tags: parseTags(d.tags), ownerId: user.id, members: { create: { userId: user.id } } } });
   await audit({ userId: user.id, action: "CASE_CREATE", resourceType: "Case", resourceId: c.id, after: { caseNumber, title: c.title } });
   await logActivity({ type: "CASE_CREATED", message: `Case ${caseNumber} opened: ${c.title}`, userId: user.id, clientId: d.clientId, caseId: c.id });
   redirect(`/app/cases/${c.id}?toast=${encodeURIComponent("Case created")}`);
+}
+
+export async function updateCase(caseId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const user = await assertPermission("CASE_UPDATE");
+  const parsed = caseSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+  const d = parsed.data;
+  const before = await prisma.case.findUnique({ where: { id: caseId } });
+  if (!before) return { message: "Case not found." };
+  const client = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
+  if (!client) return { message: "Selected client does not exist." };
+  const reason = String(formData.get("correctionReason") || "").trim().slice(0, 1000);
+  if (!reason) return { message: "Correction reason is required." };
+  const after = await prisma.case.update({ where: { id: caseId }, data: { clientId: d.clientId, type: d.type, title: d.title, description: emptyToNull(d.description), priority: d.priority, status: d.status, dueDate: parseDate(d.dueDate), tags: parseTags(d.tags) } });
+  await audit({ userId: user.id, action: "CASE_CORRECTION", resourceType: "Case", resourceId: caseId, before: { clientId: before.clientId, type: before.type, title: before.title, description: before.description, priority: before.priority, status: before.status, dueDate: before.dueDate, tags: before.tags }, after: { clientId: after.clientId, type: after.type, title: after.title, description: after.description, priority: after.priority, status: after.status, dueDate: after.dueDate, tags: after.tags, correctionReason: reason } });
+  await logActivity({ type: "CASE_UPDATED", message: `Case ${after.caseNumber} corrected: ${reason}`, userId: user.id, clientId: after.clientId, caseId });
+  redirect(`/app/cases/${caseId}?toast=${encodeURIComponent("Case corrected")}`);
 }
 
 export async function updateCaseStatus(caseId: string, formData: FormData) {
