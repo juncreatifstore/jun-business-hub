@@ -115,12 +115,7 @@ export async function refreshCloudConnection(connection: CloudConnection): Promi
   const config = cloudOAuthConfig(connection.provider);
   if (!config || !connection.refreshToken) throw new Error(`${connection.provider} cloud connection needs reauthorization`);
 
-  const params = new URLSearchParams({
-    client_id: config.clientId,
-    client_secret: config.clientSecret,
-    refresh_token: connection.refreshToken,
-    grant_type: "refresh_token",
-  });
+  const params = new URLSearchParams({ client_id: config.clientId, client_secret: config.clientSecret, refresh_token: connection.refreshToken, grant_type: "refresh_token" });
   let endpoint = "https://oauth2.googleapis.com/token";
   if (connection.provider === "microsoft") {
     endpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
@@ -156,13 +151,33 @@ export async function listCloudFiles(connection: CloudConnection): Promise<Cloud
   return (body.value || []).map((f) => ({ id: f.id, name: f.name, mimeType: f.folder ? "application/vnd.microsoft.folder" : (f.file?.mimeType || "application/octet-stream"), sizeBytes: typeof f.size === "number" ? f.size : null, modifiedAt: f.lastModifiedDateTime || null, isFolder: Boolean(f.folder), webUrl: f.webUrl || null }));
 }
 
+function nativeGoogleExport(mimeType: string, name: string) {
+  const map: Record<string, { mime: string; ext: string }> = {
+    "application/vnd.google-apps.document": { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ext: ".docx" },
+    "application/vnd.google-apps.spreadsheet": { mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ext: ".xlsx" },
+    "application/vnd.google-apps.presentation": { mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", ext: ".pptx" },
+    "application/vnd.google-apps.drawing": { mime: "application/pdf", ext: ".pdf" },
+  };
+  const target = map[mimeType];
+  if (!target) return null;
+  const cleanName = name.replace(/\.(gdoc|gsheet|gslides)$/i, "");
+  return { ...target, name: cleanName.toLowerCase().endsWith(target.ext) ? cleanName : `${cleanName}${target.ext}` };
+}
+
 export async function downloadCloudFile(connection: CloudConnection, fileId: string): Promise<{ data: Buffer; name: string; mimeType: string }> {
   const c = await refreshCloudConnection(connection);
   if (c.provider === "google") {
     const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${c.accessToken}` } });
     if (!metaRes.ok) throw new Error("Google Drive file not found");
     const meta = await metaRes.json() as { name: string; mimeType: string };
-    if (meta.mimeType.startsWith("application/vnd.google-apps.")) throw new Error("Google Docs/Sheets/Slides must be exported before import; native export support will be added separately");
+    const native = nativeGoogleExport(meta.mimeType, meta.name);
+    if (native) {
+      const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(native.mime)}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${c.accessToken}` } });
+      if (!res.ok) throw new Error("Unable to export native Google file");
+      return { data: Buffer.from(await res.arrayBuffer()), name: native.name, mimeType: native.mime };
+    }
+    if (meta.mimeType.startsWith("application/vnd.google-apps.")) throw new Error("This Google-native file type cannot be exported to a standard JUN Drive format yet");
     const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${c.accessToken}` } });
     if (!res.ok) throw new Error("Unable to download Google Drive file");
     return { data: Buffer.from(await res.arrayBuffer()), name: meta.name, mimeType: meta.mimeType || res.headers.get("content-type") || "application/octet-stream" };
