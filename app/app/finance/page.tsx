@@ -4,7 +4,7 @@ import { getFinanceControlCenter } from "@/lib/finance-control-center";
 import { expenseRemaining } from "@/lib/finance-expenses";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Banknote, BanknoteArrowDown, CircleDollarSign, Clock3, Download, Landmark, ReceiptText, RefreshCw, WalletCards } from "lucide-react";
+import { AlertTriangle, Banknote, CircleDollarSign, Clock3, Download, Landmark, ReceiptText, RefreshCw, WalletCards } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export default async function FinanceControlCenterPage() {
       <Metric icon={CircleDollarSign} label="Currencies tracked" value={String(data.currencies.length)} hint={`${data.ytdPaymentCount} confirmed payments YTD`} />
       <Metric icon={Landmark} label="Receiving accounts" value={`${data.accounts.active}/${data.accounts.total}`} hint="Active / configured" />
       <Metric icon={WalletCards} label="Online payments" value={String(data.online.paid)} hint={`${data.online.pending} pending · ${data.online.attention} need attention`} />
-      <Metric icon={BanknoteArrowDown} label="Accounts payable" value={String(data.expenses.open)} hint={`${data.expenses.overdue} overdue`} />
+      <Metric icon={CircleDollarSign} label="Accounts payable" value={String(data.expenses.open)} hint={`${data.expenses.overdue} overdue`} />
       <Metric icon={AlertTriangle} label="Operational alerts" value={String(alertTotal)} hint="Items requiring finance attention" />
     </div>
 
@@ -38,7 +38,7 @@ export default async function FinanceControlCenterPage() {
     <div className="grid gap-4 xl:grid-cols-3">
       <AlertCard title="Payments pending confirmation" count={data.alerts.counts.pendingPayments} icon={Clock3} href="/app/finance/payments">{data.alerts.pendingPayments.map((p) => <AlertRow key={p.id} href={`/app/finance/payments/${p.id}`} primary={p.reference} secondary={`${p.client.firstName} ${p.client.lastName}`} trailing={formatMoney(Number(p.amount),p.currency)} />)}</AlertCard>
       <AlertCard title="Confirmed without proof" count={data.alerts.counts.missingPaymentProof} icon={ReceiptText} href="/app/finance/payments">{data.alerts.missingPaymentProof.map((p) => <AlertRow key={p.id} href={`/app/finance/payments/${p.id}`} primary={p.reference} secondary={`${p.client.firstName} ${p.client.lastName}`} trailing="Attach proof" />)}</AlertCard>
-      <AlertCard title="Vendor bills overdue" count={data.alerts.counts.expenseOverdue} icon={BanknoteArrowDown} href="/app/finance/expenses">{data.alerts.expenseOverdue.map((e) => <AlertRow key={e.id} href={`/app/finance/expenses/${e.id}`} primary={e.expenseNumber} secondary={`${e.vendorName} · due ${e.dueDate?formatDate(new Date(e.dueDate)):"—"}`} trailing={formatMoney(expenseRemaining(e),e.currency)} />)}</AlertCard>
+      <AlertCard title="Vendor bills overdue" count={data.alerts.counts.expenseOverdue} icon={CircleDollarSign} href="/app/finance/expenses">{data.alerts.expenseOverdue.map((e) => <AlertRow key={e.id} href={`/app/finance/expenses/${e.id}`} primary={e.expenseNumber} secondary={`${e.vendorName} · due ${e.dueDate?formatDate(new Date(e.dueDate)):"—"}`} trailing={formatMoney(expenseRemaining(e),e.currency)} />)}</AlertCard>
       <AlertCard title="Refunds needing review" count={data.alerts.counts.refundsToReview} icon={RefreshCw} href="/app/finance/refunds">{data.alerts.refundsToReview.map((r) => <AlertRow key={r.id} href={`/app/finance/refunds/${r.id}`} primary={r.refundNumber} secondary={`${r.client.firstName} ${r.client.lastName}`} trailing={r.status.replaceAll("_"," ")} />)}</AlertCard>
       <AlertCard title="Overdue refund installments" count={data.alerts.counts.overdueInstallments} icon={AlertTriangle} href="/app/finance/refunds">{data.alerts.overdueInstallments.map(({refund,installment}) => <AlertRow key={installment.id} href={`/app/finance/refunds/${refund.id}`} primary={`${refund.refundNumber} · #${installment.number}`} secondary={`Due ${formatDate(installment.dueDate)}`} trailing={formatMoney(Number(installment.amount),refund.currency)} />)}</AlertCard>
       <AlertCard title="Online payment exceptions" count={data.alerts.counts.onlineAttention} icon={WalletCards} href="/app/finance/online-payments">{data.alerts.onlineAttention.map((s) => <AlertRow key={s.id} href={`/app/finance/online-payments/${s.id}`} primary={s.provider.replaceAll("_"," ")} secondary={s.clientName} trailing={s.status} />)}</AlertCard>
