@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user || user.role === "CLIENT") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let body: { name?: string; sizeBytes?: number; mimeType?: string; category?: string; folderId?: string | null; clientId?: string | null; caseId?: string | null; paymentId?: string | null; refundId?: string | null };
+  let body: { name?: string; sizeBytes?: number; mimeType?: string; category?: string; folderId?: string | null; clientId?: string | null; caseId?: string | null; paymentId?: string | null; refundId?: string | null; refundInstallmentId?: string | null };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
 
   const name = String(body.name || "").trim().slice(0, 200);
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
   const caseId = body.caseId ? String(body.caseId) : null;
   const paymentId = body.paymentId ? String(body.paymentId) : null;
   const refundId = body.refundId ? String(body.refundId) : null;
+  const refundInstallmentId = body.refundInstallmentId ? String(body.refundInstallmentId) : null;
   const canUpload = refundId ? (can(user, "REFUND_CREATE") || can(user, "REFUND_APPROVE")) : paymentId ? (can(user, "PAYMENT_CREATE") || can(user, "PAYMENT_APPROVE")) : can(user, "FILE_UPLOAD");
   if (!canUpload) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -59,12 +60,13 @@ export async function POST(req: NextRequest) {
   if (sizeBytes > MAX_DIRECT_UPLOAD_BYTES) return NextResponse.json({ error: "File exceeds the 2 GB direct-upload limit" }, { status: 413 });
   if (!allowedMime(mimeType)) return NextResponse.json({ error: `File type not allowed (${mimeType})` }, { status: 415 });
 
-  const [folder, client, caseRow, payment, refund, quota] = await Promise.all([
+  const [folder, client, caseRow, payment, refund, installment, quota] = await Promise.all([
     folderId ? prisma.folder.findFirst({ where: { id: folderId, isVault: false }, select: { id: true } }) : Promise.resolve(null),
     clientId ? prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }) : Promise.resolve(null),
     caseId ? prisma.case.findUnique({ where: { id: caseId }, select: { id: true } }) : Promise.resolve(null),
     paymentId ? prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true, clientId: true, caseId: true } }) : Promise.resolve(null),
     refundId ? prisma.refund.findUnique({ where: { id: refundId }, select: { id: true, clientId: true, caseId: true } }) : Promise.resolve(null),
+    refundInstallmentId ? prisma.refundInstallment.findUnique({ where: { id: refundInstallmentId }, select: { id: true, refundId: true } }) : Promise.resolve(null),
     assertDriveQuotaForUpload(sizeBytes),
   ]);
   if (folderId && !folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
@@ -72,6 +74,8 @@ export async function POST(req: NextRequest) {
   if (caseId && !caseRow) return NextResponse.json({ error: "Linked case not found" }, { status: 404 });
   if (paymentId && !payment) return NextResponse.json({ error: "Linked payment not found" }, { status: 404 });
   if (refundId && !refund) return NextResponse.json({ error: "Linked refund not found" }, { status: 404 });
+  if (refundInstallmentId && !installment) return NextResponse.json({ error: "Linked refund installment not found" }, { status: 404 });
+  if (installment && (!refundId || installment.refundId !== refundId)) return NextResponse.json({ error: "Installment belongs to a different refund" }, { status: 400 });
   if (payment && clientId && payment.clientId !== clientId) return NextResponse.json({ error: "Payment belongs to a different client" }, { status: 400 });
   if (refund && clientId && refund.clientId !== clientId) return NextResponse.json({ error: "Refund belongs to a different client" }, { status: 400 });
   if (!quota.allowed) return NextResponse.json({ error: "Drive quota exceeded" }, { status: 413 });
@@ -100,6 +104,6 @@ export async function POST(req: NextRequest) {
   }
 
   const forcedCategory = refundId ? "REFUND" : paymentId ? "PAYMENT_PROOF" : category;
-  await prisma.appSetting.create({ data: { key: pendingKey, value: JSON.stringify({ userId: user.id, key, name, sizeBytes, mimeType, category: forcedCategory, folderId, clientId: effectiveClientId, caseId: effectiveCaseId, paymentId, refundId, mode, createdAt: new Date().toISOString() }) } });
+  await prisma.appSetting.create({ data: { key: pendingKey, value: JSON.stringify({ userId: user.id, key, name, sizeBytes, mimeType, category: forcedCategory, folderId, clientId: effectiveClientId, caseId: effectiveCaseId, paymentId, refundId, refundInstallmentId, mode, createdAt: new Date().toISOString() }) } });
   return NextResponse.json({ uploadId, mode, uploadUrl, mimeType, maxBytes: MAX_DIRECT_UPLOAD_BYTES });
 }
