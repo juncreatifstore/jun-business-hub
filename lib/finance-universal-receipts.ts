@@ -50,16 +50,18 @@ export async function ensureUniversalFinancialReceipt(input: {
 }) {
   const id = receiptId(input.sourceType, input.sourceId);
   const existing = await prisma.appSetting.findUnique({ where: { key: key(id) }, select: { value: true } });
+  let previous: UniversalFinancialReceipt | null = null;
   if (existing) {
-    try { return JSON.parse(existing.value) as UniversalFinancialReceipt; } catch {}
+    try { previous = JSON.parse(existing.value) as UniversalFinancialReceipt; } catch {}
   }
-  const issuedAt = new Date();
+
+  const issuedAt = previous?.issuedAt ? new Date(previous.issuedAt) : new Date();
   const receipt: UniversalFinancialReceipt = {
     id,
-    receiptNumber: receiptNumber(input.sourceType, input.sourceId, issuedAt),
+    receiptNumber: previous?.receiptNumber || receiptNumber(input.sourceType, input.sourceId, issuedAt),
     sourceType: input.sourceType,
     sourceId: input.sourceId,
-    clientId: input.clientId ?? null,
+    clientId: input.clientId ?? previous?.clientId ?? null,
     amount: round(Number(input.amount)),
     currency: input.currency.toUpperCase(),
     direction: input.direction,
@@ -69,7 +71,7 @@ export async function ensureUniversalFinancialReceipt(input: {
     method: String(input.method || "").slice(0, 120),
     transactionReference: String(input.transactionReference || "").slice(0, 180),
     issuedAt: issuedAt.toISOString(),
-    issuedById: input.issuedById,
+    issuedById: previous?.issuedById || input.issuedById,
   };
   await prisma.appSetting.upsert({ where: { key: key(id) }, create: { key: key(id), value: JSON.stringify(receipt) }, update: { value: JSON.stringify(receipt) } });
   return receipt;
