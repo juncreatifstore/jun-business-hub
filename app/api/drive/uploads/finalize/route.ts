@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { audit, logActivity } from "@/lib/audit";
+import { saveRefundInstallmentMeta } from "@/lib/finance-refund-installments";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   const row = await prisma.appSetting.findUnique({ where: { key: pendingKey }, select: { value: true } });
   if (!row) return NextResponse.json({ error: "Upload session expired or already finalized" }, { status: 404 });
 
-  let meta: { userId: string; key: string; name: string; sizeBytes: number; mimeType: string; category: any; folderId: string | null; clientId: string | null; caseId: string | null; paymentId?: string | null; refundId?: string | null; mode: string };
+  let meta: { userId: string; key: string; name: string; sizeBytes: number; mimeType: string; category: any; folderId: string | null; clientId: string | null; caseId: string | null; paymentId?: string | null; refundId?: string | null; refundInstallmentId?: string | null; mode: string };
   try { meta = JSON.parse(row.value); } catch { return NextResponse.json({ error: "Invalid upload session" }, { status: 400 }); }
   if (meta.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const allowed = meta.refundId ? (can(user, "REFUND_CREATE") || can(user, "REFUND_APPROVE")) : meta.paymentId ? (can(user, "PAYMENT_CREATE") || can(user, "PAYMENT_APPROVE")) : can(user, "FILE_UPLOAD");
@@ -29,6 +30,10 @@ export async function POST(req: NextRequest) {
   if (meta.refundId) {
     const refund = await prisma.refund.findUnique({ where: { id: meta.refundId }, select: { id: true } });
     if (!refund) return NextResponse.json({ error: "Linked refund not found" }, { status: 404 });
+  }
+  if (meta.refundInstallmentId) {
+    const installment = await prisma.refundInstallment.findUnique({ where: { id: meta.refundInstallmentId }, select: { id: true, refundId: true } });
+    if (!installment || !meta.refundId || installment.refundId !== meta.refundId) return NextResponse.json({ error: "Linked installment not found" }, { status: 404 });
   }
 
   const record = await prisma.$transaction(async (tx) => {
@@ -49,10 +54,12 @@ export async function POST(req: NextRequest) {
     } });
   });
 
-  const action = meta.refundId ? "REFUND_PROOF_UPLOAD" : meta.paymentId ? "PAYMENT_PROOF_UPLOAD" : "FILE_UPLOAD";
-  const message = meta.refundId ? `Uploaded refund document ${record.name}` : meta.paymentId ? `Uploaded payment proof ${record.name}` : `Uploaded ${record.name}`;
-  await audit({ userId: user.id, action, resourceType: "File", resourceId: record.id, after: { name: record.name, sizeBytes: record.sizeBytes, category: record.category, folderId: record.folderId, paymentId: record.paymentId, refundId: record.refundId, directUpload: true, mode: meta.mode } });
+  if (meta.refundInstallmentId) await saveRefundInstallmentMeta(meta.refundInstallmentId, { proofFileId: record.id });
+
+  const action = meta.refundInstallmentId ? "REFUND_INSTALLMENT_PROOF_UPLOAD" : meta.refundId ? "REFUND_PROOF_UPLOAD" : meta.paymentId ? "PAYMENT_PROOF_UPLOAD" : "FILE_UPLOAD";
+  const message = meta.refundInstallmentId ? `Uploaded installment proof ${record.name}` : meta.refundId ? `Uploaded refund document ${record.name}` : meta.paymentId ? `Uploaded payment proof ${record.name}` : `Uploaded ${record.name}`;
+  await audit({ userId: user.id, action, resourceType: "File", resourceId: record.id, after: { name: record.name, sizeBytes: record.sizeBytes, category: record.category, folderId: record.folderId, paymentId: record.paymentId, refundId: record.refundId, refundInstallmentId: meta.refundInstallmentId || null, directUpload: true, mode: meta.mode } });
   await logActivity({ userId: user.id, type: "FILE_UPLOADED", message, clientId: meta.clientId ?? undefined, caseId: meta.caseId ?? undefined });
 
-  return NextResponse.json({ ok: true, fileId: record.id, name: record.name, folderId: record.folderId, paymentId: record.paymentId, refundId: record.refundId });
+  return NextResponse.json({ ok: true, fileId: record.id, name: record.name, folderId: record.folderId, paymentId: record.paymentId, refundId: record.refundId, refundInstallmentId: meta.refundInstallmentId || null });
 }
