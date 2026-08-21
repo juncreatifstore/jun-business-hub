@@ -21,12 +21,13 @@ export async function closeAccountingPeriodAction(formData:FormData){
   const confirmation=String(formData.get("confirmation")||"").trim().toUpperCase();
   const note=String(formData.get("note")||"").trim();
   if(confirmation!=="CLOSE") redirect(`/app/finance/accounting/close?error=${encodeURIComponent("Type CLOSE to confirm the accounting period lock.")}`);
+  let errorMessage="";
   try{
-    // Synchronize all currently eligible source events before locking the period.
     await syncAccountingLedger(user.id);
     const closed=await closeAccountingPeriod(period,user.id,note);
     await audit({userId:user.id,action:"ACCOUNTING_PERIOD_CLOSE",resourceType:"AccountingPeriod",resourceId:period,after:closed});
     revalidatePath("/app/finance/accounting");revalidatePath("/app/finance/accounting/close");revalidatePath("/app/finance/accounting/statements");
-    redirect(`/app/finance/accounting/close?success=${encodeURIComponent(`Period ${period} closed.`)}`);
-  }catch(error){redirect(`/app/finance/accounting/close?error=${encodeURIComponent(error instanceof Error?error.message:"Unable to close period")}`);}
+  }catch(error){errorMessage=error instanceof Error?error.message:"Unable to close period";}
+  if(errorMessage) redirect(`/app/finance/accounting/close?error=${encodeURIComponent(errorMessage)}`);
+  redirect(`/app/finance/accounting/close?success=${encodeURIComponent(`Period ${period} closed.`)}`);
 }
