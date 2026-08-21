@@ -2,13 +2,13 @@ import "server-only";
 import { createHash, randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getPaymentCoreMetaMap } from "@/lib/finance-payment-core";
-import { listFinanceExpenses } from "@/lib/finance-expenses";
+import { listFinanceExpenses, expenseEffectiveStatus } from "@/lib/finance-expenses";
 
 const ENTRY_PREFIX = "finance.accounting.entry.";
 const CLOSE_PREFIX = "finance.accounting.close.";
 
 export type AccountType = "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE" | "CONTRA_REVENUE";
-export type LedgerSource = "PAYMENT" | "PAYMENT_FEE" | "REFUND" | "EXPENSE" | "ADJUSTMENT";
+export type LedgerSource = "PAYMENT" | "REFUND" | "EXPENSE" | "EXPENSE_PAYMENT" | "ADJUSTMENT";
 export type LedgerLine = { accountCode:string; accountName:string; debit:number; credit:number };
 export type JournalEntry = {
   id:string; entryNumber:string; date:string; currency:string; description:string;
@@ -84,7 +84,14 @@ export async function syncAccountingLedger(createdById:string|null=null){
     await post({date,currency:p.currency,description:`Payment ${p.reference}`,sourceType:"PAYMENT",sourceId:p.id,sourceHref:`/app/finance/payments/${p.id}`,createdById,lines:[line("1000",cash,0),...(fee>0?[line("5250",fee,0)]:[]),line("4000",0,amount)]});
   }
   for(const r of refunds) for(const i of r.installments){const amount=Number(i.amount),date=(i.paidAt||i.dueDate).toISOString();await post({date,currency:r.currency,description:`Refund ${r.refundNumber} installment #${i.number}`,sourceType:"REFUND",sourceId:i.id,sourceHref:`/app/finance/refunds/${r.id}`,createdById,lines:[line("4090",amount,0),line("1000",0,amount)]});}
-  for(const e of expenses) for(const p of e.payments){const code=EXPENSE_ACCOUNT[e.category]||"5290";await post({date:p.paidAt,currency:e.currency,description:`Expense ${e.expenseNumber} · ${e.vendorName}`,sourceType:"EXPENSE",sourceId:p.id,sourceHref:`/app/finance/expenses/${e.id}`,createdById,lines:[line(code,p.amount,0),line("1000",0,p.amount)]});}
+  for(const e of expenses){
+    const status=expenseEffectiveStatus(e);
+    if(["APPROVED","PARTIALLY_PAID","PAID"].includes(status)){
+      const code=EXPENSE_ACCOUNT[e.category]||"5290";
+      await post({date:e.createdAt,currency:e.currency,description:`Vendor bill ${e.expenseNumber} · ${e.vendorName}`,sourceType:"EXPENSE",sourceId:e.id,sourceHref:`/app/finance/expenses/${e.id}`,createdById,lines:[line(code,e.amount,0),line("2000",0,e.amount)]});
+    }
+    for(const p of e.payments) await post({date:p.paidAt,currency:e.currency,description:`Vendor payment ${e.expenseNumber} · ${e.vendorName}`,sourceType:"EXPENSE_PAYMENT",sourceId:p.id,sourceHref:`/app/finance/expenses/${e.id}`,createdById,lines:[line("2000",p.amount,0),line("1000",0,p.amount)]});
+  }
   return {created,skipped,closed};
 }
 
@@ -102,4 +109,19 @@ export async function getAccountingStatements(from:Date,to:Date){
   const trial=new Map<string,Record<string,{debit:number;credit:number;balance:number;name:string}>>();
   for(const e of entries){const cur=trial.get(e.currency)||{};for(const l of e.lines){const r=cur[l.accountCode]||{debit:0,credit:0,balance:0,name:l.accountName};r.debit=round(r.debit+l.debit);r.credit=round(r.credit+l.credit);r.balance=round(r.debit-r.credit);cur[l.accountCode]=r;}trial.set(e.currency,cur);}
   return {entries,profitLoss:[...byCurrency.entries()].map(([currency,v])=>({currency,...v})),trialBalance:[...trial.entries()].map(([currency,accounts])=>({currency,accounts:Object.entries(accounts).map(([code,v])=>({code,...v})).sort((a,b)=>a.code.localeCompare(b.code))}))};
+}
+
+export async function getBalanceSheet(asOf:Date){
+  const entries=(await listJournalEntries(5000)).filter(e=>new Date(e.date)<=asOf);
+  const byCurrency=new Map<string,Record<string,number>>();
+  for(const e of entries){const cur=byCurrency.get(e.currency)||{};for(const l of e.lines)cur[l.accountCode]=round((cur[l.accountCode]||0)+l.debit-l.credit);byCurrency.set(e.currency,cur);}
+  return [...byCurrency.entries()].map(([currency,balances])=>{
+    const cash=round(balances["1000"]||0);
+    const accountsPayable=round(-(balances["2000"]||0));
+    const revenue=round(-(balances["4000"]||0));
+    const refunds=round(balances["4090"]||0);
+    const expenses=round(Object.entries(balances).filter(([code])=>code.startsWith("5")).reduce((s,[,v])=>s+v,0));
+    const retainedEarnings=round(revenue-refunds-expenses);
+    return {currency,cash,accountsPayable,retainedEarnings,totalAssets:cash,totalLiabilitiesAndEquity:round(accountsPayable+retainedEarnings)};
+  }).sort((a,b)=>a.currency.localeCompare(b.currency));
 }
