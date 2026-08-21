@@ -7,7 +7,7 @@ import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/sequence";
-import { createProviderCheckout } from "@/lib/finance-online-providers";
+import { cancelProviderCheckout, createProviderCheckout } from "@/lib/finance-online-providers";
 import { getOnlinePaymentSession, makeOnlinePublicToken, markOnlineSessionStatus, saveOnlinePaymentSession, type OnlinePaymentProvider, type OnlinePaymentSession } from "@/lib/finance-online-payments";
 
 function listDest(message: string, error = false) {
@@ -51,7 +51,7 @@ export async function createOnlinePaymentRequest(formData: FormData) {
 
   let checkout: Awaited<ReturnType<typeof createProviderCheckout>>;
   try {
-    checkout = await createProviderCheckout({ provider, sessionId: id, paymentId: payment.id, publicToken, amount, currency, description, clientName: session.clientName, clientEmail: client.email });
+    checkout = await createProviderCheckout({ provider, sessionId: id, paymentId: payment.id, publicToken, amount, currency, description, clientName: session.clientName, clientEmail: client.email, expiresAt: session.expiresAt });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Provider checkout creation failed";
     await saveOnlinePaymentSession({ ...session, status: "FAILED", lastError: message.slice(0, 500), updatedAt: new Date().toISOString() });
@@ -72,6 +72,7 @@ export async function cancelOnlinePaymentSession(id: string) {
   const user = await assertPermission("PAYMENT_APPROVE");
   const session = await getOnlinePaymentSession(id);
   if (!session || session.status === "PAID") return;
+  await cancelProviderCheckout(session.provider, session.providerSessionId);
   await markOnlineSessionStatus(id, "CANCELLED");
   await prisma.payment.updateMany({ where: { id: session.paymentId, status: "PENDING" }, data: { status: "REJECTED" } });
   await audit({ userId: user.id, action: "ONLINE_PAYMENT_CANCEL", resourceType: "Payment", resourceId: session.paymentId, before: { status: session.status }, after: { status: "CANCELLED", sessionId: id } });
