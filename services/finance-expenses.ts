@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
+import { ensureUniversalFinancialReceipt } from "@/lib/finance-universal-receipts";
 import { EXPENSE_CATEGORIES, canExpenseTransition, expensePaidTotal, expenseRemaining, getFinanceExpense, makeExpenseNumber, saveFinanceExpense, type ExpenseCategory, type ExpenseStatus, type FinanceExpense } from "@/lib/finance-expenses";
 
 function money(v:FormDataEntryValue|null){ const n=Number(v); return Number.isFinite(n)?Math.round(n*100)/100:NaN; }
@@ -38,5 +39,7 @@ export async function recordExpensePayment(id:string,formData:FormData){
   if(!Number.isFinite(amount)||amount<=0||amount>remaining) throw new Error("Payment amount exceeds remaining balance"); if(!method||!transactionRef) throw new Error("Method and transaction reference are required");
   if(proofFileId){ const f=await prisma.file.findUnique({where:{id:proofFileId},select:{id:true}}); if(!f) throw new Error("Proof file not found"); }
   const payment={id:randomUUID(),amount,paidAt:new Date().toISOString(),method,transactionRef,proofFileId,note:text(formData.get("note"),2000),recordedById:user.id}; const payments=[...e.payments,payment]; const total=Math.round(payments.reduce((s,p)=>s+p.amount,0)*100)/100; const status:ExpenseStatus=total>=e.amount?"PAID":"PARTIALLY_PAID";
-  const next:FinanceExpense={...e,payments,status,updatedAt:new Date().toISOString()}; await saveFinanceExpense(next); await audit({userId:user.id,action:"EXPENSE_PAYMENT_RECORDED",resourceType:"Expense",resourceId:id,after:{paymentId:payment.id,amount,currency:e.currency,method,transactionRef,status}}); await logActivity({userId:user.id,type:"FINANCE_EXPENSE_PAID",message:`Recorded ${e.currency} ${amount.toFixed(2)} on ${e.expenseNumber}`}); revalidatePath(`/app/finance/expenses/${id}`); revalidatePath("/app/finance/expenses"); revalidatePath("/app/finance");
+  const next:FinanceExpense={...e,payments,status,updatedAt:new Date().toISOString()}; await saveFinanceExpense(next);
+  await ensureUniversalFinancialReceipt({sourceType:"EXPENSE",sourceId:payment.id,clientId:e.clientId,amount,currency:e.currency,direction:"DEBIT",title:"Expense payment receipt",description:`${e.expenseNumber} · ${e.vendorName} · ${e.description}`,status:"PAID",method,transactionReference:transactionRef,issuedById:user.id});
+  await audit({userId:user.id,action:"EXPENSE_PAYMENT_RECORDED",resourceType:"Expense",resourceId:id,after:{paymentId:payment.id,amount,currency:e.currency,method,transactionRef,status}}); await logActivity({userId:user.id,type:"FINANCE_EXPENSE_PAID",message:`Recorded ${e.currency} ${amount.toFixed(2)} on ${e.expenseNumber}`}); revalidatePath(`/app/finance/expenses/${id}`); revalidatePath("/app/finance/expenses"); revalidatePath("/app/finance");
 }
