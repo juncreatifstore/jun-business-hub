@@ -3,12 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 import fs from "fs/promises";
 import path from "path";
-
-// Storage abstraction: SUPABASE in production, LOCAL for development.
-// Files are private by default. Access always goes through short-lived signed URLs
-// (Supabase) or an authenticated download route (local). Never build permanent public URLs.
-// The interface is intentionally provider-agnostic so Google Workspace / other adapters
-// can be introduced without changing feature code.
+import { downloadWorkspaceFile, removeWorkspaceFile, uploadWorkspaceFile } from "@/lib/google-workspace-drive";
 
 export interface StorageDriver {
   upload(key: string, data: Buffer, contentType: string): Promise<void>;
@@ -45,6 +40,21 @@ class SupabaseStorage implements StorageDriver {
   }
 }
 
+class GoogleWorkspaceStorage implements StorageDriver {
+  async upload(key: string, data: Buffer, contentType: string) {
+    await uploadWorkspaceFile(key, data, contentType);
+  }
+  async getSignedUrl(): Promise<string> {
+    throw new Error("Google Workspace storage is private and served through JUN authenticated/public policy routes");
+  }
+  async download(key: string) {
+    return downloadWorkspaceFile(key);
+  }
+  async remove(key: string) {
+    await removeWorkspaceFile(key);
+  }
+}
+
 class LocalStorage implements StorageDriver {
   private dir = path.join(process.cwd(), "storage-dev");
   private p(key: string) {
@@ -70,19 +80,25 @@ class LocalStorage implements StorageDriver {
 export function storage(): StorageDriver {
   const configured = (process.env.STORAGE_DRIVER ?? "").toUpperCase();
   if (process.env.NODE_ENV === "production") {
+    if (configured === "GOOGLE_WORKSPACE") return new GoogleWorkspaceStorage();
     if (configured && configured !== "SUPABASE") throw new Error(`Unsupported production STORAGE_DRIVER: ${configured}`);
     return new SupabaseStorage();
   }
+  if (configured === "GOOGLE_WORKSPACE") return new GoogleWorkspaceStorage();
   return configured === "SUPABASE" ? new SupabaseStorage() : new LocalStorage();
 }
 
+function safeFileName(filename: string) {
+  const compact = filename.trim().replace(/\s+/g, " ").replace(/[\\/:*?"<>|]/g, "_").slice(-140);
+  return compact || "file.bin";
+}
+
 export function makeStorageKey(scope: string, filename: string) {
-  const ext = filename.includes(".") ? filename.split(".").pop() : "bin";
-  return `${scope}/${new Date().getFullYear()}/${randomUUID()}.${ext}`;
+  return `${scope}/${new Date().getFullYear()}/${randomUUID()}-${safeFileName(filename)}`;
 }
 
 // Direct browser uploads stay deliberately small on the current server-action path.
-// Larger media should enter through Connected Cloud / the future direct-to-storage uploader.
+// Larger media should enter through Connected Cloud / direct-to-storage sync.
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 export const ALLOWED_MIME = [
   "application/pdf",
