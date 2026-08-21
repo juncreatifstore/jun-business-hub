@@ -1,0 +1,46 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { requirePermission } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getClientFinancialAccount, type ClientStatementLanguage } from "@/lib/client-financial-account";
+import { Button } from "@/components/ui/button";
+import { formatMoney } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+const copy = {
+  FR: { title: "Relevé de compte client", account: "Compte", generated: "Généré le", summary: "Résumé du compte", available: "Solde disponible", funds: "Fonds confirmés", commissions: "Commissions reçues", refunds: "Refunds / retraits engagés", paidOut: "Refunds réellement versés", history: "Historique des mouvements", date: "Date", ref: "Référence", description: "Description", status: "Statut", debit: "Débit", credit: "Crédit", balance: "Solde", payment: "Paiement / fonds reçus", refund: "Refund / retrait", commission: "Commission partenaire", note: "Ce relevé reflète les mouvements enregistrés dans JUN Business Hub. Les refunds actifs réduisent le solde disponible même lorsqu'ils ne sont pas liés à un paiement spécifique." },
+  EN: { title: "Client account statement", account: "Account", generated: "Generated", summary: "Account summary", available: "Available balance", funds: "Confirmed funds", commissions: "Commissions received", refunds: "Committed refunds / withdrawals", paidOut: "Refunds actually paid", history: "Transaction history", date: "Date", ref: "Reference", description: "Description", status: "Status", debit: "Debit", credit: "Credit", balance: "Balance", payment: "Payment / funds received", refund: "Refund / withdrawal", commission: "Partner commission", note: "This statement reflects movements recorded in JUN Business Hub. Active refunds reduce available balance even when they are not linked to a specific payment." },
+  ES: { title: "Estado de cuenta del cliente", account: "Cuenta", generated: "Generado", summary: "Resumen de cuenta", available: "Saldo disponible", funds: "Fondos confirmados", commissions: "Comisiones recibidas", refunds: "Reembolsos / retiros comprometidos", paidOut: "Reembolsos efectivamente pagados", history: "Historial de movimientos", date: "Fecha", ref: "Referencia", description: "Descripción", status: "Estado", debit: "Débito", credit: "Crédito", balance: "Saldo", payment: "Pago / fondos recibidos", refund: "Reembolso / retiro", commission: "Comisión de socio", note: "Este estado refleja los movimientos registrados en JUN Business Hub. Los reembolsos activos reducen el saldo disponible aunque no estén vinculados a un pago específico." },
+  HT: { title: "Relve kont kliyan", account: "Kont", generated: "Dat dokiman an", summary: "Rezime kont lan", available: "Balans disponib", funds: "Lajan konfime", commissions: "Komisyon resevwa", refunds: "Ranbousman / retrè angaje", paidOut: "Ranbousman ki deja peye", history: "Istwa mouvman yo", date: "Dat", ref: "Referans", description: "Deskripsyon", status: "Estati", debit: "Sòti", credit: "Antre", balance: "Balans", payment: "Peman / lajan resevwa", refund: "Ranbousman / retrè", commission: "Komisyon patnè", note: "Relve sa a montre mouvman ki anrejistre nan JUN Business Hub. Tout refund ki aktif retire sou balans disponib la menm si yo pa mare ak yon peman espesifik." },
+} satisfies Record<ClientStatementLanguage, Record<string, string>>;
+
+function localDate(date: Date, lang: ClientStatementLanguage) {
+  const locale = lang === "FR" ? "fr-FR" : lang === "ES" ? "es-MX" : lang === "HT" ? "fr-HT" : "en-US";
+  return new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+export default async function ClientStatementPage({ params, searchParams }: { params: { id: string }; searchParams: { lang?: string } }) {
+  await requirePermission("CLIENT_READ");
+  const [client, account] = await Promise.all([
+    prisma.client.findUnique({ where: { id: params.id }, select: { id: true, internalId: true, firstName: true, lastName: true, email: true, phone: true, address: true, country: true } }),
+    getClientFinancialAccount(params.id),
+  ]);
+  if (!client) notFound();
+  const override = String(searchParams.lang || "").toUpperCase();
+  const language: ClientStatementLanguage = ["FR", "EN", "ES", "HT"].includes(override) ? override as ClientStatementLanguage : account.profile.preferredLanguage;
+  const t = copy[language];
+
+  return <div className="mx-auto max-w-6xl bg-white p-6 print:max-w-none print:p-0">
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden"><Link href={`/app/clients/${client.id}/account`}><Button variant="outline">← Back / Retour</Button></Link><div className="flex gap-2">{(["FR","EN","ES","HT"] as ClientStatementLanguage[]).map((l) => <Link key={l} href={`/app/clients/${client.id}/statement?lang=${l}`} className={`rounded-lg border px-3 py-2 text-xs ${language===l?"border-electric text-electric":"border-line"}`}>{l}</Link>)}<Button variant="primary" onClick={undefined as never}>Print / PDF</Button></div></div>
+
+    <header className="border-b-2 border-ink pb-5"><div className="flex items-start justify-between gap-6"><div><div className="text-xs font-semibold uppercase tracking-[.25em]">JUN CREATIF AND TRAVEL LLC</div><h1 className="mt-2 text-3xl font-semibold">{t.title}</h1><div className="mt-2 text-sm text-muted2">{t.account}: {client.internalId}</div></div><div className="text-right text-sm"><div className="font-semibold">{client.firstName} {client.lastName}</div><div className="text-muted2">{client.email || ""}</div><div className="text-muted2">{client.phone || ""}</div><div className="max-w-xs text-muted2">{[client.address, client.country].filter(Boolean).join(", ")}</div></div></div><div className="mt-4 text-xs text-muted2">{t.generated}: {localDate(new Date(), language)}</div></header>
+
+    <section className="mt-6"><h2 className="mb-3 text-lg font-semibold">{t.summary}</h2><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{account.balances.map((b) => <div key={b.currency} className="rounded-xl border border-line p-4"><div className="text-xs font-semibold uppercase tracking-wide text-muted2">{b.currency}</div><div className="mt-2 text-2xl font-semibold">{formatMoney(b.available,b.currency)}</div><div className="text-xs text-muted2">{t.available}</div><dl className="mt-3 space-y-1 text-xs"><div className="flex justify-between"><dt>{t.funds}</dt><dd>{formatMoney(b.confirmedFunds,b.currency)}</dd></div><div className="flex justify-between"><dt>{t.commissions}</dt><dd>+{formatMoney(b.commissions,b.currency)}</dd></div><div className="flex justify-between"><dt>{t.refunds}</dt><dd>-{formatMoney(b.activeRefunds,b.currency)}</dd></div><div className="flex justify-between"><dt>{t.paidOut}</dt><dd>{formatMoney(b.refundsPaid,b.currency)}</dd></div></dl></div>)}</div></section>
+
+    <section className="mt-7"><h2 className="mb-3 text-lg font-semibold">{t.history}</h2><div className="overflow-x-auto rounded-xl border border-line"><table className="w-full text-sm"><thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted2"><tr><th className="p-3">{t.date}</th><th className="p-3">{t.ref}</th><th className="p-3">{t.description}</th><th className="p-3">{t.status}</th><th className="p-3 text-right">{t.debit}</th><th className="p-3 text-right">{t.credit}</th><th className="p-3 text-right">{t.balance}</th></tr></thead><tbody>{account.entries.length ? account.entries.map((e) => <tr key={e.id} className="border-t border-line"><td className="whitespace-nowrap p-3">{localDate(e.date,language)}</td><td className="p-3 font-mono text-xs">{e.reference}</td><td className="p-3"><div className="font-medium">{e.type==="PAYMENT"?t.payment:e.type==="REFUND"?t.refund:t.commission}</div><div className="max-w-md text-xs text-muted2">{e.description}</div></td><td className="p-3 text-xs">{e.status.replaceAll("_"," ")}</td><td className="p-3 text-right">{e.debit?formatMoney(e.debit,e.currency):"—"}</td><td className="p-3 text-right">{e.credit?formatMoney(e.credit,e.currency):"—"}</td><td className="p-3 text-right font-semibold">{formatMoney(e.runningBalance,e.currency)}</td></tr>) : <tr><td colSpan={7} className="p-6 text-center text-muted2">—</td></tr>}</tbody></table></div></section>
+
+    <footer className="mt-6 border-t border-line pt-4 text-xs text-muted2"><p>{t.note}</p><p className="mt-2">JUN CREATIF AND TRAVEL LLC · {client.internalId}</p></footer>
+    <script dangerouslySetInnerHTML={{__html:`document.querySelectorAll('button').forEach(function(b){if(b.textContent&&b.textContent.indexOf('Print / PDF')>=0)b.onclick=function(){window.print()}})`}} />
+  </div>;
+}
