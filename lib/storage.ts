@@ -4,11 +4,13 @@ import { randomUUID } from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { downloadWorkspaceFile, removeWorkspaceFile, uploadWorkspaceFile } from "@/lib/google-workspace-drive";
+import { downloadWorkspaceRange } from "@/lib/google-workspace-range";
 
 export interface StorageDriver {
   upload(key: string, data: Buffer, contentType: string): Promise<void>;
   getSignedUrl(key: string, expiresInSeconds?: number): Promise<string>;
   download(key: string): Promise<Buffer>;
+  downloadRange?(key: string, start: number, end: number): Promise<Buffer>;
   remove(key: string): Promise<void>;
 }
 
@@ -50,6 +52,9 @@ class GoogleWorkspaceStorage implements StorageDriver {
   async download(key: string) {
     return downloadWorkspaceFile(key);
   }
+  async downloadRange(key: string, start: number, end: number) {
+    return downloadWorkspaceRange(key, start, end);
+  }
   async remove(key: string) {
     await removeWorkspaceFile(key);
   }
@@ -71,6 +76,18 @@ class LocalStorage implements StorageDriver {
   }
   async download(key: string) {
     return fs.readFile(this.p(key));
+  }
+  async downloadRange(key: string, start: number, end: number) {
+    const fp = this.p(key);
+    const handle = await fs.open(fp, "r");
+    try {
+      const length = Math.max(0, end - start + 1);
+      const buf = Buffer.alloc(length);
+      const { bytesRead } = await handle.read(buf, 0, length, start);
+      return bytesRead === length ? buf : buf.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
   }
   async remove(key: string) {
     await fs.rm(this.p(key), { force: true });
