@@ -13,15 +13,19 @@ export type ManualTransferReceiver = {
   label: string;
   rail: ManualTransferRail;
   enabled: boolean;
-  legalName: string;
   receiverType: "BUSINESS" | "INDIVIDUAL_BUSINESS_REPRESENTATIVE";
+  firstName: string;
+  lastName: string;
+  legalName: string;
+  phone: string;
+  email: string;
   country: string;
   city: string;
   address: string;
-  phone: string;
-  email: string;
   bankName: string;
+  bankCountry: string;
   bankAddress: string;
+  accountHolderName: string;
   accountNumber: string;
   iban: string;
   swiftBic: string;
@@ -64,14 +68,41 @@ export type ManualTransferOrder = {
 
 function parseReceiver(value: string): ManualTransferReceiver | null {
   try {
-    const r = JSON.parse(value) as ManualTransferReceiver;
-    if (!r?.id || !r.label || !r.rail || !r.legalName) return null;
+    const raw = JSON.parse(value) as Partial<ManualTransferReceiver> & { id?: string; label?: string; rail?: ManualTransferRail; legalName?: string };
+    if (!raw?.id || !raw.label || !raw.rail || !raw.legalName) return null;
+    const firstName = String(raw.firstName || "").trim();
+    const lastName = String(raw.lastName || "").trim();
+    const legalName = String(raw.legalName || [firstName, lastName].filter(Boolean).join(" ")).trim();
     return {
-      ...r,
-      enabled: r.enabled !== false,
-      currency: String(r.currency || "USD").toUpperCase(),
-      feePercent: Math.max(0, Number(r.feePercent || 0)),
-      feeFixed: Math.max(0, Number(r.feeFixed || 0)),
+      id: raw.id,
+      label: String(raw.label),
+      rail: raw.rail,
+      enabled: raw.enabled !== false,
+      receiverType: raw.receiverType === "INDIVIDUAL_BUSINESS_REPRESENTATIVE" ? "INDIVIDUAL_BUSINESS_REPRESENTATIVE" : "BUSINESS",
+      firstName,
+      lastName,
+      legalName,
+      phone: String(raw.phone || ""),
+      email: String(raw.email || ""),
+      country: String(raw.country || ""),
+      city: String(raw.city || ""),
+      address: String(raw.address || ""),
+      bankName: String(raw.bankName || ""),
+      bankCountry: String(raw.bankCountry || ""),
+      bankAddress: String(raw.bankAddress || ""),
+      accountHolderName: String(raw.accountHolderName || legalName),
+      accountNumber: String(raw.accountNumber || ""),
+      iban: String(raw.iban || ""),
+      swiftBic: String(raw.swiftBic || ""),
+      routingNumber: String(raw.routingNumber || ""),
+      clabe: String(raw.clabe || ""),
+      branchCode: String(raw.branchCode || ""),
+      currency: String(raw.currency || "USD").toUpperCase(),
+      feePercent: Math.max(0, Number(raw.feePercent || 0)),
+      feeFixed: Math.max(0, Number(raw.feeFixed || 0)),
+      complianceNote: String(raw.complianceNote || ""),
+      createdAt: String(raw.createdAt || new Date().toISOString()),
+      updatedAt: String(raw.updatedAt || raw.createdAt || new Date().toISOString()),
     };
   } catch { return null; }
 }
@@ -112,19 +143,21 @@ export function calculateManualTransfer(sendAmount: number, feePercent: number, 
 }
 
 export function receiverPaymentDetails(r: ManualTransferReceiver) {
-  if (r.rail === "WESTERN_UNION") {
-    return [
-      `Receiver legal name: ${r.legalName}`,
-      r.address ? `Address: ${r.address}` : "",
-      r.city || r.country ? `Location: ${[r.city, r.country].filter(Boolean).join(", ")}` : "",
-      r.phone ? `Phone: ${r.phone}` : "",
-      r.email ? `Email: ${r.email}` : "",
-    ].filter(Boolean).join("\n");
-  }
-  return [
-    `Beneficiary: ${r.legalName}`,
+  const receiverName = [r.firstName, r.lastName].filter(Boolean).join(" ") || r.legalName;
+  const receiverBlock = [
+    `Receiver name: ${receiverName}`,
+    r.legalName && r.legalName !== receiverName ? `Legal/business name: ${r.legalName}` : "",
+    r.phone ? `Phone: ${r.phone}` : "",
+    r.email ? `Email: ${r.email}` : "",
+    r.address ? `Address: ${r.address}` : "",
+    r.city || r.country ? `Location: ${[r.city, r.country].filter(Boolean).join(", ")}` : "",
+  ].filter(Boolean).join("\n");
+  if (r.rail === "WESTERN_UNION") return receiverBlock;
+  const bankBlock = [
     r.bankName ? `Bank: ${r.bankName}` : "",
+    r.bankCountry ? `Bank country: ${r.bankCountry}` : "",
     r.bankAddress ? `Bank address: ${r.bankAddress}` : "",
+    r.accountHolderName ? `Account holder: ${r.accountHolderName}` : "",
     r.accountNumber ? `Account number: ${r.accountNumber}` : "",
     r.iban ? `IBAN: ${r.iban}` : "",
     r.swiftBic ? `SWIFT/BIC: ${r.swiftBic}` : "",
@@ -132,4 +165,5 @@ export function receiverPaymentDetails(r: ManualTransferReceiver) {
     r.clabe ? `CLABE: ${r.clabe}` : "",
     r.branchCode ? `Branch code: ${r.branchCode}` : "",
   ].filter(Boolean).join("\n");
+  return `${receiverBlock}\n\nBANK INFORMATION\n${bankBlock}`;
 }
