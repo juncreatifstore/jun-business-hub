@@ -19,10 +19,45 @@ async function ensureCompletedTransferPayment(orderId: string, userId: string) {
   const order = await getManualTransferOrder(orderId);
   if (!order || order.status !== "COMPLETED" || !order.clientId) return null;
 
+  // A manual transfer payment represents what JUN actually received after
+  // provider/transfer fees and FX, not the gross amount paid by the sender.
+  const receivedAmount = Number(order.receiveAmount);
+  const receivedCurrency = order.receiveCurrency;
+  const provider = order.receiverSnapshot.rail === "WESTERN_UNION"
+    ? "Western Union"
+    : (order.receiverSnapshot.bankName || "Bank transfer");
+  const method = order.receiverSnapshot.rail === "BANK_TRANSFER" ? "BANK_TRANSFER" : "OTHER";
+  const notes = `Net client payment received for manual transfer order ${order.orderNumber}. Sender paid ${order.sendCurrency} ${order.sendAmount.toFixed(2)}; transfer fees ${order.sendCurrency} ${order.feeAmount.toFixed(2)}; net received ${receivedCurrency} ${receivedAmount.toFixed(2)}. ${order.purpose || "Commercial payment"}`;
+
   const linkedId = await getLinkedPaymentId(order.id);
   if (linkedId) {
     const existing = await prisma.payment.findUnique({ where: { id: linkedId } });
-    if (existing) return existing;
+    if (existing) {
+      const corrected = await prisma.payment.update({
+        where: { id: existing.id },
+        data: {
+          clientId: order.clientId,
+          caseId: order.caseId,
+          amount: receivedAmount,
+          currency: receivedCurrency,
+          method,
+          status: "CONFIRMED",
+          provider,
+          providerRef: order.orderNumber,
+          notes,
+          paidAt: existing.paidAt || new Date(),
+        },
+      });
+      await audit({
+        userId,
+        action: "MANUAL_TRANSFER_PAYMENT_RECONCILE",
+        resourceType: "Payment",
+        resourceId: corrected.id,
+        before: { amount: Number(existing.amount), currency: existing.currency, status: existing.status },
+        after: { amount: receivedAmount, currency: receivedCurrency, status: "CONFIRMED", orderNumber: order.orderNumber },
+      });
+      return corrected;
+    }
   }
 
   const reference = await nextNumber("PAY");
@@ -31,13 +66,13 @@ async function ensureCompletedTransferPayment(orderId: string, userId: string) {
       reference,
       clientId: order.clientId,
       caseId: order.caseId,
-      amount: order.sendAmount,
-      currency: order.sendCurrency,
-      method: order.receiverSnapshot.rail === "BANK_TRANSFER" ? "BANK_TRANSFER" : "OTHER",
+      amount: receivedAmount,
+      currency: receivedCurrency,
+      method,
       status: "CONFIRMED",
-      provider: order.receiverSnapshot.rail === "WESTERN_UNION" ? "Western Union" : (order.receiverSnapshot.bankName || "Bank transfer"),
+      provider,
       providerRef: order.orderNumber,
-      notes: `Client payment received for manual transfer order ${order.orderNumber}. ${order.purpose || "Commercial payment"}`,
+      notes,
       paidAt: new Date(),
       recordedById: userId,
     },
@@ -54,7 +89,17 @@ async function ensureCompletedTransferPayment(orderId: string, userId: string) {
     action: "MANUAL_TRANSFER_PAYMENT_RECORD",
     resourceType: "Payment",
     resourceId: payment.id,
-    after: { reference, orderId: order.id, orderNumber: order.orderNumber, amount: order.sendAmount, currency: order.sendCurrency, status: "CONFIRMED" },
+    after: {
+      reference,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      senderAmount: order.sendAmount,
+      senderCurrency: order.sendCurrency,
+      transferFee: order.feeAmount,
+      amountReceived: receivedAmount,
+      currencyReceived: receivedCurrency,
+      status: "CONFIRMED",
+    },
   });
   return payment;
 }
@@ -73,11 +118,11 @@ export async function setManualTransferOrderStatusWithReceipt(id: string, formDa
     sourceType: "MANUAL_TRANSFER",
     sourceId: order.id,
     clientId: order.clientId,
-    amount: order.sendAmount,
-    currency: order.sendCurrency,
+    amount: order.receiveAmount,
+    currency: order.receiveCurrency,
     direction: "CREDIT",
     title: "Client payment receipt",
-    description: `${order.orderNumber} · Payment received · ${order.purpose || "Commercial payment"} · Receiver: ${order.receiverSnapshot.legalName}`,
+    description: `${order.orderNumber} · Sender paid ${order.sendCurrency} ${order.sendAmount.toFixed(2)} · Transfer fee ${order.sendCurrency} ${order.feeAmount.toFixed(2)} · Net received ${order.receiveCurrency} ${order.receiveAmount.toFixed(2)} · ${order.purpose || "Commercial payment"} · Receiver: ${order.receiverSnapshot.legalName}`,
     status: "CONFIRMED",
     method: order.receiverSnapshot.rail,
     transactionReference: payment ? `${payment.reference} / ${order.orderNumber}` : order.orderNumber,
