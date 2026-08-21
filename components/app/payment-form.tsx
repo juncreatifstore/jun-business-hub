@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { createPayment } from "@/services/finance";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
@@ -9,15 +10,29 @@ function Submit() {
   return <Button variant="primary" disabled={pending}>{pending ? "Saving…" : "Record payment"}</Button>;
 }
 
+type PaymentAccountOption = {
+  id: string;
+  label: string;
+  method: string;
+  currency: string;
+  receiverName: string;
+  accountDescriptor: string;
+  feePercent: number;
+  feeFixed: number;
+};
+
 export function PaymentForm({
-  clients, cases, defaultClientId, defaultCaseId,
+  clients, cases, paymentAccounts, defaultClientId, defaultCaseId,
 }: {
   clients: { id: string; firstName: string; lastName: string; internalId: string }[];
   cases: { id: string; caseNumber: string; title: string }[];
+  paymentAccounts: PaymentAccountOption[];
   defaultClientId?: string;
   defaultCaseId?: string;
 }) {
   const [state, action] = useFormState(createPayment, {});
+  const [accountId, setAccountId] = useState("");
+  const selectedAccount = paymentAccounts.find((a) => a.id === accountId) || null;
   const err = (k: string) => state.errors?.[k]?.[0];
   return (
     <form action={action} className="grid max-w-4xl gap-5 sm:grid-cols-2">
@@ -42,11 +57,19 @@ export function PaymentForm({
         <Input name="serviceLabel" placeholder="Example: Mexico visa, flight ticket, document service" maxLength={160} />
       </Field>
 
+      <div className="sm:col-span-2">
+        <Field label="Receiving account">
+          <Select name="accountId" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">Unassigned / manual account</option>
+            {paymentAccounts.map((a) => <option key={a.id} value={a.id}>{a.label} — {a.method.replaceAll("_", " ")} · {a.currency}</option>)}
+          </Select>
+        </Field>
+        {selectedAccount ? <div className="mt-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted2"><strong className="text-ink">{selectedAccount.receiverName || selectedAccount.label}</strong>{selectedAccount.accountDescriptor ? ` · ${selectedAccount.accountDescriptor}` : ""} · Fees {selectedAccount.feePercent.toFixed(2)}% + {selectedAccount.currency} {selectedAccount.feeFixed.toFixed(2)}</div> : paymentAccounts.length === 0 ? <p className="mt-1 text-xs text-amber-700">No active receiving account is configured yet. You can still record a manual payment.</p> : null}
+      </div>
+
       <Field label="Method">
-        <Select name="method" defaultValue="ZELLE">
-          {["ZELLE","STRIPE","PAYPAL","MERCADO_PAGO","BANK_TRANSFER","CASH","MONCASH","OTHER"].map((m) => (
-            <option key={m} value={m}>{m.replaceAll("_"," ")}</option>
-          ))}
+        <Select name="method" value={selectedAccount?.method || undefined} defaultValue={selectedAccount ? undefined : "ZELLE"} readOnly={Boolean(selectedAccount)}>
+          {["ZELLE","STRIPE","PAYPAL","MERCADO_PAGO","BANK_TRANSFER","CASH","MONCASH","OTHER"].map((m) => <option key={m} value={m}>{m.replaceAll("_"," ")}</option>)}
         </Select>
       </Field>
 
@@ -64,17 +87,14 @@ export function PaymentForm({
         {err("expectedAmount") && <p className="mt-1 text-xs text-red-600">{err("expectedAmount")}</p>}
       </div>
 
-      <Field label="Currency"><Input name="currency" defaultValue="USD" maxLength={3} required /></Field>
+      <Field label="Currency"><Input name="currency" value={selectedAccount?.currency || undefined} defaultValue={selectedAccount ? undefined : "USD"} readOnly={Boolean(selectedAccount)} maxLength={3} required /></Field>
       <Field label="Payment date"><Input name="paidAt" type="date" /></Field>
 
       <div className="sm:col-span-2 rounded-xl border border-line bg-surface p-4 text-xs text-muted2">
-        The payment is created as <strong className="text-ink">Pending</strong>. A user with finance approval permission must confirm it before the receipt is considered valid.
+        The payment is created as <strong className="text-ink">Pending</strong>. A finance approver must confirm it before the receipt is considered valid. Receiving-account fees are recorded for reporting but do not change the amount paid by the client.
       </div>
 
-      <div className="sm:col-span-2">
-        <Field label="Notes / explanation"><Textarea name="notes" rows={4} placeholder="Add any useful context about the payment." /></Field>
-      </div>
-
+      <div className="sm:col-span-2"><Field label="Notes / explanation"><Textarea name="notes" rows={4} placeholder="Add any useful context about the payment." /></Field></div>
       {state.message ? <p className="text-sm text-red-600 sm:col-span-2">{state.message}</p> : null}
       <div className="sm:col-span-2"><Submit /></div>
     </form>
