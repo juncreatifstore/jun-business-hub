@@ -5,262 +5,50 @@ import { getPaymentCoreMetaMap } from "@/lib/finance-payment-core";
 import { listOnlinePaymentSessions } from "@/lib/finance-online-payments";
 import { getFinancePaymentAccounts } from "@/lib/finance-payment-accounts";
 import { isInstallmentOverdue } from "@/lib/finance-refund-installments";
+import { listFinanceExpenses, expenseEffectiveStatus, expenseIsOverdue, expenseRemaining } from "@/lib/finance-expenses";
 
 export type FinanceRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type FinanceAnomaly = { id:string; level:FinanceRiskLevel; category:"DUPLICATE"|"RECONCILIATION"|"FEE"|"PROOF"|"REFUND"|"PROVIDER"|"EXPENSE"; title:string; detail:string; href:string };
+export type FinanceForecastRow = { currency:string; trailing90DailyNet:number; scheduledRefunds30d:number; scheduledExpenses30d:number; projected30dNet:number; projected60dNet:number; projected90dNet:number };
+function round(value:number){return Math.round(value*100)/100}
+function key(parts:Array<string|number|null|undefined>){return parts.filter(v=>v!==null&&v!==undefined).join("|")}
 
-export type FinanceAnomaly = {
-  id: string;
-  level: FinanceRiskLevel;
-  category: "DUPLICATE" | "RECONCILIATION" | "FEE" | "PROOF" | "REFUND" | "PROVIDER";
-  title: string;
-  detail: string;
-  href: string;
-};
-
-export type FinanceForecastRow = {
-  currency: string;
-  trailing90DailyNet: number;
-  scheduledRefunds30d: number;
-  projected30dNet: number;
-  projected60dNet: number;
-  projected90dNet: number;
-};
-
-function round(value: number) { return Math.round(value * 100) / 100; }
-function key(parts: Array<string | number | null | undefined>) { return parts.filter((v) => v !== null && v !== undefined).join("|"); }
-
-export async function getFinanceEnterpriseIntelligence() {
-  const now = new Date();
-  const trailingStart = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-  const [payments, refunds, onlineSessions, accounts] = await Promise.all([
-    prisma.payment.findMany({
-      where: { createdAt: { gte: trailingStart } },
-      orderBy: { createdAt: "desc" },
-      take: 2500,
-      include: {
-        client: { select: { firstName: true, lastName: true } },
-        files: { where: { archivedAt: null, category: "PAYMENT_PROOF" }, select: { id: true } },
-      },
-    }),
-    prisma.refund.findMany({
-      where: { status: { notIn: ["REJECTED", "CANCELLED"] } },
-      orderBy: { createdAt: "desc" },
-      take: 1000,
-      include: { installments: { orderBy: { dueDate: "asc" } } },
-    }),
-    listOnlinePaymentSessions(1000),
-    getFinancePaymentAccounts(),
+export async function getFinanceEnterpriseIntelligence(){
+  const now=new Date(); const trailingStart=new Date(now.getTime()-90*24*60*60*1000); const in30=new Date(now.getTime()+30*24*60*60*1000);
+  const [payments,refunds,onlineSessions,accounts,expenses]=await Promise.all([
+    prisma.payment.findMany({where:{createdAt:{gte:trailingStart}},orderBy:{createdAt:"desc"},take:2500,include:{client:{select:{firstName:true,lastName:true}},files:{where:{archivedAt:null,category:"PAYMENT_PROOF"},select:{id:true}}}}),
+    prisma.refund.findMany({where:{status:{notIn:["REJECTED","CANCELLED"]}},orderBy:{createdAt:"desc"},take:1000,include:{installments:{orderBy:{dueDate:"asc"}}}}),
+    listOnlinePaymentSessions(1000), getFinancePaymentAccounts(), listFinanceExpenses(1000),
   ]);
+  const settled=payments.filter(p=>["CONFIRMED","PARTIALLY_REFUNDED","REFUNDED"].includes(p.status)); const metaMap=await getPaymentCoreMetaMap(settled.map(p=>p.id)); const anomalies:FinanceAnomaly[]=[];
 
-  const settled = payments.filter((p) => ["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(p.status));
-  const metaMap = await getPaymentCoreMetaMap(settled.map((p) => p.id));
-  const anomalies: FinanceAnomaly[] = [];
+  const duplicateBuckets=new Map<string,typeof payments>(); for(const payment of payments.filter(p=>p.status!=="REJECTED")){const bucket=key([payment.clientId,payment.currency,Number(payment.amount).toFixed(2)]);const list=duplicateBuckets.get(bucket)||[];list.push(payment);duplicateBuckets.set(bucket,list)}
+  for(const list of duplicateBuckets.values()){list.sort((a,b)=>a.createdAt.getTime()-b.createdAt.getTime());for(let i=1;i<list.length;i++){const previous=list[i-1],current=list[i];if(current.createdAt.getTime()-previous.createdAt.getTime()<=15*60*1000)anomalies.push({id:`dup-${current.id}`,level:"HIGH",category:"DUPLICATE",title:"Possible duplicate payment",detail:`${current.reference} closely matches ${previous.reference}: ${current.currency} ${Number(current.amount).toFixed(2)} for the same client within 15 minutes.`,href:`/app/finance/payments/${current.id}`})}}
 
-  // Duplicate-like payments: same client, currency and amount within 15 minutes.
-  const duplicateBuckets = new Map<string, typeof payments>();
-  for (const payment of payments.filter((p) => p.status !== "REJECTED")) {
-    const bucket = key([payment.clientId, payment.currency, Number(payment.amount).toFixed(2)]);
-    const list = duplicateBuckets.get(bucket) || [];
-    list.push(payment);
-    duplicateBuckets.set(bucket, list);
-  }
-  for (const list of duplicateBuckets.values()) {
-    list.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    for (let i = 1; i < list.length; i++) {
-      const previous = list[i - 1];
-      const current = list[i];
-      if (current.createdAt.getTime() - previous.createdAt.getTime() <= 15 * 60 * 1000) {
-        anomalies.push({
-          id: `dup-${current.id}`,
-          level: "HIGH",
-          category: "DUPLICATE",
-          title: "Possible duplicate payment",
-          detail: `${current.reference} closely matches ${previous.reference}: ${current.currency} ${Number(current.amount).toFixed(2)} for the same client within 15 minutes.`,
-          href: `/app/finance/payments/${current.id}`,
-        });
-      }
-    }
-  }
+  const providerRefs=new Map<string,typeof payments>(); for(const payment of payments){if(!payment.providerRef)continue;const normalized=payment.providerRef.trim().toUpperCase();if(!normalized)continue;const list=providerRefs.get(normalized)||[];list.push(payment);providerRefs.set(normalized,list)}
+  for(const [providerRef,list] of providerRefs){if(list.length<2)continue;for(const payment of list)anomalies.push({id:`provider-ref-${payment.id}`,level:"CRITICAL",category:"RECONCILIATION",title:"Provider reference reused",detail:`Provider reference ${providerRef} is attached to ${list.length} payments. Verify reconciliation before any financial action.`,href:`/app/finance/payments/${payment.id}`})}
 
-  // Duplicate provider references are a stronger reconciliation warning.
-  const providerRefs = new Map<string, typeof payments>();
-  for (const payment of payments) {
-    if (!payment.providerRef) continue;
-    const normalized = payment.providerRef.trim().toUpperCase();
-    if (!normalized) continue;
-    const list = providerRefs.get(normalized) || [];
-    list.push(payment);
-    providerRefs.set(normalized, list);
-  }
-  for (const [providerRef, list] of providerRefs) {
-    if (list.length < 2) continue;
-    for (const payment of list) anomalies.push({
-      id: `provider-ref-${payment.id}`,
-      level: "CRITICAL",
-      category: "RECONCILIATION",
-      title: "Provider reference reused",
-      detail: `Provider reference ${providerRef} is attached to ${list.length} payments. Verify reconciliation before any financial action.`,
-      href: `/app/finance/payments/${payment.id}`,
-    });
-  }
+  const onlinePaymentIds=new Set(onlineSessions.filter(s=>s.status==="PAID").map(s=>s.paymentId)); for(const payment of settled){if(onlinePaymentIds.has(payment.id))continue;if(!payment.files.length)anomalies.push({id:`proof-${payment.id}`,level:"MEDIUM",category:"PROOF",title:"Confirmed manual payment without proof",detail:`${payment.reference} is confirmed but has no PAYMENT_PROOF file attached.`,href:`/app/finance/payments/${payment.id}`})}
+  for(const payment of settled){const amount=Number(payment.amount),fee=Number(metaMap.get(payment.id)?.feeAmount||0);if(amount>0&&fee/amount>=0.05)anomalies.push({id:`fee-${payment.id}`,level:fee/amount>=0.1?"HIGH":"MEDIUM",category:"FEE",title:"High payment fee ratio",detail:`${payment.reference} has estimated fees of ${payment.currency} ${fee.toFixed(2)} (${((fee/amount)*100).toFixed(1)}%).`,href:`/app/finance/payments/${payment.id}`})}
 
-  // Manual payments without evidence.
-  const onlinePaymentIds = new Set(onlineSessions.filter((s) => s.status === "PAID").map((s) => s.paymentId));
-  for (const payment of settled) {
-    if (onlinePaymentIds.has(payment.id)) continue;
-    if (!payment.files.length) anomalies.push({
-      id: `proof-${payment.id}`,
-      level: "MEDIUM",
-      category: "PROOF",
-      title: "Confirmed manual payment without proof",
-      detail: `${payment.reference} is confirmed but has no PAYMENT_PROOF file attached.`,
-      href: `/app/finance/payments/${payment.id}`,
-    });
-  }
+  for(const session of onlineSessions){const payment=payments.find(p=>p.id===session.paymentId);if(!payment)continue;if(session.status==="PAID"&&!["CONFIRMED","PARTIALLY_REFUNDED","REFUNDED"].includes(payment.status))anomalies.push({id:`online-paid-${session.id}`,level:"CRITICAL",category:"RECONCILIATION",title:"Provider paid but ledger not confirmed",detail:`${session.provider} reports PAID for session ${session.id}, while payment ${payment.reference} is ${payment.status}.`,href:`/app/finance/online-payments/${session.id}`});if(["FAILED","EXPIRED"].includes(session.status)&&payment.status==="CONFIRMED")anomalies.push({id:`online-mismatch-${session.id}`,level:"HIGH",category:"RECONCILIATION",title:"Provider status conflicts with ledger",detail:`${session.provider} session is ${session.status}, but payment ${payment.reference} is CONFIRMED.`,href:`/app/finance/online-payments/${session.id}`})}
+  for(const refund of refunds)for(const installment of refund.installments)if(isInstallmentOverdue(installment.status,installment.dueDate,now))anomalies.push({id:`refund-late-${installment.id}`,level:"HIGH",category:"REFUND",title:"Refund installment overdue",detail:`${refund.refundNumber} installment #${installment.number} is overdue: ${refund.currency} ${Number(installment.amount).toFixed(2)}.`,href:`/app/finance/refunds/${refund.id}`});
+  for(const expense of expenses)if(expenseIsOverdue(expense,now))anomalies.push({id:`expense-overdue-${expense.id}`,level:"HIGH",category:"EXPENSE",title:"Vendor bill overdue",detail:`${expense.expenseNumber} for ${expense.vendorName} is overdue with ${expense.currency} ${expenseRemaining(expense).toFixed(2)} outstanding.`,href:`/app/finance/expenses/${expense.id}`});
 
-  // Fee anomalies relative to the payment amount.
-  for (const payment of settled) {
-    const amount = Number(payment.amount);
-    const fee = Number(metaMap.get(payment.id)?.feeAmount || 0);
-    if (amount > 0 && fee / amount >= 0.05) anomalies.push({
-      id: `fee-${payment.id}`,
-      level: fee / amount >= 0.1 ? "HIGH" : "MEDIUM",
-      category: "FEE",
-      title: "High payment fee ratio",
-      detail: `${payment.reference} has estimated fees of ${payment.currency} ${fee.toFixed(2)} (${((fee / amount) * 100).toFixed(1)}%).`,
-      href: `/app/finance/payments/${payment.id}`,
-    });
-  }
+  const accountAnalytics=new Map<string,{label:string;method:string;currency:string;volume:number;fees:number;count:number}>(); for(const payment of settled){const meta=metaMap.get(payment.id);const id=meta?.accountId||`method:${payment.method}:${payment.currency}`;const row=accountAnalytics.get(id)||{label:meta?.accountLabel||payment.method.replaceAll("_"," "),method:meta?.accountMethod||payment.method,currency:payment.currency,volume:0,fees:0,count:0};row.volume=round(row.volume+Number(payment.amount));row.fees=round(row.fees+Number(meta?.feeAmount||0));row.count+=1;accountAnalytics.set(id,row)}
+  const providerAnalytics=[...accountAnalytics.values()].map(row=>({...row,feeRate:row.volume>0?round((row.fees/row.volume)*100):0})).sort((a,b)=>b.fees-a.fees);
 
-  // Online reconciliation mismatch.
-  for (const session of onlineSessions) {
-    const payment = payments.find((p) => p.id === session.paymentId);
-    if (!payment) continue;
-    if (session.status === "PAID" && !["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(payment.status)) anomalies.push({
-      id: `online-paid-${session.id}`,
-      level: "CRITICAL",
-      category: "RECONCILIATION",
-      title: "Provider paid but ledger not confirmed",
-      detail: `${session.provider} reports PAID for session ${session.id}, while payment ${payment.reference} is ${payment.status}.`,
-      href: `/app/finance/online-payments/${session.id}`,
-    });
-    if (["FAILED", "EXPIRED"].includes(session.status) && payment.status === "CONFIRMED") anomalies.push({
-      id: `online-mismatch-${session.id}`,
-      level: "HIGH",
-      category: "RECONCILIATION",
-      title: "Provider status conflicts with ledger",
-      detail: `${session.provider} session is ${session.status}, but payment ${payment.reference} is CONFIRMED.`,
-      href: `/app/finance/online-payments/${session.id}`,
-    });
-  }
+  const realizedByCurrency=new Map<string,{inflow:number;fees:number;refunds:number;expenses:number}>(); for(const payment of settled){const c=payment.currency.toUpperCase();const row=realizedByCurrency.get(c)||{inflow:0,fees:0,refunds:0,expenses:0};row.inflow+=Number(payment.amount);row.fees+=Number(metaMap.get(payment.id)?.feeAmount||0);realizedByCurrency.set(c,row)}
+  for(const refund of refunds)for(const installment of refund.installments){if(installment.status!=="PAID"||!installment.paidAt||installment.paidAt<trailingStart)continue;const c=refund.currency.toUpperCase();const row=realizedByCurrency.get(c)||{inflow:0,fees:0,refunds:0,expenses:0};row.refunds+=Number(installment.amount);realizedByCurrency.set(c,row)}
+  for(const expense of expenses)for(const payment of expense.payments){const date=new Date(payment.paidAt);if(date<trailingStart)continue;const c=expense.currency.toUpperCase();const row=realizedByCurrency.get(c)||{inflow:0,fees:0,refunds:0,expenses:0};row.expenses+=payment.amount;realizedByCurrency.set(c,row)}
 
-  // Refund risk and overdue payouts.
-  for (const refund of refunds) {
-    for (const installment of refund.installments) {
-      if (isInstallmentOverdue(installment.status, installment.dueDate, now)) anomalies.push({
-        id: `refund-late-${installment.id}`,
-        level: "HIGH",
-        category: "REFUND",
-        title: "Refund installment overdue",
-        detail: `${refund.refundNumber} installment #${installment.number} is overdue: ${refund.currency} ${Number(installment.amount).toFixed(2)}.`,
-        href: `/app/finance/refunds/${refund.id}`,
-      });
-    }
-  }
+  const scheduledRefunds30=new Map<string,number>(); for(const refund of refunds)for(const installment of refund.installments){if(["PAID","CANCELLED"].includes(installment.status)||installment.dueDate<now||installment.dueDate>in30)continue;const c=refund.currency.toUpperCase();scheduledRefunds30.set(c,round((scheduledRefunds30.get(c)||0)+Number(installment.amount)))}
+  const scheduledExpenses30=new Map<string,number>(); for(const expense of expenses){const status=expenseEffectiveStatus(expense);if(!["APPROVED","PARTIALLY_PAID"].includes(status)||!expense.dueDate)continue;const due=new Date(expense.dueDate);if(due<now||due>in30)continue;const c=expense.currency.toUpperCase();scheduledExpenses30.set(c,round((scheduledExpenses30.get(c)||0)+expenseRemaining(expense)))}
 
-  // Provider/account fee analytics.
-  const accountAnalytics = new Map<string, { label: string; method: string; currency: string; volume: number; fees: number; count: number }>();
-  for (const payment of settled) {
-    const meta = metaMap.get(payment.id);
-    const id = meta?.accountId || `method:${payment.method}:${payment.currency}`;
-    const row = accountAnalytics.get(id) || {
-      label: meta?.accountLabel || payment.method.replaceAll("_", " "),
-      method: meta?.accountMethod || payment.method,
-      currency: payment.currency,
-      volume: 0,
-      fees: 0,
-      count: 0,
-    };
-    row.volume = round(row.volume + Number(payment.amount));
-    row.fees = round(row.fees + Number(meta?.feeAmount || 0));
-    row.count += 1;
-    accountAnalytics.set(id, row);
-  }
-  const providerAnalytics = [...accountAnalytics.values()].map((row) => ({
-    ...row,
-    feeRate: row.volume > 0 ? round((row.fees / row.volume) * 100) : 0,
-  })).sort((a, b) => b.fees - a.fees);
+  const forecastCurrencies=new Set([...realizedByCurrency.keys(),...scheduledRefunds30.keys(),...scheduledExpenses30.keys()]); const forecast:FinanceForecastRow[]=[...forecastCurrencies].map(currency=>{const realized=realizedByCurrency.get(currency)||{inflow:0,fees:0,refunds:0,expenses:0};const daily=round((realized.inflow-realized.fees-realized.refunds-realized.expenses)/90);const scheduledRefunds30d=scheduledRefunds30.get(currency)||0;const scheduledExpenses30d=scheduledExpenses30.get(currency)||0;const projected30dNet=round(daily*30-scheduledRefunds30d-scheduledExpenses30d);return{currency,trailing90DailyNet:daily,scheduledRefunds30d,scheduledExpenses30d,projected30dNet,projected60dNet:round(projected30dNet+daily*30),projected90dNet:round(projected30dNet+daily*60)}}).sort((a,b)=>a.currency.localeCompare(b.currency));
 
-  // Forecast: deliberately simple and explainable, based on trailing 90-day realized net cash.
-  const realizedByCurrency = new Map<string, { inflow: number; fees: number; refunds: number }>();
-  for (const payment of settled) {
-    const c = payment.currency.toUpperCase();
-    const row = realizedByCurrency.get(c) || { inflow: 0, fees: 0, refunds: 0 };
-    row.inflow += Number(payment.amount);
-    row.fees += Number(metaMap.get(payment.id)?.feeAmount || 0);
-    realizedByCurrency.set(c, row);
-  }
-  for (const refund of refunds) for (const installment of refund.installments) {
-    if (installment.status !== "PAID" || !installment.paidAt || installment.paidAt < trailingStart) continue;
-    const c = refund.currency.toUpperCase();
-    const row = realizedByCurrency.get(c) || { inflow: 0, fees: 0, refunds: 0 };
-    row.refunds += Number(installment.amount);
-    realizedByCurrency.set(c, row);
-  }
-
-  const scheduled30 = new Map<string, number>();
-  for (const refund of refunds) for (const installment of refund.installments) {
-    if (["PAID", "CANCELLED"].includes(installment.status)) continue;
-    if (installment.dueDate < now || installment.dueDate > in30) continue;
-    const c = refund.currency.toUpperCase();
-    scheduled30.set(c, round((scheduled30.get(c) || 0) + Number(installment.amount)));
-  }
-
-  const forecastCurrencies = new Set([...realizedByCurrency.keys(), ...scheduled30.keys()]);
-  const forecast: FinanceForecastRow[] = [...forecastCurrencies].map((currency) => {
-    const realized = realizedByCurrency.get(currency) || { inflow: 0, fees: 0, refunds: 0 };
-    const daily = round((realized.inflow - realized.fees - realized.refunds) / 90);
-    const scheduledRefunds30d = scheduled30.get(currency) || 0;
-    const projected30dNet = round(daily * 30 - scheduledRefunds30d);
-    return {
-      currency,
-      trailing90DailyNet: daily,
-      scheduledRefunds30d,
-      projected30dNet,
-      projected60dNet: round(projected30dNet + daily * 30),
-      projected90dNet: round(projected30dNet + daily * 60),
-    };
-  }).sort((a, b) => a.currency.localeCompare(b.currency));
-
-  const riskWeight: Record<FinanceRiskLevel, number> = { LOW: 1, MEDIUM: 3, HIGH: 7, CRITICAL: 15 };
-  const riskScore = Math.min(100, anomalies.reduce((sum, anomaly) => sum + riskWeight[anomaly.level], 0));
-  const riskLevel: FinanceRiskLevel = riskScore >= 70 ? "CRITICAL" : riskScore >= 40 ? "HIGH" : riskScore >= 15 ? "MEDIUM" : "LOW";
-
-  return {
-    generatedAt: now,
-    riskScore,
-    riskLevel,
-    anomalies: anomalies.sort((a, b) => riskWeight[b.level] - riskWeight[a.level]).slice(0, 100),
-    duplicateCount: anomalies.filter((a) => a.category === "DUPLICATE").length,
-    reconciliationCount: anomalies.filter((a) => a.category === "RECONCILIATION").length,
-    overdueRefundCount: anomalies.filter((a) => a.category === "REFUND").length,
-    providerAnalytics,
-    forecast,
-    configuredAccounts: accounts.length,
-    activeAccounts: accounts.filter((a) => a.enabled).length,
-  };
+  const riskWeight:Record<FinanceRiskLevel,number>={LOW:1,MEDIUM:3,HIGH:7,CRITICAL:15}; const riskScore=Math.min(100,anomalies.reduce((sum,a)=>sum+riskWeight[a.level],0)); const riskLevel:FinanceRiskLevel=riskScore>=70?"CRITICAL":riskScore>=40?"HIGH":riskScore>=15?"MEDIUM":"LOW";
+  return{generatedAt:now,riskScore,riskLevel,anomalies:anomalies.sort((a,b)=>riskWeight[b.level]-riskWeight[a.level]).slice(0,100),duplicateCount:anomalies.filter(a=>a.category==="DUPLICATE").length,reconciliationCount:anomalies.filter(a=>a.category==="RECONCILIATION").length,overdueRefundCount:anomalies.filter(a=>a.category==="REFUND").length,overdueExpenseCount:anomalies.filter(a=>a.category==="EXPENSE").length,providerAnalytics,forecast,configuredAccounts:accounts.length,activeAccounts:accounts.filter(a=>a.enabled).length};
 }
 
-export function deterministicExecutiveSummary(data: Awaited<ReturnType<typeof getFinanceEnterpriseIntelligence>>) {
-  const critical = data.anomalies.filter((a) => a.level === "CRITICAL").length;
-  const high = data.anomalies.filter((a) => a.level === "HIGH").length;
-  const forecast = data.forecast.map((f) => `${f.currency}: 30d ${f.projected30dNet.toFixed(2)}, 90d ${f.projected90dNet.toFixed(2)}`).join("; ");
-  return [
-    `Finance risk is ${data.riskLevel} (${data.riskScore}/100), with ${critical} critical and ${high} high-priority exception(s).`,
-    `${data.reconciliationCount} reconciliation mismatch(es), ${data.duplicateCount} possible duplicate payment(s), and ${data.overdueRefundCount} overdue refund installment(s) require attention.`,
-    forecast ? `Explainable cash projection based on trailing 90-day realized net cash: ${forecast}.` : "There is not enough realized cash history to produce a currency forecast yet.",
-    "AI findings are advisory only; payment confirmation, refund approval and money movement remain human-controlled actions.",
-  ].join(" ");
-}
+export function deterministicExecutiveSummary(data:Awaited<ReturnType<typeof getFinanceEnterpriseIntelligence>>){const critical=data.anomalies.filter(a=>a.level==="CRITICAL").length;const high=data.anomalies.filter(a=>a.level==="HIGH").length;const forecast=data.forecast.map(f=>`${f.currency}: 30d ${f.projected30dNet.toFixed(2)}, 90d ${f.projected90dNet.toFixed(2)}`).join("; ");return[`Finance risk is ${data.riskLevel} (${data.riskScore}/100), with ${critical} critical and ${high} high-priority exception(s).`,`${data.reconciliationCount} reconciliation mismatch(es), ${data.duplicateCount} possible duplicate payment(s), ${data.overdueRefundCount} overdue refund installment(s), and ${data.overdueExpenseCount} overdue vendor bill(s) require attention.`,forecast?`Explainable cash projection after fees, refunds and scheduled accounts payable: ${forecast}.`:"There is not enough realized cash history to produce a currency forecast yet.","AI findings are advisory only; payment confirmation, refund approval, expense approval and money movement remain human-controlled actions."].join(" ")}
