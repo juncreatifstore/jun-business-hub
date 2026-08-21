@@ -26,8 +26,10 @@ export async function importCloudFile(formData: FormData): Promise<void> {
   const connection = await getCloudConnection(user.id, provider);
   if (!connection) cloudReturn(`${provider} is not connected`, true);
 
+  let importedName = "file";
   try {
     const source = await downloadCloudFile(connection, fileId);
+    importedName = source.name;
     const maxImport = 100 * 1024 * 1024;
     if (source.data.length > maxImport) cloudReturn("Cloud import is limited to 100 MB per file", true);
     const quota = await assertDriveQuotaForUpload(source.data.length);
@@ -51,10 +53,10 @@ export async function importCloudFile(formData: FormData): Promise<void> {
     await processDriveAutomation(file.id, user.id, source.data).catch(() => null);
     revalidatePath("/app/drive");
     revalidatePath("/app/drive/cloud");
-    cloudReturn(`Imported ${source.name}`);
   } catch (e) {
     cloudReturn(e instanceof Error ? e.message : "Cloud import failed", true);
   }
+  cloudReturn(`Imported ${importedName}`);
 }
 
 export async function disconnectCloudProvider(formData: FormData): Promise<void> {
