@@ -21,7 +21,7 @@ export default async function PaymentDetailPage({ params }: { params: { id: stri
       include: { client: true, case: true, recordedBy: true, refunds: { orderBy: { createdAt: "desc" } }, files: { where: { archivedAt: null }, orderBy: { createdAt: "desc" }, include: { uploadedBy: { select: { firstName: true, lastName: true } } } } },
     }),
     getPaymentCoreMeta(params.id),
-    prisma.auditLog.findMany({ where: { OR: [{ resourceType: "Payment", resourceId: params.id }, { action: "PAYMENT_PROOF_UPLOAD", after: { path: ["paymentId"], equals: params.id } as any }] }, orderBy: { createdAt: "desc" }, take: 40, include: { user: { select: { firstName: true, lastName: true } } } }),
+    prisma.auditLog.findMany({ where: { resourceType: "Payment", resourceId: params.id }, orderBy: { createdAt: "desc" }, take: 40, include: { user: { select: { firstName: true, lastName: true } } } }),
   ]);
   if (!p) notFound();
 
@@ -30,6 +30,7 @@ export default async function PaymentDetailPage({ params }: { params: { id: stri
   const committedRefund = p.refunds.filter((r) => !["REJECTED", "CANCELLED"].includes(r.status)).reduce((sum, r) => sum + Number(r.amount), 0);
   const refundable = Math.max(0, Math.round((amount - committedRefund) * 100) / 100);
   const receiptAvailable = ["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(p.status);
+  const canAttachProof = can(user, "PAYMENT_CREATE") || can(user, "PAYMENT_APPROVE");
 
   return (
     <div className="max-w-5xl">
@@ -72,7 +73,7 @@ export default async function PaymentDetailPage({ params }: { params: { id: stri
         <Card>
           <CardHeader><CardTitle>Payment evidence</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            {can(user, "FILE_UPLOAD") ? <PaymentProofUpload paymentId={p.id} clientId={p.clientId} caseId={p.caseId} /> : null}
+            {canAttachProof ? <PaymentProofUpload paymentId={p.id} clientId={p.clientId} caseId={p.caseId} /> : null}
             {p.files.length ? <div className="divide-y divide-line rounded-lg border border-line">{p.files.map((file) => <div key={file.id} className="flex items-center justify-between gap-3 px-3 py-2.5"><div className="min-w-0"><div className="truncate text-sm font-medium">{file.name}</div><div className="text-[11px] text-muted2">{file.category.replaceAll("_", " ")} · {file.uploadedBy.firstName} {file.uploadedBy.lastName}</div></div><a href={`/api/files/${file.id}`} target="_blank" rel="noreferrer" className="text-xs font-medium text-electric hover:underline">Open</a></div>)}</div> : <p className="text-xs text-muted2">No proof or supporting file is linked to this payment yet.</p>}
           </CardContent>
         </Card>
