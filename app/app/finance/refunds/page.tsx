@@ -7,33 +7,39 @@ import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { refundPaidTotal, refundRemaining } from "@/lib/finance-refund-workflow";
-import { CheckCircle2, Clock3, SearchCheck, Undo2, WalletCards } from "lucide-react";
+import { syncOverdueRefundInstallments } from "@/lib/finance-refund-installments";
+import { AlertTriangle, CheckCircle2, Clock3, SearchCheck, Undo2, WalletCards } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function RefundsPage() {
   await requirePermission("REFUND_READ");
-  const refunds = await prisma.refund.findMany({ orderBy: { createdAt: "desc" }, take: 150, include: { client: true, payment: { select: { reference: true } }, installments: true, files: { where: { archivedAt: null }, select: { id: true } } } });
+  await syncOverdueRefundInstallments();
+  const refunds = await prisma.refund.findMany({ orderBy: { createdAt: "desc" }, take: 150, include: { client: true, payment: { select: { reference: true } }, installments: { orderBy: { dueDate: "asc" } }, files: { where: { archivedAt: null }, select: { id: true } } } });
   const review = refunds.filter((r) => ["REQUESTED", "UNDER_REVIEW"].includes(r.status)).length;
   const approved = refunds.filter((r) => r.status === "APPROVED").length;
   const paying = refunds.filter((r) => r.status === "PARTIALLY_PAID").length;
   const completed = refunds.filter((r) => r.status === "PAID").length;
+  const overdue = refunds.reduce((sum, r) => sum + r.installments.filter((i) => i.status === "LATE").length, 0);
 
   return <div>
-    <PageHeader title="Refunds" subtitle="Controlled request, review, approval and payout workflow with payment reconciliation." actionHref="/app/finance/refunds/new" actionLabel="New refund" />
-    <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={SearchCheck} label="Needs review" value={review} /><Metric icon={Clock3} label="Approved / awaiting payout" value={approved} /><Metric icon={WalletCards} label="Partially paid" value={paying} /><Metric icon={CheckCircle2} label="Completed" value={completed} /></div>
+    <PageHeader title="Refunds" subtitle="Controlled request, approval, scheduling and payout workflow with payment reconciliation." actionHref="/app/finance/refunds/new" actionLabel="New refund" />
+    <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric icon={SearchCheck} label="Needs review" value={review} /><Metric icon={Clock3} label="Approved / awaiting payout" value={approved} /><Metric icon={WalletCards} label="Partially paid" value={paying} /><Metric icon={AlertTriangle} label="Overdue installments" value={overdue} /><Metric icon={CheckCircle2} label="Completed" value={completed} /></div>
     {refunds.length === 0 ? <EmptyState icon={Undo2} title="No refunds" description="When a refund is requested it will move through review and approval here." actionHref="/app/finance/refunds/new" actionLabel="Create refund request" /> : <Table>
-      <THead><tr><TH>Reference</TH><TH>Client</TH><TH>Original payment</TH><TH>Requested</TH><TH>Paid / remaining</TH><TH>Evidence</TH><TH>Status</TH><TH>Created</TH></tr></THead>
+      <THead><tr><TH>Reference</TH><TH>Client</TH><TH>Original payment</TH><TH>Requested</TH><TH>Paid / remaining</TH><TH>Next due</TH><TH>Status</TH><TH>Created</TH></tr></THead>
       <tbody>{refunds.map((r) => {
         const paid = refundPaidTotal(r.installments);
         const remaining = refundRemaining(r.amount, r.installments);
+        const open = r.installments.filter((i) => !["PAID", "CANCELLED"].includes(i.status));
+        const next = open[0] || null;
+        const late = r.installments.filter((i) => i.status === "LATE").length;
         return <TR key={r.id}>
           <TD><Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.refundNumber}</Link></TD>
           <TD><Link href={`/app/clients/${r.clientId}`} className="hover:text-electric">{r.client.firstName} {r.client.lastName}</Link></TD>
           <TD>{r.payment ? <span className="registry-id">{r.payment.reference}</span> : <span className="text-muted2">Unlinked</span>}</TD>
           <TD className="font-medium">{formatMoney(Number(r.amount), r.currency)}</TD>
           <TD><div className="text-sm">{formatMoney(paid, r.currency)} paid</div><div className="text-xs text-muted2">{formatMoney(remaining, r.currency)} remaining</div></TD>
-          <TD className="text-muted2">{r.files.length} file{r.files.length === 1 ? "" : "s"}</TD>
+          <TD>{next ? <div><div className={late ? "font-medium text-amber-700" : "text-sm"}>{formatDate(next.dueDate)}</div><div className="text-xs text-muted2">{formatMoney(Number(next.amount), r.currency)}{late ? ` · ${late} late` : ""}</div></div> : <span className="text-muted2">Complete</span>}</TD>
           <TD><StatusBadge status={r.status} /></TD>
           <TD className="text-muted2">{formatDate(r.createdAt)}</TD>
         </TR>;
