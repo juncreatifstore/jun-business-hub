@@ -14,8 +14,8 @@ export type ManualTransferReceiver = {
   rail: ManualTransferRail;
   enabled: boolean;
   receiverType: "BUSINESS" | "INDIVIDUAL_BUSINESS_REPRESENTATIVE";
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   legalName: string;
   phone: string;
   email: string;
@@ -23,9 +23,9 @@ export type ManualTransferReceiver = {
   city: string;
   address: string;
   bankName: string;
-  bankCountry: string;
+  bankCountry?: string;
   bankAddress: string;
-  accountHolderName: string;
+  accountHolderName?: string;
   accountNumber: string;
   iban: string;
   swiftBic: string;
