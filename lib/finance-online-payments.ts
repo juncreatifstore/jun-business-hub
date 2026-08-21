@@ -69,7 +69,7 @@ export async function getOnlinePaymentSessionByToken(token: string) {
   if (!parsed) return null;
   const session = await getOnlinePaymentSession(parsed.id);
   if (!session || !safeEqual(hashToken(parsed.secret), session.tokenHash)) return null;
-  if (session.status !== "PAID" && new Date(session.expiresAt).getTime() <= Date.now()) {
+  if (["CREATED", "PENDING"].includes(session.status) && new Date(session.expiresAt).getTime() <= Date.now()) {
     const expired = { ...session, status: "EXPIRED" as const, updatedAt: new Date().toISOString() };
     await saveOnlinePaymentSession(expired);
     return expired;
@@ -104,18 +104,22 @@ export async function markOnlineSessionStatus(id: string, status: OnlinePaymentS
   const next: OnlinePaymentSession = { ...session, status, providerPaymentId: options?.providerPaymentId ?? session.providerPaymentId, lastError: options?.error ?? null, updatedAt: new Date().toISOString() };
   await saveOnlinePaymentSession(next);
   if (status === "PAID") {
-    await prisma.payment.updateMany({ where: { id: session.paymentId, status: "PENDING" }, data: { status: "CONFIRMED", providerRef: options?.providerPaymentId || session.providerSessionId || undefined, paidAt: new Date() } });
+    const result = await prisma.payment.updateMany({ where: { id: session.paymentId, status: "PENDING" }, data: { status: "CONFIRMED", providerRef: options?.providerPaymentId || session.providerSessionId || undefined, paidAt: new Date() } });
+    if (result.count > 0) {
+      await prisma.notification.create({ data: { userId: session.createdById, type: "ONLINE_PAYMENT_CONFIRMED", title: "Online payment confirmed", body: `${session.provider.replaceAll("_", " ")} confirmed ${session.currency} ${session.amount.toFixed(2)} for ${session.clientName}.` } }).catch(() => undefined);
+    }
   }
   return next;
 }
 
+export async function hasWebhookEvent(provider: OnlinePaymentProvider, eventId: string) {
+  if (!eventId) return false;
+  const row = await prisma.appSetting.findUnique({ where: { key: `${ONLINE_WEBHOOK_PREFIX}${provider}.${eventId}` }, select: { key: true } });
+  return Boolean(row);
+}
+
 export async function registerWebhookEvent(provider: OnlinePaymentProvider, eventId: string) {
-  if (!eventId) return true;
+  if (!eventId) return;
   const key = `${ONLINE_WEBHOOK_PREFIX}${provider}.${eventId}`;
-  try {
-    await prisma.appSetting.create({ data: { key, value: new Date().toISOString() } });
-    return true;
-  } catch {
-    return false;
-  }
+  await prisma.appSetting.upsert({ where: { key }, create: { key, value: new Date().toISOString() }, update: {} });
 }
