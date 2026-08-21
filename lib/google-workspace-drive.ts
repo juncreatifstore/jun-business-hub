@@ -116,7 +116,7 @@ export async function uploadWorkspaceFile(pathKey: string, data: Buffer, content
   const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` },
-    body,
+    body: new Uint8Array(body),
   });
   if (!res.ok) throw new Error(`Google Workspace upload failed (${res.status})`);
 }
