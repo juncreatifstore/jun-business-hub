@@ -121,6 +121,26 @@ export async function uploadWorkspaceFile(pathKey: string, data: Buffer, content
   if (!res.ok) throw new Error(`Google Workspace upload failed (${res.status})`);
 }
 
+export async function createWorkspaceResumableUploadSession(pathKey: string, contentType: string, sizeBytes: number) {
+  const resolved = await resolveWorkspacePath(pathKey, true);
+  if (!resolved) throw new Error("Unable to resolve Workspace path");
+  const token = await googleWorkspaceAccessToken();
+  const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=UTF-8",
+      "X-Upload-Content-Type": contentType,
+      "X-Upload-Content-Length": String(sizeBytes),
+    },
+    body: JSON.stringify({ name: resolved.fileName, parents: [resolved.parentId], appProperties: { junStorageKey: pathKey } }),
+  });
+  if (!res.ok) throw new Error(`Google Workspace resumable session failed (${res.status})`);
+  const uploadUrl = res.headers.get("location");
+  if (!uploadUrl) throw new Error("Google Workspace did not return a resumable upload URL");
+  return uploadUrl;
+}
+
 export async function downloadWorkspaceFile(pathKey: string) {
   const resolved = await resolveWorkspacePath(pathKey, false);
   if (!resolved?.file) throw new Error("Workspace file not found");
