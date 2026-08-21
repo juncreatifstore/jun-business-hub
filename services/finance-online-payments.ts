@@ -49,21 +49,23 @@ export async function createOnlinePaymentRequest(formData: FormData) {
   };
   await saveOnlinePaymentSession(session);
 
+  let checkout: Awaited<ReturnType<typeof createProviderCheckout>>;
   try {
-    const checkout = await createProviderCheckout({ provider, sessionId: id, paymentId: payment.id, publicToken, amount, currency, description, clientName: session.clientName, clientEmail: client.email });
-    session = { ...session, status: "PENDING", checkoutUrl: checkout.checkoutUrl, providerSessionId: checkout.providerSessionId, updatedAt: new Date().toISOString() };
-    await saveOnlinePaymentSession(session);
-    await prisma.payment.update({ where: { id: payment.id }, data: { providerRef: checkout.providerSessionId } });
-    await audit({ userId: user.id, action: "ONLINE_PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, provider, amount, currency, sessionId: id, expiresAt: session.expiresAt } });
-    await logActivity({ type: "PAYMENT_CREATED", message: `Online payment ${reference} created via ${provider.replaceAll("_", " ")}`, userId: user.id, clientId, caseId });
-    revalidatePath("/app/finance/online-payments");
-    redirect(`/app/finance/online-payments/${id}?token=${encodeURIComponent(publicToken)}&toast=${encodeURIComponent("Online payment link created")}`);
+    checkout = await createProviderCheckout({ provider, sessionId: id, paymentId: payment.id, publicToken, amount, currency, description, clientName: session.clientName, clientEmail: client.email });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Provider checkout creation failed";
     await saveOnlinePaymentSession({ ...session, status: "FAILED", lastError: message.slice(0, 500), updatedAt: new Date().toISOString() });
     await audit({ userId: user.id, action: "ONLINE_PAYMENT_PROVIDER_ERROR", resourceType: "Payment", resourceId: payment.id, after: { provider, sessionId: id, error: message.slice(0, 500) } });
     redirect(`/app/finance/online-payments/${id}?token=${encodeURIComponent(publicToken)}&toast_error=${encodeURIComponent(message)}`);
   }
+
+  session = { ...session, status: "PENDING", checkoutUrl: checkout.checkoutUrl, providerSessionId: checkout.providerSessionId, updatedAt: new Date().toISOString() };
+  await saveOnlinePaymentSession(session);
+  await prisma.payment.update({ where: { id: payment.id }, data: { providerRef: checkout.providerSessionId } });
+  await audit({ userId: user.id, action: "ONLINE_PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, provider, amount, currency, sessionId: id, expiresAt: session.expiresAt } });
+  await logActivity({ type: "PAYMENT_CREATED", message: `Online payment ${reference} created via ${provider.replaceAll("_", " ")}`, userId: user.id, clientId, caseId });
+  revalidatePath("/app/finance/online-payments");
+  redirect(`/app/finance/online-payments/${id}?token=${encodeURIComponent(publicToken)}&toast=${encodeURIComponent("Online payment link created")}`);
 }
 
 export async function cancelOnlinePaymentSession(id: string) {
