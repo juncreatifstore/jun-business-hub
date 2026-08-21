@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getClientFinancialAccount, type ClientStatementLanguage } from "@/lib/client-financial-account";
 import { Button } from "@/components/ui/button";
+import { StatementPrintButton } from "@/components/app/statement-print-button";
 import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export default async function ClientStatementPage({ params, searchParams }: { pa
   const t = copy[language];
 
   return <div className="mx-auto max-w-6xl bg-white p-6 print:max-w-none print:p-0">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden"><Link href={`/app/clients/${client.id}/account`}><Button variant="outline">← Back / Retour</Button></Link><div className="flex gap-2">{(["FR","EN","ES","HT"] as ClientStatementLanguage[]).map((l) => <Link key={l} href={`/app/clients/${client.id}/statement?lang=${l}`} className={`rounded-lg border px-3 py-2 text-xs ${language===l?"border-electric text-electric":"border-line"}`}>{l}</Link>)}<Button variant="primary" onClick={undefined as never}>Print / PDF</Button></div></div>
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 print:hidden"><Link href={`/app/clients/${client.id}/account`}><Button variant="outline">← Back / Retour</Button></Link><div className="flex gap-2">{(["FR","EN","ES","HT"] as ClientStatementLanguage[]).map((l) => <Link key={l} href={`/app/clients/${client.id}/statement?lang=${l}`} className={`rounded-lg border px-3 py-2 text-xs ${language===l?"border-electric text-electric":"border-line"}`}>{l}</Link>)}<StatementPrintButton /></div></div>
 
     <header className="border-b-2 border-ink pb-5"><div className="flex items-start justify-between gap-6"><div><div className="text-xs font-semibold uppercase tracking-[.25em]">JUN CREATIF AND TRAVEL LLC</div><h1 className="mt-2 text-3xl font-semibold">{t.title}</h1><div className="mt-2 text-sm text-muted2">{t.account}: {client.internalId}</div></div><div className="text-right text-sm"><div className="font-semibold">{client.firstName} {client.lastName}</div><div className="text-muted2">{client.email || ""}</div><div className="text-muted2">{client.phone || ""}</div><div className="max-w-xs text-muted2">{[client.address, client.country].filter(Boolean).join(", ")}</div></div></div><div className="mt-4 text-xs text-muted2">{t.generated}: {localDate(new Date(), language)}</div></header>
 
@@ -41,6 +42,5 @@ export default async function ClientStatementPage({ params, searchParams }: { pa
     <section className="mt-7"><h2 className="mb-3 text-lg font-semibold">{t.history}</h2><div className="overflow-x-auto rounded-xl border border-line"><table className="w-full text-sm"><thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted2"><tr><th className="p-3">{t.date}</th><th className="p-3">{t.ref}</th><th className="p-3">{t.description}</th><th className="p-3">{t.status}</th><th className="p-3 text-right">{t.debit}</th><th className="p-3 text-right">{t.credit}</th><th className="p-3 text-right">{t.balance}</th></tr></thead><tbody>{account.entries.length ? account.entries.map((e) => <tr key={e.id} className="border-t border-line"><td className="whitespace-nowrap p-3">{localDate(e.date,language)}</td><td className="p-3 font-mono text-xs">{e.reference}</td><td className="p-3"><div className="font-medium">{e.type==="PAYMENT"?t.payment:e.type==="REFUND"?t.refund:t.commission}</div><div className="max-w-md text-xs text-muted2">{e.description}</div></td><td className="p-3 text-xs">{e.status.replaceAll("_"," ")}</td><td className="p-3 text-right">{e.debit?formatMoney(e.debit,e.currency):"—"}</td><td className="p-3 text-right">{e.credit?formatMoney(e.credit,e.currency):"—"}</td><td className="p-3 text-right font-semibold">{formatMoney(e.runningBalance,e.currency)}</td></tr>) : <tr><td colSpan={7} className="p-6 text-center text-muted2">—</td></tr>}</tbody></table></div></section>
 
     <footer className="mt-6 border-t border-line pt-4 text-xs text-muted2"><p>{t.note}</p><p className="mt-2">JUN CREATIF AND TRAVEL LLC · {client.internalId}</p></footer>
-    <script dangerouslySetInnerHTML={{__html:`document.querySelectorAll('button').forEach(function(b){if(b.textContent&&b.textContent.indexOf('Print / PDF')>=0)b.onclick=function(){window.print()}})`}} />
   </div>;
 }
