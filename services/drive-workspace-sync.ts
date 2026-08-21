@@ -11,7 +11,7 @@ import { processDriveAutomation } from "@/lib/drive-automation";
 const FOLDER_MAP_PREFIX = "drive.workspace.folder.";
 const FILE_MAP_PREFIX = "drive.workspace.file.";
 
-function dest(message: string, error = false) {
+function dest(message: string, error = false): never {
   redirect(`/app/drive/cloud?${error ? "error" : "toast"}=${encodeURIComponent(message)}`);
 }
 
@@ -43,9 +43,7 @@ export async function syncGoogleWorkspaceDesktop(): Promise<void> {
     const parentDbId = item.parentId ? (folderMap.get(item.parentId) ?? null) : null;
     let dbId = await mappedId(FOLDER_MAP_PREFIX, item.id);
     let folder = dbId ? await prisma.folder.findFirst({ where: { id: dbId, isVault: false } }) : null;
-    if (!folder) {
-      folder = await prisma.folder.findFirst({ where: { name: item.name, parentId: parentDbId, isVault: false } });
-    }
+    if (!folder) folder = await prisma.folder.findFirst({ where: { name: item.name, parentId: parentDbId, isVault: false } });
     if (!folder) {
       folder = await prisma.folder.create({ data: { name: item.name.slice(0, 120), parentId: parentDbId, isVault: false } });
       createdFolders++;
