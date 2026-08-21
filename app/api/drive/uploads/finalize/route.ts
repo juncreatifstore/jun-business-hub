@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
-  if (!user || user.role === "CLIENT" || !can(user, "FILE_UPLOAD")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user || user.role === "CLIENT") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   let uploadId = "";
   try { uploadId = String((await req.json()).uploadId || ""); } catch {}
   if (!uploadId) return NextResponse.json({ error: "Missing upload id" }, { status: 400 });
@@ -19,6 +19,13 @@ export async function POST(req: NextRequest) {
   let meta: { userId: string; key: string; name: string; sizeBytes: number; mimeType: string; category: any; folderId: string | null; clientId: string | null; caseId: string | null; paymentId?: string | null; mode: string };
   try { meta = JSON.parse(row.value); } catch { return NextResponse.json({ error: "Invalid upload session" }, { status: 400 }); }
   if (meta.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const allowed = meta.paymentId ? (can(user, "PAYMENT_CREATE") || can(user, "PAYMENT_APPROVE")) : can(user, "FILE_UPLOAD");
+  if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  if (meta.paymentId) {
+    const payment = await prisma.payment.findUnique({ where: { id: meta.paymentId }, select: { id: true } });
+    if (!payment) return NextResponse.json({ error: "Linked payment not found" }, { status: 404 });
+  }
 
   const record = await prisma.$transaction(async (tx) => {
     await tx.appSetting.delete({ where: { key: pendingKey } });
@@ -27,7 +34,7 @@ export async function POST(req: NextRequest) {
       storageKey: meta.key,
       mimeType: meta.mimeType,
       sizeBytes: meta.sizeBytes,
-      category: meta.category,
+      category: meta.paymentId ? "PAYMENT_PROOF" : meta.category,
       folderId: meta.folderId,
       clientId: meta.clientId,
       caseId: meta.caseId,
