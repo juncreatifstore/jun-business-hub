@@ -3,7 +3,7 @@ import { requirePermission } from "@/lib/auth";
 import { listBankPeriodCloses, listBankTransactions, listReconciliationMatches, listStatementImports } from "@/lib/finance-bank-reconciliation";
 import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, CheckCircle2, FileUp, LockKeyhole, SearchX } from "lucide-react";
+import { ArrowRight, CheckCircle2, Download, FileUp, LockKeyhole, SearchX } from "lucide-react";
 
 export const dynamic="force-dynamic";
 
@@ -13,7 +13,7 @@ export default async function ReconciliationPage({searchParams}:{searchParams:{s
   const matched=transactions.filter(t=>t.status==="MATCHED").length, unresolved=transactions.filter(t=>["UNMATCHED","SUGGESTED"].includes(t.status)).length;
   const rate=transactions.length?Math.round((matched/transactions.length)*100):0;
   return <div className="space-y-5">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.18em] text-muted2">Finance control</p><h1 className="mt-1 text-3xl font-semibold">Bank Reconciliation</h1><p className="mt-1 text-sm text-muted2">Import bank statements, compare bank movements with the accounting ledger and validate matches.</p></div><div className="flex gap-2"><Link href="/app/finance/reconciliation/import" className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-white"><FileUp className="h-4 w-4"/>Import statement</Link><Link href="/app/finance/reconciliation/close" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><LockKeyhole className="h-4 w-4"/>Month close</Link></div></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.18em] text-muted2">Finance control</p><h1 className="mt-1 text-3xl font-semibold">Bank Reconciliation</h1><p className="mt-1 text-sm text-muted2">Import bank statements, compare bank movements with the accounting ledger and validate matches.</p></div><div className="flex flex-wrap gap-2"><a href="/api/finance/reconciliation/export.csv" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><Download className="h-4 w-4"/>Export CSV</a><Link href="/app/finance/reconciliation/import" className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-white"><FileUp className="h-4 w-4"/>Import statement</Link><Link href="/app/finance/reconciliation/close" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><LockKeyhole className="h-4 w-4"/>Month close</Link></div></div>
     {searchParams.success&&<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{searchParams.success}</div>}{searchParams.error&&<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{searchParams.error}</div>}
     <div className="grid gap-3 md:grid-cols-4"><Metric label="Imports" value={String(imports.length)} hint="Statement files"/><Metric label="Transactions" value={String(transactions.length)} hint="Normalized bank movements"/><Metric label="Reconciled" value={`${rate}%`} hint={`${matched} matched`}/><Metric label="Need attention" value={String(unresolved)} hint="Unmatched or suggested"/></div>
     <div className="grid gap-4 xl:grid-cols-2">
