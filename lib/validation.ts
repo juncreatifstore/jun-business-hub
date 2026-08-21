@@ -41,8 +41,11 @@ export const paymentSchema = z.object({
   clientId: z.string().min(1, "Client is required"),
   caseId: z.string().optional().or(z.literal("")),
   amount: z.coerce.number().positive("Amount must be positive").max(10_000_000),
+  expectedAmount: z.union([z.coerce.number().positive().max(10_000_000), z.literal("")]).optional(),
   currency: z.string().trim().min(3).max(3).default("USD"),
   method: z.enum(["ZELLE", "STRIPE", "PAYPAL", "MERCADO_PAGO", "BANK_TRANSFER", "CASH", "MONCASH", "OTHER"]),
+  providerRef: z.string().trim().max(160).optional().or(z.literal("")),
+  serviceLabel: z.string().trim().max(160).optional().or(z.literal("")),
   paidAt: z.string().optional().or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
 });
