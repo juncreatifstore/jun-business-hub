@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BrainCircuit, Search, Tags, Users, Building2, CalendarDays, Lightbulb, CopyCheck, Sparkles, FileText, Target, Eye, ListChecks, TriangleAlert, CircleHelp } from "lucide-react";
+import { BrainCircuit, Search, Tags, Users, Building2, CalendarDays, Lightbulb, CopyCheck, Sparkles, FileText, Target, Eye, ListChecks, TriangleAlert, CircleHelp, WandSparkles, ArrowRight } from "lucide-react";
 import { analyzeDriveFile, saveDriveTags, acceptDriveSuggestedCategory } from "@/services/drive-intelligence";
 
 type Intel = {
@@ -66,7 +66,7 @@ export function DriveIntelligencePanel({ fileId, returnTo }: { fileId: string; r
   return (
     <section className="mb-5 rounded-xl border border-blue-200 bg-blue-50/40 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div><h3 className="flex items-center gap-2 text-sm font-semibold text-ink"><BrainCircuit className="h-4 w-4 text-electric" /> File Intelligence</h3><p className="mt-1 text-xs text-muted2">Detailed internal AI analysis for documents, PDFs and images. Suggestions never modify official data automatically.</p></div>
+        <div><h3 className="flex items-center gap-2 text-sm font-semibold text-ink"><BrainCircuit className="h-4 w-4 text-electric" /> File Intelligence</h3><p className="mt-1 text-xs text-muted2">Detailed internal AI analysis for documents, PDFs and images. Financial actions are created through the normal approval workflow.</p></div>
         <form action={analyzeDriveFile.bind(null, fileId)}><input type="hidden" name="returnTo" value={returnTo} /><button className="inline-flex items-center gap-2 rounded-lg bg-electric px-3 py-2 text-xs font-medium text-white"><Sparkles className="h-3.5 w-3.5" /> Analyze deeply with AI</button></form>
       </div>
 
@@ -92,6 +92,8 @@ export function DriveIntelligencePanel({ fileId, returnTo }: { fileId: string; r
             <IntelList icon={TriangleAlert} title="Risks / points to verify" values={intel?.risks} />
             <IntelList icon={CircleHelp} title="Missing / unclear information" values={intel?.missingInformation} wide />
           </div>
+
+          {intel?.aiAnalyzedAt ? <div className="rounded-xl border border-electric/30 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-ink"><WandSparkles className="h-4 w-4 text-electric"/>Create automatically from this analysis</div><p className="mt-1 text-xs text-muted2">Prepare a Payment, Refund, Expense, Document, Manual Transfer, Receipt or Accounting update from the extracted data.</p></div><a href={`/app/drive/intelligence-actions/${encodeURIComponent(fileId)}`} className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-white hover:opacity-90">Create from analysis <ArrowRight className="h-3.5 w-3.5"/></a></div><p className="mt-2 text-[11px] text-muted2">AI pre-fills data; permission checks and Finance approval controls remain active.</p></div> : null}
 
           <div className={box}>
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink"><Search className="h-4 w-4" /> Ask this file</div>
