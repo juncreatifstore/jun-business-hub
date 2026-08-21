@@ -1,19 +1,14 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import type { ManualTransferOrder, ManualTransferReceiver } from "@/lib/finance-manual-transfers";
+import { buildFinanceDocumentVerificationUrl, registerFinanceDocumentVerification } from "@/lib/finance-document-verification";
 
 const PAGE = { w: 595.28, h: 841.89, m: 46 };
 const INK = rgb(.055, .09, .16), MUTED = rgb(.42, .46, .54), LINE = rgb(.86, .88, .92), SOFT = rgb(.965, .97, .98), BLUE = rgb(.10, .42, .92);
 type Ctx = { pdf: PDFDocument; page: PDFPage; font: PDFFont; bold: PDFFont; y: number; pageNo: number; reference: string; company: string; website: string };
 
-/**
- * pdf-lib StandardFonts use WinAnsi encoding. A single unsupported Unicode
- * character (for example → or an emoji) can throw during width calculation or
- * drawText and turn this route into HTTP 500. Keep Latin-1 characters (French,
- * Spanish and Haitian Creole accents), map common punctuation, and remove the
- * remaining unsupported symbols.
- */
 function pdfText(value: unknown) {
   return String(value ?? "")
     .replace(/\r\n?/g, "\n")
@@ -131,11 +126,17 @@ export async function renderManualTransferOrderPdf(order: ManualTransferOrder) {
   const c: Ctx = { pdf, page: null as unknown as PDFPage, font, bold, y: 0, pageNo: 0, reference: safe(order.orderNumber), company: co.name, website: co.website };
   addPage(c);
 
+  const verifyUrl = buildFinanceDocumentVerificationUrl(order.orderNumber);
+  const qr = await pdf.embedPng(await QRCode.toBuffer(verifyUrl, { margin: 0, width: 220, errorCorrectionLevel: "M" }));
+  c.page.drawImage(qr, { x: PAGE.w - PAGE.m - 50, y: c.y - 48, width: 50, height: 50 });
+  c.page.drawText("SCAN TO VERIFY", { x: PAGE.w - PAGE.m - 49, y: c.y - 57, size: 5.6, font: bold, color: MUTED });
+
   c.page.drawText("Manual Payment Order", { x: PAGE.m, y: c.y, size: 22, font: bold, color: INK });
   const status = safe(order.status.replaceAll("_", " "));
-  c.page.drawText(status, { x: PAGE.w - PAGE.m - bold.widthOfTextAtSize(status, 9), y: c.y + 3, size: 9, font: bold, color: BLUE });
   c.y -= 28;
   c.page.drawText(safe(order.orderNumber), { x: PAGE.m, y: c.y, size: 8.5, font, color: MUTED });
+  c.page.drawText(status, { x: 255, y: c.y, size: 8, font: bold, color: BLUE });
+  c.page.drawText("Authenticity: juncreatif.org/verify", { x: 350, y: c.y, size: 6.5, font, color: MUTED });
   c.y -= 15;
   const routeLine = safe(`${order.receiverSnapshot.rail.replaceAll("_", " ")} · ${order.originCountry} -> ${order.destinationCountry} · ${order.language}`);
   c.page.drawText(routeLine, { x: PAGE.m, y: c.y, size: 9, font, color: INK });
@@ -243,5 +244,6 @@ export async function renderManualTransferOrderPdf(order: ManualTransferOrder) {
   pdf.setTitle(safe(`${order.orderNumber} - Manual Payment Order`));
   pdf.setAuthor(safe(co.name));
   pdf.setCreator("JUN Business Hub Finance PDF Engine");
+  await registerFinanceDocumentVerification({ reference: order.orderNumber, type: "Manual Payment Order", status: order.status, issuedAt: order.createdAt });
   return pdf.save();
 }
