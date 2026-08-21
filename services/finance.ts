@@ -7,6 +7,7 @@ import { audit, logActivity } from "@/lib/audit";
 import { paymentSchema, refundSchema, emptyToNull, parseDate } from "@/lib/validation";
 import { nextNumber } from "@/lib/sequence";
 import { splitInstallments } from "@/lib/money";
+import { savePaymentCoreMeta } from "@/lib/finance-payment-core";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/services/clients";
@@ -19,22 +20,35 @@ export async function createPayment(_prev: FormState, formData: FormData): Promi
 
   const client = await prisma.client.findUnique({ where: { id: d.clientId } });
   if (!client) return { message: "Selected client does not exist." };
+  const caseId = emptyToNull(d.caseId);
+  if (caseId) {
+    const linkedCase = await prisma.case.findUnique({ where: { id: caseId }, select: { id: true, clientId: true } });
+    if (!linkedCase) return { message: "Selected case does not exist." };
+    if (linkedCase.clientId !== d.clientId) return { message: "Selected case belongs to a different client." };
+  }
 
   const reference = await nextNumber("PAY");
   const payment = await prisma.payment.create({
     data: {
       reference,
       clientId: d.clientId,
-      caseId: emptyToNull(d.caseId),
+      caseId,
       amount: d.amount,
       currency: d.currency.toUpperCase(),
       method: d.method,
+      providerRef: emptyToNull(d.providerRef),
       paidAt: parseDate(d.paidAt) ?? new Date(),
       notes: emptyToNull(d.notes),
       recordedById: user.id,
     },
   });
-  await audit({ userId: user.id, action: "PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, amount: d.amount, currency: payment.currency } });
+  const expectedAmount = d.expectedAmount === "" || d.expectedAmount == null ? null : Number(d.expectedAmount);
+  await savePaymentCoreMeta(payment.id, {
+    expectedAmount,
+    serviceLabel: emptyToNull(d.serviceLabel),
+    providerRef: emptyToNull(d.providerRef),
+  });
+  await audit({ userId: user.id, action: "PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, amount: d.amount, expectedAmount, currency: payment.currency, method: payment.method, providerRef: payment.providerRef, serviceLabel: emptyToNull(d.serviceLabel) } });
   await logActivity({ type: "PAYMENT_CREATED", message: `Payment ${reference} recorded (${payment.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: payment.caseId });
   redirect(`/app/finance/payments/${payment.id}?toast=${encodeURIComponent("Payment recorded — pending confirmation")}`);
 }
@@ -71,6 +85,7 @@ export async function rejectPayment(paymentId: string) {
   await audit({ userId: user.id, action: "PAYMENT_REJECT", resourceType: "Payment", resourceId: paymentId, before: { status: "PENDING" }, after: { status: "REJECTED" } });
   await logActivity({ type: "PAYMENT_REJECTED", message: `Payment ${payment.reference} rejected`, userId: user.id, clientId: payment.clientId, caseId: payment.caseId });
   revalidatePath(`/app/finance/payments/${paymentId}`);
+  revalidatePath("/app/finance/payments");
 }
 
 export async function createRefund(_prev: FormState, formData: FormData): Promise<FormState> {
