@@ -15,6 +15,10 @@ export async function GET(req: NextRequest, { params }: { params: { token: strin
     destination.searchParams.set("result", "success");
     return NextResponse.redirect(destination);
   }
+  if (["CANCELLED", "EXPIRED"].includes(session.status)) {
+    destination.searchParams.set("result", "cancel");
+    return NextResponse.redirect(destination);
+  }
   try {
     const captured = await capturePaypalOrder(session.providerSessionId);
     if (captured.completed) {
