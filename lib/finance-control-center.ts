@@ -5,7 +5,7 @@ import { getPaymentCoreMetaMap } from "@/lib/finance-payment-core";
 import { getFinancePaymentAccounts } from "@/lib/finance-payment-accounts";
 import { listOnlinePaymentSessions } from "@/lib/finance-online-payments";
 import { getManualTransferOrders } from "@/lib/finance-manual-transfers";
-import { effectiveInstallmentStatus } from "@/lib/finance-refund-installments";
+import { isInstallmentOverdue } from "@/lib/finance-refund-installments";
 
 export type CurrencySnapshot = {
   currency: string;
@@ -56,9 +56,7 @@ export async function getFinanceControlCenter() {
     add(currencyMap, p.currency, "paymentCount", 1);
     add(currencyMap, p.currency, "fees", Number(metaMap.get(p.id)?.feeAmount || 0));
   }
-  for (const r of refunds) {
-    for (const i of r.installments) if (i.status === "PAID") add(currencyMap, r.currency, "refundsPaid", Number(i.amount));
-  }
+  for (const r of refunds) for (const i of r.installments) if (i.status === "PAID") add(currencyMap, r.currency, "refundsPaid", Number(i.amount));
   for (const row of currencyMap.values()) row.netCash = round(row.collected - row.fees - row.refundsPaid);
 
   const monthCurrencies = new Map<string, { collected: number; refunds: number; net: number }>();
@@ -72,8 +70,9 @@ export async function getFinanceControlCenter() {
   }
   for (const row of monthCurrencies.values()) row.net = round(row.collected - row.refunds);
 
-  const overdueInstallments = refunds.flatMap((r) => r.installments.map((i) => ({ refund: r, installment: i, effective: effectiveInstallmentStatus(i) }))).filter((x) => x.effective === "LATE");
-  const upcomingInstallments = refunds.flatMap((r) => r.installments.map((i) => ({ refund: r, installment: i, effective: effectiveInstallmentStatus(i) }))).filter((x) => x.effective === "SCHEDULED" && iFuture(x.installment.dueDate, now)).sort((a,b) => a.installment.dueDate.getTime() - b.installment.dueDate.getTime()).slice(0, 8);
+  const allInstallments = refunds.flatMap((refund) => refund.installments.map((installment) => ({ refund, installment })));
+  const overdueInstallments = allInstallments.filter(({ installment }) => isInstallmentOverdue(installment.status, installment.dueDate, now));
+  const upcomingInstallments = allInstallments.filter(({ installment }) => installment.status === "SCHEDULED" && iFuture(installment.dueDate, now)).sort((a,b) => a.installment.dueDate.getTime() - b.installment.dueDate.getTime()).slice(0, 8);
 
   const pendingPayments = payments.filter((p) => p.status === "PENDING");
   const missingPaymentProof = confirmedPayments.filter((p) => p.files.length === 0);
