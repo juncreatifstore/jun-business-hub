@@ -10,6 +10,7 @@ import { nextNumber } from "@/lib/sequence";
 import { splitInstallments } from "@/lib/money";
 import { getRefundWorkflowMeta, saveRefundWorkflowMeta } from "@/lib/finance-refund-workflow";
 import { getRefundInstallmentMeta, saveRefundInstallmentMeta } from "@/lib/finance-refund-installments";
+import { getClientAvailableBalance } from "@/lib/client-financial-account";
 import type { FormState } from "@/services/clients";
 import type { RefundStatus } from "@prisma/client";
 
@@ -39,10 +40,7 @@ function scheduleInstallments(amount: number, count: number, firstDueDateRaw: Fo
 }
 
 async function recomputePaymentRefundStatus(paymentId: string) {
-  const payment = await prisma.payment.findUnique({
-    where: { id: paymentId },
-    include: { refunds: { include: { installments: true } } },
-  });
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { refunds: { include: { installments: true } } } });
   if (!payment) return;
   const paidTotal = payment.refunds.reduce((sum, refund) => sum + refund.installments.filter((i) => i.status === "PAID").reduce((s, i) => s + Number(i.amount), 0), 0);
   const rounded = Math.round(paidTotal * 100) / 100;
@@ -59,6 +57,7 @@ export async function createRefundWorkflow(_prev: FormState, formData: FormData)
   const d = parsed.data;
   const caseId = emptyToNull(d.caseId);
   const paymentId = emptyToNull(d.paymentId);
+  const requestedCurrency = d.currency.toUpperCase();
 
   const client = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
   if (!client) return { message: "Selected client does not exist." };
@@ -66,6 +65,11 @@ export async function createRefundWorkflow(_prev: FormState, formData: FormData)
     const linkedCase = await prisma.case.findUnique({ where: { id: caseId }, select: { id: true, clientId: true } });
     if (!linkedCase) return { message: "Selected case does not exist." };
     if (linkedCase.clientId !== d.clientId) return { message: "Selected case belongs to a different client." };
+  }
+
+  const globalAvailable = await getClientAvailableBalance(d.clientId, requestedCurrency);
+  if (d.amount > globalAvailable + 0.005) {
+    return { message: `Refund exceeds the client's available ${requestedCurrency} balance: ${requestedCurrency} ${globalAvailable.toFixed(2)} available.` };
   }
 
   const refundNumber = await nextNumber("REF");
@@ -80,8 +84,8 @@ export async function createRefundWorkflow(_prev: FormState, formData: FormData)
         const original = await tx.payment.findUnique({ where: { id: paymentId }, include: { refunds: true } });
         if (!original) throw new Error("Original payment not found.");
         if (original.clientId !== d.clientId) throw new Error("Original payment belongs to a different client.");
-        if (!["CONFIRMED", "PARTIALLY_REFUNDED"].includes(original.status)) throw new Error("Only confirmed payments can be refunded.");
-        if (original.currency.toUpperCase() !== d.currency.toUpperCase()) throw new Error(`Refund currency must match the original payment (${original.currency}).`);
+        if (!["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(original.status)) throw new Error("Only confirmed payments can be refunded.");
+        if (original.currency.toUpperCase() !== requestedCurrency) throw new Error(`Refund currency must match the original payment (${original.currency}).`);
         const committed = original.refunds.filter((r) => !["REJECTED", "CANCELLED"].includes(r.status)).reduce((sum, r) => sum + Number(r.amount), 0);
         const available = Math.max(0, Math.round((Number(original.amount) - committed) * 100) / 100);
         if (d.amount > available + 0.005) throw new Error(`Refund exceeds the available amount on ${original.reference}: ${original.currency} ${available.toFixed(2)} remaining.`);
@@ -92,12 +96,15 @@ export async function createRefundWorkflow(_prev: FormState, formData: FormData)
       return { message: error instanceof Error ? error.message : "Unable to create refund." };
     }
   } else {
-    refund = await prisma.refund.create({ data: { refundNumber, clientId: d.clientId, caseId, amount: d.amount, currency: d.currency.toUpperCase(), reason: d.reason, createdById: user.id, installments: { create: installments } }, select: { id: true, refundNumber: true, currency: true, caseId: true } });
+    refund = await prisma.refund.create({ data: { refundNumber, clientId: d.clientId, caseId, amount: d.amount, currency: requestedCurrency, reason: d.reason, createdById: user.id, installments: { create: installments } }, select: { id: true, refundNumber: true, currency: true, caseId: true } });
   }
 
   await saveRefundWorkflowMeta(refund.id, { refundType });
-  await audit({ userId: user.id, action: "REFUND_CREATE", resourceType: "Refund", resourceId: refund.id, after: { refundNumber, amount: d.amount, currency: refund.currency, installments: d.installments, firstDueDate: String(formData.get("firstDueDate") || "") || null, paymentId, refundType } });
+  await audit({ userId: user.id, action: "REFUND_CREATE", resourceType: "Refund", resourceId: refund.id, after: { refundNumber, amount: d.amount, currency: refund.currency, installments: d.installments, firstDueDate: String(formData.get("firstDueDate") || "") || null, paymentId, refundType, balanceMode: paymentId ? "PAYMENT_LINKED_AND_CLIENT_BALANCE" : "CLIENT_GLOBAL_BALANCE" } });
   await logActivity({ type: "REFUND_REQUESTED", message: `Refund ${refundNumber} requested (${refund.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: refund.caseId });
+  revalidatePath(`/app/clients/${d.clientId}`);
+  revalidatePath(`/app/clients/${d.clientId}/account`);
+  revalidatePath(`/app/clients/${d.clientId}/statement`);
   redirect(`/app/finance/refunds/${refund.id}?toast=${encodeURIComponent("Refund request created")}`);
 }
 
@@ -135,6 +142,9 @@ export async function decideRefund(refundId: string, formData: FormData) {
   if (target === "APPROVED") await prisma.notification.create({ data: { userId: refund.createdById, type: "REFUND_APPROVED", title: `Refund ${refund.refundNumber} approved`, body: decisionReason } });
   revalidatePath(`/app/finance/refunds/${refundId}`);
   revalidatePath("/app/finance/refunds");
+  revalidatePath(`/app/clients/${refund.clientId}`);
+  revalidatePath(`/app/clients/${refund.clientId}/account`);
+  revalidatePath(`/app/clients/${refund.clientId}/statement`);
 }
 
 export async function rescheduleRefundInstallment(installmentId: string, formData: FormData) {
@@ -202,5 +212,8 @@ export async function markRefundInstallmentPaid(installmentId: string) {
   revalidatePath(`/app/finance/refunds/${inst.refundId}`);
   revalidatePath("/app/finance/refunds");
   revalidatePath("/app/finance/payments");
+  revalidatePath(`/app/clients/${inst.refund.clientId}`);
+  revalidatePath(`/app/clients/${inst.refund.clientId}/account`);
+  revalidatePath(`/app/clients/${inst.refund.clientId}/statement`);
   if (inst.refund.paymentId) revalidatePath(`/app/finance/payments/${inst.refund.paymentId}`);
 }
