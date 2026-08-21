@@ -7,8 +7,8 @@ import path from "path";
 // Storage abstraction: SUPABASE in production, LOCAL for development.
 // Files are private by default. Access always goes through short-lived signed URLs
 // (Supabase) or an authenticated download route (local). Never build permanent public URLs.
-// The interface is intentionally provider-agnostic so a Google Drive adapter can be
-// added later without touching feature code.
+// The interface is intentionally provider-agnostic so Google Workspace / other adapters
+// can be introduced without changing feature code.
 
 export interface StorageDriver {
   upload(key: string, data: Buffer, contentType: string): Promise<void>;
@@ -22,7 +22,7 @@ const BUCKET = "jun-files";
 class SupabaseStorage implements StorageDriver {
   private client() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY; // server-only, never sent to the client
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) throw new Error("Supabase storage requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
     return createClient(url, key, { auth: { persistSession: false } });
   }
@@ -45,8 +45,6 @@ class SupabaseStorage implements StorageDriver {
   }
 }
 
-// Dev-only driver. Writes under ./storage-dev (gitignored). Served through /api/files/[id],
-// which enforces authentication + permissions.
 class LocalStorage implements StorageDriver {
   private dir = path.join(process.cwd(), "storage-dev");
   private p(key: string) {
@@ -59,8 +57,6 @@ class LocalStorage implements StorageDriver {
     await fs.writeFile(fp, data);
   }
   async getSignedUrl(): Promise<string> {
-    // Local driver has no CDN: files are always served through the authenticated
-    // route /api/files/[id]. This URL is never used directly.
     throw new Error("LocalStorage has no signed URLs — serve files via /api/files/[id]");
   }
   async download(key: string) {
@@ -73,17 +69,10 @@ class LocalStorage implements StorageDriver {
 
 export function storage(): StorageDriver {
   const configured = (process.env.STORAGE_DRIVER ?? "").toUpperCase();
-
-  // Production must never use ephemeral local filesystem storage. If a driver is
-  // not explicitly configured, default to Supabase because production documents
-  // and signed PDFs must survive serverless restarts and redeployments.
   if (process.env.NODE_ENV === "production") {
-    if (configured && configured !== "SUPABASE") {
-      throw new Error(`Unsupported production STORAGE_DRIVER: ${configured}`);
-    }
+    if (configured && configured !== "SUPABASE") throw new Error(`Unsupported production STORAGE_DRIVER: ${configured}`);
     return new SupabaseStorage();
   }
-
   return configured === "SUPABASE" ? new SupabaseStorage() : new LocalStorage();
 }
 
@@ -92,13 +81,19 @@ export function makeStorageKey(scope: string, filename: string) {
   return `${scope}/${new Date().getFullYear()}/${randomUUID()}.${ext}`;
 }
 
-export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
+// Direct browser uploads stay deliberately small on the current server-action path.
+// Larger media should enter through Connected Cloud / the future direct-to-storage uploader.
+export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 export const ALLOWED_MIME = [
   "application/pdf",
-  "image/png", "image/jpeg", "image/webp",
-  "text/plain", "text/csv",
+  "image/png", "image/jpeg", "image/webp", "image/gif", "image/heic", "image/heif",
+  "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/ogg", "audio/webm", "audio/aac", "audio/flac",
+  "video/mp4", "video/webm", "video/quicktime", "video/x-m4v", "video/mpeg", "video/ogg",
+  "text/plain", "text/csv", "text/markdown",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
