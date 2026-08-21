@@ -1,30 +1,37 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getFinanceControlCenter } from "@/lib/finance-control-center";
+import { getAccountsReceivableSnapshot } from "@/lib/finance-invoices";
 import { expenseRemaining } from "@/lib/finance-expenses";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Banknote, CircleDollarSign, Clock3, Download, Landmark, ReceiptText, RefreshCw, Target, WalletCards } from "lucide-react";
+import { AlertTriangle, Banknote, CircleDollarSign, Clock3, Download, FileText, Landmark, ReceiptText, RefreshCw, Target, WalletCards } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function FinanceControlCenterPage() {
   await requirePermission("PAYMENT_READ");
-  const data = await getFinanceControlCenter();
+  const [data, ar] = await Promise.all([getFinanceControlCenter(), getAccountsReceivableSnapshot()]);
   const alertTotal = Object.values(data.alerts.counts).reduce((sum, value) => sum + value, 0);
+  const arOpen = ar.rows.filter(r=>r.balance>0).length;
+  const arOverdue = ar.rows.filter(r=>r.overdue&&r.balance>0).length;
   return <div className="space-y-5">
-    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.18em] text-muted2">Finance operations</p><h1 className="mt-1 text-3xl font-semibold">Finance Control Center</h1><p className="mt-1 text-sm text-muted2">Cash position, collections, refunds, expenses, accounts payable, budgets and operational exceptions in one view.</p></div><div className="flex flex-wrap gap-2"><a href="/api/finance/export.csv"><span className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><Download className="h-4 w-4" />Export CSV</span></a><Link href="/app/finance/reports" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><RefreshCw className="h-4 w-4" />Reports</Link></div></div>
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs uppercase tracking-[0.18em] text-muted2">Finance operations</p><h1 className="mt-1 text-3xl font-semibold">Finance Control Center</h1><p className="mt-1 text-sm text-muted2">Cash position, collections, accounts receivable, refunds, expenses, accounts payable, budgets and operational exceptions in one view.</p></div><div className="flex flex-wrap gap-2"><a href="/api/finance/export.csv"><span className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><Download className="h-4 w-4" />Export CSV</span></a><Link href="/app/finance/reports" className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium"><RefreshCw className="h-4 w-4" />Reports</Link></div></div>
 
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
       <Metric icon={CircleDollarSign} label="Currencies tracked" value={String(data.currencies.length)} hint={`${data.ytdPaymentCount} confirmed payments YTD`} />
+      <Metric icon={FileText} label="Accounts receivable" value={String(arOpen)} hint={`${arOverdue} overdue invoice${arOverdue===1?"":"s"}`} />
       <Metric icon={Landmark} label="Receiving accounts" value={`${data.accounts.active}/${data.accounts.total}`} hint="Active / configured" />
       <Metric icon={WalletCards} label="Online payments" value={String(data.online.paid)} hint={`${data.online.pending} pending · ${data.online.attention} attention`} />
       <Metric icon={CircleDollarSign} label="Accounts payable" value={String(data.expenses.open)} hint={`${data.expenses.overdue} overdue`} />
       <Metric icon={Target} label="Budget alerts" value={String(data.budgets.varianceAlerts)} hint={`${data.budgets.active} active budget${data.budgets.active===1?"":"s"}`} />
-      <Metric icon={AlertTriangle} label="Operational alerts" value={String(alertTotal)} hint="Items requiring finance attention" />
+      <Metric icon={AlertTriangle} label="Operational alerts" value={String(alertTotal+arOverdue)} hint="Items requiring finance attention" />
     </div>
 
-    <Card><CardHeader><CardTitle>Cash position by currency</CardTitle></CardHeader><CardContent>{data.currencies.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{data.currencies.map((row) => <div key={row.currency} className="rounded-xl border border-line bg-surface p-4"><div className="flex items-center justify-between"><span className="registry-id text-sm">{row.currency}</span><span className={`text-xs font-semibold ${row.netCash >= 0 ? "text-emerald-700" : "text-red-700"}`}>{row.netCash >= 0 ? "POSITIVE" : "NEGATIVE"}</span></div><div className="mt-3 text-2xl font-semibold">{formatMoney(row.netCash, row.currency)}</div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><Mini label="Collected" value={formatMoney(row.collected, row.currency)} /><Mini label="Fees" value={formatMoney(row.fees, row.currency)} /><Mini label="Refunded" value={formatMoney(row.refundsPaid, row.currency)} /><Mini label="Expenses" value={formatMoney(row.expensesPaid, row.currency)} /></div></div>)}</div> : <p className="text-sm text-muted2">No confirmed financial movement yet.</p>}</CardContent></Card>
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card><CardHeader><CardTitle>Cash position by currency</CardTitle></CardHeader><CardContent>{data.currencies.length ? <div className="grid gap-3 md:grid-cols-2">{data.currencies.map((row) => <div key={row.currency} className="rounded-xl border border-line bg-surface p-4"><div className="flex items-center justify-between"><span className="registry-id text-sm">{row.currency}</span><span className={`text-xs font-semibold ${row.netCash >= 0 ? "text-emerald-700" : "text-red-700"}`}>{row.netCash >= 0 ? "POSITIVE" : "NEGATIVE"}</span></div><div className="mt-3 text-2xl font-semibold">{formatMoney(row.netCash, row.currency)}</div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><Mini label="Collected" value={formatMoney(row.collected, row.currency)} /><Mini label="Fees" value={formatMoney(row.fees, row.currency)} /><Mini label="Refunded" value={formatMoney(row.refundsPaid, row.currency)} /><Mini label="Expenses" value={formatMoney(row.expensesPaid, row.currency)} /></div></div>)}</div> : <p className="text-sm text-muted2">No confirmed financial movement yet.</p>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>Accounts receivable aging</CardTitle></CardHeader><CardContent className="space-y-2">{ar.byCurrency.length?ar.byCurrency.map(row=><Link key={row.currency} href="/app/finance/invoices" className="block rounded-lg border border-line p-3 hover:bg-surface"><div className="flex items-center justify-between"><span className="registry-id">{row.currency}</span><strong>{formatMoney(row.total,row.currency)}</strong></div><div className="mt-2 grid grid-cols-5 gap-1 text-[11px] text-muted2"><span>Current {formatMoney(row.current,row.currency)}</span><span>1–30 {formatMoney(row.d1_30,row.currency)}</span><span>31–60 {formatMoney(row.d31_60,row.currency)}</span><span>61–90 {formatMoney(row.d61_90,row.currency)}</span><span className={row.d90Plus>0?"text-red-700":""}>90+ {formatMoney(row.d90Plus,row.currency)}</span></div></Link>):<p className="text-sm text-muted2">No open receivables.</p>}</CardContent></Card>
+    </div>
 
     <div className="grid gap-4 xl:grid-cols-2">
       <Card><CardHeader><CardTitle>This month cash flow</CardTitle></CardHeader><CardContent className="space-y-2">{data.monthCurrencies.length ? data.monthCurrencies.map((row) => <div key={row.currency} className="flex items-center justify-between rounded-lg border border-line px-3 py-3"><div><div className="registry-id">{row.currency}</div><div className="mt-1 text-xs text-muted2">Net collections after fees, refunds and operating expenses</div></div><div className="text-right"><div className={`font-semibold ${row.net >= 0 ? "text-emerald-700" : "text-red-700"}`}>{formatMoney(row.net, row.currency)}</div><div className="text-[11px] text-muted2">{formatMoney(row.collected,row.currency)} in · {formatMoney(row.refunds+row.expenses,row.currency)} out</div></div></div>) : <p className="text-sm text-muted2">No cash movement this month.</p>}</CardContent></Card>
@@ -32,6 +39,7 @@ export default async function FinanceControlCenterPage() {
     </div>
 
     <div className="grid gap-4 xl:grid-cols-3">
+      <AlertCard title="Overdue client invoices" count={arOverdue} icon={FileText} href="/app/finance/invoices">{ar.rows.filter(r=>r.overdue&&r.balance>0).slice(0,8).map(r => <AlertRow key={r.invoice.id} href={`/app/finance/invoices/${r.invoice.id}`} primary={r.invoice.invoiceNumber} secondary={`Due ${formatDate(new Date(r.invoice.dueDate))}`} trailing={formatMoney(r.balance,r.invoice.currency)} />)}</AlertCard>
       <AlertCard title="Budget variance" count={data.alerts.counts.budgetVariance} icon={Target} href="/app/finance/budgeting">{data.alerts.budgetVariance.map(({plan,alert}) => <AlertRow key={`${plan.id}-${alert.category}`} href={`/app/finance/budgeting/${plan.id}`} primary={`${plan.currency} · ${alert.label}`} secondary={alert.status.replaceAll("_"," ")} trailing={formatMoney(alert.favorableVariance,plan.currency)} />)}</AlertCard>
       <AlertCard title="Payments pending confirmation" count={data.alerts.counts.pendingPayments} icon={Clock3} href="/app/finance/payments">{data.alerts.pendingPayments.map((p) => <AlertRow key={p.id} href={`/app/finance/payments/${p.id}`} primary={p.reference} secondary={`${p.client.firstName} ${p.client.lastName}`} trailing={formatMoney(Number(p.amount),p.currency)} />)}</AlertCard>
       <AlertCard title="Confirmed without proof" count={data.alerts.counts.missingPaymentProof} icon={ReceiptText} href="/app/finance/payments">{data.alerts.missingPaymentProof.map((p) => <AlertRow key={p.id} href={`/app/finance/payments/${p.id}`} primary={p.reference} secondary={`${p.client.firstName} ${p.client.lastName}`} trailing="Attach proof" />)}</AlertCard>
