@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user || user.role === "CLIENT" || !can(user, "FILE_UPLOAD")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  let body: { name?: string; sizeBytes?: number; mimeType?: string; category?: string; folderId?: string | null; clientId?: string | null; caseId?: string | null };
+  let body: { name?: string; sizeBytes?: number; mimeType?: string; category?: string; folderId?: string | null; clientId?: string | null; caseId?: string | null; paymentId?: string | null };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
 
   const name = String(body.name || "").trim().slice(0, 200);
@@ -50,22 +50,28 @@ export async function POST(req: NextRequest) {
   const folderId = body.folderId ? String(body.folderId) : null;
   const clientId = body.clientId ? String(body.clientId) : null;
   const caseId = body.caseId ? String(body.caseId) : null;
+  const paymentId = body.paymentId ? String(body.paymentId) : null;
 
   if (!name || !sizeBytes) return NextResponse.json({ error: "Choose a file" }, { status: 400 });
   if (sizeBytes > MAX_DIRECT_UPLOAD_BYTES) return NextResponse.json({ error: "File exceeds the 2 GB direct-upload limit" }, { status: 413 });
   if (!allowedMime(mimeType)) return NextResponse.json({ error: `File type not allowed (${mimeType})` }, { status: 415 });
 
-  const [folder, client, caseRow, quota] = await Promise.all([
+  const [folder, client, caseRow, payment, quota] = await Promise.all([
     folderId ? prisma.folder.findFirst({ where: { id: folderId, isVault: false }, select: { id: true } }) : Promise.resolve(null),
     clientId ? prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }) : Promise.resolve(null),
     caseId ? prisma.case.findUnique({ where: { id: caseId }, select: { id: true } }) : Promise.resolve(null),
+    paymentId ? prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true, clientId: true, caseId: true } }) : Promise.resolve(null),
     assertDriveQuotaForUpload(sizeBytes),
   ]);
   if (folderId && !folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
   if (clientId && !client) return NextResponse.json({ error: "Linked client not found" }, { status: 404 });
   if (caseId && !caseRow) return NextResponse.json({ error: "Linked case not found" }, { status: 404 });
+  if (paymentId && !payment) return NextResponse.json({ error: "Linked payment not found" }, { status: 404 });
+  if (payment && clientId && payment.clientId !== clientId) return NextResponse.json({ error: "Payment belongs to a different client" }, { status: 400 });
   if (!quota.allowed) return NextResponse.json({ error: "Drive quota exceeded" }, { status: 413 });
 
+  const effectiveClientId = payment?.clientId || clientId;
+  const effectiveCaseId = payment?.caseId || caseId;
   const key = makeStorageKey("drive", name);
   const uploadId = randomUUID();
   const pendingKey = `drive.upload.pending.${uploadId}`;
@@ -87,6 +93,6 @@ export async function POST(req: NextRequest) {
     uploadUrl = data.signedUrl;
   }
 
-  await prisma.appSetting.create({ data: { key: pendingKey, value: JSON.stringify({ userId: user.id, key, name, sizeBytes, mimeType, category, folderId, clientId, caseId, mode, createdAt: new Date().toISOString() }) } });
+  await prisma.appSetting.create({ data: { key: pendingKey, value: JSON.stringify({ userId: user.id, key, name, sizeBytes, mimeType, category, folderId, clientId: effectiveClientId, caseId: effectiveCaseId, paymentId, mode, createdAt: new Date().toISOString() }) } });
   return NextResponse.json({ uploadId, mode, uploadUrl, mimeType, maxBytes: MAX_DIRECT_UPLOAD_BYTES });
 }
