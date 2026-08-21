@@ -9,19 +9,15 @@ export default async function NewRefundPage({ searchParams }: { searchParams: { 
   await requirePermission("REFUND_CREATE");
   const [clients, cases, payments] = await Promise.all([
     prisma.client.findMany({ where: { status: { not: "ARCHIVED" } }, orderBy: { lastName: "asc" }, select: { id: true, firstName: true, lastName: true, internalId: true } }),
-    prisma.case.findMany({ where: { status: { notIn: ["ARCHIVED", "CANCELLED"] } }, orderBy: { createdAt: "desc" }, select: { id: true, caseNumber: true, title: true } }),
-    prisma.payment.findMany({ where: { status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED"] } }, orderBy: { paidAt: "desc" }, select: { id: true, reference: true, amount: true, currency: true, clientId: true } }),
+    prisma.case.findMany({ where: { status: { notIn: ["ARCHIVED", "CANCELLED"] } }, orderBy: { createdAt: "desc" }, select: { id: true, clientId: true, caseNumber: true, title: true } }),
+    prisma.payment.findMany({ where: { status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED"] } }, orderBy: { paidAt: "desc" }, select: { id: true, reference: true, amount: true, currency: true, clientId: true, refunds: { select: { amount: true, status: true } } } }),
   ]);
-  return (
-    <div>
-      <PageHeader title="New refund request" subtitle="Requests go through review and approval before any installment can be paid." />
-      <RefundForm
-        clients={clients}
-        cases={cases}
-        payments={payments.map((p) => ({ ...p, amount: Number(p.amount) }))}
-        defaultClientId={searchParams.clientId}
-        defaultCaseId={searchParams.caseId}
-      />
-    </div>
-  );
+  const refundables = payments.map((p) => {
+    const committed = p.refunds.filter((r) => !["REJECTED", "CANCELLED"].includes(r.status)).reduce((sum, r) => sum + Number(r.amount), 0);
+    return { id: p.id, reference: p.reference, amount: Number(p.amount), available: Math.max(0, Math.round((Number(p.amount) - committed) * 100) / 100), currency: p.currency, clientId: p.clientId };
+  });
+  return <div>
+    <PageHeader title="New refund request" subtitle="Create a controlled refund request linked to the original payment whenever possible." />
+    <RefundForm clients={clients} cases={cases} payments={refundables} defaultClientId={searchParams.clientId} defaultCaseId={searchParams.caseId} />
+  </div>;
 }
