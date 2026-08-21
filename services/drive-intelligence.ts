@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
+import { storage } from "@/lib/storage";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { FileCategory } from "@prisma/client";
@@ -23,14 +24,72 @@ function toast(path: string, key: "toast" | "toast_error", message: string) {
   return `${path}${path.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(message)}`;
 }
 
-function cleanArray(value: unknown, max = 12) {
+function cleanArray(value: unknown, max = 15) {
   if (!Array.isArray(value)) return [];
   return value.map((v) => String(v).trim()).filter(Boolean).slice(0, max);
+}
+
+function cleanText(value: unknown, max: number) {
+  return String(value ?? "").trim().slice(0, max);
 }
 
 function parseAIJson(text: string) {
   const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   try { return JSON.parse(cleaned) as Record<string, unknown>; } catch { return null; }
+}
+
+function extractResponsesText(body: unknown) {
+  if (!body || typeof body !== "object") return "";
+  const output = (body as { output?: unknown[] }).output;
+  if (!Array.isArray(output)) return "";
+  const chunks: string[] = [];
+  for (const item of output) {
+    if (!item || typeof item !== "object") continue;
+    const content = (item as { content?: unknown[] }).content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (part && typeof part === "object" && (part as { type?: string }).type === "output_text") {
+        const text = (part as { text?: unknown }).text;
+        if (typeof text === "string") chunks.push(text);
+      }
+    }
+  }
+  return chunks.join("\n").trim();
+}
+
+async function richOpenAIAnalysis(input: { fileName: string; mimeType: string; context: string; buffer?: Buffer }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
+
+  const content: Array<Record<string, unknown>> = [{
+    type: "input_text",
+    text: `${input.context}\n\nAnalyze this file as an operations-grade document analyst. Return ONLY valid JSON with these keys:\nsummary: concise executive summary;\ndetailedDescription: explanatory description useful to a staff member who has not opened the file;\ndocumentPurpose: what this document/image appears to be for and how it may be used operationally;\nvisualDescription: for images/scans, describe visible layout, objects, stamps, signatures, document structure and notable visual details without identifying a real person's identity from appearance; for non-visual files use an empty string;\nlanguage;\nsuggestedCategory: one of ${CATEGORIES.join(", ")};\ntags: array;\npeople: names explicitly written in the file only;\norganizations: array;\nimportantDates: array with context;\nkeyFacts: array of concrete useful facts;\nactionItems: array of recommended next checks/actions;\nrisks: array of inconsistencies, expiry concerns, missing signatures/pages, unclear items, or operational risks;\nmissingInformation: array of information that appears necessary but is absent or unreadable.\n\nBe explicit and useful. Never invent facts. Distinguish clearly between what is visible, what is extracted, and what is uncertain. Do not make legal conclusions.`,
+  }];
+
+  if (input.buffer && input.buffer.length <= 18 * 1024 * 1024) {
+    const b64 = input.buffer.toString("base64");
+    if (input.mimeType.startsWith("image/")) {
+      content.push({ type: "input_image", image_url: `data:${input.mimeType};base64,${b64}`, detail: "high" });
+    } else if (input.mimeType === "application/pdf" || input.mimeType.startsWith("text/") || input.mimeType.includes("wordprocessingml") || input.mimeType.includes("spreadsheetml")) {
+      content.push({ type: "input_file", filename: input.fileName, file_data: `data:${input.mimeType};base64,${b64}`, detail: "auto" });
+    }
+  }
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+      input: [{ role: "user", content }],
+      temperature: 0.1,
+      max_output_tokens: 2200,
+    }),
+  });
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(`AI analysis failed (${response.status})${message ? `: ${message.slice(0, 300)}` : ""}`);
+  }
+  return extractResponsesText(await response.json());
 }
 
 async function runAnalysis(fileId: string): Promise<AnalysisResult> {
@@ -40,7 +99,9 @@ async function runAnalysis(fileId: string): Promise<AnalysisResult> {
   });
   if (!file) return { ok: false, error: "File not found" };
 
-  const indexed = await indexDriveFile(file.id);
+  let buffer: Buffer | undefined;
+  try { buffer = await storage().download(file.storageKey); } catch { buffer = undefined; }
+  const indexed = await indexDriveFile(file.id, buffer);
   const current = indexed?.intelligence ?? (await getDriveIntelligence(file.id)).intelligence;
   const excerpt = current?.contentExcerpt ?? "";
   const context = [
@@ -50,35 +111,32 @@ async function runAnalysis(fileId: string): Promise<AnalysisResult> {
     file.folder ? `Folder: ${file.folder.name}` : "",
     file.client ? `Linked client: ${file.client.firstName} ${file.client.lastName} (${file.client.internalId})` : "",
     file.case ? `Linked case: ${file.case.caseNumber} — ${file.case.title}` : "",
-    excerpt ? `Extracted content:\n${excerpt.slice(0, 12000)}` : "Extracted content: unavailable for this file type. Analyze only from metadata and do not invent document contents.",
+    excerpt ? `Previously extracted text:\n${excerpt.slice(0, 12000)}` : "Previously extracted text: unavailable or not applicable.",
   ].filter(Boolean).join("\n");
 
-  if (!process.env.OPENAI_API_KEY) return { ok: false, error: "OPENAI_API_KEY is not configured" };
-
   try {
-    const { generateText } = await import("ai");
-    const { openai } = await import("@ai-sdk/openai");
-    const result = await generateText({
-      model: openai(process.env.OPENAI_MODEL ?? "gpt-4o-mini"),
-      system: `You analyze internal business files for JUN CREATIF AND TRAVEL LLC. Return ONLY valid JSON. Never invent facts. If content is unavailable, explicitly keep facts empty and infer only safe metadata such as likely category. Allowed categories: ${CATEGORIES.join(", ")}.`,
-      prompt: `${context}\n\nReturn JSON with keys: summary (string, max 600 chars), language (string), suggestedCategory (one allowed category), tags (array max 8), people (array max 10), organizations (array max 10), importantDates (array max 10), keyFacts (array max 10).`,
-      temperature: 0.1,
-    });
-    const parsed = parseAIJson(result.text);
+    const raw = await richOpenAIAnalysis({ fileName: file.name, mimeType: file.mimeType, context, buffer });
+    const parsed = parseAIJson(raw);
     if (!parsed) return { ok: false, error: "AI returned invalid JSON" };
     const suggestedCategory = CATEGORIES.includes(String(parsed.suggestedCategory ?? "OTHER") as typeof CATEGORIES[number]) ? String(parsed.suggestedCategory) : "OTHER";
     const intelligence: DriveIntelligence = {
       indexedAt: current?.indexedAt ?? new Date().toISOString(),
       contentExcerpt: current?.contentExcerpt ?? "",
       searchableText: current?.searchableText ?? file.name,
-      summary: String(parsed.summary ?? "").trim().slice(0, 600),
-      language: String(parsed.language ?? "Unknown").trim().slice(0, 60),
+      summary: cleanText(parsed.summary, 1200),
+      detailedDescription: cleanText(parsed.detailedDescription, 5000),
+      documentPurpose: cleanText(parsed.documentPurpose, 1800),
+      visualDescription: cleanText(parsed.visualDescription, 3000),
+      language: cleanText(parsed.language || "Unknown", 80),
       suggestedCategory,
-      tags: cleanArray(parsed.tags, 8),
-      people: cleanArray(parsed.people, 10),
-      organizations: cleanArray(parsed.organizations, 10),
-      importantDates: cleanArray(parsed.importantDates, 10),
-      keyFacts: cleanArray(parsed.keyFacts, 10),
+      tags: cleanArray(parsed.tags, 12),
+      people: cleanArray(parsed.people, 15),
+      organizations: cleanArray(parsed.organizations, 15),
+      importantDates: cleanArray(parsed.importantDates, 15),
+      keyFacts: cleanArray(parsed.keyFacts, 20),
+      actionItems: cleanArray(parsed.actionItems, 15),
+      risks: cleanArray(parsed.risks, 15),
+      missingInformation: cleanArray(parsed.missingInformation, 15),
       aiAnalyzedAt: new Date().toISOString(),
     };
     await prisma.appSetting.upsert({
@@ -98,10 +156,10 @@ export async function analyzeDriveFile(fileId: string, formData: FormData): Prom
   const returnTo = safeReturn(formData);
   const result = await runAnalysis(fileId);
   if (!result.ok) redirect(toast(returnTo, "toast_error", result.error));
-  await audit({ userId: user.id, action: "FILE_AI_ANALYZE", resourceType: "File", resourceId: fileId, after: { suggestedCategory: result.intelligence.suggestedCategory } });
-  await logActivity({ userId: user.id, type: "FILE_AI_ANALYZED", message: "AI document intelligence generated", resourceType: "File", resourceId: fileId });
+  await audit({ userId: user.id, action: "FILE_AI_ANALYZE", resourceType: "File", resourceId: fileId, after: { suggestedCategory: result.intelligence.suggestedCategory, richAnalysis: true } });
+  await logActivity({ userId: user.id, type: "FILE_AI_ANALYZED", message: "Rich AI file intelligence generated", resourceType: "File", resourceId: fileId });
   revalidatePath("/app/drive");
-  redirect(toast(returnTo, "toast", "Document intelligence updated"));
+  redirect(toast(returnTo, "toast", "Detailed file intelligence updated"));
 }
 
 export async function saveDriveTags(fileId: string, formData: FormData): Promise<void> {
