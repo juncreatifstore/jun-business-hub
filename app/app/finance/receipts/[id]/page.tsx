@@ -4,6 +4,7 @@ import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureReceiptMeta, shortReceiptHash } from "@/lib/finance-receipts";
 import { voidReceipt } from "@/services/finance-receipts";
+import { ReceiptShareActions } from "@/components/app/receipt-share-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
@@ -21,6 +22,9 @@ export default async function ReceiptDetailPage({ params }: { params: { id: stri
   if (!payment || !payment.paidAt || !["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(payment.status)) notFound();
   const meta = await ensureReceiptMeta(payment);
   const verifyPath = `/verify/${meta.receiptReference}`;
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://www.juncreatif.org").replace(/\/$/, "");
+  const verifyUrl = `${baseUrl}${verifyPath}`;
+  const pdfUrl = `${baseUrl}/api/receipts/${payment.id}/pdf`;
 
   return <div className="max-w-5xl">
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -52,6 +56,7 @@ export default async function ReceiptDetailPage({ params }: { params: { id: stri
           <Link href={verifyPath} target="_blank"><Button variant="outline">Verify QR</Button></Link>
           <Link href={`/app/finance/payments/${payment.id}`}><Button variant="outline">Payment ledger</Button></Link>
         </div>
+        <ReceiptShareActions receiptReference={meta.receiptReference} verifyUrl={verifyUrl} pdfUrl={pdfUrl} clientName={payment.client.firstName} active={meta.status === "ACTIVE"} />
         {payment.files.length ? <div className="divide-y divide-line rounded-lg border border-line">{payment.files.map((f) => <div key={f.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs"><span className="truncate">{f.name}</span><a href={`/api/files/${f.id}`} target="_blank" rel="noreferrer" className="text-electric">Open</a></div>)}</div> : <p className="text-xs text-muted2">No payment proof attached.</p>}
       </CardContent></Card>
     </div>
@@ -60,5 +65,5 @@ export default async function ReceiptDetailPage({ params }: { params: { id: stri
   </div>;
 }
 
-function Metric({ icon: Icon, label, value, hint }: { icon: typeof ReceiptText; label: string; value: string; hint: string }) { return <div className="rounded-xl border border-line bg-white p-4"><Icon className="mb-3 h-5 w-5 text-electric" /><div className="text-xs text-muted2">{label}</div><div className="mt-1 text-lg font-semibold break-words">{value}</div><div className="mt-1 text-xs text-muted2 break-words">{hint}</div></div>; }
+function Metric({ icon: Icon, label, value, hint }: { icon: typeof ReceiptText; label: string; value: string; hint: string }) { return <div className="rounded-xl border border-line bg-white p-4"><Icon className="mb-3 h-5 w-5 text-electric" /><div className="text-xs text-muted2">{label}</div><div className="mt-1 break-words text-lg font-semibold">{value}</div><div className="mt-1 break-words text-xs text-muted2">{hint}</div></div>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs text-muted2">{label}</dt><dd className="mt-0.5 break-words">{value}</dd></div>; }
