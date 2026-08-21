@@ -9,6 +9,7 @@ import { refundSchema, emptyToNull } from "@/lib/validation";
 import { nextNumber } from "@/lib/sequence";
 import { splitInstallments } from "@/lib/money";
 import { getRefundWorkflowMeta, saveRefundWorkflowMeta } from "@/lib/finance-refund-workflow";
+import { getRefundInstallmentMeta, saveRefundInstallmentMeta } from "@/lib/finance-refund-installments";
 import type { FormState } from "@/services/clients";
 import type { RefundStatus } from "@prisma/client";
 
@@ -21,6 +22,21 @@ const transitions: Record<RefundStatus, RefundStatus[]> = {
   REJECTED: [],
   CANCELLED: [],
 };
+
+function scheduleInstallments(amount: number, count: number, firstDueDateRaw: FormDataEntryValue | null) {
+  const parts = splitInstallments(amount, count);
+  const raw = String(firstDueDateRaw || "").trim();
+  const first = raw ? new Date(`${raw}T12:00:00`) : null;
+  return parts.map((installment, index) => {
+    let dueDate = installment.dueDate;
+    if (first && !Number.isNaN(first.getTime())) {
+      const d = new Date(first);
+      d.setMonth(first.getMonth() + index);
+      dueDate = d;
+    }
+    return { ...installment, dueDate, number: index + 1 };
+  });
+}
 
 async function recomputePaymentRefundStatus(paymentId: string) {
   const payment = await prisma.payment.findUnique({
@@ -55,6 +71,7 @@ export async function createRefundWorkflow(_prev: FormState, formData: FormData)
   const refundNumber = await nextNumber("REF");
   let refundType: "FULL" | "PARTIAL" | "UNLINKED" = "UNLINKED";
   let refund: { id: string; refundNumber: string; currency: string; caseId: string | null };
+  const installments = scheduleInstallments(d.amount, d.installments, formData.get("firstDueDate"));
 
   if (paymentId) {
     try {
@@ -69,19 +86,17 @@ export async function createRefundWorkflow(_prev: FormState, formData: FormData)
         const available = Math.max(0, Math.round((Number(original.amount) - committed) * 100) / 100);
         if (d.amount > available + 0.005) throw new Error(`Refund exceeds the available amount on ${original.reference}: ${original.currency} ${available.toFixed(2)} remaining.`);
         refundType = Math.abs(d.amount - available) < 0.005 ? "FULL" : "PARTIAL";
-        const installments = splitInstallments(d.amount, d.installments).map((installment, index) => ({ ...installment, number: index + 1 }));
         return tx.refund.create({ data: { refundNumber, clientId: d.clientId, caseId, paymentId, amount: d.amount, currency: original.currency, reason: d.reason, createdById: user.id, installments: { create: installments } }, select: { id: true, refundNumber: true, currency: true, caseId: true } });
       });
     } catch (error) {
       return { message: error instanceof Error ? error.message : "Unable to create refund." };
     }
   } else {
-    const installments = splitInstallments(d.amount, d.installments).map((installment, index) => ({ ...installment, number: index + 1 }));
     refund = await prisma.refund.create({ data: { refundNumber, clientId: d.clientId, caseId, amount: d.amount, currency: d.currency.toUpperCase(), reason: d.reason, createdById: user.id, installments: { create: installments } }, select: { id: true, refundNumber: true, currency: true, caseId: true } });
   }
 
   await saveRefundWorkflowMeta(refund.id, { refundType });
-  await audit({ userId: user.id, action: "REFUND_CREATE", resourceType: "Refund", resourceId: refund.id, after: { refundNumber, amount: d.amount, currency: refund.currency, installments: d.installments, paymentId, refundType } });
+  await audit({ userId: user.id, action: "REFUND_CREATE", resourceType: "Refund", resourceId: refund.id, after: { refundNumber, amount: d.amount, currency: refund.currency, installments: d.installments, firstDueDate: String(formData.get("firstDueDate") || "") || null, paymentId, refundType } });
   await logActivity({ type: "REFUND_REQUESTED", message: `Refund ${refundNumber} requested (${refund.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: refund.caseId });
   redirect(`/app/finance/refunds/${refund.id}?toast=${encodeURIComponent("Refund request created")}`);
 }
@@ -122,17 +137,67 @@ export async function decideRefund(refundId: string, formData: FormData) {
   revalidatePath("/app/finance/refunds");
 }
 
+export async function rescheduleRefundInstallment(installmentId: string, formData: FormData) {
+  const user = await assertPermission("REFUND_APPROVE");
+  const raw = String(formData.get("dueDate") || "").trim();
+  const dueDate = raw ? new Date(`${raw}T12:00:00`) : null;
+  if (!dueDate || Number.isNaN(dueDate.getTime())) return;
+  const inst = await prisma.refundInstallment.findUnique({ where: { id: installmentId }, include: { refund: true } });
+  if (!inst || ["PAID", "CANCELLED"].includes(inst.status) || ["PAID", "REJECTED", "CANCELLED"].includes(inst.refund.status)) return;
+  const nextStatus = dueDate.getTime() < new Date(new Date().setHours(0, 0, 0, 0)).getTime() ? "LATE" : "SCHEDULED";
+  await prisma.refundInstallment.update({ where: { id: installmentId }, data: { dueDate, status: nextStatus } });
+  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_RESCHEDULE", resourceType: "RefundInstallment", resourceId: installmentId, before: { dueDate: inst.dueDate, status: inst.status }, after: { dueDate, status: nextStatus } });
+  revalidatePath(`/app/finance/refunds/${inst.refundId}`);
+  revalidatePath("/app/finance/refunds");
+}
+
+export async function saveRefundInstallmentPayout(installmentId: string, formData: FormData) {
+  const user = await assertPermission("REFUND_APPROVE");
+  const inst = await prisma.refundInstallment.findUnique({ where: { id: installmentId }, include: { refund: true } });
+  if (!inst || inst.status === "PAID" || !["APPROVED", "PARTIALLY_PAID"].includes(inst.refund.status)) return;
+  const method = String(formData.get("method") || "").trim().slice(0, 80);
+  const transactionRef = String(formData.get("transactionRef") || "").trim().slice(0, 180);
+  const notes = String(formData.get("notes") || "").trim().slice(0, 2000) || null;
+  if (!method || !transactionRef) return;
+  const before = await getRefundInstallmentMeta(installmentId);
+  await saveRefundInstallmentMeta(installmentId, { method, transactionRef, notes });
+  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_PAYOUT_DETAILS", resourceType: "RefundInstallment", resourceId: installmentId, before: { method: before.method, transactionRef: before.transactionRef }, after: { method, transactionRef, notes } });
+  revalidatePath(`/app/finance/refunds/${inst.refundId}`);
+}
+
+export async function sendRefundInstallmentReminder(installmentId: string) {
+  const user = await assertPermission("REFUND_APPROVE");
+  const inst = await prisma.refundInstallment.findUnique({ where: { id: installmentId }, include: { refund: true } });
+  if (!inst || ["PAID", "CANCELLED"].includes(inst.status)) return;
+  const workflow = await getRefundWorkflowMeta(inst.refundId);
+  const meta = await getRefundInstallmentMeta(installmentId);
+  const recipients = new Set<string>([inst.refund.createdById]);
+  if (workflow.assignedToId) recipients.add(workflow.assignedToId);
+  const account = await prisma.clientAccount.findFirst({ where: { clientId: inst.refund.clientId }, select: { userId: true } });
+  if (account?.userId) recipients.add(account.userId);
+  const title = `Refund ${inst.refund.refundNumber} installment ${inst.number}`;
+  const body = `Scheduled ${inst.refund.currency} ${Number(inst.amount).toFixed(2)} · due ${inst.dueDate.toISOString().slice(0, 10)}.`;
+  await prisma.notification.createMany({ data: [...recipients].map((userId) => ({ userId, type: "REFUND_INSTALLMENT_REMINDER", title, body })) });
+  await saveRefundInstallmentMeta(installmentId, { reminderCount: meta.reminderCount + 1, lastReminderAt: new Date().toISOString() });
+  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_REMINDER", resourceType: "RefundInstallment", resourceId: installmentId, after: { recipients: recipients.size, reminderCount: meta.reminderCount + 1 } });
+  revalidatePath(`/app/finance/refunds/${inst.refundId}`);
+}
+
 export async function markRefundInstallmentPaid(installmentId: string) {
   const user = await assertPermission("REFUND_APPROVE");
   const inst = await prisma.refundInstallment.findUnique({ where: { id: installmentId }, include: { refund: { include: { installments: true } } } });
   if (!inst || inst.status === "PAID" || !["APPROVED", "PARTIALLY_PAID"].includes(inst.refund.status)) return;
+  const meta = await getRefundInstallmentMeta(installmentId);
+  if (!meta.method || !meta.transactionRef || !meta.proofFileId) return;
+  const proof = await prisma.file.findFirst({ where: { id: meta.proofFileId, refundId: inst.refundId, archivedAt: null }, select: { id: true } });
+  if (!proof) return;
 
   await prisma.refundInstallment.update({ where: { id: installmentId }, data: { status: "PAID", paidAt: new Date() } });
   const remaining = inst.refund.installments.filter((i) => i.id !== installmentId && !["PAID", "CANCELLED"].includes(i.status)).length;
   const newStatus: RefundStatus = remaining === 0 ? "PAID" : "PARTIALLY_PAID";
   await prisma.refund.update({ where: { id: inst.refundId }, data: { status: newStatus } });
   if (inst.refund.paymentId) await recomputePaymentRefundStatus(inst.refund.paymentId);
-  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_PAID", resourceType: "RefundInstallment", resourceId: installmentId, after: { refund: inst.refund.refundNumber, amount: Number(inst.amount), newStatus } });
+  await audit({ userId: user.id, action: "REFUND_INSTALLMENT_PAID", resourceType: "RefundInstallment", resourceId: installmentId, after: { refund: inst.refund.refundNumber, amount: Number(inst.amount), newStatus, method: meta.method, transactionRef: meta.transactionRef, proofFileId: meta.proofFileId } });
   await logActivity({ type: "REFUND_UPDATED", message: `Refund payment recorded on ${inst.refund.refundNumber} (${newStatus.replaceAll("_", " ")})`, userId: user.id, clientId: inst.refund.clientId, caseId: inst.refund.caseId });
   revalidatePath(`/app/finance/refunds/${inst.refundId}`);
   revalidatePath("/app/finance/refunds");
