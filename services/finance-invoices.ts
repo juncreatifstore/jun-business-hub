@@ -13,6 +13,7 @@ import { makeOnlinePublicToken, saveOnlinePaymentSession, type OnlinePaymentProv
 
 function dest(id: string, msg: string, error = false) { return `/app/finance/invoices/${encodeURIComponent(id)}?${error ? "toast_error" : "toast"}=${encodeURIComponent(msg)}`; }
 function value(fd: FormData, key: string, max = 500) { return String(fd.get(key) || "").trim().slice(0, max); }
+function round(v: number) { return Math.round((v + Number.EPSILON) * 100) / 100; }
 function parseLines(fd: FormData) {
   const descriptions = fd.getAll("lineDescription").map(String);
   const quantities = fd.getAll("lineQuantity").map(Number);
@@ -89,19 +90,28 @@ export async function linkPaymentToInvoice(id: string, formData: FormData) {
   const payment = await prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true, clientId: true, currency: true, amount: true, reference: true } });
   if (!payment || payment.clientId !== invoice.clientId) redirect(dest(id, "Payment does not belong to invoice client", true));
   if (payment.currency !== invoice.currency) redirect(dest(id, "Payment currency does not match invoice currency", true));
-  if (invoice.payments.some((p) => p.paymentId === payment.id)) redirect(dest(id, "Payment is already linked", true));
+  if (invoice.payments.some((p) => p.paymentId === payment.id)) redirect(dest(id, "Payment is already linked to this invoice", true));
+
   const allInvoices = await listInvoices(3000);
-  const alreadyLinkedElsewhere = allInvoices.some((other) => other.id !== invoice.id && other.payments.some((p) => p.paymentId === payment.id));
-  if (alreadyLinkedElsewhere) redirect(dest(id, "Payment is already linked to another invoice", true));
-  const state = await invoiceFinancialState(invoice);
+  const allocatedElsewhere = round(allInvoices
+    .filter((other) => other.id !== invoice.id)
+    .flatMap((other) => other.payments)
+    .filter((link) => link.paymentId === payment.id)
+    .reduce((sum, link) => sum + Math.max(0, Number(link.amountApplied || 0)), 0));
   const paymentAmount = Number(payment.amount);
-  if (paymentAmount > state.balance + 0.009) redirect(dest(id, "Payment amount exceeds the invoice balance. Use a matching partial payment instead.", true));
-  const amountApplied = paymentAmount;
+  const availableFromPayment = round(Math.max(0, paymentAmount - allocatedElsewhere));
+  if (availableFromPayment <= 0) redirect(dest(id, "This payment has already been fully allocated to invoices", true));
+
+  const state = await invoiceFinancialState(invoice);
+  const amountApplied = round(Math.min(availableFromPayment, state.balance));
+  if (amountApplied <= 0) redirect(dest(id, "Invoice has no remaining balance to apply", true));
+
   const next = { ...invoice, payments: [...invoice.payments, { paymentId: payment.id, linkedAt: new Date().toISOString(), linkedById: user.id, amountApplied }], updatedAt: new Date().toISOString() };
   await saveInvoice(next);
-  await audit({ userId: user.id, action: "INVOICE_PAYMENT_LINK", resourceType: "FinanceInvoice", resourceId: id, after: { paymentId: payment.id, reference: payment.reference, amountApplied } });
+  const unallocated = round(Math.max(0, availableFromPayment - amountApplied));
+  await audit({ userId: user.id, action: "INVOICE_PAYMENT_LINK", resourceType: "FinanceInvoice", resourceId: id, after: { paymentId: payment.id, reference: payment.reference, paymentAmount, amountApplied, unallocated } });
   revalidatePath(`/app/finance/invoices/${id}`); revalidatePath("/app/finance/invoices");
-  redirect(dest(id, `Payment ${payment.reference} linked`));
+  redirect(dest(id, `Payment ${payment.reference} linked: ${invoice.currency} ${amountApplied.toFixed(2)} applied${unallocated > 0 ? `, ${invoice.currency} ${unallocated.toFixed(2)} remains unallocated` : ""}`));
 }
 
 export async function recordInvoiceReminder(id: string, formData: FormData) {
