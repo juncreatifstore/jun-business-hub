@@ -30,18 +30,18 @@ export function RefundForm({ clients, cases, payments, defaultClientId, defaultC
       <Field label="Client"><Select name="clientId" value={clientId} onChange={(e) => { setClientId(e.target.value); setPaymentId(""); }} required><option value="" disabled>Select a client…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.lastName}, {c.firstName} — {c.internalId}</option>)}</Select></Field>
       {err("clientId") && <p className="mt-1 text-xs text-red-600">{err("clientId")}</p>}
     </div>
-    <Field label="Original payment" hint="Recommended for financial reconciliation">
+    <Field label="Refund source" hint="Choose a specific payment only when the refund must be reconciled to that payment">
       <Select name="paymentId" value={paymentId} onChange={(e) => setPaymentId(e.target.value)}>
-        <option value="">Unlinked refund</option>
+        <option value="">Global client balance — no payment link required</option>
         {clientPayments.map((p) => <option key={p.id} value={p.id}>{p.reference} — {p.currency} {p.available.toFixed(2)} refundable</option>)}
       </Select>
     </Field>
     <Field label="Case (optional)"><Select name="caseId" defaultValue={defaultCaseId ?? ""}><option value="">No case</option>{clientCases.map((c) => <option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}</Select></Field>
     <div>
-      <Field label="Refund amount" hint={selectedPayment ? `Maximum currently available: ${selectedPayment.currency} ${selectedPayment.available.toFixed(2)}` : undefined}><Input name="amount" type="number" step="0.01" min="0.01" max={selectedPayment?.available} required /></Field>
+      <Field label="Refund amount" hint={selectedPayment ? `Maximum currently available on this payment: ${selectedPayment.currency} ${selectedPayment.available.toFixed(2)}` : "Validated against the client global available balance"}><Input name="amount" type="number" step="0.01" min="0.01" max={selectedPayment?.available} required /></Field>
       {err("amount") && <p className="mt-1 text-xs text-red-600">{err("amount")}</p>}
     </div>
-    <Field label="Currency" hint={selectedPayment ? "Locked to original payment" : undefined}><Input name="currency" value={selectedPayment?.currency ?? undefined} defaultValue={selectedPayment ? undefined : "USD"} readOnly={Boolean(selectedPayment)} maxLength={3} required /></Field>
+    <Field label="Currency" hint={selectedPayment ? "Locked to original payment" : "Currency of the global client balance being refunded"}><Input name="currency" value={selectedPayment?.currency ?? undefined} defaultValue={selectedPayment ? undefined : "USD"} readOnly={Boolean(selectedPayment)} maxLength={3} required /></Field>
     <Field label="Installments" hint="Up to 24 scheduled payouts"><Input name="installments" type="number" min={1} max={24} defaultValue={1} required /></Field>
     <Field label="First due date" hint="Following installments are scheduled monthly"><Input name="firstDueDate" type="date" /></Field>
     <div className="sm:col-span-2"><Field label="Reason" hint="Explain what is being refunded and why"><Textarea name="reason" rows={4} required /></Field>{err("reason") && <p className="mt-1 text-xs text-red-600">{err("reason")}</p>}</div>
