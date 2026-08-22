@@ -111,7 +111,7 @@ export async function renderFormalNoticePdf(input: {
   const date = new Date().toISOString().slice(0, 10);
   const blocks = parseBlocks(input.html);
   let pageNo = 0;
-  let page: PDFPage;
+  let page: PDFPage = pdf.addPage([W, H]);
   let y = 0;
 
   const footer = (p: PDFPage) => {
@@ -122,8 +122,10 @@ export async function renderFormalNoticePdf(input: {
   };
 
   const addPage = (first = false) => {
-    if (pageNo > 0) footer(page);
-    page = pdf.addPage([W, H]);
+    if (pageNo > 0) {
+      footer(page);
+      page = pdf.addPage([W, H]);
+    }
     pageNo++;
 
     if (first) {
