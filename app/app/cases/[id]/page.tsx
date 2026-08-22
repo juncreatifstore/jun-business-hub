@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
+import { deleteCase } from "@/services/cases";
 
 export const dynamic = "force-dynamic";
 
@@ -181,6 +182,28 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
               )}
             </CardContent>
           </Card>
+
+          {can(user, "CASE_UPDATE") ? (
+            <Card>
+              <CardHeader><CardTitle>Delete service</CardTitle></CardHeader>
+              <CardContent>
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  Permanent deletion is only allowed when this service has no payments, refunds, invoices, expenses, documents or files. Otherwise cancel or archive it to preserve the financial record.
+                </div>
+                <form action={deleteCase.bind(null, c.id)} className="mt-4 space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted2">Deletion reason</label>
+                    <textarea name="reason" required rows={3} maxLength={1000} className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm" placeholder="Example: Service created by mistake / duplicate case" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted2">Type DELETE {c.caseNumber} to confirm</label>
+                    <input name="confirmation" required autoComplete="off" className="w-full rounded-lg border border-line bg-white px-3 py-2 font-mono text-sm" placeholder={`DELETE ${c.caseNumber}`} />
+                  </div>
+                  <button type="submit" className="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Delete service permanently</button>
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
     </div>
