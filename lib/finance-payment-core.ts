@@ -54,6 +54,12 @@ export async function savePaymentCoreMeta(paymentId: string, meta: PaymentCoreMe
   await prisma.appSetting.upsert({ where: { key }, update: { value }, create: { key, value } });
 }
 
+export function netPaymentAmount(grossAmount: number, feeAmount?: number | null) {
+  const gross = Number.isFinite(Number(grossAmount)) ? Number(grossAmount) : 0;
+  const fee = Number.isFinite(Number(feeAmount)) ? Math.max(0, Number(feeAmount)) : 0;
+  return Math.max(0, Math.round((gross - fee) * 100) / 100);
+}
+
 export function paymentBalance(amountReceived: number, expectedAmount: number | null) {
   if (expectedAmount == null) return null;
   return Math.round((expectedAmount - amountReceived) * 100) / 100;
