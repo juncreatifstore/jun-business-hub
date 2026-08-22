@@ -89,4 +89,6 @@ export async function addClientNote(clientId: string, formData: FormData) {
   await prisma.clientNote.create({ data: { clientId, authorId: user.id, body } });
   await logActivity({ type: "NOTE_ADDED", message: "Note added to client", userId: user.id, clientId });
   revalidatePath(`/app/clients/${clientId}`);
+  revalidatePath(`/app/clients/${clientId}/dashboard`);
+  revalidatePath(`/app/clients/${clientId}/history`);
 }
