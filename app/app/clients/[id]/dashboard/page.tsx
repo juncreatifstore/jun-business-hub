@@ -17,7 +17,7 @@ function moneyList(rows: Array<{ currency: string; value: number }>) {
 }
 
 export default async function Client360Page({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  await requirePermission("CLIENT_READ");
+  const user = await requirePermission("CLIENT_READ");
   const resolved = await Promise.resolve(params);
   const id = resolved.id;
 
@@ -66,10 +66,11 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
         <div className="mt-2 flex flex-wrap gap-1">{client.tags.map((t)=><Badge key={t.id} className="border border-line bg-surface text-muted2">{t.tag}</Badge>)}</div>
       </div>
       <div className="flex flex-wrap gap-2">
+        <Link href={`/app/clients/${client.id}/services`}><Button variant="primary">Services & Cases</Button></Link>
         <Link href={`/app/clients/${client.id}`}><Button variant="outline">Full record</Button></Link>
         <Link href={`/app/clients/${client.id}/statement`}><Button variant="outline">Statement</Button></Link>
         <Link href={`/app/clients/${client.id}/account`}><Button variant="outline">Financial account</Button></Link>
-        {can(await requirePermission("CLIENT_READ"),"CLIENT_UPDATE")?<Link href={`/app/clients/${client.id}/edit`}><Button variant="primary">Edit profile</Button></Link>:null}
+        {can(user,"CLIENT_UPDATE")?<Link href={`/app/clients/${client.id}/edit`}><Button variant="outline">Edit profile</Button></Link>:null}
       </div>
     </div>
 
@@ -100,6 +101,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
       </dl></CardContent></Card>
 
       <Card><CardHeader><CardTitle>Quick actions</CardTitle></CardHeader><CardContent className="grid gap-2 sm:grid-cols-2">
+        <Quick href={`/app/clients/${client.id}/services`} title="Services & cases" text="Review service status, billing, costs and profit."/>
         <Quick href={`/app/cases/new?clientId=${client.id}`} title="Open a case" text="Create a new service or travel case."/>
         <Quick href={`/app/finance/invoices/new?clientId=${client.id}`} title="Create invoice" text="Bill a service to this client."/>
         <Quick href={`/app/finance/payments/new?clientId=${client.id}`} title="Record payment" text="Record money received from the client."/>
@@ -110,7 +112,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
     </div>
 
     <div className="grid gap-4 xl:grid-cols-2">
-      <Card><CardHeader><CardTitle>Current cases</CardTitle></CardHeader><CardContent className="p-0">{activeCases.length?<div className="divide-y divide-line">{activeCases.slice(0,6).map((c)=><Link key={c.id} href={`/app/cases/${c.id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-surface"><div><div className="font-medium">{c.title}</div><div className="registry-id mt-0.5 text-xs text-muted2">{c.caseNumber}</div></div><div className="text-right"><StatusBadge status={c.status}/><div className="mt-1 text-xs text-muted2">{c.owner?`${c.owner.firstName} ${c.owner.lastName}`:"Unassigned"}</div></div></Link>)}</div>:<p className="p-5 text-sm text-muted2">No active case. Open a case when the client starts a service.</p>}</CardContent></Card>
+      <Card><CardHeader><div className="flex items-center justify-between gap-3"><CardTitle>Current services</CardTitle><Link href={`/app/clients/${client.id}/services`} className="text-sm font-medium text-electric hover:underline">View service finances</Link></div></CardHeader><CardContent className="p-0">{activeCases.length?<div className="divide-y divide-line">{activeCases.slice(0,6).map((c)=><Link key={c.id} href={`/app/cases/${c.id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-surface"><div><div className="font-medium">{c.title}</div><div className="registry-id mt-0.5 text-xs text-muted2">{c.caseNumber}</div></div><div className="text-right"><StatusBadge status={c.status}/><div className="mt-1 text-xs text-muted2">{c.owner?`${c.owner.firstName} ${c.owner.lastName}`:"Unassigned"}</div></div></Link>)}</div>:<p className="p-5 text-sm text-muted2">No active service. Open a case when the client starts a service.</p>}</CardContent></Card>
 
       <Card><CardHeader><CardTitle>Recent activity</CardTitle></CardHeader><CardContent className="p-0">{client.activities.length?<div className="divide-y divide-line">{client.activities.slice(0,8).map((a)=><div key={a.id} className="px-5 py-3"><div className="text-sm">{a.message}</div><div className="mt-1 text-xs text-muted2">{a.user?`${a.user.firstName} ${a.user.lastName} · `:""}{formatDateTime(a.createdAt)}</div></div>)}</div>:<p className="p-5 text-sm text-muted2">No activity recorded yet.</p>}</CardContent></Card>
     </div>
