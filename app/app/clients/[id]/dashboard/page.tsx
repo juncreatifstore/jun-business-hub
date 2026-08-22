@@ -75,6 +75,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
         <Link href={`/app/clients/${client.id}/finance`}><Button variant="primary">Finance</Button></Link>
         <Link href={`/app/clients/${client.id}/profitability`}><Button variant="primary">Profitability</Button></Link>
         <Link href={`/app/clients/${client.id}/documents`}><Button variant="primary">Documents & Drive</Button></Link>
+        <Link href={`/app/clients/${client.id}/history`}><Button variant="primary">Timeline & Notes</Button></Link>
         <Link href={`/app/clients/${client.id}`}><Button variant="outline">Full record</Button></Link>
         <Link href={`/app/clients/${client.id}/statement`}><Button variant="outline">Statement</Button></Link>
         <Link href={`/app/clients/${client.id}/account`}><Button variant="outline">Financial account</Button></Link>
@@ -115,11 +116,11 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
         <Quick href={`/app/clients/${client.id}/finance`} title="Client finance" text="Review gross payments, fees, net receipts, allocations and invoice balances."/>
         <Quick href={`/app/clients/${client.id}/profitability`} title="Expenses & profitability" text="Review costs, realized profit, projected profit and margins."/>
         <Quick href={`/app/clients/${client.id}/documents`} title="Documents & Drive" text="Review identity files, travel documents, proofs, contracts and signed documents."/>
+        <Quick href={`/app/clients/${client.id}/history`} title="Timeline & notes" text="See the complete chronological history and add internal team notes."/>
         <Quick href={`/app/cases/new?clientId=${client.id}`} title="Open a case" text={negativeBalances.length?"Blocked until the outstanding client balance is settled.":"Create a new service or travel case."}/>
         <Quick href={`/app/finance/invoices/new?clientId=${client.id}`} title="Create invoice" text="Bill a service to this client."/>
         <Quick href={`/app/finance/payments/new?clientId=${client.id}`} title="Record payment" text="Record money received from the client."/>
         <Quick href={`/app/finance/expenses/new?clientId=${client.id}`} title="Record expense" text="Record a cost paid or payable for this client."/>
-        <Quick href={`/app/clients/${client.id}?tab=notes`} title="Team notes" text="Read or add internal notes."/>
         <Quick href={`/app/clients/${client.id}/statement`} title="Client statement" text="Review the complete financial statement."/>
       </CardContent></Card>
     </div>
@@ -127,7 +128,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
     <div className="grid gap-4 xl:grid-cols-2">
       <Card><CardHeader><div className="flex items-center justify-between gap-3"><CardTitle>Current services</CardTitle><Link href={`/app/clients/${client.id}/services`} className="text-sm font-medium text-electric hover:underline">View service finances</Link></div></CardHeader><CardContent className="p-0">{activeCases.length?<div className="divide-y divide-line">{activeCases.slice(0,6).map((c)=><Link key={c.id} href={`/app/cases/${c.id}`} className="flex items-center justify-between gap-3 px-5 py-3 hover:bg-surface"><div><div className="font-medium">{c.title}</div><div className="registry-id mt-0.5 text-xs text-muted2">{c.caseNumber}</div></div><div className="text-right"><StatusBadge status={c.status}/><div className="mt-1 text-xs text-muted2">{c.owner?`${c.owner.firstName} ${c.owner.lastName}`:"Unassigned"}</div></div></Link>)}</div>:<p className="p-5 text-sm text-muted2">No active service. Open a case when the client starts a service.</p>}</CardContent></Card>
 
-      <Card><CardHeader><CardTitle>Recent activity</CardTitle></CardHeader><CardContent className="p-0">{client.activities.length?<div className="divide-y divide-line">{client.activities.slice(0,8).map((a)=><div key={a.id} className="px-5 py-3"><div className="text-sm">{a.message}</div><div className="mt-1 text-xs text-muted2">{a.user?`${a.user.firstName} ${a.user.lastName} · `:""}{formatDateTime(a.createdAt)}</div></div>)}</div>:<p className="p-5 text-sm text-muted2">No activity recorded yet.</p>}</CardContent></Card>
+      <Card><CardHeader><div className="flex items-center justify-between gap-3"><CardTitle>Recent activity</CardTitle><Link href={`/app/clients/${client.id}/history`} className="text-sm font-medium text-electric hover:underline">Open full timeline</Link></div></CardHeader><CardContent className="p-0">{client.activities.length?<div className="divide-y divide-line">{client.activities.slice(0,8).map((a)=><div key={a.id} className="px-5 py-3"><div className="text-sm">{a.message}</div><div className="mt-1 text-xs text-muted2">{a.user?`${a.user.firstName} ${a.user.lastName} · `:""}{formatDateTime(a.createdAt)}</div></div>)}</div>:<p className="p-5 text-sm text-muted2">No activity recorded yet.</p>}</CardContent></Card>
     </div>
   </div>;
 }
