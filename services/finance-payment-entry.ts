@@ -5,6 +5,7 @@ import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { getFinancePaymentAccount, calculatePaymentFee } from "@/lib/finance-payment-accounts";
 import { savePaymentCoreMeta } from "@/lib/finance-payment-core";
+import { getClientBlock } from "@/lib/client-transaction-block";
 import { prisma } from "@/lib/prisma";
 import { nextNumber } from "@/lib/sequence";
 import { emptyToNull, parseDate, paymentSchema } from "@/lib/validation";
@@ -16,11 +17,16 @@ export async function createPaymentWithAccount(_prev: FormState, formData: FormD
   if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
   const d = parsed.data;
 
-  const [client, account] = await Promise.all([
+  const [client, account, block] = await Promise.all([
     prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } }),
     d.accountId ? getFinancePaymentAccount(d.accountId) : Promise.resolve(null),
+    getClientBlock(d.clientId),
   ]);
   if (!client) return { message: "Selected client does not exist." };
+  if (block?.blocked) {
+    await audit({ userId: user.id, action: "PAYMENT_CREATE_BLOCKED_CLIENT", resourceType: "Client", resourceId: d.clientId, after: { reason: block.reason } });
+    return { message: `Payment blocked: JUN ended the commercial relationship with this client. Reason: ${block.reason}` };
+  }
 
   const caseId = emptyToNull(d.caseId);
   if (caseId) {
@@ -36,35 +42,9 @@ export async function createPaymentWithAccount(_prev: FormState, formData: FormD
 
   const reference = await nextNumber("PAY");
   const feeAmount = calculatePaymentFee(d.amount, account);
-  const payment = await prisma.payment.create({
-    data: {
-      reference,
-      clientId: d.clientId,
-      caseId,
-      amount: d.amount,
-      currency: d.currency.toUpperCase(),
-      method: d.method,
-      provider: account?.label || null,
-      providerRef: emptyToNull(d.providerRef),
-      paidAt: parseDate(d.paidAt) ?? new Date(),
-      notes: emptyToNull(d.notes),
-      recordedById: user.id,
-    },
-  });
-
+  const payment = await prisma.payment.create({ data: { reference, clientId: d.clientId, caseId, amount: d.amount, currency: d.currency.toUpperCase(), method: d.method, provider: account?.label || null, providerRef: emptyToNull(d.providerRef), paidAt: parseDate(d.paidAt) ?? new Date(), notes: emptyToNull(d.notes), recordedById: user.id } });
   const expectedAmount = d.expectedAmount === "" || d.expectedAmount == null ? null : Number(d.expectedAmount);
-  await savePaymentCoreMeta(payment.id, {
-    expectedAmount,
-    serviceLabel: emptyToNull(d.serviceLabel),
-    providerRef: emptyToNull(d.providerRef),
-    accountId: account?.id || null,
-    accountLabel: account?.label || null,
-    accountDescriptor: account?.accountDescriptor || null,
-    accountMethod: account?.method || null,
-    accountCurrency: account?.currency || null,
-    feeAmount,
-  });
-
+  await savePaymentCoreMeta(payment.id, { expectedAmount, serviceLabel: emptyToNull(d.serviceLabel), providerRef: emptyToNull(d.providerRef), accountId: account?.id || null, accountLabel: account?.label || null, accountDescriptor: account?.accountDescriptor || null, accountMethod: account?.method || null, accountCurrency: account?.currency || null, feeAmount });
   await audit({ userId: user.id, action: "PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, amount: d.amount, expectedAmount, currency: payment.currency, method: payment.method, providerRef: payment.providerRef, serviceLabel: emptyToNull(d.serviceLabel), accountId: account?.id || null, accountLabel: account?.label || null, feeAmount } });
   await logActivity({ type: "PAYMENT_CREATED", message: `Payment ${reference} recorded (${payment.currency} ${d.amount})${account ? ` to ${account.label}` : ""}`, userId: user.id, clientId: d.clientId, caseId: payment.caseId });
   redirect(`/app/finance/payments/${payment.id}?toast=${encodeURIComponent("Payment recorded — pending confirmation")}`);
