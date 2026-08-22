@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { saveRefundWorkflowMeta } from "@/lib/finance-refund-workflow";
+import { getRefundInstallmentMeta, saveRefundInstallmentMeta } from "@/lib/finance-refund-installments";
 
 export type RefundProofCandidate = {
   id: string;
@@ -156,6 +157,52 @@ export async function attachExistingDriveFileToRefund(refundId: string, fileId: 
   await logActivity({ type: "REFUND_UPDATED", message: `Existing Drive proof attached to ${refund.refundNumber}: ${file.name}`, userId: user.id, clientId: refund.clientId, caseId: refund.caseId });
   revalidatePath(`/app/finance/refunds/${refundId}`);
   return { ok: true };
+}
+
+export async function detachRefundProof(refundId: string, fileId: string, _formData?: FormData): Promise<void> {
+  const user = await assertPermission("REFUND_CREATE");
+  const refund = await prisma.refund.findUnique({
+    where: { id: refundId },
+    include: { installments: { select: { id: true, number: true, status: true } } },
+  });
+  if (!refund) throw new Error("Refund not found.");
+  if (refund.status === "PAID") throw new Error("Evidence on a completed refund cannot be removed. Correct the refund first.");
+
+  const file = await prisma.file.findFirst({
+    where: { id: fileId, refundId, archivedAt: null },
+    select: { id: true, name: true, clientId: true },
+  });
+  if (!file) throw new Error("This file is not attached to this refund.");
+
+  const linkedInstallments: { id: string; number: number; status: string }[] = [];
+  for (const installment of refund.installments) {
+    const meta = await getRefundInstallmentMeta(installment.id);
+    if (meta.proofFileId === fileId) linkedInstallments.push(installment);
+  }
+  const paidUse = linkedInstallments.find((installment) => installment.status === "PAID");
+  if (paidUse) throw new Error(`This proof confirms paid installment ${paidUse.number} and cannot be removed without correcting that payout.`);
+
+  for (const installment of linkedInstallments) {
+    await saveRefundInstallmentMeta(installment.id, { proofFileId: null });
+  }
+  await prisma.file.update({ where: { id: fileId }, data: { refundId: null } });
+  await audit({
+    userId: user.id,
+    action: "REFUND_PROOF_DETACH",
+    resourceType: "Refund",
+    resourceId: refundId,
+    before: { fileId, fileName: file.name, linkedInstallments: linkedInstallments.map((x) => x.number) },
+    after: { refundId: null, filePreservedInDrive: true },
+  });
+  await logActivity({
+    type: "REFUND_UPDATED",
+    message: `Proof removed from refund ${refund.refundNumber}: ${file.name} (file preserved in Client Drive)`,
+    userId: user.id,
+    clientId: refund.clientId,
+    caseId: refund.caseId,
+  });
+  revalidatePath(`/app/finance/refunds/${refundId}`);
+  revalidatePath(`/app/clients/${refund.clientId}/documents`);
 }
 
 export async function attachProofAndLinkOriginalPayment(refundId: string, fileId: string): Promise<{ ok?: true; error?: string }> {
