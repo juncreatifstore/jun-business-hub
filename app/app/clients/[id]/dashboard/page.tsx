@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getClientFinancialAccount } from "@/lib/client-financial-account";
+import { getClientFinanceOverview } from "@/lib/client-finance-overview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -21,7 +22,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
   const resolved = await Promise.resolve(params);
   const id = resolved.id;
 
-  const [client, account] = await Promise.all([
+  const [client, account, finance] = await Promise.all([
     prisma.client.findUnique({
       where: { id },
       include: {
@@ -36,13 +37,14 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
       },
     }),
     getClientFinancialAccount(id),
+    getClientFinanceOverview(id),
   ]);
   if (!client) notFound();
 
   const activeCases = client.cases.filter((c) => !["COMPLETED", "CANCELLED", "ARCHIVED"].includes(c.status));
   const contracts = client.documents.filter((d) => ["CONTRACT", "AGREEMENT", "REFUND_AGREEMENT"].includes(d.type));
   const confirmedNet = moneyList(account.balances.map((b) => ({ currency: b.currency, value: b.confirmedFunds })));
-  const available = moneyList(account.balances.map((b) => ({ currency: b.currency, value: b.available })));
+  const fundsAfterCommitments = moneyList(finance.summaries.map((s) => ({ currency: s.currency, value: s.forecastProfit })));
   const pendingRefunds = moneyList(account.balances.filter((b) => b.pendingRefunds > 0).map((b) => ({ currency: b.currency, value: b.pendingRefunds })));
 
   const profileChecks = [
@@ -77,8 +79,8 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
     </div>
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-      <Metric icon={CircleDollarSign} label="Net confirmed funds" value={confirmedNet} hint="After payment/transfer fees"/>
-      <Metric icon={WalletCards} label="Available balance" value={available} hint="After refunds and withdrawals"/>
+      <Metric icon={CircleDollarSign} label="Net confirmed funds" value={confirmedNet} hint="Money JUN actually received after transfer fees"/>
+      <Metric icon={WalletCards} label="Funds after commitments" value={fundsAfterCommitments} hint="Net received − approved refunds − committed service costs"/>
       <Metric icon={FolderOpen} label="Active cases" value={String(activeCases.length)} hint={`${client.cases.length} total cases`}/>
       <Metric icon={FileText} label="Documents" value={String(client.documents.length + client.files.length)} hint={`${contracts.length} contracts/agreement(s)`}/>
       <Metric icon={AlertTriangle} label="Pending refunds" value={pendingRefunds} hint={`${client.refunds.filter(r=>["REQUESTED","UNDER_REVIEW"].includes(r.status)).length} awaiting decision`}/>
