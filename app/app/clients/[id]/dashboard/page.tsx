@@ -74,6 +74,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
         <Link href={`/app/clients/${client.id}/services`}><Button variant="primary">Services & Cases</Button></Link>
         <Link href={`/app/clients/${client.id}/finance`}><Button variant="primary">Finance</Button></Link>
         <Link href={`/app/clients/${client.id}/profitability`}><Button variant="primary">Profitability</Button></Link>
+        <Link href={`/app/clients/${client.id}/documents`}><Button variant="primary">Documents & Drive</Button></Link>
         <Link href={`/app/clients/${client.id}`}><Button variant="outline">Full record</Button></Link>
         <Link href={`/app/clients/${client.id}/statement`}><Button variant="outline">Statement</Button></Link>
         <Link href={`/app/clients/${client.id}/account`}><Button variant="outline">Financial account</Button></Link>
@@ -113,11 +114,11 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
         <Quick href={`/app/clients/${client.id}/services`} title="Services & cases" text="Review service status, billing, costs and profit."/>
         <Quick href={`/app/clients/${client.id}/finance`} title="Client finance" text="Review gross payments, fees, net receipts, allocations and invoice balances."/>
         <Quick href={`/app/clients/${client.id}/profitability`} title="Expenses & profitability" text="Review costs, realized profit, projected profit and margins."/>
+        <Quick href={`/app/clients/${client.id}/documents`} title="Documents & Drive" text="Review identity files, travel documents, proofs, contracts and signed documents."/>
         <Quick href={`/app/cases/new?clientId=${client.id}`} title="Open a case" text={negativeBalances.length?"Blocked until the outstanding client balance is settled.":"Create a new service or travel case."}/>
         <Quick href={`/app/finance/invoices/new?clientId=${client.id}`} title="Create invoice" text="Bill a service to this client."/>
         <Quick href={`/app/finance/payments/new?clientId=${client.id}`} title="Record payment" text="Record money received from the client."/>
         <Quick href={`/app/finance/expenses/new?clientId=${client.id}`} title="Record expense" text="Record a cost paid or payable for this client."/>
-        <Quick href={`/app/clients/${client.id}?tab=documents`} title="Documents" text="Open documents and client files."/>
         <Quick href={`/app/clients/${client.id}?tab=notes`} title="Team notes" text="Read or add internal notes."/>
         <Quick href={`/app/clients/${client.id}/statement`} title="Client statement" text="Review the complete financial statement."/>
       </CardContent></Card>
