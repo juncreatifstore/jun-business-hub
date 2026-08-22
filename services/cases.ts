@@ -4,6 +4,7 @@ import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { caseSchema, emptyToNull, parseDate, parseTags } from "@/lib/validation";
 import { nextNumber } from "@/lib/sequence";
+import { getClientFinanceOverview } from "@/lib/client-finance-overview";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/services/clients";
@@ -15,6 +16,15 @@ export async function createCase(_prev: FormState, formData: FormData): Promise<
   const d = parsed.data;
   const client = await prisma.client.findUnique({ where: { id: d.clientId } });
   if (!client) return { message: "Selected client does not exist." };
+
+  const finance = await getClientFinanceOverview(d.clientId);
+  const debts = finance.summaries.filter((s) => s.forecastProfit < -0.009);
+  if (debts.length) {
+    const debtText = debts.map((s) => `${s.currency} ${Math.abs(s.forecastProfit).toFixed(2)}`).join(" / ");
+    await audit({ userId: user.id, action: "CASE_CREATE_BLOCKED_NEGATIVE_CLIENT_BALANCE", resourceType: "Client", resourceId: d.clientId, after: { debt: debtText } });
+    return { message: `New service blocked: this client has an outstanding balance of ${debtText}. The debt must be settled or regularized before a new service can be opened.` };
+  }
+
   const caseNumber = await nextNumber("CASE");
   const c = await prisma.case.create({ data: { caseNumber, clientId: d.clientId, type: d.type, title: d.title, description: emptyToNull(d.description), priority: d.priority, status: d.status, dueDate: parseDate(d.dueDate), tags: parseTags(d.tags), ownerId: user.id, members: { create: { userId: user.id } } } });
   await audit({ userId: user.id, action: "CASE_CREATE", resourceType: "Case", resourceId: c.id, after: { caseNumber, title: c.title } });
