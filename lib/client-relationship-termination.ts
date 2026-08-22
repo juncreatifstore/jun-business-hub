@@ -27,7 +27,7 @@ export async function getClientTerminationReadiness(clientId:string){
  const pendingPayments=client.payments.filter(p=>p.status==="PENDING");
  const openExpenses=finance.expenses.filter(e=>!["PAID","REJECTED","CANCELLED"].includes(e.effectiveStatus));
  const openRefunds=client.refunds.filter(r=>!["PAID","REJECTED","CANCELLED"].includes(r.status));
- const refundableBalances=account.balances.filter(b=>b.available>0.009).map(b=>({currency:b.currency,amount:b.available}));
+ const refundableBalances=account.balances.map(b=>({currency:b.currency,amount:Math.max(0,Math.round((b.available-b.pendingRefunds)*100)/100)})).filter(b=>b.amount>0.009);
  const clientDebt=account.balances.filter(b=>b.available< -0.009).map(b=>({currency:b.currency,amount:Math.abs(b.available)}));
  return{client,account,finance,activeCases,openInvoices,pendingPayments,openExpenses,openRefunds,refundableBalances,clientDebt,signedDocuments:client.documents,transactionsSettled:activeCases.length===0&&openInvoices.length===0&&pendingPayments.length===0&&openExpenses.length===0&&openRefunds.length===0&&refundableBalances.length===0&&clientDebt.length===0};
 }
