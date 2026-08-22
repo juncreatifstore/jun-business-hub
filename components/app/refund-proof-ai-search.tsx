@@ -24,7 +24,7 @@ export function RefundProofAISearch({ refundId }: { refundId: string }) {
       const result = await findRefundProofCandidates(refundId);
       if (result.error) { setMessage(result.error); setRows([]); return; }
       setRows(result.candidates || []);
-      if (!(result.candidates || []).length) setMessage("No likely proof found in this client's Drive.");
+      if (!(result.candidates || []).length) setMessage("No likely proof found in this client&apos;s Drive.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "AI proof search failed.");
     } finally { setBusy(false); }
@@ -47,7 +47,7 @@ export function RefundProofAISearch({ refundId }: { refundId: string }) {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <div className="flex items-center gap-2 font-medium"><Bot className="h-4 w-4 text-electric"/>AI — Find proof in Client Drive</div>
-        <p className="mt-1 max-w-2xl text-xs text-muted2">Searches this client's Drive using payment reference, case, amount, date, file category and filename. AI suggests candidates only; a human must choose the file to attach.</p>
+        <p className="mt-1 max-w-2xl text-xs text-muted2">Searches this client&apos;s Drive using payment reference, case, amount, date, file category and filename. AI suggests candidates only; a human must choose the file to attach.</p>
       </div>
       <Button type="button" variant="outline" onClick={search} disabled={busy}>{busy?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<FileSearch2 className="mr-2 h-4 w-4"/>}{busy?"Searching…":"Search Client Drive"}</Button>
     </div>
