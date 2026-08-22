@@ -5,6 +5,8 @@ import { audit, logActivity } from "@/lib/audit";
 import { caseSchema, emptyToNull, parseDate, parseTags } from "@/lib/validation";
 import { nextNumber } from "@/lib/sequence";
 import { getClientFinanceOverview } from "@/lib/client-finance-overview";
+import { listInvoices } from "@/lib/finance-invoices";
+import { listFinanceExpenses } from "@/lib/finance-expenses";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/services/clients";
@@ -71,4 +73,61 @@ export async function addCaseNote(caseId: string, formData: FormData) {
   await prisma.caseNote.create({ data: { caseId, authorId: user.id, body } });
   await logActivity({ type: "NOTE_ADDED", message: `Note added to ${c.caseNumber}`, userId: user.id, caseId, clientId: c.clientId });
   revalidatePath(`/app/cases/${caseId}`);
+}
+
+export async function deleteCase(caseId: string, formData: FormData): Promise<void> {
+  const user = await assertPermission("CASE_UPDATE");
+  const c = await prisma.case.findUnique({
+    where: { id: caseId },
+    select: {
+      id: true,
+      caseNumber: true,
+      title: true,
+      clientId: true,
+      _count: { select: { payments: true, refunds: true, documents: true, files: true } },
+    },
+  });
+  if (!c) redirect("/app/cases?toast_error=Service not found");
+
+  const confirmation = String(formData.get("confirmation") || "").trim().toUpperCase();
+  const reason = String(formData.get("reason") || "").trim().slice(0, 1000);
+  const expected = `DELETE ${c.caseNumber}`.toUpperCase();
+  if (confirmation !== expected) {
+    redirect(`/app/cases/${caseId}?toast_error=${encodeURIComponent(`Type ${expected} to confirm deletion.`)}`);
+  }
+  if (!reason) {
+    redirect(`/app/cases/${caseId}?toast_error=${encodeURIComponent("Deletion reason is required.")}`);
+  }
+
+  const [invoices, expenses] = await Promise.all([listInvoices(5000), listFinanceExpenses(5000)]);
+  const linkedInvoices = invoices.filter((i) => i.caseId === caseId);
+  const linkedExpenses = expenses.filter((e) => e.caseId === caseId && !["REJECTED", "CANCELLED"].includes(e.status));
+  const blockers: string[] = [];
+  if (c._count.payments) blockers.push(`${c._count.payments} payment(s)`);
+  if (c._count.refunds) blockers.push(`${c._count.refunds} refund(s)`);
+  if (c._count.documents) blockers.push(`${c._count.documents} document(s)`);
+  if (c._count.files) blockers.push(`${c._count.files} file(s)`);
+  if (linkedInvoices.length) blockers.push(`${linkedInvoices.length} invoice(s)`);
+  if (linkedExpenses.length) blockers.push(`${linkedExpenses.length} expense(s)`);
+
+  if (blockers.length) {
+    await audit({ userId: user.id, action: "CASE_DELETE_BLOCKED", resourceType: "Case", resourceId: caseId, after: { caseNumber: c.caseNumber, blockers, reason } });
+    redirect(`/app/cases/${caseId}?toast_error=${encodeURIComponent(`This service cannot be deleted because it has ${blockers.join(", ")}. Cancel or archive it instead to preserve the financial record.`)}`);
+  }
+
+  await audit({ userId: user.id, action: "CASE_DELETE", resourceType: "Case", resourceId: caseId, before: { caseNumber: c.caseNumber, title: c.title, clientId: c.clientId }, after: { reason } });
+
+  await prisma.$transaction(async (tx) => {
+    await tx.task.deleteMany({ where: { caseId } });
+    await tx.activity.deleteMany({ where: { caseId } });
+    await tx.caseNote.deleteMany({ where: { caseId } });
+    await tx.caseMember.deleteMany({ where: { caseId } });
+    await tx.case.delete({ where: { id: caseId } });
+  });
+
+  revalidatePath("/app/cases");
+  revalidatePath(`/app/clients/${c.clientId}`);
+  revalidatePath(`/app/clients/${c.clientId}/dashboard`);
+  revalidatePath(`/app/clients/${c.clientId}/services`);
+  redirect(`/app/clients/${c.clientId}/services?toast=${encodeURIComponent(`Service ${c.caseNumber} deleted`)}`);
 }
