@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { getPaymentCoreMetaMap, netPaymentAmount } from "@/lib/finance-payment-core";
 
 const PROFILE_PREFIX = "client.account.profile.";
 const COMMISSION_PREFIX = "client.account.commission.";
@@ -40,9 +41,20 @@ export async function getClientFinancialAccount(clientId:string){
     prisma.refund.findMany({where:{clientId},orderBy:{createdAt:"asc"},include:{installments:{select:{amount:true,status:true}}}}),
     listClientCommissions(clientId),listClientWithdrawals(clientId),getClientAccountProfile(clientId),
   ]);
+  const paymentMeta=await getPaymentCoreMetaMap(payments.map(p=>p.id));
   const balances=new Map<string,ClientCurrencyBalance>();const entries:ClientAccountEntry[]=[];
   const bucket=(currency:string)=>{const key=currency.toUpperCase();const current=balances.get(key)||{currency:key,confirmedFunds:0,commissions:0,activeRefunds:0,pendingRefunds:0,refundsPaid:0,partnerWithdrawals:0,available:0};balances.set(key,current);return current;};
-  for(const p of payments){if(!["CONFIRMED","PARTIALLY_REFUNDED","REFUNDED"].includes(p.status))continue;const amount=round(Number(p.amount));const b=bucket(p.currency);b.confirmedFunds=round(b.confirmedFunds+amount);entries.push({id:`payment:${p.id}`,date:p.paidAt||p.createdAt,type:"PAYMENT",reference:p.reference,description:p.notes||"Funds received",status:p.status,currency:p.currency.toUpperCase(),credit:amount,debit:0,sourceHref:`/app/finance/payments/${p.id}`});}
+  for(const p of payments){
+    if(!["CONFIRMED","PARTIALLY_REFUNDED","REFUNDED"].includes(p.status))continue;
+    const meta=paymentMeta.get(p.id);
+    const gross=round(Number(p.amount));
+    const fee=round(Number(meta?.feeAmount||0));
+    const amount=netPaymentAmount(gross,fee);
+    const b=bucket(p.currency);
+    b.confirmedFunds=round(b.confirmedFunds+amount);
+    const feeText=fee>0?` · gross ${p.currency.toUpperCase()} ${gross.toFixed(2)} · fee ${p.currency.toUpperCase()} ${fee.toFixed(2)}`:"";
+    entries.push({id:`payment:${p.id}`,date:p.paidAt||p.createdAt,type:"PAYMENT",reference:p.reference,description:`${p.notes||"Funds received"}${feeText}`,status:p.status,currency:p.currency.toUpperCase(),credit:amount,debit:0,sourceHref:`/app/finance/payments/${p.id}`});
+  }
   for(const c of commissions){if(c.status!=="CREDITED")continue;const b=bucket(c.currency);b.commissions=round(b.commissions+c.amount);entries.push({id:`commission:${c.id}`,date:new Date(c.createdAt),type:"COMMISSION",reference:c.sourceReference||`COM-${c.id.slice(0,8).toUpperCase()}`,description:c.description||"Partner commission",status:c.status,currency:c.currency,credit:c.amount,debit:0,sourceHref:null});}
   for(const w of withdrawals){if(w.status!=="PAID")continue;const b=bucket(w.currency);b.partnerWithdrawals=round(b.partnerWithdrawals+w.amount);entries.push({id:`withdrawal:${w.id}`,date:new Date(w.createdAt),type:"WITHDRAWAL",reference:w.transactionReference||`WDR-${w.id.slice(0,8).toUpperCase()}`,description:w.description||"Partner withdrawal",status:w.status,currency:w.currency,credit:0,debit:w.amount,sourceHref:null});}
   for(const r of refunds){const currency=r.currency.toUpperCase();const amount=round(Number(r.amount));const paid=round(r.installments.filter(i=>i.status==="PAID").reduce((sum,i)=>sum+Number(i.amount),0));const b=bucket(currency);b.refundsPaid=round(b.refundsPaid+paid);if(["REQUESTED","UNDER_REVIEW"].includes(r.status))b.pendingRefunds=round(b.pendingRefunds+amount);if(["APPROVED","PARTIALLY_PAID","PAID"].includes(r.status)){b.activeRefunds=round(b.activeRefunds+amount);entries.push({id:`refund:${r.id}`,date:r.createdAt,type:"REFUND",reference:r.refundNumber,description:r.reason,status:r.status,currency,credit:0,debit:amount,sourceHref:`/app/finance/refunds/${r.id}`});}}
