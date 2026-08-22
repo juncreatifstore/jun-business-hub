@@ -20,5 +20,5 @@ export async function GET(req:NextRequest,{params}:{params:{id:string}}){
   balances:account.balances.map(b=>({currency:b.currency,confirmedFunds:b.confirmedFunds,commissions:b.commissions,committedExpenses:b.committedExpenses,activeRefunds:b.activeRefunds,partnerWithdrawals:b.partnerWithdrawals,available:b.available})),
   entries:account.entries.map(e=>({date:e.date,type:e.type,reference:e.reference,description:e.description,status:e.status,currency:e.currency,credit:e.credit,debit:e.debit,runningBalance:e.runningBalance}))
  });
- return new NextResponse(Buffer.from(bytes),{headers:{"Content-Type":"application/pdf","Content-Disposition":`inline; filename="${client.internalId}-statement.pdf"`,`Cache-Control`:"private, no-store"}})
+ return new NextResponse(Buffer.from(bytes),{headers:{"Content-Type":"application/pdf","Content-Disposition":`inline; filename="${client.internalId}-statement.pdf"`,"Cache-Control":"private, no-store"}})
 }
