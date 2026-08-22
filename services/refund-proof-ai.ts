@@ -188,7 +188,7 @@ export async function attachProofAndLinkOriginalPayment(refundId: string, fileId
 
       await tx.refund.update({ where: { id: refund.id }, data: { paymentId: payment.id } });
       await tx.file.update({ where: { id: file.id }, data: { refundId: refund.id, ...(refund.caseId ? { caseId: refund.caseId } : {}) } });
-      const refundType = Math.abs(Number(refund.amount) - available) < 0.005 ? "FULL" : "PARTIAL";
+      const refundType: "FULL" | "PARTIAL" = Math.abs(Number(refund.amount) - available) < 0.005 ? "FULL" : "PARTIAL";
       return { refund, file, payment, refundType };
     });
 
