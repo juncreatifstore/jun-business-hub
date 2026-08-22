@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { getPaymentCoreMetaMap } from "@/lib/finance-payment-core";
 
 export const INVOICE_PREFIX = "finance.invoice.";
 
@@ -100,11 +101,14 @@ export async function invoicePaymentFacts(invoice: FinanceInvoice) {
     where: { id: { in: ids } },
     select: { id: true, reference: true, amount: true, currency: true, status: true, paidAt: true },
   });
+  const metaMap = await getPaymentCoreMetaMap(rows.map((p) => p.id));
 
   const appliedAmount = (payment: { id: string; amount: unknown }) => {
-    const actual = Math.max(0, Number(payment.amount));
+    const gross = Math.max(0, Number(payment.amount));
+    const fee = Math.max(0, Number(metaMap.get(payment.id)?.feeAmount || 0));
+    const actualNet = round(Math.max(0, gross - fee));
     const allocated = allocationByPayment.get(payment.id);
-    return round(Math.min(actual, allocated == null ? actual : Math.max(0, allocated)));
+    return round(Math.min(actualNet, allocated == null ? actualNet : Math.max(0, allocated)));
   };
 
   const confirmedPayments = rows
