@@ -67,6 +67,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
       </div>
       <div className="flex flex-wrap gap-2">
         <Link href={`/app/clients/${client.id}/services`}><Button variant="primary">Services & Cases</Button></Link>
+        <Link href={`/app/clients/${client.id}/finance`}><Button variant="primary">Finance</Button></Link>
         <Link href={`/app/clients/${client.id}`}><Button variant="outline">Full record</Button></Link>
         <Link href={`/app/clients/${client.id}/statement`}><Button variant="outline">Statement</Button></Link>
         <Link href={`/app/clients/${client.id}/account`}><Button variant="outline">Financial account</Button></Link>
@@ -102,6 +103,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
 
       <Card><CardHeader><CardTitle>Quick actions</CardTitle></CardHeader><CardContent className="grid gap-2 sm:grid-cols-2">
         <Quick href={`/app/clients/${client.id}/services`} title="Services & cases" text="Review service status, billing, costs and profit."/>
+        <Quick href={`/app/clients/${client.id}/finance`} title="Client finance" text="Review gross payments, fees, net receipts, allocations and invoice balances."/>
         <Quick href={`/app/cases/new?clientId=${client.id}`} title="Open a case" text="Create a new service or travel case."/>
         <Quick href={`/app/finance/invoices/new?clientId=${client.id}`} title="Create invoice" text="Bill a service to this client."/>
         <Quick href={`/app/finance/payments/new?clientId=${client.id}`} title="Record payment" text="Record money received from the client."/>
