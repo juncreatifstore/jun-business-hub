@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
+import { saveRefundWorkflowMeta } from "@/lib/finance-refund-workflow";
 
 export type RefundProofCandidate = {
   id: string;
@@ -13,6 +14,7 @@ export type RefundProofCandidate = {
   score: number;
   reason: string;
   caseLabel: string | null;
+  paymentId: string | null;
   paymentReference: string | null;
 };
 
@@ -101,16 +103,13 @@ export async function findRefundProofCandidates(refundId: string): Promise<{ can
       clientId: refund.clientId,
       archivedAt: null,
       isVault: false,
-      OR: [
-        { refundId: null },
-        { refundId },
-      ],
+      OR: [{ refundId: null }, { refundId }],
     },
     orderBy: { createdAt: "desc" },
     take: 120,
     include: {
       case: { select: { caseNumber: true, title: true } },
-      payment: { select: { reference: true } },
+      payment: { select: { id: true, reference: true } },
     },
   });
 
@@ -134,13 +133,13 @@ export async function findRefundProofCandidates(refundId: string): Promise<{ can
       score: ranked.score,
       reason: ranked.reasons.join(" · ") || "same client drive",
       caseLabel: file.case ? `${file.case.caseNumber} · ${file.case.title}` : null,
+      paymentId: file.payment?.id ?? null,
       paymentReference: file.payment?.reference ?? null,
     } satisfies RefundProofCandidate;
   }).filter((x) => x.score >= 10).sort((a, b) => b.score - a.score).slice(0, 12);
 
   const context = `Refund ${refund.refundNumber}; client ${refund.client.firstName} ${refund.client.lastName} (${refund.client.internalId}); amount ${refund.currency} ${Number(refund.amount).toFixed(2)}; reason: ${refund.reason}; original payment ${refund.payment?.reference ?? "unlinked"}; case ${refund.case ? `${refund.case.caseNumber} ${refund.case.title}` : "none"}.`;
-  const candidates = await aiRerank(context, raw);
-  return { candidates };
+  return { candidates: await aiRerank(context, raw) };
 }
 
 export async function attachExistingDriveFileToRefund(refundId: string, fileId: string): Promise<{ ok?: true; error?: string }> {
@@ -157,4 +156,51 @@ export async function attachExistingDriveFileToRefund(refundId: string, fileId: 
   await logActivity({ type: "REFUND_UPDATED", message: `Existing Drive proof attached to ${refund.refundNumber}: ${file.name}`, userId: user.id, clientId: refund.clientId, caseId: refund.caseId });
   revalidatePath(`/app/finance/refunds/${refundId}`);
   return { ok: true };
+}
+
+export async function attachProofAndLinkOriginalPayment(refundId: string, fileId: string): Promise<{ ok?: true; error?: string }> {
+  const user = await assertPermission("REFUND_CREATE");
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const refund = await tx.refund.findUnique({ where: { id: refundId }, include: { installments: true } });
+      if (!refund) throw new Error("Refund not found.");
+      if (refund.paymentId) throw new Error("This refund is already linked to an original payment.");
+      if (["REJECTED", "CANCELLED", "PAID"].includes(refund.status)) throw new Error("This refund can no longer be relinked to an original payment.");
+
+      const file = await tx.file.findUnique({
+        where: { id: fileId },
+        include: { payment: { select: { id: true, reference: true, clientId: true, amount: true, currency: true, status: true } } },
+      });
+      if (!file || file.archivedAt) throw new Error("Drive file not found or archived.");
+      if (file.clientId !== refund.clientId) throw new Error("This file belongs to a different client.");
+      if (file.refundId && file.refundId !== refundId) throw new Error("This file is already attached to another refund.");
+      if (!file.payment) throw new Error("This proof is not linked to an original payment.");
+      if (file.payment.clientId !== refund.clientId) throw new Error("The payment linked to this proof belongs to another client.");
+      if (!["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(file.payment.status)) throw new Error("Only a confirmed payment can be linked to a refund.");
+      if (file.payment.currency.toUpperCase() !== refund.currency.toUpperCase()) throw new Error(`Currency mismatch: refund is ${refund.currency}, payment is ${file.payment.currency}.`);
+
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${file.payment.id}))`;
+      const payment = await tx.payment.findUnique({ where: { id: file.payment.id }, include: { refunds: true } });
+      if (!payment) throw new Error("Original payment not found.");
+      const committed = payment.refunds.filter((r) => r.id !== refund.id && !["REJECTED", "CANCELLED"].includes(r.status)).reduce((sum, r) => sum + Number(r.amount), 0);
+      const available = Math.max(0, Math.round((Number(payment.amount) - committed) * 100) / 100);
+      if (Number(refund.amount) > available + 0.005) throw new Error(`Cannot link this refund to ${payment.reference}: only ${payment.currency} ${available.toFixed(2)} remains refundable.`);
+
+      await tx.refund.update({ where: { id: refund.id }, data: { paymentId: payment.id } });
+      await tx.file.update({ where: { id: file.id }, data: { refundId: refund.id, ...(refund.caseId ? { caseId: refund.caseId } : {}) } });
+      const refundType = Math.abs(Number(refund.amount) - available) < 0.005 ? "FULL" : "PARTIAL";
+      return { refund, file, payment, refundType };
+    });
+
+    await saveRefundWorkflowMeta(refundId, { refundType: result.refundType });
+    await audit({ userId: user.id, action: "REFUND_PROOF_LINK_PAYMENT", resourceType: "Refund", resourceId: refundId, after: { fileId: result.file.id, fileName: result.file.name, paymentId: result.payment.id, paymentReference: result.payment.reference, refundType: result.refundType } });
+    await logActivity({ type: "REFUND_UPDATED", message: `Refund ${result.refund.refundNumber} linked to original payment ${result.payment.reference} using Drive proof ${result.file.name}`, userId: user.id, clientId: result.refund.clientId, caseId: result.refund.caseId });
+    revalidatePath(`/app/finance/refunds/${refundId}`);
+    revalidatePath("/app/finance/refunds");
+    revalidatePath(`/app/clients/${result.refund.clientId}/finance`);
+    revalidatePath(`/app/clients/${result.refund.clientId}/statement`);
+    return { ok: true };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to link proof and original payment." };
+  }
 }
