@@ -78,7 +78,7 @@ export default async function ClientsPage({
             {clients.map((c) => (
               <TR key={c.id}>
                 <TD>
-                  <Link href={`/app/clients/${c.id}`} className="font-medium hover:text-electric">
+                  <Link href={`/app/clients/${c.id}/dashboard`} className="font-medium hover:text-electric">
                     {c.firstName} {c.lastName}
                   </Link>
                   <div className="mt-0.5 flex gap-1">
@@ -87,7 +87,7 @@ export default async function ClientsPage({
                     ))}
                   </div>
                 </TD>
-                <TD><span className="registry-id">{c.internalId}</span></TD>
+                <TD><Link href={`/app/clients/${c.id}/dashboard`} className="registry-id hover:text-electric">{c.internalId}</Link></TD>
                 <TD className="text-muted2">{c.email ?? c.phone ?? "—"}</TD>
                 <TD>{c._count.cases}</TD>
                 <TD><StatusBadge status={c.status} /></TD>
