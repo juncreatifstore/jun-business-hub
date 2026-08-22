@@ -4,6 +4,7 @@ import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getClientFinancialAccount } from "@/lib/client-financial-account";
 import { getClientFinanceOverview } from "@/lib/client-finance-overview";
+import { createClientBalanceReminderDraft } from "@/services/client-balance-reminder";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -46,6 +47,8 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
   const confirmedNet = moneyList(account.balances.map((b) => ({ currency: b.currency, value: b.confirmedFunds })));
   const fundsAfterCommitments = moneyList(finance.summaries.map((s) => ({ currency: s.currency, value: s.forecastProfit })));
   const pendingRefunds = moneyList(account.balances.filter((b) => b.pendingRefunds > 0).map((b) => ({ currency: b.currency, value: b.pendingRefunds })));
+  const negativeBalances = finance.summaries.filter((s) => s.forecastProfit < -0.009);
+  const debtDisplay = moneyList(negativeBalances.map((s) => ({ currency: s.currency, value: Math.abs(s.forecastProfit) })));
 
   const profileChecks = [
     { label: "Email", ok: Boolean(client.email) },
@@ -63,7 +66,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-semibold">{client.firstName} {client.lastName}</h1><StatusBadge status={client.status}/>{account.profile.isPartner?<Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">PARTNER</Badge>:null}</div>
+        <div className="flex flex-wrap items-center gap-2"><h1 className="text-2xl font-semibold">{client.firstName} {client.lastName}</h1><StatusBadge status={client.status}/>{account.profile.isPartner?<Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">PARTNER</Badge>:null}{negativeBalances.length?<Badge className="border border-red-200 bg-red-50 text-red-700">BALANCE DUE</Badge>:null}</div>
         <p className="registry-id mt-1 text-muted2">{client.internalId} · client since {formatDate(client.createdAt)}</p>
         <div className="mt-2 flex flex-wrap gap-1">{client.tags.map((t)=><Badge key={t.id} className="border border-line bg-surface text-muted2">{t.tag}</Badge>)}</div>
       </div>
@@ -87,6 +90,8 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
       <Metric icon={CheckCircle2} label="Profile completeness" value={`${profilePercent}%`} hint={`${completed}/${profileChecks.length} core fields`}/>
     </div>
 
+    {negativeBalances.length?<Card className="border-red-200 bg-red-50/50"><CardHeader><CardTitle>Outstanding balance — new services blocked</CardTitle></CardHeader><CardContent><div className="flex flex-wrap items-center justify-between gap-4"><div className="max-w-3xl text-sm"><p>This client currently owes JUN <strong>{debtDisplay}</strong> after committed service costs/refunds. A new service must not be opened or processed until this balance is fully settled or regularized.</p><p className="mt-1 text-xs text-muted2">You can prepare an account-status reminder for the client. The draft includes the current debt and the policy requiring settlement before the next service.</p></div><div className="flex flex-wrap gap-2">{can(user,"EMAIL_DRAFT")?<form action={createClientBalanceReminderDraft.bind(null,client.id)}><Button variant="danger" disabled={!client.email}>Prepare balance reminder</Button></form>:null}<Link href={`/app/clients/${client.id}/statement`}><Button variant="outline">Review statement</Button></Link><a href={`/api/clients/${client.id}/statement.pdf?lang=${account.profile.preferredLanguage}`} target="_blank" rel="noreferrer"><Button variant="outline">Open statement PDF</Button></a></div></div>{!client.email?<p className="mt-3 text-xs text-red-700">Add an email address to the client profile before preparing the reminder.</p>:null}</CardContent></Card>:null}
+
     {needsAttention.length?<Card><CardHeader><CardTitle>Client file attention</CardTitle></CardHeader><CardContent><div className="flex flex-wrap items-center gap-2 text-sm"><span className="text-muted2">Missing core information:</span>{needsAttention.map((x)=><Badge key={x.label} className="border border-amber-200 bg-amber-50 text-amber-800">{x.label}</Badge>)}<Link href={`/app/clients/${client.id}/edit`} className="ml-auto text-sm font-medium text-electric hover:underline">Complete profile</Link></div></CardContent></Card>:null}
 
     <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -108,7 +113,7 @@ export default async function Client360Page({ params }: { params: Promise<{ id: 
         <Quick href={`/app/clients/${client.id}/services`} title="Services & cases" text="Review service status, billing, costs and profit."/>
         <Quick href={`/app/clients/${client.id}/finance`} title="Client finance" text="Review gross payments, fees, net receipts, allocations and invoice balances."/>
         <Quick href={`/app/clients/${client.id}/profitability`} title="Expenses & profitability" text="Review costs, realized profit, projected profit and margins."/>
-        <Quick href={`/app/cases/new?clientId=${client.id}`} title="Open a case" text="Create a new service or travel case."/>
+        <Quick href={`/app/cases/new?clientId=${client.id}`} title="Open a case" text={negativeBalances.length?"Blocked until the outstanding client balance is settled.":"Create a new service or travel case."}/>
         <Quick href={`/app/finance/invoices/new?clientId=${client.id}`} title="Create invoice" text="Bill a service to this client."/>
         <Quick href={`/app/finance/payments/new?clientId=${client.id}`} title="Record payment" text="Record money received from the client."/>
         <Quick href={`/app/finance/expenses/new?clientId=${client.id}`} title="Record expense" text="Record a cost paid or payable for this client."/>
