@@ -14,6 +14,14 @@ function htmlToText(value:string){return value.replace(/<style[\s\S]*?<\/style>/
 function bodyFrom(part?:GmailPart):string{if(!part)return "";if(part.mimeType==="text/plain"&&part.body?.data)return decode(part.body.data);for(const p of part.parts??[]){const value=bodyFrom(p);if(value)return value;}if(part.mimeType==="text/html"&&part.body?.data)return htmlToText(decode(part.body.data));if(part.body?.data)return decode(part.body.data);return "";}
 function attachments(part?:GmailPart,out:{filename:string;mimeType:string;size:number}[]=[]){if(!part)return out;if(part.filename)out.push({filename:part.filename,mimeType:part.mimeType||"application/octet-stream",size:part.body?.size??0});for(const p of part.parts??[])attachments(p,out);return out;}
 
+export async function getUnreadGmailThreadIds(accountId:string,max=500):Promise<Set<string>>{
+ const {token}=await accessTokenFor(accountId);
+ const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${Math.min(500,Math.max(1,max))}&q=${encodeURIComponent("is:unread")}`,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});
+ if(!res.ok)return new Set<string>();
+ const data=await res.json() as {messages?:{threadId:string}[]};
+ return new Set((data.messages??[]).map(m=>m.threadId));
+}
+
 export async function getMailConversation(accountId:string,gmailThreadId:string):Promise<MailConversationMessage[]>{
  const {token}=await accessTokenFor(accountId);
  const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(gmailThreadId)}?format=full`,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});
