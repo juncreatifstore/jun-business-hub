@@ -1,14 +1,34 @@
 "use server";
 
 import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
-import { getCaseAutomationConfig, getCaseAutomationPlan, saveCaseAutomationConfig, saveCaseAutomationRun } from "@/lib/case-automation";
+import { getCaseAutomationPlan, saveCaseAutomationConfig, saveCaseAutomationRun } from "@/lib/case-automation";
 
 function path(caseId:string,msg?:string,error=false){return `/app/cases/${caseId}/automation${msg?`?${error?"toast_error":"toast"}=${encodeURIComponent(msg)}`:""}`;}
+
+async function createAutomationTaskSafely(input:{
+ caseId:string;clientId:string;ownerId:string|null;creatorId:string;
+ title:string;description:string;priority:"LOW"|"MEDIUM"|"HIGH"|"URGENT";dueDate:Date;
+}){
+ for(let attempt=0;attempt<3;attempt++){
+  try{
+   return await prisma.$transaction(async tx=>{
+    const existing=await tx.task.findFirst({where:{caseId:input.caseId,title:input.title,status:{notIn:["DONE","CANCELLED"]}},select:{id:true}});
+    if(existing)return null;
+    return tx.task.create({data:{title:input.title,description:input.description,caseId:input.caseId,clientId:input.clientId,assigneeId:input.ownerId,creatorId:input.creatorId,priority:input.priority,status:"TODO",dueDate:input.dueDate}});
+   },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }catch(error){
+   if((error as {code?:string})?.code==="P2034"&&attempt<2)continue;
+   throw error;
+  }
+ }
+ return null;
+}
 
 export async function updateCaseAutomationSettings(caseId:string,formData:FormData){
  const user=await assertPermission("CASE_UPDATE");
@@ -44,17 +64,9 @@ export async function runCaseSafeAutomation(caseId:string){
  if(config.createFollowUpTasks){
   for(const candidate of candidates){
    if(candidate.alreadyExists){tasksSkipped++;continue;}
-   const task=await prisma.task.create({data:{
-    title:candidate.title,
-    description:`Automatically proposed from Case Intelligence.\n\nRisk: ${candidate.insight.severity} · ${candidate.insight.area}\nFinding: ${candidate.insight.title}\n${candidate.insight.detail}\n\nRequired action: ${candidate.insight.action}`,
-    caseId,
-    clientId:c.clientId,
-    assigneeId:c.ownerId,
-    creatorId:user.id,
-    priority:candidate.priority,
-    status:"TODO",
-    dueDate:candidate.dueDate,
-   }});
+   const description=`Automatically proposed from Case Intelligence.\n\nRisk: ${candidate.insight.severity} · ${candidate.insight.area}\nFinding: ${candidate.insight.title}\n${candidate.insight.detail}\n\nRequired action: ${candidate.insight.action}`;
+   const task=await createAutomationTaskSafely({caseId,clientId:c.clientId,ownerId:c.ownerId,creatorId:user.id,title:candidate.title,description,priority:candidate.priority,dueDate:candidate.dueDate});
+   if(!task){tasksSkipped++;continue;}
    tasksCreated++;
    actions.push(`Created task: ${task.title}`);
    if(config.notifyOwner&&c.ownerId&&c.ownerId!==user.id){
