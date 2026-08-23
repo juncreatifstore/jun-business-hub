@@ -13,15 +13,21 @@ const composeSchema = z.object({
   toAddr: z.string().email(),
   body: z.string().min(1).max(20000),
   clientId: z.string().optional(),
+  mailAccountId: z.string().min(1),
 });
+
+function mailPath(accountId:string,extra:string){return `/app/mail?mailbox=${encodeURIComponent(accountId)}&${extra}`;}
 
 export async function composeDraft(formData: FormData): Promise<void> {
   const user = await assertPermission("EMAIL_DRAFT");
   const parsed = composeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect(`/app/mail?compose=1&toast_error=${encodeURIComponent("Invalid draft")}`);
   const d = parsed.data;
-  const account = await prisma.mailAccount.findFirst({ where: { OR: [{ accessTokenEnc: { not: null } }, { refreshTokenEnc: { not: null } }] }, orderBy: { createdAt: "asc" } });
-  if (!account) redirect(`/app/mail?compose=1&toast_error=${encodeURIComponent("Connect a Gmail mailbox first")}`);
+  const account = await prisma.mailAccount.findFirst({
+    where:{id:d.mailAccountId,OR:[{accessTokenEnc:{not:null}},{refreshTokenEnc:{not:null}}]},
+    select:{id:true,email:true},
+  });
+  if (!account) redirect(`/app/mail?compose=1&toast_error=${encodeURIComponent("Selected mailbox is not connected")}`);
   const aiLevel = await classifyEmailAILevel(d.subject, d.body);
   const thread = await prisma.mailThread.create({
     data: {
@@ -38,9 +44,9 @@ export async function composeDraft(formData: FormData): Promise<void> {
       requiresAttention: aiLevel !== "AUTO",
     },
   });
-  await audit({ userId: user.id, action: "EMAIL_DRAFT_CREATE", resourceType: "MailThread", resourceId: thread.id, after: { subject: d.subject, aiLevel } });
+  await audit({ userId: user.id, action: "EMAIL_DRAFT_CREATE", resourceType: "MailThread", resourceId: thread.id, after: { subject: d.subject, aiLevel, mailbox: account.email, mailAccountId: account.id } });
   revalidatePath("/app/mail");
-  redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=Draft saved`);
+  redirect(mailPath(account.id,`folder=DRAFTS&thread=${thread.id}&toast=${encodeURIComponent("Draft saved")}`));
 }
 
 export async function sendDraft(threadId: string): Promise<void> {
@@ -55,19 +61,17 @@ export async function sendDraft(threadId: string): Promise<void> {
   });
   await audit({ userId: user.id, action: "EMAIL_SEND", resourceType: "MailThread", resourceId: threadId, after: { delivery: "DEV mock" } });
   revalidatePath("/app/mail");
-  redirect(`/app/mail?folder=SENT&thread=${threadId}&toast=Marked as sent`);
+  redirect(mailPath(thread.mailAccountId,`folder=SENT&thread=${threadId}&toast=${encodeURIComponent("Marked as sent")}`));
 }
 
 export async function moveThread(threadId: string, folder: string): Promise<void> {
   const user = await assertPermission("EMAIL_READ");
   const thread = await prisma.mailThread.findUnique({ where: { id: threadId } });
   if (!thread) redirect("/app/mail?toast_error=Thread not found");
-  if (folder === "IMPORTANT") {
-    await prisma.mailThread.update({ where: { id: threadId }, data: { requiresAttention: true } });
-  } else if (folder === "AI_REVIEW") {
+  if (folder === "IMPORTANT" || folder === "AI_REVIEW") {
     await prisma.mailThread.update({ where: { id: threadId }, data: { requiresAttention: true } });
   }
   await audit({ userId: user.id, action: "EMAIL_MOVE", resourceType: "MailThread", resourceId: threadId, after: { folder } });
   revalidatePath("/app/mail");
-  redirect(`/app/mail?folder=${folder}&thread=${threadId}`);
+  redirect(mailPath(thread.mailAccountId,`folder=${encodeURIComponent(folder)}&thread=${threadId}`));
 }
