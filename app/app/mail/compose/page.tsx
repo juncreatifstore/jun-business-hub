@@ -1,0 +1,32 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireUser, can } from "@/lib/auth";
+import { getMailConversation } from "@/lib/mail-thread-reader";
+import { listMailSignatures, listMailTemplates, type MailComposeMode } from "@/lib/mail-compose-meta";
+import { saveProfessionalMailDraft } from "@/services/mail-professional-compose";
+import { PageHeader } from "@/components/app/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Field, Input, Select, Textarea } from "@/components/ui/input";
+
+export const dynamic="force-dynamic";
+const MODES=["NEW","REPLY","REPLY_ALL","FORWARD"] as const;
+function extractEmail(v:string){return (v.match(/[\w.+-]+@[\w.-]+\.\w+/)||[])[0]?.toLowerCase()||"";}
+
+export default async function ProfessionalComposePage({searchParams}:{searchParams:{mailbox?:string;source?:string;mode?:string}}){
+ const user=await requireUser();if(!can(user,"EMAIL_DRAFT"))redirect("/app/forbidden");
+ const accounts=await prisma.mailAccount.findMany({where:{OR:[{accessTokenEnc:{not:null}},{refreshTokenEnc:{not:null}}]},orderBy:{createdAt:"asc"},select:{id:true,email:true,displayName:true}});if(!accounts.length)redirect("/app/settings/email?toast_error=Connect a mailbox first");
+ const requested=searchParams.mailbox||"";const account=accounts.find(a=>a.id===requested)||accounts[0];
+ const mode=(MODES.includes((searchParams.mode||"NEW").toUpperCase() as MailComposeMode)?(searchParams.mode||"NEW").toUpperCase():"NEW") as MailComposeMode;
+ const source=searchParams.source?await prisma.mailThread.findFirst({where:{id:searchParams.source,mailAccountId:account.id},include:{client:true}}):null;
+ const conversation=source?await getMailConversation(source.mailAccountId,source.gmailThreadId).catch(()=>[]):[];const last=conversation.at(-1);
+ const own=account.email.toLowerCase();let to:string[]=[];let cc:string[]=[];let subject="";let body="";let sourceGmailMessageId="";
+ if(source&&last){sourceGmailMessageId=last.id;if(mode==="REPLY"||mode==="REPLY_ALL"){const sender=extractEmail(last.from);if(sender&&sender!==own)to=[sender];subject=/^re:/i.test(source.subject||"")?source.subject||"":`Re: ${source.subject||"(no subject)"}`;if(mode==="REPLY_ALL"){const all=[...last.to,...last.cc].map(x=>x.toLowerCase()).filter(x=>x!==own&&x!==sender);cc=[...new Set(all)];}}else if(mode==="FORWARD"){subject=/^fwd:/i.test(source.subject||"")?source.subject||"":`Fwd: ${source.subject||"(no subject)"}`;body=`\n\n---------- Forwarded message ----------\nFrom: ${last.from}\nDate: ${last.date.toISOString()}\nSubject: ${last.subject}\nTo: ${last.to.join(", ")}\n\n${last.body||last.snippet}`;}}
+ const [clients,signatures,templates,files]=await Promise.all([
+  prisma.client.findMany({orderBy:{createdAt:"desc"},take:300,select:{id:true,firstName:true,lastName:true,internalId:true,email:true}}),
+  listMailSignatures(account.id),listMailTemplates(),can(user,"FILE_READ")?prisma.file.findMany({where:{isVault:false,archivedAt:null},orderBy:{createdAt:"desc"},take:80,select:{id:true,name:true,mimeType:true,sizeBytes:true,clientId:true,caseId:true}}):Promise.resolve([]),
+ ]);
+ const defaultSig=signatures.find(s=>s.isDefault);if(defaultSig)body=`${body}${body?"\n\n":""}${defaultSig.body}`;
+ return <div className="space-y-5"><PageHeader title="Professional composer" subtitle={`${mode.replaceAll("_"," ")} · ${account.displayName||account.email}`} actions={<Link href={`/app/mail?mailbox=${account.id}&folder=INBOX`}><Button variant="outline">Back to Mail</Button></Link>}/><Card><CardHeader><CardTitle>Message</CardTitle></CardHeader><CardContent><form action={saveProfessionalMailDraft} className="space-y-4"><input type="hidden" name="mode" value={mode}/><input type="hidden" name="sourceThreadId" value={source?.id||""}/><input type="hidden" name="sourceGmailMessageId" value={sourceGmailMessageId}/><Field label="From"><Select name="mailAccountId" defaultValue={account.id}>{accounts.map(a=><option key={a.id} value={a.id}>{a.displayName?`${a.displayName} · `:""}{a.email}</option>)}</Select></Field><Field label="To"><Input name="to" required defaultValue={to.join(", ")} placeholder="one@example.com, two@example.com"/></Field><div className="grid gap-3 md:grid-cols-2"><Field label="CC"><Input name="cc" defaultValue={cc.join(", ")} placeholder="Optional"/></Field><Field label="BCC"><Input name="bcc" placeholder="Optional"/></Field></div><Field label="Subject"><Input name="subject" required maxLength={200} defaultValue={subject}/></Field><div className="grid gap-3 md:grid-cols-3"><Field label="Client"><Select name="clientId" defaultValue={source?.clientId||""}><option value="">— None —</option>{clients.map(c=><option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.internalId})</option>)}</Select></Field><Field label="Template"><Select name="templateId" defaultValue=""><option value="">— None —</option>{templates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field><Field label="Signature"><Select name="signatureId" defaultValue={defaultSig?.id||""}><option value="">— None —</option>{signatures.map(s=><option key={s.id} value={s.id}>{s.name}{s.isDefault?" · Default":""}</option>)}</Select></Field></div><Field label="Message"><Textarea name="body" rows={16} required defaultValue={body}/></Field>{files.length?<Field label="Attach from JUN Drive (max 10)"><div className="max-h-56 overflow-auto rounded-lg border border-line p-3"><div className="grid gap-2 md:grid-cols-2">{files.map(f=><label key={f.id} className="flex items-start gap-2 rounded-md border border-line p-2 text-sm"><input type="checkbox" name="attachmentFileIds" value={f.id} className="mt-1"/><span><span className="font-medium">{f.name}</span><span className="block text-xs text-muted2">{f.mimeType} · {Math.ceil(f.sizeBytes/1024)} KB</span></span></label>)}</div></div></Field>:null}<div className="flex flex-wrap gap-2"><Button type="submit" variant="primary">Save professional draft</Button><Link href={`/app/mail?mailbox=${account.id}&folder=INBOX`}><Button type="button" variant="ghost">Cancel</Button></Link></div></form></CardContent></Card>{source?<Card><CardHeader><CardTitle>Source conversation</CardTitle></CardHeader><CardContent><p className="text-sm text-muted2">{source.subject} · {conversation.length} message(s)</p></CardContent></Card>:null}</div>;
+}
