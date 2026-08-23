@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser, can } from "@/lib/auth";
 import { getMailThreadStateMap, isSnoozed } from "@/lib/mail-thread-state";
 import { getMailConversation, getUnreadGmailThreadIds } from "@/lib/mail-thread-reader";
+import { classifyMailText, getMailIntelligenceMap } from "@/lib/mail-intelligence";
 import { composeDraft } from "@/services/mail";
 import { syncMailbox, sendDraftViaGmail, draftReplyWithJunAI, updateMailDraft } from "@/services/mailbox";
 import { syncAllMailboxes } from "@/services/mail-multi";
@@ -31,6 +32,7 @@ const FOLDERS=[
 type FolderKey=(typeof FOLDERS)[number]["key"];
 const AI_BADGE:Record<string,string>={AUTO:"bg-emerald-100 text-emerald-800",APPROVAL_REQUIRED:"bg-amber-100 text-amber-800",BLOCKED:"bg-red-100 text-red-700"};
 const STATUS_BADGE:Record<string,string>={OPEN:"bg-blue-100 text-blue-800",WAITING_CLIENT:"bg-violet-100 text-violet-800",WAITING_INTERNAL:"bg-amber-100 text-amber-800",RESOLVED:"bg-emerald-100 text-emerald-800"};
+const INTELLIGENCE_PRIORITY:Record<string,string>={LOW:"bg-slate-100 text-slate-700",MEDIUM:"bg-blue-100 text-blue-800",HIGH:"bg-amber-100 text-amber-800",URGENT:"bg-red-100 text-red-700"};
 
 type Params={folder?:string;thread?:string;compose?:string;q?:string;mailbox?:string};
 
@@ -56,7 +58,8 @@ export async function MailCenter({searchParams}:{searchParams:Params}){
   Promise.all(scopedIds.map(async id=>[id,await getUnreadGmailThreadIds(id).catch(()=>new Set<string>())] as const)),
  ]);
  const unreadByAccount=new Map(unreadPairs);
- const stateMap=await getMailThreadStateMap(allThreads.map(t=>t.id));
+ const [stateMap,intelligenceMap]=await Promise.all([getMailThreadStateMap(allThreads.map(t=>t.id)),getMailIntelligenceMap(allThreads.map(t=>t.id))]);
+ const intelligence=(t:(typeof allThreads)[number])=>intelligenceMap.get(t.id)??classifyMailText({threadId:t.id,subject:t.subject,snippet:t.aiDraft??t.snippet,fromEmail:t.fromEmail,ownEmail:t.account.email,hasDraft:Boolean(t.aiDraft),requiresAttention:t.requiresAttention});
  const isUnread=(t:(typeof allThreads)[number])=>unreadByAccount.get(t.mailAccountId)?.has(t.gmailThreadId)??false;
  const sent=(t:(typeof allThreads)[number])=>Boolean(t.fromEmail?.toLowerCase().includes(t.account.email.toLowerCase())&&!t.aiDraft);
  const visibleBase=(t:(typeof allThreads)[number])=>{const s=stateMap.get(t.id)!;return !s.trashed&&!s.archived&&!isSnoozed(s);};
@@ -68,7 +71,7 @@ export async function MailCenter({searchParams}:{searchParams:Params}){
   if(key==="SENT")return isSent&&!s.trashed;
   if(key==="STARRED")return s.starred&&!s.trashed;
   if(key==="AI_REVIEW")return visibleBase(t)&&(t.requiresAttention||t.aiLevel!=="AUTO");
-  if(key==="NEEDS_REPLY")return visibleBase(t)&&incoming&&s.workflowStatus==="OPEN";
+  if(key==="NEEDS_REPLY")return visibleBase(t)&&intelligence(t).needsReply&&s.workflowStatus==="OPEN";
   return visibleBase(t)&&incoming;
  };
  const matches=(t:(typeof allThreads)[number])=>!q||`${t.subject??""} ${t.fromEmail??""} ${t.snippet??""} ${t.account.email} ${t.client?.firstName??""} ${t.client?.lastName??""} ${t.client?.internalId??""}`.toLowerCase().includes(q);
@@ -99,7 +102,7 @@ export async function MailCenter({searchParams}:{searchParams:Params}){
    <section className="min-w-0 space-y-3">
     <form className="flex gap-2"><input type="hidden" name="mailbox" value={mailbox}/><input type="hidden" name="folder" value={folder}/><div className="relative flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted2"/><Input name="q" defaultValue={searchParams.q} placeholder="Search sender, subject, client, mailbox…" className="pl-9"/></div><Button variant="outline">Search</Button></form>
     <div className="flex items-center justify-between text-xs text-muted2"><span>{threads.length} conversation(s)</span>{q?<Link href={`/app/mail?mailbox=${encodeURIComponent(mailbox)}&folder=${folder}`} className="text-electric">Clear search</Link>:null}</div>
-    {threads.length===0?<EmptyState icon={Mail} title={`No conversations in ${folder.toLowerCase().replaceAll("_"," ")}`} description={accounts.length?"Try another folder, mailbox, or sync Gmail.":"Connect Gmail to populate JUN Mail."}/>:<ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">{threads.map(t=>{const s=stateMap.get(t.id)!;const unread=isUnread(t);return <li key={t.id}><Link href={qp({thread:t.id,compose:undefined})} className={`block px-4 py-3 hover:bg-surface ${activeThread?.id===t.id?"bg-surface":""}`}><div className="flex items-start gap-3"><span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${unread?"bg-electric":"bg-transparent"}`}/><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className={`truncate ${unread?"font-semibold":"font-medium"}`}>{s.starred?"★ ":""}{t.subject??"(no subject)"}</p><span className="shrink-0 text-[11px] text-muted2">{formatDateTime(t.lastMessageAt??t.updatedAt)}</span></div><p className="mt-1 truncate text-sm text-muted2">{t.aiDraft??t.snippet??"—"}</p><div className="mt-2 flex flex-wrap items-center gap-1.5"><span className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium">{t.account.displayName||t.account.email}</span><Badge className={STATUS_BADGE[s.workflowStatus]??""}>{s.workflowStatus.replaceAll("_"," ")}</Badge>{t.aiLevel!=="AUTO"?<Badge className={AI_BADGE[t.aiLevel]??""}>{t.aiLevel.replaceAll("_"," ")}</Badge>:null}{t.client?<span className="text-xs text-muted2">{t.client.firstName} {t.client.lastName}</span>:null}</div></div></div></Link></li>})}</ul>}
+    {threads.length===0?<EmptyState icon={Mail} title={`No conversations in ${folder.toLowerCase().replaceAll("_"," ")}`} description={accounts.length?"Try another folder, mailbox, or sync Gmail.":"Connect Gmail to populate JUN Mail."}/>:<ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">{threads.map(t=>{const s=stateMap.get(t.id)!,intel=intelligence(t);const unread=isUnread(t);return <li key={t.id}><Link href={qp({thread:t.id,compose:undefined})} className={`block px-4 py-3 hover:bg-surface ${activeThread?.id===t.id?"bg-surface":""}`}><div className="flex items-start gap-3"><span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${unread?"bg-electric":"bg-transparent"}`}/><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className={`truncate ${unread?"font-semibold":"font-medium"}`}>{s.starred?"★ ":""}{t.subject??"(no subject)"}</p><span className="shrink-0 text-[11px] text-muted2">{formatDateTime(t.lastMessageAt??t.updatedAt)}</span></div><p className="mt-1 truncate text-sm text-muted2">{t.aiDraft??t.snippet??"—"}</p><div className="mt-2 flex flex-wrap items-center gap-1.5"><span className="rounded bg-surface px-1.5 py-0.5 text-[10px] font-medium">{t.account.displayName||t.account.email}</span><Badge className={STATUS_BADGE[s.workflowStatus]??""}>{s.workflowStatus.replaceAll("_"," ")}</Badge><Badge>{intel.category}</Badge>{intel.priority==="HIGH"||intel.priority==="URGENT"?<Badge className={INTELLIGENCE_PRIORITY[intel.priority]??""}>{intel.priority}</Badge>:null}{intel.needsReply?<Badge className="bg-violet-100 text-violet-800">NEEDS REPLY</Badge>:null}{t.aiLevel!=="AUTO"?<Badge className={AI_BADGE[t.aiLevel]??""}>{t.aiLevel.replaceAll("_"," ")}</Badge>:null}{t.client?<span className="text-xs text-muted2">{t.client.firstName} {t.client.lastName}</span>:null}</div></div></div></Link></li>})}</ul>}
    </section>
 
    <section className="min-w-0">
