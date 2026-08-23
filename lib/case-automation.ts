@@ -50,8 +50,12 @@ export async function saveCaseAutomationRun(run:CaseAutomationRun){
 }
 
 export async function listCaseAutomationRuns(caseId:string){
- const rows=await prisma.appSetting.findMany({where:{key:{startsWith:`${RUN_PREFIX}${caseId}.`}},orderBy:{createdAt:"desc"},take:30,select:{value:true}});
- return rows.map(r=>{try{return JSON.parse(r.value) as CaseAutomationRun;}catch{return null;}}).filter((v):v is CaseAutomationRun=>v!==null);
+ const rows=await prisma.appSetting.findMany({where:{key:{startsWith:`${RUN_PREFIX}${caseId}.`}},take:100,select:{value:true}});
+ return rows
+  .map(r=>{try{return JSON.parse(r.value) as CaseAutomationRun;}catch{return null;}})
+  .filter((v):v is CaseAutomationRun=>v!==null)
+  .sort((a,b)=>new Date(b.ranAt).getTime()-new Date(a.ranAt).getTime())
+  .slice(0,30);
 }
 
 export function automationTaskTitle(insight:CaseInsight){return `[AUTO:${insight.id}] ${insight.action}`.slice(0,240);}
