@@ -47,3 +47,4 @@ jobs:
         run: npm run build
 
 # Diagnostic PR trigger for Mail Phase 5 build validation.
+# Rerun after sanitizer hardening.
