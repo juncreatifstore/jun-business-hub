@@ -35,7 +35,10 @@ function parse(value:string):CaseCommunication|null{
 
 export async function listCaseCommunications(caseId:string){
   const rows=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},select:{value:true},take:5000});
-  return rows.map(r=>parse(r.value)).filter((v):v is CaseCommunication=>Boolean(v)&&v.caseId===caseId).sort((a,b)=>new Date(b.occurredAt).getTime()-new Date(a.occurredAt).getTime());
+  return rows
+    .map(r=>parse(r.value))
+    .filter((v):v is CaseCommunication=>v!==null&&v.caseId===caseId)
+    .sort((a,b)=>new Date(b.occurredAt).getTime()-new Date(a.occurredAt).getTime());
 }
 
 export async function createCaseCommunication(input:Omit<CaseCommunication,"id"|"createdAt">){
