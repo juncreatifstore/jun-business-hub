@@ -6,23 +6,25 @@ import { getCaseAutomationPlan, listCaseAutomationRuns } from "@/lib/case-automa
 import { getCaseClosureSnapshot } from "@/lib/case-closure";
 
 export async function getCaseReport(caseId:string){
- const [intel,automation,closure]=await Promise.all([
+ const [intel,closure]=await Promise.all([
   getCaseIntelligence(caseId),
-  getCaseAutomationPlan(caseId),
   getCaseClosureSnapshot(caseId),
  ]);
  if(!intel)return null;
- const c=await prisma.case.findUnique({where:{id:caseId},include:{
-  client:{select:{id:true,internalId:true,firstName:true,lastName:true,email:true,phone:true,country:true}},
-  owner:{select:{id:true,firstName:true,lastName:true,email:true}},
-  tasks:{orderBy:{createdAt:"asc"},include:{assignee:{select:{firstName:true,lastName:true}}}},
-  notes:{orderBy:{createdAt:"asc"},include:{author:{select:{firstName:true,lastName:true}}}},
-  documents:{orderBy:{updatedAt:"desc"},select:{id:true,documentId:true,title:true,type:true,status:true,updatedAt:true}},
-  files:{where:{isVault:false,archivedAt:null},orderBy:{createdAt:"desc"},select:{id:true,name:true,category:true,mimeType:true,createdAt:true}},
-  activities:{orderBy:{createdAt:"desc"},take:100,include:{user:{select:{firstName:true,lastName:true}}}},
- }});
+ const [automation,c,runs]=await Promise.all([
+  getCaseAutomationPlan(caseId,intel),
+  prisma.case.findUnique({where:{id:caseId},include:{
+   client:{select:{id:true,internalId:true,firstName:true,lastName:true,email:true,phone:true,country:true}},
+   owner:{select:{id:true,firstName:true,lastName:true,email:true}},
+   tasks:{orderBy:{createdAt:"asc"},include:{assignee:{select:{firstName:true,lastName:true}}}},
+   notes:{orderBy:{createdAt:"asc"},include:{author:{select:{firstName:true,lastName:true}}}},
+   documents:{orderBy:{updatedAt:"desc"},select:{id:true,documentId:true,title:true,type:true,status:true,updatedAt:true}},
+   files:{where:{isVault:false,archivedAt:null},orderBy:{createdAt:"desc"},select:{id:true,name:true,category:true,mimeType:true,createdAt:true}},
+   activities:{orderBy:{createdAt:"desc"},take:100,include:{user:{select:{firstName:true,lastName:true}}}},
+  }}),
+  listCaseAutomationRuns(caseId),
+ ]);
  if(!c)return null;
- const runs=await listCaseAutomationRuns(caseId);
  const readiness=intel.readiness;
  const reportReference=`CASE-REPORT-${c.caseNumber}`;
  const executiveSummary=[
