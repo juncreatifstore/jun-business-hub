@@ -79,8 +79,8 @@ export function targetCasePriority(current:string,riskLevel:string){
  return (rank[target]??0)>(rank[current]??0)?target:current;
 }
 
-export async function getCaseAutomationPlan(caseId:string){
- const intelligence=await getCaseIntelligence(caseId);
+export async function getCaseAutomationPlan(caseId:string,intelligenceInput?:Awaited<ReturnType<typeof getCaseIntelligence>>){
+ const intelligence=intelligenceInput??await getCaseIntelligence(caseId);
  if(!intelligence)return null;
  const config=await getCaseAutomationConfig(caseId);
  const activeTitles=await prisma.task.findMany({where:{caseId,status:{notIn:["DONE","CANCELLED"]}},select:{title:true}});
