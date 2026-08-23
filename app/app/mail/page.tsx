@@ -6,6 +6,7 @@ import { MailCenter } from "@/components/mail/mail-center";
 import { MailContextPanel } from "@/components/mail/mail-context-panel";
 import { MailAICopilotPanel } from "@/components/mail/mail-ai-copilot-panel";
 import { MailIntelligencePanel } from "@/components/mail/mail-intelligence-panel";
+import { MailOperationsPanel } from "@/components/mail/mail-operations-panel";
 import { Button } from "@/components/ui/button";
 
 export const dynamic="force-dynamic";
@@ -18,8 +19,9 @@ export default async function MailPage({searchParams}:{searchParams:{folder?:str
  const active=searchParams.thread?await prisma.mailThread.findUnique({where:{id:searchParams.thread},select:{id:true,mailAccountId:true,aiDraft:true}}):null;
  const mailbox=active?.mailAccountId||searchParams.mailbox||"ALL";
  return <div className="space-y-5">
-  <div className="flex flex-wrap justify-end gap-2"><Link href="/app/mail/intelligence"><Button variant="secondary">Mail Intelligence</Button></Link><Link href="/app/mail/approvals"><Button variant="secondary">AI Approval Center</Button></Link>{active&&!active.aiDraft?<><Link href={`/app/mail/compose?mailbox=${encodeURIComponent(active.mailAccountId)}&source=${active.id}&mode=REPLY`}><Button variant="outline">Reply</Button></Link><Link href={`/app/mail/compose?mailbox=${encodeURIComponent(active.mailAccountId)}&source=${active.id}&mode=REPLY_ALL`}><Button variant="outline">Reply all</Button></Link><Link href={`/app/mail/compose?mailbox=${encodeURIComponent(active.mailAccountId)}&source=${active.id}&mode=FORWARD`}><Button variant="outline">Forward</Button></Link></>:null}</div>
+  <div className="flex flex-wrap justify-end gap-2"><Link href="/app/mail/operations"><Button variant="secondary">Mail Operations & SLA</Button></Link><Link href="/app/mail/intelligence"><Button variant="secondary">Mail Intelligence</Button></Link><Link href="/app/mail/approvals"><Button variant="secondary">AI Approval Center</Button></Link>{active&&!active.aiDraft?<><Link href={`/app/mail/compose?mailbox=${encodeURIComponent(active.mailAccountId)}&source=${active.id}&mode=REPLY`}><Button variant="outline">Reply</Button></Link><Link href={`/app/mail/compose?mailbox=${encodeURIComponent(active.mailAccountId)}&source=${active.id}&mode=REPLY_ALL`}><Button variant="outline">Reply all</Button></Link><Link href={`/app/mail/compose?mailbox=${encodeURIComponent(active.mailAccountId)}&source=${active.id}&mode=FORWARD`}><Button variant="outline">Forward</Button></Link></>:null}</div>
   <MailCenter searchParams={{...searchParams,mailbox}}/>
+  {active?<MailOperationsPanel threadId={active.id}/>:null}
   {active?<MailIntelligencePanel threadId={active.id}/>:null}
   {active?<MailAICopilotPanel threadId={active.id} hasDraft={Boolean(active.aiDraft)}/>:null}
   {active?<MailContextPanel threadId={active.id}/>:null}
