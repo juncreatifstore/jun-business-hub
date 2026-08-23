@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { storage } from "@/lib/storage";
-import { gmailSend } from "@/lib/google/gmail";
+import { gmailSendAdvanced } from "@/lib/google/gmail-advanced-send";
 import { deleteMailComposeMeta, getMailComposeMeta, listMailSignatures } from "@/lib/mail-compose-meta";
 
 export async function sendProfessionalDraft(threadId:string){
@@ -20,8 +20,8 @@ export async function sendProfessionalDraft(threadId:string){
  if(files.length!==meta.attachmentFileIds.length)redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("One or more attachments are no longer available")}`);
  const total=files.reduce((n,f)=>n+f.sizeBytes,0);if(total>20*1024*1024)redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("Attachments exceed the 20 MB JUN Mail limit")}`);
  const attachments=[] as {filename:string;mimeType:string;data:Buffer}[];for(const f of files)attachments.push({filename:f.name,mimeType:f.mimeType,data:await storage().download(f.storageKey)});
- let gmailThreadId:string|undefined;let sourceMessageId=meta.sourceGmailMessageId||undefined;if(meta.sourceThreadId){const source=await prisma.mailThread.findUnique({where:{id:meta.sourceThreadId},select:{gmailThreadId:true,mailAccountId:true}});if(source&&source.mailAccountId===thread.mailAccountId)gmailThreadId=source.gmailThreadId;}
- const gmailMessageId=await gmailSend(thread.mailAccountId,{to:meta.to,cc:meta.cc,bcc:meta.bcc,subject:thread.subject||"(no subject)",text,inReplyToGmailId:sourceMessageId,threadId:meta.mode==="REPLY"||meta.mode==="REPLY_ALL"?gmailThreadId:undefined,attachments});
+ let gmailThreadId:string|undefined;const sourceMessageId=meta.sourceGmailMessageId||undefined;if(meta.sourceThreadId){const source=await prisma.mailThread.findUnique({where:{id:meta.sourceThreadId},select:{gmailThreadId:true,mailAccountId:true}});if(source&&source.mailAccountId===thread.mailAccountId)gmailThreadId=source.gmailThreadId;}
+ const gmailMessageId=await gmailSendAdvanced(thread.mailAccountId,{to:meta.to,cc:meta.cc,bcc:meta.bcc,subject:thread.subject||"(no subject)",text,inReplyToGmailId:sourceMessageId,threadId:meta.mode==="REPLY"||meta.mode==="REPLY_ALL"?gmailThreadId:undefined,attachments});
  await prisma.mailThread.update({where:{id:thread.id},data:{snippet:text.slice(0,500),aiDraft:null,lastMessageAt:new Date(),requiresAttention:false,toEmails:meta.to}});
  await deleteMailComposeMeta(thread.id);
  await audit({userId:user.id,action:"EMAIL_PROFESSIONAL_SEND_GMAIL",resourceType:"MailThread",resourceId:thread.id,after:{mailbox:thread.account.email,mode:meta.mode,to:meta.to,cc:meta.cc,bccCount:meta.bcc.length,attachments:files.map(f=>f.id),gmailMessageId,gmailThreadId:gmailThreadId??null}});
