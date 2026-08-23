@@ -37,14 +37,17 @@ export async function deleteMailComposeMeta(threadId:string){await prisma.appSet
 
 export async function listMailSignatures(mailAccountId?:string){
  const rows=await prisma.appSetting.findMany({where:{key:{startsWith:SIGNATURE_PREFIX}},select:{value:true}});
- return rows.map(r=>{try{return JSON.parse(r.value) as MailSignature}catch{return null}}).filter((v):v is MailSignature=>Boolean(v)&&(!mailAccountId||v.mailAccountId===mailAccountId)).sort((a,b)=>Number(b.isDefault)-Number(a.isDefault)||a.name.localeCompare(b.name));
+ return rows
+  .map(r=>{try{return JSON.parse(r.value) as MailSignature}catch{return null}})
+  .filter((v):v is MailSignature=>v!==null&&(!mailAccountId||v.mailAccountId===mailAccountId))
+  .sort((a,b)=>Number(b.isDefault)-Number(a.isDefault)||a.name.localeCompare(b.name));
 }
 export async function saveMailSignature(sig:MailSignature){const value=JSON.stringify(sig);await prisma.appSetting.upsert({where:{key:`${SIGNATURE_PREFIX}${sig.id}`},create:{key:`${SIGNATURE_PREFIX}${sig.id}`,value},update:{value}});}
 export async function deleteMailSignature(id:string){await prisma.appSetting.delete({where:{key:`${SIGNATURE_PREFIX}${id}`}}).catch(()=>null);}
 
 export async function listMailTemplates(){
  const rows=await prisma.appSetting.findMany({where:{key:{startsWith:TEMPLATE_PREFIX}},select:{value:true}});
- return rows.map(r=>{try{return JSON.parse(r.value) as MailTemplate}catch{return null}}).filter((v):v is MailTemplate=>Boolean(v)).sort((a,b)=>a.name.localeCompare(b.name));
+ return rows.map(r=>{try{return JSON.parse(r.value) as MailTemplate}catch{return null}}).filter((v):v is MailTemplate=>v!==null).sort((a,b)=>a.name.localeCompare(b.name));
 }
 export async function saveMailTemplate(t:MailTemplate){const value=JSON.stringify(t);await prisma.appSetting.upsert({where:{key:`${TEMPLATE_PREFIX}${t.id}`},create:{key:`${TEMPLATE_PREFIX}${t.id}`,value},update:{value}});}
 export async function deleteMailTemplate(id:string){await prisma.appSetting.delete({where:{key:`${TEMPLATE_PREFIX}${id}`}}).catch(()=>null);}
