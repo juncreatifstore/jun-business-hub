@@ -5,14 +5,15 @@ type GmailHeader={name:string;value:string};
 type GmailPart={mimeType?:string;filename?:string;body?:{data?:string;attachmentId?:string;size?:number};parts?:GmailPart[];headers?:GmailHeader[]};
 type GmailMessage={id:string;threadId:string;labelIds?:string[];snippet?:string;internalDate?:string;payload?:GmailPart};
 type GmailThread={id:string;messages?:GmailMessage[]};
-export type MailConversationMessage={id:string;from:string;to:string[];cc:string[];subject:string;date:Date;body:string;snippet:string;isUnread:boolean;labels:string[];attachments:{filename:string;mimeType:string;size:number}[]};
+export type MailConversationAttachment={attachmentId:string|null;filename:string;mimeType:string;size:number};
+export type MailConversationMessage={id:string;from:string;to:string[];cc:string[];subject:string;date:Date;body:string;snippet:string;isUnread:boolean;labels:string[];attachments:MailConversationAttachment[]};
 
 function header(m:GmailMessage,name:string){return m.payload?.headers?.find(h=>h.name.toLowerCase()===name.toLowerCase())?.value??"";}
 function emails(value:string){return value.match(/[\w.+-]+@[\w.-]+\.\w+/g)??[];}
 function decode(data?:string){return data?Buffer.from(data.replace(/-/g,"+").replace(/_/g,"/"),"base64").toString("utf8"):"";}
 function htmlToText(value:string){return value.replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<br\s*\/?>/gi,"\n").replace(/<\/p>/gi,"\n").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\n{3,}/g,"\n\n").replace(/[ \t]{2,}/g," ").trim();}
 function bodyFrom(part?:GmailPart):string{if(!part)return "";if(part.mimeType==="text/plain"&&part.body?.data)return decode(part.body.data);for(const p of part.parts??[]){const value=bodyFrom(p);if(value)return value;}if(part.mimeType==="text/html"&&part.body?.data)return htmlToText(decode(part.body.data));if(part.body?.data)return decode(part.body.data);return "";}
-function attachments(part?:GmailPart,out:{filename:string;mimeType:string;size:number}[]=[]){if(!part)return out;if(part.filename)out.push({filename:part.filename,mimeType:part.mimeType||"application/octet-stream",size:part.body?.size??0});for(const p of part.parts??[])attachments(p,out);return out;}
+function attachments(part?:GmailPart,out:MailConversationAttachment[]=[]){if(!part)return out;if(part.filename)out.push({attachmentId:part.body?.attachmentId??null,filename:part.filename,mimeType:part.mimeType||"application/octet-stream",size:part.body?.size??0});for(const p of part.parts??[])attachments(p,out);return out;}
 
 export async function getUnreadGmailThreadIds(accountId:string,max=500):Promise<Set<string>>{
  const {token}=await accessTokenFor(accountId);
