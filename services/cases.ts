@@ -19,13 +19,11 @@ export async function createCase(_prev: FormState, formData: FormData): Promise<
   const d = parsed.data;
   const client = await prisma.client.findUnique({ where: { id: d.clientId } });
   if (!client) return { message: "Selected client does not exist." };
-
   const block = await getClientBlock(d.clientId);
   if (block?.blocked) {
     await audit({ userId: user.id, action: "CASE_CREATE_BLOCKED_CLIENT", resourceType: "Client", resourceId: d.clientId, after: { reason: block.reason } });
     return { message: `New service blocked: JUN ended the commercial relationship with this client. Reason: ${block.reason}` };
   }
-
   const finance = await getClientFinanceOverview(d.clientId);
   const debts = finance.summaries.filter((s) => s.forecastProfit < -0.009);
   if (debts.length) {
@@ -33,7 +31,6 @@ export async function createCase(_prev: FormState, formData: FormData): Promise<
     await audit({ userId: user.id, action: "CASE_CREATE_BLOCKED_NEGATIVE_CLIENT_BALANCE", resourceType: "Client", resourceId: d.clientId, after: { debt: debtText } });
     return { message: `New service blocked: this client has an outstanding balance of ${debtText}. The debt must be settled or regularized before a new service can be opened.` };
   }
-
   const caseNumber = await nextNumber("CASE");
   const c = await prisma.case.create({ data: { caseNumber, clientId: d.clientId, type: d.type, title: d.title, description: emptyToNull(d.description), priority: d.priority, status: d.status, dueDate: parseDate(d.dueDate), tags: parseTags(d.tags), ownerId: user.id, members: { create: { userId: user.id } } } });
   await audit({ userId: user.id, action: "CASE_CREATE", resourceType: "Case", resourceId: c.id, after: { caseNumber, title: c.title } });
@@ -48,6 +45,7 @@ export async function updateCase(caseId: string, _prev: FormState, formData: For
   const d = parsed.data;
   const before = await prisma.case.findUnique({ where: { id: caseId } });
   if (!before) return { message: "Case not found." };
+  if (d.status === "COMPLETED" && before.status !== "COMPLETED") return { message: "Use Case Closure & Final Review to mark this Case COMPLETED." };
   const client = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
   if (!client) return { message: "Selected client does not exist." };
   const reason = String(formData.get("correctionReason") || "").trim().slice(0, 1000);
@@ -61,14 +59,15 @@ export async function updateCase(caseId: string, _prev: FormState, formData: For
 export async function updateCaseStatus(caseId: string, formData: FormData) {
   const user = await assertPermission("CASE_UPDATE");
   const status = String(formData.get("status") ?? "");
-  const allowed = ["OPEN", "IN_PROGRESS", "WAITING_CLIENT", "WAITING_INTERNAL", "COMPLETED", "CANCELLED", "ARCHIVED"];
+  const allowed = ["OPEN", "IN_PROGRESS", "WAITING_CLIENT", "WAITING_INTERNAL", "CANCELLED", "ARCHIVED"];
+  if (status === "COMPLETED") redirect(`/app/cases/${caseId}/closure?toast_error=${encodeURIComponent("COMPLETED requires the Case Closure & Final Review workflow.")}`);
   if (!allowed.includes(status)) return;
   const before = await prisma.case.findUnique({ where: { id: caseId } });
   if (!before) return;
   const updated = await prisma.case.update({ where: { id: caseId }, data: { status: status as never } });
   await audit({ userId: user.id, action: "CASE_STATUS_CHANGE", resourceType: "Case", resourceId: caseId, before: { status: before.status }, after: { status } });
   await logActivity({ type: "CASE_UPDATED", message: `Case ${updated.caseNumber} moved to ${status.replaceAll("_", " ")}`, userId: user.id, clientId: updated.clientId, caseId });
-  revalidatePath(`/app/cases/${caseId}`);
+  revalidatePath(`/app/cases/${caseId}`);revalidatePath(`/app/cases/${caseId}/dashboard`);revalidatePath(`/app/cases/${caseId}/operations`);revalidatePath(`/app/cases/${caseId}/closure`);
 }
 
 export async function addCaseNote(caseId: string, formData: FormData) {
@@ -79,7 +78,7 @@ export async function addCaseNote(caseId: string, formData: FormData) {
   if (!c) return;
   await prisma.caseNote.create({ data: { caseId, authorId: user.id, body } });
   await logActivity({ type: "NOTE_ADDED", message: `Note added to ${c.caseNumber}`, userId: user.id, caseId, clientId: c.clientId });
-  revalidatePath(`/app/cases/${caseId}`);
+  revalidatePath(`/app/cases/${caseId}`);revalidatePath(`/app/cases/${caseId}/history`);
 }
 
 export async function deleteCase(caseId: string, formData: FormData): Promise<void> {
