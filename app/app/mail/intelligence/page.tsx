@@ -1,0 +1,39 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireUser, can } from "@/lib/auth";
+import { classifyMailText, getMailIntelligenceMap, type MailCategory, type MailDepartment, type MailEscalation, type MailIntelligencePriority } from "@/lib/mail-intelligence";
+import { refreshAllMailIntelligence, refreshThreadMailIntelligence } from "@/services/mail-intelligence";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Field, Select, Input } from "@/components/ui/input";
+
+export const dynamic="force-dynamic";
+const CATEGORIES=["ALL","TRAVEL","VISA","PAYMENT","REFUND","DOCUMENT","LEGAL","COMPLAINT","SUPPORT","SALES","SPAM","GENERAL"] as const;
+const PRIORITIES=["ALL","LOW","MEDIUM","HIGH","URGENT"] as const;
+const DEPARTMENTS=["ALL","TRAVEL","FINANCE","DOCUMENTS","LEGAL","CUSTOMER_SERVICE","ADMINISTRATION"] as const;
+const ESCALATIONS=["ALL","NONE","WATCH","HIGH","CRITICAL"] as const;
+const PRIORITY_CLASS:Record<string,string>={LOW:"bg-slate-100 text-slate-700",MEDIUM:"bg-blue-100 text-blue-800",HIGH:"bg-amber-100 text-amber-800",URGENT:"bg-red-100 text-red-700"};
+const ESCALATION_CLASS:Record<string,string>={NONE:"bg-slate-100 text-slate-700",WATCH:"bg-blue-100 text-blue-800",HIGH:"bg-amber-100 text-amber-800",CRITICAL:"bg-red-100 text-red-700"};
+
+export default async function MailIntelligencePage({searchParams}:{searchParams:{category?:string;priority?:string;department?:string;escalation?:string;reply?:string;q?:string}}){
+ const user=await requireUser();if(!can(user,"EMAIL_READ"))redirect("/app/forbidden");
+ const threads=await prisma.mailThread.findMany({orderBy:{updatedAt:"desc"},take:500,include:{account:{select:{id:true,email:true,displayName:true}},client:{select:{id:true,firstName:true,lastName:true,internalId:true}}}});
+ const stored=await getMailIntelligenceMap(threads.map(t=>t.id));
+ const rows=threads.map(t=>({thread:t,intel:stored.get(t.id)??classifyMailText({threadId:t.id,subject:t.subject,snippet:t.aiDraft??t.snippet,fromEmail:t.fromEmail,ownEmail:t.account.email,hasDraft:Boolean(t.aiDraft),requiresAttention:t.requiresAttention})}));
+ const category=CATEGORIES.includes((searchParams.category||"ALL") as any)?searchParams.category||"ALL":"ALL";
+ const priority=PRIORITIES.includes((searchParams.priority||"ALL") as any)?searchParams.priority||"ALL":"ALL";
+ const department=DEPARTMENTS.includes((searchParams.department||"ALL") as any)?searchParams.department||"ALL":"ALL";
+ const escalation=ESCALATIONS.includes((searchParams.escalation||"ALL") as any)?searchParams.escalation||"ALL":"ALL";
+ const reply=searchParams.reply||"ALL",q=(searchParams.q||"").trim().toLowerCase();
+ const filtered=rows.filter(({thread:t,intel:i})=>(category==="ALL"||i.category===category)&&(priority==="ALL"||i.priority===priority)&&(department==="ALL"||i.department===department)&&(escalation==="ALL"||i.escalation===escalation)&&(reply==="ALL"||(reply==="YES"?i.needsReply:!i.needsReply))&&(!q||`${t.subject??""} ${t.fromEmail??""} ${t.snippet??""} ${t.client?.firstName??""} ${t.client?.lastName??""} ${t.client?.internalId??""}`.toLowerCase().includes(q))).slice(0,200);
+ const needsReply=rows.filter(r=>r.intel.needsReply).length,urgent=rows.filter(r=>r.intel.priority==="URGENT").length,highRisk=rows.filter(r=>r.intel.escalation==="HIGH"||r.intel.escalation==="CRITICAL").length,unclassified=threads.filter(t=>!stored.has(t.id)).length;
+ return <div className="space-y-5">
+  <div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold">Mail Intelligence</h1><p className="mt-1 text-sm text-muted2">Explainable triage across all connected mailboxes. No financial, legal, refund, or sending action is automated here.</p></div><div className="flex gap-2"><form action={refreshAllMailIntelligence}><Button variant="secondary">Refresh intelligence</Button></form><Link href="/app/mail"><Button variant="outline">Back to Mail</Button></Link></div></div>
+  <div className="grid gap-3 md:grid-cols-4"><Metric label="Needs reply" value={needsReply}/><Metric label="Urgent" value={urgent}/><Metric label="High / critical escalation" value={highRisk}/><Metric label="Not persisted yet" value={unclassified}/></div>
+  <Card><CardHeader><CardTitle>Filters</CardTitle></CardHeader><CardContent><form className="grid gap-3 md:grid-cols-3 xl:grid-cols-6"><Field label="Category"><Select name="category" defaultValue={category}>{CATEGORIES.map(v=><option key={v}>{v}</option>)}</Select></Field><Field label="Priority"><Select name="priority" defaultValue={priority}>{PRIORITIES.map(v=><option key={v}>{v}</option>)}</Select></Field><Field label="Department"><Select name="department" defaultValue={department}>{DEPARTMENTS.map(v=><option key={v}>{v}</option>)}</Select></Field><Field label="Escalation"><Select name="escalation" defaultValue={escalation}>{ESCALATIONS.map(v=><option key={v}>{v}</option>)}</Select></Field><Field label="Needs reply"><Select name="reply" defaultValue={reply}><option value="ALL">ALL</option><option value="YES">YES</option><option value="NO">NO</option></Select></Field><Field label="Search"><Input name="q" defaultValue={searchParams.q} placeholder="Subject, sender, client…"/></Field><div className="md:col-span-3 xl:col-span-6"><Button variant="primary">Apply filters</Button></div></form></CardContent></Card>
+  <Card><CardHeader><CardTitle>Attention queue · {filtered.length}</CardTitle></CardHeader><CardContent><div className="space-y-3">{filtered.length?filtered.map(({thread:t,intel:i})=><div key={t.id} className="rounded-xl border border-line p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><Badge>{i.category}</Badge><Badge className={PRIORITY_CLASS[i.priority]??""}>{i.priority}</Badge><Badge className={ESCALATION_CLASS[i.escalation]??""}>{i.escalation}</Badge>{i.needsReply?<Badge className="bg-violet-100 text-violet-800">NEEDS REPLY</Badge>:null}<span className="text-xs text-muted2">{i.department}</span></div><Link className="mt-2 block font-semibold hover:underline" href={`/app/mail?mailbox=${t.mailAccountId}&thread=${t.id}`}>{t.subject||"(no subject)"}</Link><p className="mt-1 text-sm text-muted2">{t.fromEmail||"Unknown sender"} · {t.account.displayName||t.account.email}{t.client?` · ${t.client.firstName} ${t.client.lastName} (${t.client.internalId})`:""}</p><p className="mt-2 line-clamp-2 text-sm">{t.snippet||"—"}</p><div className="mt-3 flex flex-wrap gap-2">{i.reason.map((r,n)=><span key={n} className="rounded-md bg-surface px-2 py-1 text-xs text-muted2">{r}</span>)}</div></div><div className="flex flex-col gap-2"><form action={refreshThreadMailIntelligence.bind(null,t.id)}><Button size="sm" variant="outline">Reclassify</Button></form><span className="text-[11px] text-muted2">{i.source} · {new Date(i.classifiedAt).toLocaleString()}</span></div></div></div>):<p className="text-sm text-muted2">No conversation matches these filters.</p>}</div></CardContent></Card>
+ </div>;
+}
+function Metric({label,value}:{label:string;value:number}){return <div className="rounded-xl border border-line bg-white p-4"><p className="text-xs text-muted2">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p></div>}
