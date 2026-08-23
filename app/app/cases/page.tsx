@@ -40,7 +40,7 @@ export default async function CasesPage({ searchParams }: { searchParams: { q?: 
 
   return (
     <div>
-      <PageHeader title="Cases" subtitle="Every open commitment, with an owner and a status." actionHref="/app/cases/new" actionLabel="New case" />
+      <PageHeader title="Cases" subtitle="Every client service and operational commitment, with an owner, deadline and financial position." actionHref="/app/cases/new" actionLabel="New case" />
       <form className="mb-4 flex flex-wrap gap-2">
         <Input name="q" placeholder="Search case number, title, client…" defaultValue={q} className="max-w-xs" />
         <Select name="status" defaultValue={status ?? "ALL"} className="w-48">
@@ -58,9 +58,9 @@ export default async function CasesPage({ searchParams }: { searchParams: { q?: 
           <tbody>
             {cases.map((c) => (
               <TR key={c.id}>
-                <TD><Link href={`/app/cases/${c.id}`} className="registry-id hover:text-electric">{c.caseNumber}</Link></TD>
-                <TD><Link href={`/app/cases/${c.id}`} className="font-medium hover:text-electric">{c.title}</Link></TD>
-                <TD><Link href={`/app/clients/${c.clientId}`} className="text-muted2 hover:text-electric">{c.client.firstName} {c.client.lastName}</Link></TD>
+                <TD><Link href={`/app/cases/${c.id}/dashboard`} className="registry-id hover:text-electric">{c.caseNumber}</Link></TD>
+                <TD><Link href={`/app/cases/${c.id}/dashboard`} className="font-medium hover:text-electric">{c.title}</Link></TD>
+                <TD><Link href={`/app/clients/${c.clientId}/dashboard`} className="text-muted2 hover:text-electric">{c.client.firstName} {c.client.lastName}</Link></TD>
                 <TD className="text-muted2">{c.type}</TD>
                 <TD><StatusBadge status={c.status} /></TD>
                 <TD><StatusBadge status={c.priority} /></TD>
