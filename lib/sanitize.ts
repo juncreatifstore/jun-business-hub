@@ -24,6 +24,14 @@ function safeImageSrc(src: string | undefined): string {
   return "";
 }
 
+function safeLinkHref(href: string | undefined): string {
+  const value = (href ?? "").trim();
+  if (!value) return "";
+  if (/^(https?:|mailto:|tel:)/i.test(value)) return value;
+  if (value.startsWith("/") || value.startsWith("#")) return value;
+  return "";
+}
+
 /**
  * Templates/AI sometimes return otherwise-valid HTML wrapped in Markdown fences.
  * Strip only outer fences so literal user text inside the document is preserved.
@@ -56,17 +64,25 @@ export function sanitizeDocumentHtml(dirty: string): string {
         "data-jun-page", "data-page-id", "data-rotation",
       ],
     },
-    allowedSchemes: ["http", "https", "mailto", "tel", "data"],
+    allowedSchemes: ["http", "https", "mailto", "tel"],
+    allowedSchemesByTag: { img: ["http", "https", "data"] },
     allowedSchemesAppliedToAttributes: ["href", "src"],
     allowedStyles: {
       "*": { "text-align": [/^(left|right|center|justify)$/] },
     },
     disallowedTagsMode: "discard",
     transformTags: {
-      a: (_tagName, attribs) => ({
-        tagName: "a",
-        attribs: { ...attribs, rel: "noopener noreferrer nofollow", target: "_blank" },
-      }),
+      a: (_tagName, attribs) => {
+        const href = safeLinkHref(attribs.href);
+        return {
+          tagName: "a",
+          attribs: {
+            ...(href ? { href } : {}),
+            rel: "noopener noreferrer nofollow",
+            target: "_blank",
+          },
+        };
+      },
       img: (_tagName, attribs) => {
         const src = safeImageSrc(attribs.src);
         const isDraw = src.startsWith(SAFE_DRAW_PREFIX);
