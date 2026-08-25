@@ -4,6 +4,7 @@ import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { emptyToNull } from "@/lib/validation";
 import { classifyEmailAILevel } from "@/services/ai";
+import { assertMailboxAccess } from "@/lib/mail-security";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -23,6 +24,7 @@ export async function composeDraft(formData: FormData): Promise<void> {
   const parsed = composeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect(`/app/mail?compose=1&toast_error=${encodeURIComponent("Invalid draft")}`);
   const d = parsed.data;
+  try{await assertMailboxAccess(user,d.mailAccountId);}catch{redirect(`/app/mail?compose=1&toast_error=${encodeURIComponent("You do not have access to this mailbox")}`);}
   const account = await prisma.mailAccount.findFirst({
     where:{id:d.mailAccountId,OR:[{accessTokenEnc:{not:null}},{refreshTokenEnc:{not:null}}]},
     select:{id:true,email:true},
@@ -54,6 +56,7 @@ export async function sendDraft(threadId: string): Promise<void> {
   if (process.env.NODE_ENV === "production") redirect(`/app/mail?thread=${threadId}&toast_error=${encodeURIComponent("Use Gmail sending in production")}`);
   const thread = await prisma.mailThread.findUnique({ where: { id: threadId } });
   if (!thread || !thread.aiDraft) redirect(`/app/mail?toast_error=Draft not found`);
+  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect(`/app/mail?toast_error=${encodeURIComponent("You do not have access to this mailbox")}`);}
   if (thread.aiLevel === "BLOCKED") redirect(`/app/mail?thread=${threadId}&toast_error=This draft requires manual handling`);
   await prisma.mailThread.update({
     where: { id: threadId },
@@ -68,6 +71,7 @@ export async function moveThread(threadId: string, folder: string): Promise<void
   const user = await assertPermission("EMAIL_READ");
   const thread = await prisma.mailThread.findUnique({ where: { id: threadId } });
   if (!thread) redirect("/app/mail?toast_error=Thread not found");
+  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect(`/app/mail?toast_error=${encodeURIComponent("You do not have access to this mailbox")}`);}
   if (folder === "IMPORTANT" || folder === "AI_REVIEW") {
     await prisma.mailThread.update({ where: { id: threadId }, data: { requiresAttention: true } });
   }
