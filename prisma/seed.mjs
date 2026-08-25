@@ -26,14 +26,19 @@ function num(prefix, width = 6) {
 // Mirror of lib/permissions.ts (kept in sync manually — pure data).
 const PERMISSIONS = [
   "CLIENT_READ", "CLIENT_CREATE", "CLIENT_UPDATE", "CLIENT_ARCHIVE",
-  "CASE_READ", "CASE_CREATE", "CASE_UPDATE",
+  "CASE_READ", "CASE_CREATE", "CASE_UPDATE", "CASE_ADMIN",
   "TASK_READ", "TASK_CREATE", "TASK_UPDATE",
   "DOCUMENT_READ", "DOCUMENT_CREATE", "DOCUMENT_EDIT", "DOCUMENT_DELETE", "DOCUMENT_SIGN",
   "FILE_READ", "FILE_UPLOAD", "FILE_DELETE",
   "VAULT_READ", "VAULT_MANAGE",
   "PAYMENT_READ", "PAYMENT_CREATE", "PAYMENT_APPROVE",
   "REFUND_READ", "REFUND_CREATE", "REFUND_APPROVE",
-  "EMAIL_READ", "EMAIL_DRAFT", "EMAIL_SEND",
+  "EXPENSE_READ", "EXPENSE_CREATE", "EXPENSE_APPROVE",
+  "INVOICE_READ", "INVOICE_CREATE", "INVOICE_APPROVE",
+  "ACCOUNTING_READ", "ACCOUNTING_POST", "ACCOUNTING_CLOSE",
+  "BANK_RECON_READ", "BANK_RECON_IMPORT", "BANK_RECON_APPROVE", "BANK_RECON_CLOSE",
+  "BUDGET_READ", "BUDGET_CREATE", "BUDGET_APPROVE",
+  "EMAIL_READ", "EMAIL_DRAFT", "EMAIL_SEND", "EMAIL_MANAGE", "EMAIL_ACCOUNT_ACCESS",
   "AI_USE", "AI_APPROVE",
   "TEAM_MANAGE", "SETTINGS_MANAGE", "AUDIT_READ",
 ];
@@ -158,122 +163,47 @@ async function main() {
       members: { create: [{ userId: staff.DOCUMENT_AGENT.id }] },
     },
   });
-  await prisma.case.create({
+  const case3 = await prisma.case.create({
     data: {
-      caseNumber: num("CASE"), clientId: kevin.id, type: "BUSINESS",
-      title: "LLC formation assistance", status: "WAITING_CLIENT", priority: "LOW",
-      ownerId: admin.id, members: { create: [{ userId: admin.id }] },
+      caseNumber: num("CASE"), clientId: kevin.id, type: "REFUND",
+      title: "Partial refund review", status: "WAITING_INTERNAL", priority: "URGENT",
+      ownerId: staff.FINANCE.id,
+      members: { create: [{ userId: staff.FINANCE.id }, { userId: admin.id }] },
     },
   });
-
-  await prisma.caseNote.create({ data: { caseId: case1.id, authorId: staff.TRAVEL_AGENT.id, body: "Client confirmed travel dates. Waiting on passport scan." } });
 
   // ── Tasks ──────────────────────────────────────────────────────────────────
-  const in3days = new Date(Date.now() + 3 * 86400000);
-  const yesterday = new Date(Date.now() - 86400000);
   await prisma.task.createMany({
     data: [
-      { title: "Collect passport scan", caseId: case1.id, clientId: aline.id, assigneeId: staff.TRAVEL_AGENT.id, creatorId: admin.id, priority: "HIGH", status: "IN_PROGRESS", dueDate: in3days },
-      { title: "Book outbound flight", caseId: case1.id, clientId: aline.id, assigneeId: staff.TRAVEL_AGENT.id, creatorId: admin.id, priority: "MEDIUM", status: "TODO", dueDate: in3days },
-      { title: "Send apostille checklist", caseId: case2.id, clientId: thierry.id, assigneeId: staff.DOCUMENT_AGENT.id, creatorId: admin.id, priority: "MEDIUM", status: "TODO", dueDate: yesterday },
+      { title: "Collect remaining visa documents", caseId: case1.id, clientId: aline.id, assigneeId: staff.TRAVEL_AGENT.id, creatorId: admin.id, priority: "HIGH", status: "IN_PROGRESS" },
+      { title: "Request certified translation", caseId: case2.id, clientId: thierry.id, assigneeId: staff.DOCUMENT_AGENT.id, creatorId: admin.id, priority: "MEDIUM", status: "TODO" },
+      { title: "Review refund eligibility", caseId: case3.id, clientId: kevin.id, assigneeId: staff.FINANCE.id, creatorId: admin.id, priority: "URGENT", status: "IN_PROGRESS" },
     ],
   });
 
-  // ── Finance: payments → receipt, refund + installments ────────────────────
-  const pay1 = await prisma.payment.create({
-    data: {
-      reference: num("PAY"), clientId: aline.id, caseId: case1.id,
-      amount: "1850.00", currency: "USD", method: "ZELLE", status: "CONFIRMED",
-      notes: "Travel package deposit", createdById: staff.FINANCE.id,
-    },
+  // ── Payments / Refund ──────────────────────────────────────────────────────
+  const payment = await prisma.payment.create({
+    data: { reference: num("PAY"), clientId: aline.id, caseId: case1.id, amount: 1200, currency: "USD", method: "ZELLE", status: "CONFIRMED", recordedById: staff.FINANCE.id, paidAt: new Date() },
   });
-  await prisma.receipt.create({
-    data: {
-      reference: num("REC"), paymentId: pay1.id, clientId: aline.id,
-      amount: "1850.00", currency: "USD", reason: "Travel package deposit — CASE " + case1.caseNumber,
-    },
-  });
-  await prisma.payment.create({
-    data: {
-      reference: num("PAY"), clientId: thierry.id, caseId: case2.id,
-      amount: "420.00", currency: "USD", method: "CASH", status: "PENDING",
-      notes: "Apostille service — awaiting confirmation", createdById: staff.FINANCE.id,
-    },
-  });
-
   const refund = await prisma.refund.create({
-    data: {
-      reference: num("REF"), clientId: aline.id, caseId: case1.id, paymentId: pay1.id,
-      amount: "300.00", currency: "USD", reason: "Hotel category downgrade — partial refund agreed",
-      status: "APPROVED", createdById: staff.FINANCE.id, approvedById: admin.id, approvedAt: new Date(),
-    },
+    data: { refundNumber: num("REF"), clientId: kevin.id, caseId: case3.id, amount: 450, currency: "USD", reason: "Cancelled service component", status: "APPROVED", createdById: staff.FINANCE.id, approvedById: admin.id },
   });
-  const firstDue = new Date(); firstDue.setMonth(firstDue.getMonth() + 1); firstDue.setDate(1);
-  const secondDue = new Date(firstDue); secondDue.setMonth(secondDue.getMonth() + 1);
-  await prisma.refundInstallment.createMany({
-    data: [
-      { refundId: refund.id, dueDate: firstDue, amount: "150.00", status: "SCHEDULED" },
-      { refundId: refund.id, dueDate: secondDue, amount: "150.00", status: "SCHEDULED" },
-    ],
-  });
+  await prisma.refundInstallment.createMany({ data: [
+    { refundId: refund.id, number: 1, amount: 225, dueDate: new Date(Date.now() + 7 * 86400000), status: "SCHEDULED" },
+    { refundId: refund.id, number: 2, amount: 225, dueDate: new Date(Date.now() + 37 * 86400000), status: "SCHEDULED" },
+  ] });
 
-  // ── Documents: template + contract with versions ───────────────────────────
-  await prisma.documentTemplate.create({
-    data: {
-      name: "Service contract (standard)",
-      type: "CONTRACT",
-      content: "<h1>Service Contract</h1><p>Between <strong>JUN CREATIF AND TRAVEL LLC</strong> and <strong>{{client_name}}</strong>.</p><h2>Scope</h2><p>{{scope}}</p><h2>Fees</h2><p>{{fees}}</p><p>Signed on {{date}}.</p>",
-    },
-  });
+  // ── Files / Document ───────────────────────────────────────────────────────
+  await prisma.file.create({ data: { name: "passport-aline.pdf", storageKey: "demo/passport-aline.pdf", mimeType: "application/pdf", sizeBytes: 250000, category: "PASSPORT", clientId: aline.id, caseId: case1.id, uploadedById: admin.id } });
+  const doc = await prisma.document.create({ data: { documentId: num("DOC"), type: "LETTER", title: "Visa support letter", status: "DRAFT", clientId: aline.id, caseId: case1.id, authorId: admin.id } });
+  await prisma.documentVersion.create({ data: { documentId: doc.id, version: 1, content: "Demo visa support letter content.", authorId: admin.id, hash: sha256("Demo visa support letter content."), status: "DRAFT" } });
 
-  const contractHtml = `<h1>Service Contract</h1><p>Between <strong>JUN CREATIF AND TRAVEL LLC</strong> and <strong>Aline Mabiala</strong>.</p><h2>Scope</h2><p>Travel package: visa assistance and round-trip flights to Libreville.</p><h2>Fees</h2><p>USD 1,850.00 — deposit received.</p>`;
-  const contract = await prisma.document.create({
-    data: {
-      documentId: num("JUN-CTR"), type: "CONTRACT", title: "Travel service contract — Aline Mabiala",
-      status: "FINAL", clientId: aline.id, caseId: case1.id, authorId: admin.id,
-      finalHash: sha256(contractHtml), finalizedAt: new Date(),
-      versions: {
-        create: [
-          { version: 1, content: "<h1>Service Contract</h1><p>Draft.</p>", authorId: admin.id, changeNote: "Initial draft", hash: sha256("<h1>Service Contract</h1><p>Draft.</p>") },
-          { version: 2, content: contractHtml, authorId: admin.id, changeNote: "Final terms", hash: sha256(contractHtml), status: "FINAL" },
-        ],
-      },
-    },
-  });
+  // ── Activity / Notification ────────────────────────────────────────────────
+  await prisma.activity.create({ data: { type: "SYSTEM", message: "Demo workspace initialized", userId: admin.id } });
+  await prisma.notification.create({ data: { userId: admin.id, type: "SYSTEM", title: "Welcome to JUN Business Hub", body: "Development demo data is ready." } });
 
-  const receiptDocHtml = `<h1>Payment Receipt</h1><p>Received from <strong>Thierry Essono</strong>: USD 420.00 (pending confirmation).</p>`;
-  await prisma.document.create({
-    data: {
-      documentId: num("JUN-RCP"), type: "RECEIPT", title: "Receipt draft — Thierry Essono",
-      status: "DRAFT", clientId: thierry.id, caseId: case2.id, authorId: staff.FINANCE.id,
-      versions: { create: [{ version: 1, content: receiptDocHtml, authorId: staff.FINANCE.id, changeNote: "Initial draft", hash: sha256(receiptDocHtml) }] },
-    },
-  });
-
-  // ── Mail sample thread ─────────────────────────────────────────────────────
-  await prisma.emailThread.create({
-    data: {
-      subject: "Your travel documents are ready",
-      clientId: aline.id, caseId: case1.id, folder: "DRAFTS", aiLevel: "APPROVAL_REQUIRED",
-      aiSummary: "Needs human approval before automated handling",
-      messages: { create: [{ fromAddr: "admin@juncreatif.org", toAddr: "aline.mabiala@example.com", body: "Hello Aline,\n\nYour visa support letter is finalized. You can verify it anytime at /verify/" + contract.documentId + ".\n\nBest regards,\nJUN CREATIF AND TRAVEL LLC", isDraft: true }] },
-    },
-  });
-
-  // ── Notifications ──────────────────────────────────────────────────────────
-  await prisma.notification.createMany({
-    data: [
-      { userId: staff.TRAVEL_AGENT.id, type: "TASK_ASSIGNED", title: "New task: Collect passport scan", href: "/app/tasks" },
-      { userId: admin.id, type: "PAYMENT_CONFIRMED", title: `Payment ${pay1.reference} confirmed`, body: "USD 1,850.00 — receipt issued.", href: "/app/finance/payments" },
-    ],
-  });
-
-  console.log("✔ Seed complete.");
-  console.log("  Staff login:   admin@juncreatif.org / " + adminPassword);
-  console.log("  Portal login:  aline.portal@example.com / ChangeMe123!");
-  console.log("  ⚠ Change these passwords outside local development.");
+  console.log("✓ Seed complete.");
+  console.log(`  Admin: admin@juncreatif.org / ${adminPassword}`);
 }
 
-main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+main().catch((e) => { console.error(e); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });
