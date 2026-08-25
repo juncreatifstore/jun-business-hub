@@ -15,166 +15,42 @@ export async function disconnectMailbox(accountId: string): Promise<void> {
   if (!acc) redirect("/app/settings/email?toast_error=Mailbox not found");
   await prisma.mailAccount.update({ where: { id: acc.id }, data: { refreshTokenEnc: null, accessTokenEnc: null, tokenExpiry: null } });
   await audit({ userId: user.id, action: "MAILBOX_DISCONNECTED", resourceType: "MailAccount", resourceId: acc.id, after: { email: acc.email } });
-  revalidatePath("/app/settings/email");
-  revalidatePath("/app/mail/security");
-  redirect("/app/settings/email?toast=Mailbox disconnected");
+  revalidatePath("/app/settings/email");revalidatePath("/app/mail/security");redirect("/app/settings/email?toast=Mailbox disconnected");
 }
 
 export async function syncMailbox(accountId: string): Promise<void> {
   const user = await assertPermission("EMAIL_READ");
   try{await assertMailboxAccess(user,accountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
   if (!(await rateLimitAsync(`gmail-sync:${user.id}`, 6, 60_000))) redirect("/app/mail?toast_error=Sync rate limit — wait a minute");
-  const { syncFolder } = await import("@/lib/google/gmail");
+  const { syncMailboxRecent } = await import("@/lib/google/gmail");
   try {
-    let total = 0;
-    for (const f of ["INBOX", "SENT", "DRAFTS", "IMPORTANT"] as const) total += await syncFolder(accountId, f, 25);
-    await audit({ userId: user.id, action: "GMAIL_SYNC", resourceType: "MailAccount", resourceId: accountId, after: { newThreads: total } });
-    revalidatePath("/app/mail");
-    revalidatePath("/app/mail/security");
-    redirect(`/app/mail?toast=${encodeURIComponent(`Sync complete — ${total} new thread${total === 1 ? "" : "s"}`)}`);
+    const total = await syncMailboxRecent(accountId, 250);
+    await audit({ userId: user.id, action: "GMAIL_SYNC", resourceType: "MailAccount", resourceId: accountId, after: { newThreads: total, maxPerFolder:250, paginated:true } });
+    revalidatePath("/app/mail");revalidatePath("/app/mail/security");
+    redirect(`/app/mail?toast=${encodeURIComponent(`Gmail sync complete — ${total} new conversation${total === 1 ? "" : "s"}; recent labels refreshed`)}`);
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e;
     await recordMailReliabilityEvent({type:"SYNC_ERROR",accountId,userId:user.id,message:e instanceof Error?e.message:"Gmail sync failed"});
-    revalidatePath("/app/mail/security");
-    redirect(`/app/mail?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Gmail sync failed")}`);
+    revalidatePath("/app/mail/security");redirect(`/app/mail?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Gmail sync failed")}`);
   }
 }
 
-function senderEmail(fromEmail: string | null, accountEmail: string): string | null {
-  const matches = (fromEmail ?? "").match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? [];
-  return matches.find((email) => email.toLowerCase() !== accountEmail.toLowerCase()) ?? matches[0] ?? null;
+function senderEmail(fromEmail: string | null, accountEmail: string): string | null {const matches=(fromEmail??"").match(/[\w.+-]+@[\w.-]+\.\w+/g)??[];return matches.find(email=>email.toLowerCase()!==accountEmail.toLowerCase())??matches[0]??null;}
+function automatedSender(email:string):boolean{const value=email.toLowerCase();const[local="",domain=""]=value.split("@");return /(^|[._+-])(no-?reply|do-?not-?reply|newsletter|notifications?|alerts?|mailer|updates?)($|[._+-])/i.test(local)||/(^|\.)(newsletter|mailer|notifications?)\./i.test(domain);}
+async function generateReplyText(input:{subject:string;message:string;recipient:string}):Promise<{text:string;mode:"MODEL"|"OFFLINE_TEMPLATE"}>{
+ const key=process.env.OPENAI_API_KEY;if(!key)return{mode:"OFFLINE_TEMPLATE",text:`Bonjour,\n\nMerci pour votre message concernant « ${input.subject} ». Nous avons bien reçu votre demande et nous allons la vérifier. Nous vous répondrons avec les informations nécessaires dès que possible.\n\nCordialement,\nJUN CREATIF AND TRAVEL LLC`};
+ try{const res=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.OPENAI_MODEL??"gpt-4o-mini",temperature:0.3,messages:[{role:"system",content:"You draft concise, professional email replies for JUN CREATIF AND TRAVEL LLC. Draft only; never claim an action was completed unless the incoming message proves it. Do not promise visa approvals, refunds, payments, legal outcomes, or guaranteed travel results. Return only the email body."},{role:"user",content:`Recipient: ${input.recipient}\nSubject: ${input.subject}\nIncoming message:\n${input.message.slice(0,6000)}`} ]})});if(!res.ok)throw new Error(`OpenAI ${res.status}`);const data=await res.json() as {choices?:{message?:{content?:string}}[]};const text=data.choices?.[0]?.message?.content?.trim();if(!text)throw new Error("Empty model response");return{text:text.slice(0,20000),mode:"MODEL"};}catch{return{mode:"OFFLINE_TEMPLATE",text:`Bonjour,\n\nMerci pour votre message concernant « ${input.subject} ». Nous avons bien reçu votre demande et nous allons la vérifier. Nous vous répondrons avec les informations nécessaires dès que possible.\n\nCordialement,\nJUN CREATIF AND TRAVEL LLC`};}
 }
 
-function automatedSender(email: string): boolean {
-  const value = email.toLowerCase();
-  const [local = "", domain = ""] = value.split("@");
-  return /(^|[._+-])(no-?reply|do-?not-?reply|newsletter|notifications?|alerts?|mailer|updates?)($|[._+-])/i.test(local)
-    || /(^|\.)(newsletter|mailer|notifications?)\./i.test(domain);
+export async function draftReplyWithJunAI(threadId:string):Promise<void>{
+ const user=await assertPermission("EMAIL_DRAFT");if(!(await rateLimitAsync(`jun-ai-mail-draft:${user.id}`,12,60_000)))redirect(`/app/mail?thread=${threadId}&toast_error=AI draft rate limit — wait a minute`);
+ const thread=await prisma.mailThread.findUnique({where:{id:threadId},include:{account:true}});if(!thread)redirect("/app/mail?toast_error=Thread not found");try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}if(thread.aiDraft)redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=This thread already has a draft`);
+ const recipient=senderEmail(thread.fromEmail,thread.account.email);if(!recipient)redirect(`/app/mail?thread=${thread.id}&toast_error=Could not determine the sender email`);
+ if(automatedSender(recipient)){await prisma.mailThread.update({where:{id:thread.id},data:{requiresAttention:true,aiSummary:"Automated/newsletter sender detected. JUN AI did not prepare a reply."}});await audit({userId:user.id,action:"AI_EMAIL_REPLY_AUTOMATED_SENDER_BLOCKED",resourceType:"MailThread",resourceId:thread.id,after:{recipient}});revalidatePath("/app/mail");redirect(`/app/mail?folder=AI_REVIEW&thread=${thread.id}&toast_error=${encodeURIComponent("Automated or newsletter sender detected — reply drafting was blocked")}`);}
+ const{classifyEmailAILevel}=await import("@/services/ai");const sourceText=thread.snippet??"",level=await classifyEmailAILevel(thread.subject??"",sourceText);if(level==="BLOCKED"){await prisma.mailThread.update({where:{id:thread.id},data:{aiLevel:"BLOCKED",requiresAttention:true}});await audit({userId:user.id,action:"AI_EMAIL_REPLY_BLOCKED",resourceType:"MailThread",resourceId:thread.id,after:{reason:"Sensitive topic requires manual handling"}});revalidatePath("/app/mail");redirect(`/app/mail?folder=AI_REVIEW&thread=${thread.id}&toast_error=JUN AI did not draft this reply because the topic requires manual handling`);}
+ const generated=await generateReplyText({subject:thread.subject??"(no subject)",message:sourceText,recipient}),replySubject=/^re:/i.test(thread.subject??"")?(thread.subject??"(no subject)"):`Re: ${thread.subject??"(no subject)"}`;await prisma.mailThread.update({where:{id:thread.id},data:{subject:replySubject,toEmails:[recipient],aiDraft:generated.text,aiLevel:"APPROVAL_REQUIRED",aiSummary:generated.mode==="MODEL"?"JUN AI prepared a reply draft. Review it before sending.":"Offline reply template prepared because no AI model was available. Review it before sending.",requiresAttention:true}});await audit({userId:user.id,action:"AI_EMAIL_REPLY_DRAFTED",resourceType:"MailThread",resourceId:thread.id,after:{recipient,mode:generated.mode,sent:false}});revalidatePath("/app/mail");redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=${encodeURIComponent(generated.mode==="MODEL"?"JUN AI reply draft created — review before sending":"Offline reply template created — review before sending")}`);
 }
 
-async function generateReplyText(input: { subject: string; message: string; recipient: string }): Promise<{ text: string; mode: "MODEL" | "OFFLINE_TEMPLATE" }> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    return {
-      mode: "OFFLINE_TEMPLATE",
-      text: `Bonjour,\n\nMerci pour votre message concernant « ${input.subject} ». Nous avons bien reçu votre demande et nous allons la vérifier. Nous vous répondrons avec les informations nécessaires dès que possible.\n\nCordialement,\nJUN CREATIF AND TRAVEL LLC`,
-    };
-  }
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        temperature: 0.3,
-        messages: [
-          { role: "system", content: "You draft concise, professional email replies for JUN CREATIF AND TRAVEL LLC. Draft only; never claim an action was completed unless the incoming message proves it. Do not promise visa approvals, refunds, payments, legal outcomes, or guaranteed travel results. Return only the email body." },
-          { role: "user", content: `Recipient: ${input.recipient}\nSubject: ${input.subject}\nIncoming message:\n${input.message.slice(0, 6000)}` },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`OpenAI ${res.status}`);
-    const data = await res.json() as { choices?: { message?: { content?: string } }[] };
-    const text = data.choices?.[0]?.message?.content?.trim();
-    if (!text) throw new Error("Empty model response");
-    return { text: text.slice(0, 20000), mode: "MODEL" };
-  } catch {
-    return {
-      mode: "OFFLINE_TEMPLATE",
-      text: `Bonjour,\n\nMerci pour votre message concernant « ${input.subject} ». Nous avons bien reçu votre demande et nous allons la vérifier. Nous vous répondrons avec les informations nécessaires dès que possible.\n\nCordialement,\nJUN CREATIF AND TRAVEL LLC`,
-    };
-  }
-}
+export async function updateMailDraft(threadId:string,formData:FormData):Promise<void>{const user=await assertPermission("EMAIL_DRAFT");const thread=await prisma.mailThread.findUnique({where:{id:threadId}});if(!thread||!thread.aiDraft)redirect("/app/mail?folder=DRAFTS&toast_error=Draft not found");try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}const to=String(formData.get("to")??"").trim().toLowerCase().slice(0,320),subject=String(formData.get("subject")??"").trim().slice(0,200),body=String(formData.get("body")??"").trim().slice(0,20000);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to))redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=Enter a valid recipient email`);if(!subject||!body)redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=Subject and message are required`);await prisma.mailThread.update({where:{id:threadId},data:{toEmails:[to],subject,aiDraft:body,requiresAttention:true}});await audit({userId:user.id,action:"EMAIL_DRAFT_EDITED",resourceType:"MailThread",resourceId:threadId,after:{to,subject}});revalidatePath("/app/mail");redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast=Draft updated`);}
 
-export async function draftReplyWithJunAI(threadId: string): Promise<void> {
-  const user = await assertPermission("EMAIL_DRAFT");
-  if (!(await rateLimitAsync(`jun-ai-mail-draft:${user.id}`, 12, 60_000))) redirect(`/app/mail?thread=${threadId}&toast_error=AI draft rate limit — wait a minute`);
-  const thread = await prisma.mailThread.findUnique({ where: { id: threadId }, include: { account: true } });
-  if (!thread) redirect("/app/mail?toast_error=Thread not found");
-  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
-  if (thread.aiDraft) redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=This thread already has a draft`);
-  const recipient = senderEmail(thread.fromEmail, thread.account.email);
-  if (!recipient) redirect(`/app/mail?thread=${thread.id}&toast_error=Could not determine the sender email`);
-
-  if (automatedSender(recipient)) {
-    await prisma.mailThread.update({ where: { id: thread.id }, data: { requiresAttention: true, aiSummary: "Automated/newsletter sender detected. JUN AI did not prepare a reply." } });
-    await audit({ userId: user.id, action: "AI_EMAIL_REPLY_AUTOMATED_SENDER_BLOCKED", resourceType: "MailThread", resourceId: thread.id, after: { recipient } });
-    revalidatePath("/app/mail");
-    redirect(`/app/mail?folder=AI_REVIEW&thread=${thread.id}&toast_error=${encodeURIComponent("Automated or newsletter sender detected — reply drafting was blocked")}`);
-  }
-
-  const { classifyEmailAILevel } = await import("@/services/ai");
-  const sourceText = thread.snippet ?? "";
-  const level = await classifyEmailAILevel(thread.subject ?? "", sourceText);
-  if (level === "BLOCKED") {
-    await prisma.mailThread.update({ where: { id: thread.id }, data: { aiLevel: "BLOCKED", requiresAttention: true } });
-    await audit({ userId: user.id, action: "AI_EMAIL_REPLY_BLOCKED", resourceType: "MailThread", resourceId: thread.id, after: { reason: "Sensitive topic requires manual handling" } });
-    revalidatePath("/app/mail");
-    redirect(`/app/mail?folder=AI_REVIEW&thread=${thread.id}&toast_error=JUN AI did not draft this reply because the topic requires manual handling`);
-  }
-
-  const generated = await generateReplyText({ subject: thread.subject ?? "(no subject)", message: sourceText, recipient });
-  const replySubject = /^re:/i.test(thread.subject ?? "") ? (thread.subject ?? "(no subject)") : `Re: ${thread.subject ?? "(no subject)"}`;
-  await prisma.mailThread.update({
-    where: { id: thread.id },
-    data: {
-      subject: replySubject,
-      toEmails: [recipient],
-      aiDraft: generated.text,
-      aiLevel: "APPROVAL_REQUIRED",
-      aiSummary: generated.mode === "MODEL" ? "JUN AI prepared a reply draft. Review it before sending." : "Offline reply template prepared because no AI model was available. Review it before sending.",
-      requiresAttention: true,
-    },
-  });
-  await audit({ userId: user.id, action: "AI_EMAIL_REPLY_DRAFTED", resourceType: "MailThread", resourceId: thread.id, after: { recipient, mode: generated.mode, sent: false } });
-  revalidatePath("/app/mail");
-  redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=${encodeURIComponent(generated.mode === "MODEL" ? "JUN AI reply draft created — review before sending" : "Offline reply template created — review before sending")}`);
-}
-
-export async function updateMailDraft(threadId: string, formData: FormData): Promise<void> {
-  const user = await assertPermission("EMAIL_DRAFT");
-  const thread = await prisma.mailThread.findUnique({ where: { id: threadId } });
-  if (!thread || !thread.aiDraft) redirect("/app/mail?folder=DRAFTS&toast_error=Draft not found");
-  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
-  const to = String(formData.get("to") ?? "").trim().toLowerCase().slice(0, 320);
-  const subject = String(formData.get("subject") ?? "").trim().slice(0, 200);
-  const body = String(formData.get("body") ?? "").trim().slice(0, 20000);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=Enter a valid recipient email`);
-  if (!subject || !body) redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=Subject and message are required`);
-  await prisma.mailThread.update({ where: { id: threadId }, data: { toEmails: [to], subject, aiDraft: body, requiresAttention: true } });
-  await audit({ userId: user.id, action: "EMAIL_DRAFT_EDITED", resourceType: "MailThread", resourceId: threadId, after: { to, subject } });
-  revalidatePath("/app/mail");
-  redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast=Draft updated`);
-}
-
-export async function sendDraftViaGmail(threadId: string): Promise<void> {
-  const user = await assertPermission("EMAIL_SEND");
-  const thread = await prisma.mailThread.findUnique({ where: { id: threadId }, include: { account: true } });
-  if (!thread || !thread.aiDraft) redirect("/app/mail?toast_error=Draft not found");
-  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
-  if(thread.aiLevel!=="AUTO"){
-    const approval=await getMailApproval(threadId),valid=await approvalIsCurrent(threadId).catch(()=>false);
-    if(!valid)redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(approval?.status==="APPROVED"?"Draft changed after approval — submit again":"This email requires approval before sending")}`);
-  }
-  const to = thread.toEmails[0];
-  if (!to) redirect(`/app/mail?thread=${threadId}&toast_error=No recipient on this draft`);
-  if (automatedSender(to)) redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("Sending to an automated/newsletter address is blocked. Edit the recipient if you have a valid reply address.")}`);
-  const fingerprint=sha256(JSON.stringify({mailAccountId:thread.mailAccountId,to,subject:thread.subject??"",body:thread.aiDraft}));
-  let lock;try{lock=await acquireMailSendLock({threadId:thread.id,fingerprint,userId:user.id});}catch(e){redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"Email send is already in progress")}`);}
-  const { gmailSend } = await import("@/lib/google/gmail");
-  let gmailMessageId:string;
-  try {
-    gmailMessageId=await gmailSend(thread.mailAccountId, { to, subject: thread.subject ?? "(no subject)", text: thread.aiDraft });
-  } catch (e) {
-    if (e && typeof e === "object" && "digest" in e) throw e;
-    await markMailSendFailure({threadId:thread.id,attemptId:lock.attemptId,error:e,accountId:thread.mailAccountId,userId:user.id});
-    revalidatePath("/app/mail/security");
-    redirect(`/app/mail?thread=${thread.id}&toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Gmail send failed")}`);
-  }
-  await markMailSendSuccess({threadId:thread.id,attemptId:lock.attemptId,gmailMessageId});
-  await prisma.mailThread.update({ where: { id: thread.id }, data: { snippet: thread.aiDraft.slice(0, 500), aiDraft: null, lastMessageAt: new Date(), requiresAttention: false } });
-  await audit({ userId: user.id, action: "EMAIL_SEND_GMAIL", resourceType: "MailThread", resourceId: thread.id, after: { to, subject: thread.subject, mailbox: thread.account.email, gmailMessageId, sendAttemptId:lock.attemptId } });
-  revalidatePath("/app/mail");
-  revalidatePath("/app/mail/security");
-  redirect(`/app/mail?folder=SENT&thread=${thread.id}&toast=Email sent via ${thread.account.email}`);
-}
+export async function sendDraftViaGmail(threadId:string):Promise<void>{const user=await assertPermission("EMAIL_SEND");const thread=await prisma.mailThread.findUnique({where:{id:threadId},include:{account:true}});if(!thread||!thread.aiDraft)redirect("/app/mail?toast_error=Draft not found");try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}if(thread.aiLevel!=="AUTO"){const approval=await getMailApproval(threadId),valid=await approvalIsCurrent(threadId).catch(()=>false);if(!valid)redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(approval?.status==="APPROVED"?"Draft changed after approval — submit again":"This email requires approval before sending")}`);}const to=thread.toEmails[0];if(!to)redirect(`/app/mail?thread=${threadId}&toast_error=No recipient on this draft`);if(automatedSender(to))redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("Sending to an automated/newsletter address is blocked. Edit the recipient if you have a valid reply address.")}`);const fingerprint=sha256(JSON.stringify({mailAccountId:thread.mailAccountId,to,subject:thread.subject??"",body:thread.aiDraft}));let lock;try{lock=await acquireMailSendLock({threadId:thread.id,fingerprint,userId:user.id});}catch(e){redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"Email send is already in progress")}`);}const{gmailSend}=await import("@/lib/google/gmail");let gmailMessageId:string;try{gmailMessageId=await gmailSend(thread.mailAccountId,{to,subject:thread.subject??"(no subject)",text:thread.aiDraft});}catch(e){if(e&&typeof e==="object"&&"digest" in e)throw e;await markMailSendFailure({threadId:thread.id,attemptId:lock.attemptId,error:e,accountId:thread.mailAccountId,userId:user.id});revalidatePath("/app/mail/security");redirect(`/app/mail?thread=${thread.id}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"Gmail send failed")}`);}await markMailSendSuccess({threadId:thread.id,attemptId:lock.attemptId,gmailMessageId});await prisma.mailThread.update({where:{id:thread.id},data:{snippet:thread.aiDraft.slice(0,500),aiDraft:null,lastMessageAt:new Date(),requiresAttention:false}});await audit({userId:user.id,action:"EMAIL_SEND_GMAIL",resourceType:"MailThread",resourceId:thread.id,after:{to,subject:thread.subject,mailbox:thread.account.email,gmailMessageId,sendAttemptId:lock.attemptId}});revalidatePath("/app/mail");revalidatePath("/app/mail/security");redirect(`/app/mail?folder=SENT&thread=${thread.id}&toast=Email sent via ${thread.account.email}`);}
