@@ -26,7 +26,7 @@ type Params={folder?:string;thread?:string;q?:string;mailbox?:string;category?:s
 
 function senderLabel(raw:string|null){const v=(raw||"").trim();const name=v.match(/^\s*"?([^"<]+)"?\s*</)?.[1]?.trim();if(name)return name;const email=v.match(/[\w.+-]+@[\w.-]+\.\w+/)?.[0]||v;return email.split("@")[0]||"Unknown";}
 function senderEmail(raw:string){return raw.match(/[\w.+-]+@[\w.-]+\.\w+/)?.[0]||raw;}
-function shortDate(d:Date){const now=new Date();if(d.toDateString()===now.toDateString())return d.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});if(d.getFullYear()===now.getFullYear())return d.toLocaleDateString([], {month:"short",day:"numeric"});return d.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});}
+function shortDate(d:Date|null){if(!d)return "";const now=new Date();if(d.toDateString()===now.toDateString())return d.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});if(d.getFullYear()===now.getFullYear())return d.toLocaleDateString([], {month:"short",day:"numeric"});return d.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});}
 
 export async function GmailStyleMailCenterV6({searchParams}:{searchParams:Params}){
  const user=await requireUser();if(!can(user,"EMAIL_READ"))redirect("/app/forbidden");
