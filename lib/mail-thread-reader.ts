@@ -10,9 +10,48 @@ export type MailConversationMessage={id:string;from:string;to:string[];cc:string
 
 function header(m:GmailMessage,name:string){return m.payload?.headers?.find(h=>h.name.toLowerCase()===name.toLowerCase())?.value??"";}
 function emails(value:string){return value.match(/[\w.+-]+@[\w.-]+\.\w+/g)??[];}
-function decode(data?:string){return data?Buffer.from(data.replace(/-/g,"+").replace(/_/g,"/"),"base64").toString("utf8"):"";}
-function htmlToText(value:string){return value.replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<br\s*\/?>/gi,"\n").replace(/<\/p>/gi,"\n").replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/\n{3,}/g,"\n\n").replace(/[ \t]{2,}/g," ").trim();}
-function bodyFrom(part?:GmailPart):string{if(!part)return "";if(part.mimeType==="text/plain"&&part.body?.data)return decode(part.body.data);for(const p of part.parts??[]){const value=bodyFrom(p);if(value)return value;}if(part.mimeType==="text/html"&&part.body?.data)return htmlToText(decode(part.body.data));if(part.body?.data)return decode(part.body.data);return "";}
+function decode(data?:string){if(!data)return "";try{return Buffer.from(data.replace(/-/g,"+").replace(/_/g,"/"),"base64").toString("utf8")}catch{return ""}}
+function decodeQuotedPrintable(value:string){
+ if(!/(?:=[0-9A-F]{2}|=\r?\n)/i.test(value))return value;
+ return value.replace(/=\r?\n/g,"").replace(/=([0-9A-F]{2})/gi,(_,hex)=>String.fromCharCode(parseInt(hex,16)));
+}
+function decodeEntities(value:string){
+ const named:Record<string,string>={nbsp:" ",amp:"&",lt:"<",gt:">",quot:'"',apos:"'",hellip:"…",middot:"·",copy:"©",reg:"®"};
+ return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi,(all,entity:string)=>{
+  if(entity[0]==="#"){const hex=entity[1]?.toLowerCase()==="x";const n=parseInt(entity.slice(hex?2:1),hex?16:10);return Number.isFinite(n)?String.fromCodePoint(n):all;}
+  return named[entity.toLowerCase()]??all;
+ });
+}
+function htmlToText(value:string){
+ return decodeEntities(value)
+  .replace(/<!--[\s\S]*?-->/g," ")
+  .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi," ")
+  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi," ")
+  .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi," ")
+  .replace(/<(br|hr)\b[^>]*>/gi,"\n")
+  .replace(/<\/(p|div|tr|li|table|section|article|h[1-6])>/gi,"\n")
+  .replace(/<li\b[^>]*>/gi,"• ")
+  .replace(/<[^>]+>/g," ")
+  .replace(/\r/g,"")
+  .replace(/[ \t]+\n/g,"\n")
+  .replace(/\n[ \t]+/g,"\n")
+  .replace(/[ \t]{2,}/g," ")
+  .replace(/\n{3,}/g,"\n\n")
+  .trim();
+}
+function textParts(part:GmailPart|undefined,mimeType:"text/plain"|"text/html",out:string[]=[]){
+ if(!part)return out;
+ if(part.mimeType===mimeType&&part.body?.data&&!part.filename){const decoded=decodeQuotedPrintable(decode(part.body.data));if(decoded.trim())out.push(decoded);}
+ for(const child of part.parts??[])textParts(child,mimeType,out);
+ return out;
+}
+function bodyFrom(part?:GmailPart):string{
+ const plain=textParts(part,"text/plain").map(v=>v.trim()).filter(Boolean);
+ if(plain.length)return plain.join("\n\n");
+ const html=textParts(part,"text/html").map(htmlToText).filter(Boolean);
+ if(html.length)return html.join("\n\n");
+ return "";
+}
 function attachments(part?:GmailPart,out:MailConversationAttachment[]=[]){if(!part)return out;if(part.filename)out.push({attachmentId:part.body?.attachmentId??null,filename:part.filename,mimeType:part.mimeType||"application/octet-stream",size:part.body?.size??0});for(const p of part.parts??[])attachments(p,out);return out;}
 
 export async function getUnreadGmailThreadIds(accountId:string,max=500):Promise<Set<string>>{
