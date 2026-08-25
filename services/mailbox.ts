@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { rateLimitAsync } from "@/lib/rate-limit";
+import { sha256 } from "@/lib/hash";
+import { approvalIsCurrent, getMailApproval } from "@/lib/mail-approval";
+import { acquireMailSendLock, assertMailboxAccess, markMailSendFailure, markMailSendSuccess, recordMailReliabilityEvent } from "@/lib/mail-security";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
@@ -13,11 +16,13 @@ export async function disconnectMailbox(accountId: string): Promise<void> {
   await prisma.mailAccount.update({ where: { id: acc.id }, data: { refreshTokenEnc: null, accessTokenEnc: null, tokenExpiry: null } });
   await audit({ userId: user.id, action: "MAILBOX_DISCONNECTED", resourceType: "MailAccount", resourceId: acc.id, after: { email: acc.email } });
   revalidatePath("/app/settings/email");
+  revalidatePath("/app/mail/security");
   redirect("/app/settings/email?toast=Mailbox disconnected");
 }
 
 export async function syncMailbox(accountId: string): Promise<void> {
   const user = await assertPermission("EMAIL_READ");
+  try{await assertMailboxAccess(user,accountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
   if (!(await rateLimitAsync(`gmail-sync:${user.id}`, 6, 60_000))) redirect("/app/mail?toast_error=Sync rate limit — wait a minute");
   const { syncFolder } = await import("@/lib/google/gmail");
   try {
@@ -25,9 +30,12 @@ export async function syncMailbox(accountId: string): Promise<void> {
     for (const f of ["INBOX", "SENT", "DRAFTS", "IMPORTANT"] as const) total += await syncFolder(accountId, f, 25);
     await audit({ userId: user.id, action: "GMAIL_SYNC", resourceType: "MailAccount", resourceId: accountId, after: { newThreads: total } });
     revalidatePath("/app/mail");
+    revalidatePath("/app/mail/security");
     redirect(`/app/mail?toast=${encodeURIComponent(`Sync complete — ${total} new thread${total === 1 ? "" : "s"}`)}`);
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e;
+    await recordMailReliabilityEvent({type:"SYNC_ERROR",accountId,userId:user.id,message:e instanceof Error?e.message:"Gmail sync failed"});
+    revalidatePath("/app/mail/security");
     redirect(`/app/mail?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Gmail sync failed")}`);
   }
 }
@@ -83,6 +91,7 @@ export async function draftReplyWithJunAI(threadId: string): Promise<void> {
   if (!(await rateLimitAsync(`jun-ai-mail-draft:${user.id}`, 12, 60_000))) redirect(`/app/mail?thread=${threadId}&toast_error=AI draft rate limit — wait a minute`);
   const thread = await prisma.mailThread.findUnique({ where: { id: threadId }, include: { account: true } });
   if (!thread) redirect("/app/mail?toast_error=Thread not found");
+  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
   if (thread.aiDraft) redirect(`/app/mail?folder=DRAFTS&thread=${thread.id}&toast=This thread already has a draft`);
   const recipient = senderEmail(thread.fromEmail, thread.account.email);
   if (!recipient) redirect(`/app/mail?thread=${thread.id}&toast_error=Could not determine the sender email`);
@@ -126,6 +135,7 @@ export async function updateMailDraft(threadId: string, formData: FormData): Pro
   const user = await assertPermission("EMAIL_DRAFT");
   const thread = await prisma.mailThread.findUnique({ where: { id: threadId } });
   if (!thread || !thread.aiDraft) redirect("/app/mail?folder=DRAFTS&toast_error=Draft not found");
+  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
   const to = String(formData.get("to") ?? "").trim().toLowerCase().slice(0, 320);
   const subject = String(formData.get("subject") ?? "").trim().slice(0, 200);
   const body = String(formData.get("body") ?? "").trim().slice(0, 20000);
@@ -141,19 +151,30 @@ export async function sendDraftViaGmail(threadId: string): Promise<void> {
   const user = await assertPermission("EMAIL_SEND");
   const thread = await prisma.mailThread.findUnique({ where: { id: threadId }, include: { account: true } });
   if (!thread || !thread.aiDraft) redirect("/app/mail?toast_error=Draft not found");
-  if (thread.aiLevel === "BLOCKED") redirect(`/app/mail?thread=${threadId}&toast_error=This topic requires manual handling`);
+  try{await assertMailboxAccess(user,thread.mailAccountId);}catch{redirect("/app/mail?toast_error=You do not have access to this mailbox");}
+  if(thread.aiLevel!=="AUTO"){
+    const approval=await getMailApproval(threadId),valid=await approvalIsCurrent(threadId).catch(()=>false);
+    if(!valid)redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(approval?.status==="APPROVED"?"Draft changed after approval — submit again":"This email requires approval before sending")}`);
+  }
   const to = thread.toEmails[0];
   if (!to) redirect(`/app/mail?thread=${threadId}&toast_error=No recipient on this draft`);
   if (automatedSender(to)) redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("Sending to an automated/newsletter address is blocked. Edit the recipient if you have a valid reply address.")}`);
+  const fingerprint=sha256(JSON.stringify({mailAccountId:thread.mailAccountId,to,subject:thread.subject??"",body:thread.aiDraft}));
+  let lock;try{lock=await acquireMailSendLock({threadId:thread.id,fingerprint,userId:user.id});}catch(e){redirect(`/app/mail?folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"Email send is already in progress")}`);}
   const { gmailSend } = await import("@/lib/google/gmail");
+  let gmailMessageId:string;
   try {
-    await gmailSend(thread.mailAccountId, { to, subject: thread.subject ?? "(no subject)", text: thread.aiDraft });
-    await prisma.mailThread.update({ where: { id: thread.id }, data: { snippet: thread.aiDraft.slice(0, 500), aiDraft: null, lastMessageAt: new Date(), requiresAttention: false } });
-    await audit({ userId: user.id, action: "EMAIL_SEND_GMAIL", resourceType: "MailThread", resourceId: thread.id, after: { to, subject: thread.subject, mailbox: thread.account.email } });
-    revalidatePath("/app/mail");
-    redirect(`/app/mail?folder=SENT&thread=${thread.id}&toast=Email sent via ${thread.account.email}`);
+    gmailMessageId=await gmailSend(thread.mailAccountId, { to, subject: thread.subject ?? "(no subject)", text: thread.aiDraft });
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e;
+    await markMailSendFailure({threadId:thread.id,attemptId:lock.attemptId,error:e,accountId:thread.mailAccountId,userId:user.id});
+    revalidatePath("/app/mail/security");
     redirect(`/app/mail?thread=${thread.id}&toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Gmail send failed")}`);
   }
+  await markMailSendSuccess({threadId:thread.id,attemptId:lock.attemptId,gmailMessageId});
+  await prisma.mailThread.update({ where: { id: thread.id }, data: { snippet: thread.aiDraft.slice(0, 500), aiDraft: null, lastMessageAt: new Date(), requiresAttention: false } });
+  await audit({ userId: user.id, action: "EMAIL_SEND_GMAIL", resourceType: "MailThread", resourceId: thread.id, after: { to, subject: thread.subject, mailbox: thread.account.email, gmailMessageId, sendAttemptId:lock.attemptId } });
+  revalidatePath("/app/mail");
+  revalidatePath("/app/mail/security");
+  redirect(`/app/mail?folder=SENT&thread=${thread.id}&toast=Email sent via ${thread.account.email}`);
 }
