@@ -16,28 +16,57 @@ function decodeQuotedPrintable(value:string){
  return value.replace(/=\r?\n/g,"").replace(/=([0-9A-F]{2})/gi,(_,hex)=>String.fromCharCode(parseInt(hex,16)));
 }
 function decodeEntities(value:string){
- const named:Record<string,string>={nbsp:" ",amp:"&",lt:"<",gt:">",quot:'"',apos:"'",hellip:"…",middot:"·",copy:"©",reg:"®"};
+ const named:Record<string,string>={nbsp:" ",amp:"&",lt:"<",gt:">",quot:'"',apos:"'",hellip:"…",middot:"·",copy:"©",reg:"®",zwnj:"",zwj:"",thinsp:" ",ensp:" ",emsp:" ",ndash:"–",mdash:"—",laquo:"«",raquo:"»"};
  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi,(all,entity:string)=>{
   if(entity[0]==="#"){const hex=entity[1]?.toLowerCase()==="x";const n=parseInt(entity.slice(hex?2:1),hex?16:10);return Number.isFinite(n)?String.fromCodePoint(n):all;}
   return named[entity.toLowerCase()]??all;
  });
 }
-function htmlToText(value:string){
- return decodeEntities(value)
-  .replace(/<!--[\s\S]*?-->/g," ")
-  .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi," ")
-  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi," ")
-  .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi," ")
-  .replace(/<(br|hr)\b[^>]*>/gi,"\n")
-  .replace(/<\/(p|div|tr|li|table|section|article|h[1-6])>/gi,"\n")
-  .replace(/<li\b[^>]*>/gi,"• ")
-  .replace(/<[^>]+>/g," ")
+function normalizeWhitespace(value:string){
+ return value
+  .replace(/[\u200B-\u200D\uFEFF]/g,"")
   .replace(/\r/g,"")
   .replace(/[ \t]+\n/g,"\n")
   .replace(/\n[ \t]+/g,"\n")
   .replace(/[ \t]{2,}/g," ")
   .replace(/\n{3,}/g,"\n\n")
   .trim();
+}
+function htmlToText(value:string){
+ return normalizeWhitespace(
+  decodeEntities(value)
+   .replace(/<!--[\s\S]*?-->/g," ")
+   .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi," ")
+   .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi," ")
+   .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi," ")
+   .replace(/<(br|hr)\b[^>]*>/gi,"\n")
+   .replace(/<\/(p|div|tr|li|table|section|article|h[1-6])>/gi,"\n")
+   .replace(/<li\b[^>]*>/gi,"• ")
+   .replace(/<[^>]+>/g," ")
+ );
+}
+function looksLikeTechnicalMarkup(value:string){
+ const sample=value.slice(0,20000);
+ let score=0;
+ const signals:[RegExp,number][]=[
+  [/\bfont-family\s*:/gi,3],[/!important\b/gi,3],[/\b(?:padding|margin|display|background|border|line-height|font-size|text-decoration)\s*:/gi,2],
+  [/(?:^|\n)\s*[^\n{}]{0,100}\{[^{}]{0,500}\}/gm,3],[/<(?:style|table|td|div|span|body|html)\b/gi,2],[/&(?:nbsp|zwnj|zwj|#8204|#x200c);/gi,1],
+  [/\bmso-[a-z-]+\s*:/gi,3],[/\b@media\b/gi,3],[/\bwidth\s*:\s*\d+(?:px|%)/gi,2],
+ ];
+ for(const [re,weight] of signals){const matches=sample.match(re)?.length??0;score+=Math.min(matches,5)*weight;}
+ return score>=5;
+}
+function cleanPollutedPlainText(value:string){
+ let text=decodeEntities(decodeQuotedPrintable(value));
+ text=text
+  .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi," ")
+  .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi," ")
+  .replace(/<[^>]+>/g," ")
+  .replace(/(?:^|\n)\s*[^\n{}]{0,120}\{[^{}]{0,1200}\}\s*(?=\n|$)/gm,"\n")
+  .replace(/\*\s*(?:td|table|body|div|span|a|p|h[1-6])\s*\{[^}]*\}/gi," ")
+  .replace(/\b(?:font-family|font-size|line-height|text-decoration|background(?:-color)?|padding|margin|display|border(?:-[a-z]+)?|color|width|height)\s*:[^;\n}]+;?/gi," ")
+  .replace(/!important\b/gi," ");
+ return normalizeWhitespace(text);
 }
 function textParts(part:GmailPart|undefined,mimeType:"text/plain"|"text/html",out:string[]=[]){
  if(!part)return out;
@@ -46,10 +75,13 @@ function textParts(part:GmailPart|undefined,mimeType:"text/plain"|"text/html",ou
  return out;
 }
 function bodyFrom(part?:GmailPart):string{
- const plain=textParts(part,"text/plain").map(v=>v.trim()).filter(Boolean);
- if(plain.length)return plain.join("\n\n");
- const html=textParts(part,"text/html").map(htmlToText).filter(Boolean);
- if(html.length)return html.join("\n\n");
+ const plainRaw=textParts(part,"text/plain").map(v=>v.trim()).filter(Boolean);
+ const htmlRaw=textParts(part,"text/html").filter(Boolean);
+ const plainJoined=plainRaw.join("\n\n");
+ const htmlClean=htmlRaw.map(htmlToText).filter(Boolean).join("\n\n");
+ if(plainJoined&&!looksLikeTechnicalMarkup(plainJoined))return normalizeWhitespace(decodeEntities(plainJoined));
+ if(htmlClean)return htmlClean;
+ if(plainJoined)return cleanPollutedPlainText(plainJoined);
  return "";
 }
 function attachments(part?:GmailPart,out:MailConversationAttachment[]=[]){if(!part)return out;if(part.filename)out.push({attachmentId:part.body?.attachmentId??null,filename:part.filename,mimeType:part.mimeType||"application/octet-stream",size:part.body?.size??0});for(const p of part.parts??[])attachments(p,out);return out;}
