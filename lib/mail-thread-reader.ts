@@ -32,8 +32,30 @@ function normalizeWhitespace(value:string){
   .replace(/\n{3,}/g,"\n\n")
   .trim();
 }
+function shouldCollapseUrl(raw:string){
+ const value=raw.replace(/[),.;]+$/g,"");
+ if(value.length>140)return true;
+ try{
+  const u=new URL(value);
+  const host=u.hostname.toLowerCase();
+  const path=`${u.pathname}${u.search}`.toLowerCase();
+  return /(^|\.)(clicks?|track|tracking|links?|redirect|email|mail)\./.test(host)
+   || /(?:utm_|campaign|redirect|tracking|trk=|clickid|gclid|fbclid|mc_cid|mc_eid|unsubscribe|encoded|%3a%2f%2f)/i.test(path)
+   || u.search.length>90;
+ }catch{return value.length>100;}
+}
+function compactUrls(value:string){
+ const urlRe=/https?:\/\/[^\s<>"']+/gi;
+ let text=value.replace(urlRe,(raw)=>shouldCollapseUrl(raw)?"[link]":raw.replace(/[),.;]+$/g,""));
+ text=text
+  .replace(/(?:\[link\][ \t]*){2,}/g,"[link]")
+  .replace(/^\s*\[link\]\s*$/gm,"[link]")
+  .replace(/\n(?:[ \t]*\[link\][ \t]*\n){2,}/g,"\n[link]\n");
+ return text;
+}
+function cleanReadableText(value:string){return normalizeWhitespace(compactUrls(value));}
 function htmlToText(value:string){
- return normalizeWhitespace(
+ return cleanReadableText(
   decodeEntities(value)
    .replace(/<!--[\s\S]*?-->/g," ")
    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi," ")
@@ -66,7 +88,7 @@ function cleanPollutedPlainText(value:string){
   .replace(/\*\s*(?:td|table|body|div|span|a|p|h[1-6])\s*\{[^}]*\}/gi," ")
   .replace(/\b(?:font-family|font-size|line-height|text-decoration|background(?:-color)?|padding|margin|display|border(?:-[a-z]+)?|color|width|height)\s*:[^;\n}]+;?/gi," ")
   .replace(/!important\b/gi," ");
- return normalizeWhitespace(text);
+ return cleanReadableText(text);
 }
 function textParts(part:GmailPart|undefined,mimeType:"text/plain"|"text/html",out:string[]=[]){
  if(!part)return out;
@@ -79,8 +101,8 @@ function bodyFrom(part?:GmailPart):string{
  const htmlRaw=textParts(part,"text/html").filter(Boolean);
  const plainJoined=plainRaw.join("\n\n");
  const htmlClean=htmlRaw.map(htmlToText).filter(Boolean).join("\n\n");
- if(plainJoined&&!looksLikeTechnicalMarkup(plainJoined))return normalizeWhitespace(decodeEntities(plainJoined));
- if(htmlClean)return htmlClean;
+ if(plainJoined&&!looksLikeTechnicalMarkup(plainJoined))return cleanReadableText(decodeEntities(plainJoined));
+ if(htmlClean)return cleanReadableText(htmlClean);
  if(plainJoined)return cleanPollutedPlainText(plainJoined);
  return "";
 }
