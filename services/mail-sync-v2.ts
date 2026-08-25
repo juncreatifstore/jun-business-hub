@@ -10,14 +10,11 @@ import { syncFolder } from "@/lib/google/gmail";
 import { reconcileMailboxStatesFromGmail } from "@/lib/google/gmail-thread-state";
 
 async function syncOne(accountId:string){
- const [inbox,sent,drafts,important]=await Promise.all([
-  syncFolder(accountId,"INBOX",120),
-  syncFolder(accountId,"SENT",60),
-  syncFolder(accountId,"DRAFTS",30),
-  syncFolder(accountId,"IMPORTANT",60),
- ]);
+ const inbox=await syncFolder(accountId,"INBOX",120);
+ const sent=await syncFolder(accountId,"SENT",60);
+ const drafts=await syncFolder(accountId,"DRAFTS",25);
  const reconciled=await reconcileMailboxStatesFromGmail(accountId,5000);
- return {created:inbox+sent+drafts+important,reconciled};
+ return {created:inbox+sent+drafts,reconciled};
 }
 function refresh(){revalidatePath("/app/mail");revalidatePath("/app/mail/intelligence");revalidatePath("/app/mail/operations");revalidatePath("/app/mail/security");}
 
@@ -27,7 +24,7 @@ export async function syncMailboxV2(accountId:string):Promise<void>{
  if(!(await rateLimitAsync(`gmail-sync-v2:${user.id}`,4,60_000)))redirect(`/app/mail?mailbox=${encodeURIComponent(accountId)}&toast_error=Sync rate limit — wait a minute`);
  try{
   const result=await syncOne(accountId);
-  await audit({userId:user.id,action:"GMAIL_SYNC_V2",resourceType:"MailAccount",resourceId:accountId,after:{...result,parallel:true}});refresh();
+  await audit({userId:user.id,action:"GMAIL_SYNC_V2",resourceType:"MailAccount",resourceId:accountId,after:{...result,reconciledFromGmail:true}});refresh();
   redirect(`/app/mail?mailbox=${encodeURIComponent(accountId)}&folder=INBOX&category=PRIMARY&toast=${encodeURIComponent(`Gmail synchronized — ${result.created} new conversation(s), ${result.reconciled} state change(s)`)}`);
  }catch(e){
   if(e&&typeof e==="object"&&"digest" in e)throw e;
@@ -47,7 +44,7 @@ export async function syncAllMailboxesV2():Promise<void>{
   try{const r=await syncOne(account.id);created+=r.created;reconciled+=r.reconciled;}
   catch(e){failures.push(account.email);await recordMailReliabilityEvent({type:"SYNC_ERROR",accountId:account.id,userId:user.id,message:e instanceof Error?e.message:"Gmail sync failed"});}
  }
- await audit({userId:user.id,action:"GMAIL_SYNC_ALL_V2",resourceType:"MailAccount",resourceId:null,after:{created,reconciled,failures,parallelPerMailbox:true}});refresh();
+ await audit({userId:user.id,action:"GMAIL_SYNC_ALL_V2",resourceType:"MailAccount",resourceId:null,after:{created,reconciled,failures,reconciledFromGmail:true}});refresh();
  if(failures.length)redirect(`/app/mail?mailbox=ALL&folder=INBOX&category=PRIMARY&toast_error=${encodeURIComponent(`Sync completed with errors for ${failures.join(", ")}`)}`);
  redirect(`/app/mail?mailbox=ALL&folder=INBOX&category=PRIMARY&toast=${encodeURIComponent(`Gmail synchronized — ${created} new conversation(s), ${reconciled} state change(s)`)}`);
 }
