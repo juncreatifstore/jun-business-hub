@@ -1,12 +1,13 @@
 import "server-only";
 import { accessTokenFor } from "@/lib/google/gmail";
+import { sanitizeEmailHtml } from "@/lib/mail-html-render";
 
 type GmailHeader={name:string;value:string};
 type GmailPart={mimeType?:string;filename?:string;body?:{data?:string;attachmentId?:string;size?:number};parts?:GmailPart[];headers?:GmailHeader[]};
 type GmailMessage={id:string;threadId:string;labelIds?:string[];snippet?:string;internalDate?:string;payload?:GmailPart};
 type GmailThread={id:string;messages?:GmailMessage[]};
 export type MailConversationAttachment={attachmentId:string|null;filename:string;mimeType:string;size:number};
-export type MailConversationMessage={id:string;from:string;to:string[];cc:string[];subject:string;date:Date;body:string;snippet:string;isUnread:boolean;labels:string[];attachments:MailConversationAttachment[]};
+export type MailConversationMessage={id:string;from:string;to:string[];cc:string[];subject:string;date:Date;body:string;htmlBody:string|null;snippet:string;isUnread:boolean;labels:string[];attachments:MailConversationAttachment[]};
 
 function header(m:GmailMessage,name:string){return m.payload?.headers?.find(h=>h.name.toLowerCase()===name.toLowerCase())?.value??"";}
 function emails(value:string){return value.match(/[\w.+-]+@[\w.-]+\.\w+/g)??[];}
@@ -21,7 +22,19 @@ function htmlToText(value:string){return cleanReadableText(decodeEntities(value)
 function looksLikeTechnicalMarkup(value:string){const sample=value.slice(0,20000);let score=0;const signals:[RegExp,number][]=[[/\bfont-family\s*:/gi,3],[/!important\b/gi,3],[/\b(?:padding|margin|display|background|border|line-height|font-size|text-decoration)\s*:/gi,2],[/(?:^|\n)\s*[^\n{}]{0,100}\{[^{}]{0,500}\}/gm,3],[/<(?:style|table|td|div|span|body|html)\b/gi,2],[/&(?:nbsp|zwnj|zwj|#8204|#x200c);/gi,1],[/\bmso-[a-z-]+\s*:/gi,3],[/\b@media\b/gi,3],[/\bwidth\s*:\s*\d+(?:px|%)/gi,2]];for(const[re,weight]of signals){const matches=sample.match(re)?.length??0;score+=Math.min(matches,5)*weight;}return score>=5;}
 function cleanPollutedPlainText(value:string){let text=decodeEntities(decodeQuotedPrintable(value));text=text.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi," ").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi," ").replace(/<[^>]+>/g," ").replace(/(?:^|\n)\s*[^\n{}]{0,120}\{[^{}]{0,1200}\}\s*(?=\n|$)/gm,"\n").replace(/\*\s*(?:td|table|body|div|span|a|p|h[1-6])\s*\{[^}]*\}/gi," ").replace(/\b(?:font-family|font-size|line-height|text-decoration|background(?:-color)?|padding|margin|display|border(?:-[a-z]+)?|color|width|height)\s*:[^;\n}]+;?/gi," ").replace(/!important\b/gi," ");return cleanReadableText(text);}
 function textParts(part:GmailPart|undefined,mimeType:"text/plain"|"text/html",out:string[]=[]){if(!part)return out;if(part.mimeType===mimeType&&part.body?.data&&!part.filename){const decoded=decodeQuotedPrintable(decode(part.body.data));if(decoded.trim())out.push(decoded);}for(const child of part.parts??[])textParts(child,mimeType,out);return out;}
-function bodyFrom(part?:GmailPart):string{const plainRaw=textParts(part,"text/plain").map(v=>v.trim()).filter(Boolean),htmlRaw=textParts(part,"text/html").filter(Boolean),plainJoined=plainRaw.join("\n\n"),htmlClean=htmlRaw.map(htmlToText).filter(Boolean).join("\n\n");if(plainJoined&&!looksLikeTechnicalMarkup(plainJoined))return cleanReadableText(decodeEntities(plainJoined));if(htmlClean)return cleanReadableText(htmlClean);if(plainJoined)return cleanPollutedPlainText(plainJoined);return"";}
+function bodyFrom(part?:GmailPart):{body:string;htmlBody:string|null}{
+ const plainRaw=textParts(part,"text/plain").map(v=>v.trim()).filter(Boolean);
+ const htmlRaw=textParts(part,"text/html").map(v=>v.trim()).filter(Boolean);
+ const plainJoined=plainRaw.join("\n\n");
+ const rawHtml=htmlRaw.join("\n");
+ const sanitizedHtml=rawHtml?sanitizeEmailHtml(rawHtml):"";
+ const htmlText=htmlRaw.map(htmlToText).filter(Boolean).join("\n\n");
+ let body="";
+ if(plainJoined&&!looksLikeTechnicalMarkup(plainJoined))body=cleanReadableText(decodeEntities(plainJoined));
+ else if(htmlText)body=cleanReadableText(htmlText);
+ else if(plainJoined)body=cleanPollutedPlainText(plainJoined);
+ return {body,htmlBody:sanitizedHtml||null};
+}
 function attachments(part?:GmailPart,out:MailConversationAttachment[]=[]){if(!part)return out;if(part.filename)out.push({attachmentId:part.body?.attachmentId??null,filename:part.filename,mimeType:part.mimeType||"application/octet-stream",size:part.body?.size??0});for(const p of part.parts??[])attachments(p,out);return out;}
 
 export async function getGmailThreadIdsForQuery(accountId:string,query:string,max=3000):Promise<Set<string>>{
@@ -29,4 +42,10 @@ export async function getGmailThreadIdsForQuery(accountId:string,query:string,ma
  while(ids.size<max){const pageSize=Math.min(500,Math.max(1,max-ids.size));const url=`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${pageSize}&q=${encodeURIComponent(query)}${pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:""}`;const res=await fetch(url,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});if(!res.ok)break;const data=await res.json() as {messages?:{threadId:string}[];nextPageToken?:string};for(const m of data.messages??[])ids.add(m.threadId);if(!data.nextPageToken)break;pageToken=data.nextPageToken;}return ids;
 }
 export async function getUnreadGmailThreadIds(accountId:string,max=10000):Promise<Set<string>>{return getGmailThreadIdsForQuery(accountId,"is:unread",max);}
-export async function getMailConversation(accountId:string,gmailThreadId:string):Promise<MailConversationMessage[]>{const{token}=await accessTokenFor(accountId);const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(gmailThreadId)}?format=full`,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});if(!res.ok)throw new Error(`Gmail thread read failed: ${res.status}`);const thread=await res.json() as GmailThread;return(thread.messages??[]).map(m=>({id:m.id,from:header(m,"From"),to:emails(header(m,"To")),cc:emails(header(m,"Cc")),subject:header(m,"Subject")||"(no subject)",date:m.internalDate?new Date(Number(m.internalDate)):new Date(),body:bodyFrom(m.payload).slice(0,50000),snippet:m.snippet??"",isUnread:(m.labelIds??[]).includes("UNREAD"),labels:m.labelIds??[],attachments:attachments(m.payload)})).sort((a,b)=>a.date.getTime()-b.date.getTime());}
+export async function getMailConversation(accountId:string,gmailThreadId:string):Promise<MailConversationMessage[]>{
+ const{token}=await accessTokenFor(accountId);
+ const res=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(gmailThreadId)}?format=full`,{headers:{Authorization:`Bearer ${token}`},cache:"no-store"});
+ if(!res.ok)throw new Error(`Gmail thread read failed: ${res.status}`);
+ const thread=await res.json() as GmailThread;
+ return(thread.messages??[]).map(m=>{const rendered=bodyFrom(m.payload);return{id:m.id,from:header(m,"From"),to:emails(header(m,"To")),cc:emails(header(m,"Cc")),subject:header(m,"Subject")||"(no subject)",date:m.internalDate?new Date(Number(m.internalDate)):new Date(),body:rendered.body.slice(0,50000),htmlBody:rendered.htmlBody, snippet:m.snippet??"",isUnread:(m.labelIds??[]).includes("UNREAD"),labels:m.labelIds??[],attachments:attachments(m.payload)}}).sort((a,b)=>a.date.getTime()-b.date.getTime());
+}
