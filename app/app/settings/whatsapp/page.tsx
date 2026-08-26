@@ -4,6 +4,7 @@ import { requireUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { GENERAL_DOCUMENT_TEMPLATE, getWhatsAppConfig } from "@/lib/whatsapp";
 import { getWhatsAppWabaSubscriptionStatus } from "@/lib/whatsapp-waba-subscription";
+import { getWhatsAppPhoneWabaMatch } from "@/lib/whatsapp-phone-waba-match";
 import { saveWhatsAppSettings } from "@/services/whatsapp";
 import { subscribeWhatsAppAppToWaba } from "@/services/whatsapp-waba-subscription";
 import { testWhatsAppWebhookLocally } from "@/services/whatsapp-webhook-test";
@@ -16,9 +17,10 @@ export const dynamic="force-dynamic";
 
 export default async function WhatsAppSettingsPage(){
  const user=await requireUser();if(!can(user,"SETTINGS_MANAGE"))redirect("/app/forbidden");
- const [cfg,subscription,heartbeatRow,localTestRow]=await Promise.all([
+ const [cfg,subscription,phoneWabaMatch,heartbeatRow,localTestRow]=await Promise.all([
   getWhatsAppConfig(),
   getWhatsAppWabaSubscriptionStatus(),
+  getWhatsAppPhoneWabaMatch(),
   prisma.appSetting.findUnique({where:{key:"whatsapp.webhook.last_event"},select:{value:true}}),
   prisma.appSetting.findUnique({where:{key:"whatsapp.webhook.last_local_test"},select:{value:true}}),
  ]);
@@ -31,12 +33,18 @@ export default async function WhatsAppSettingsPage(){
   <div className="mb-5"><Link href="/app/settings" className="text-sm text-electric hover:underline">← Back to Settings</Link></div>
 
   <Card className="mb-5"><CardHeader><CardTitle>Incoming messages diagnostic</CardTitle></CardHeader><CardContent className="space-y-4">
-   <div className="grid gap-3 sm:grid-cols-2">
+   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
     <div className={`rounded-xl border p-4 ${subscription.ok&&subscription.subscribedApps.length?"border-emerald-200 bg-emerald-50":"border-amber-200 bg-amber-50"}`}>
      <div className="text-xs font-semibold uppercase tracking-wide">WABA app subscription</div>
      <div className="mt-1 text-sm font-medium">{!subscription.configured?"Configuration incomplete":subscription.ok&&subscription.subscribedApps.length?`Subscribed · ${subscription.subscribedApps.length} app${subscription.subscribedApps.length===1?"":"s"}`:subscription.ok?"No subscribed app detected":"Unable to verify"}</div>
      {subscription.error?<div className="mt-2 break-words text-xs text-red-700">{subscription.error}</div>:null}
      {subscription.subscribedApps.length?<div className="mt-2 text-xs text-muted2">{subscription.subscribedApps.map(a=>a.name||a.id||"Meta app").join(" · ")}</div>:null}
+    </div>
+    <div className={`rounded-xl border p-4 ${phoneWabaMatch.ok&&phoneWabaMatch.match?"border-emerald-200 bg-emerald-50":phoneWabaMatch.configured?"border-red-200 bg-red-50":"border-amber-200 bg-amber-50"}`}>
+     <div className="text-xs font-semibold uppercase tracking-wide">Phone Number ID ↔ WABA</div>
+     <div className={`mt-1 text-sm font-semibold ${phoneWabaMatch.ok&&phoneWabaMatch.match?"text-emerald-800":phoneWabaMatch.configured?"text-red-800":"text-amber-800"}`}>{!phoneWabaMatch.configured?"Configuration incomplete":phoneWabaMatch.ok&&phoneWabaMatch.match?"MATCH":"MISMATCH"}</div>
+     {phoneWabaMatch.match&&phoneWabaMatch.displayPhone?<div className="mt-2 text-xs text-muted2">{phoneWabaMatch.displayPhone}{phoneWabaMatch.verifiedName?` · ${phoneWabaMatch.verifiedName}`:""}</div>:null}
+     {phoneWabaMatch.error?<div className="mt-2 break-words text-xs text-red-700">{phoneWabaMatch.error}</div>:null}
     </div>
     <div className={`rounded-xl border p-4 ${heartbeat?.receivedAt?"border-emerald-200 bg-emerald-50":"border-amber-200 bg-amber-50"}`}>
      <div className="text-xs font-semibold uppercase tracking-wide">Last webhook received by JUN</div>
@@ -53,7 +61,7 @@ export default async function WhatsAppSettingsPage(){
     <form action={subscribeWhatsAppAppToWaba}><Button type="submit" variant="outline">Subscribe Meta app to WABA</Button></form>
     <form action={testWhatsAppWebhookLocally}><Button type="submit" variant="primary">Test Webhook locally</Button></form>
    </div>
-   <p className="text-xs text-muted2">If the end-to-end test passes but real client replies never update “Last webhook received by JUN”, the JUN side is healthy and the remaining problem is Meta webhook delivery/configuration.</p>
+   <p className="text-xs text-muted2">For real incoming replies, all three checks should be healthy: the Meta app must be subscribed to the WABA, the saved Phone Number ID must match that WABA, and real client replies must update “Last webhook received by JUN”.</p>
   </CardContent></Card>
 
   <form action={saveWhatsAppSettings} className="space-y-5">
