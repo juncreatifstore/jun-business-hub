@@ -5,7 +5,7 @@ import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
-import { getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppDocument, sendWhatsAppDocumentTemplate, sendWhatsAppTemplate, sendWhatsAppText, uploadWhatsAppMedia } from "@/lib/whatsapp";
+import { GENERAL_DOCUMENT_TEMPLATE, getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppDocument, sendWhatsAppDocumentTemplate, sendWhatsAppGeneralTemplate, sendWhatsAppTemplate, sendWhatsAppText, uploadWhatsAppMedia } from "@/lib/whatsapp";
 
 export async function saveWhatsAppSettings(formData:FormData){
  const user=await assertPermission("SETTINGS_MANAGE");
@@ -33,11 +33,15 @@ export async function sendClientWhatsApp(clientId:string,formData:FormData){
  let errorMessage="";
  try{
   const cfg=await getWhatsAppConfig();
+  const selectedTemplate=template||cfg.defaultTemplate;
+  const clientName=`${client.firstName} ${client.lastName}`.trim();
   const result=mode==="TEXT"
    ?await sendWhatsAppText(to,message)
-   :await sendWhatsAppTemplate(to,template||cfg.defaultTemplate,language||cfg.languageCode,[`${client.firstName} ${client.lastName}`.trim(),message||"Une mise à jour est disponible dans votre dossier JUN.",reference]);
+   :selectedTemplate===GENERAL_DOCUMENT_TEMPLATE
+    ?await sendWhatsAppGeneralTemplate({to,templateName:selectedTemplate,languageCode:language||cfg.languageCode,clientName,documentLabel:message||"Mise à jour JUN",reference})
+    :await sendWhatsAppTemplate(to,selectedTemplate,language||cfg.languageCode,[]);
   const messageId=result.messages?.[0]?.id??null;
-  await audit({userId:user.id,action:"WHATSAPP_CLIENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,mode,to,messageId,template:mode==="TEMPLATE"?(template||cfg.defaultTemplate):null}});
+  await audit({userId:user.id,action:"WHATSAPP_CLIENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,mode,to,messageId,template:mode==="TEMPLATE"?selectedTemplate:null}});
   await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_SENT",message:`WhatsApp ${mode==="TEMPLATE"?"template":"message"} sent to ${to}${messageId?` · ${messageId}`:""}`}}).catch(()=>null);
   revalidatePath(`/app/clients/${clientId}`);
  }catch(e){
