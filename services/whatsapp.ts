@@ -5,6 +5,8 @@ import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
+import { getClientFinancialAccount, type ClientStatementLanguage } from "@/lib/client-financial-account";
+import { renderClientStatementV2 } from "@/services/pdf/client-statement-v2";
 import { GENERAL_DOCUMENT_TEMPLATE, getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppDocument, sendWhatsAppDocumentTemplate, sendWhatsAppTemplate, sendWhatsAppText, uploadWhatsAppMedia } from "@/lib/whatsapp";
 
 export async function saveWhatsAppSettings(formData:FormData){
@@ -79,4 +81,42 @@ export async function sendDocumentByWhatsApp(documentId:string,formData:FormData
  }
  if(errorMessage)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent(errorMessage)}`);
  redirect(`/app/documents/${documentId}?toast=${encodeURIComponent("Accepted by Meta — awaiting delivery confirmation")}`);
+}
+
+export async function sendClientStatementByWhatsApp(clientId:string,formData:FormData){
+ const user=await assertPermission("CLIENT_READ");
+ const [client,account,cfg]=await Promise.all([
+  prisma.client.findUnique({where:{id:clientId},select:{id:true,internalId:true,firstName:true,lastName:true,email:true,phone:true,whatsapp:true,address:true,country:true}}),
+  getClientFinancialAccount(clientId),
+  getWhatsAppConfig(),
+ ]);
+ if(!client)redirect("/app/clients?toast_error=Client not found");
+ const to=String(client.whatsapp||client.phone||"").trim();
+ const rawLang=String(formData.get("language")||"").toUpperCase();
+ const language:ClientStatementLanguage=["FR","EN","ES","HT"].includes(rawLang)?rawLang as ClientStatementLanguage:account.profile.preferredLanguage;
+ if(!to)redirect(`/app/clients/${clientId}/statement?lang=${language}&toast_error=${encodeURIComponent("Client has no WhatsApp number")}`);
+ if(!cfg.defaultTemplate)redirect(`/app/clients/${clientId}/statement?lang=${language}&toast_error=${encodeURIComponent("Configure the approved jun_document_notification template in Settings → WhatsApp first")}`);
+ let errorMessage="";
+ try{
+  const reference=`STATEMENT-${client.internalId}`;
+  const bytes=await renderClientStatementV2({
+   reference,
+   language,
+   client:{name:`${client.firstName} ${client.lastName}`,internalId:client.internalId,email:client.email,phone:client.phone,address:client.address,country:client.country},
+   balances:account.balances.map(b=>({currency:b.currency,confirmedFunds:b.confirmedFunds,commissions:b.commissions,committedExpenses:b.committedExpenses,activeRefunds:b.activeRefunds,partnerWithdrawals:b.partnerWithdrawals,available:b.available})),
+   entries:account.entries.map(e=>({date:e.date,type:e.type,reference:e.reference,description:e.description,status:e.status,currency:e.currency,credit:e.credit,debit:e.debit,runningBalance:e.runningBalance}))
+  });
+  const filename=`${client.internalId}-statement.pdf`;
+  const mediaId=await uploadWhatsAppMedia(Buffer.from(bytes),"application/pdf",filename);
+  const label=language==="FR"?"Relevé de compte client":language==="ES"?"Estado de cuenta del cliente":language==="HT"?"Relve kont kliyan":"Client account statement";
+  const result=await sendWhatsAppDocumentTemplate({to,templateName:cfg.defaultTemplate,languageCode:cfg.languageCode,mediaId,filename,clientName:`${client.firstName} ${client.lastName}`.trim(),documentLabel:label,reference});
+  const messageId=result.messages?.[0]?.id??null;
+  await audit({userId:user.id,action:"WHATSAPP_STATEMENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,to,messageId,mediaId,template:cfg.defaultTemplate,reference,language}});
+  await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_ACCEPTED",message:`Statement ${reference} accepted by Meta for WhatsApp delivery to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"ClientStatement",resourceId:reference}}).catch(()=>null);
+  revalidatePath(`/app/clients/${clientId}`);
+ }catch(e){
+  errorMessage=e instanceof Error?e.message:"WhatsApp statement send failed";
+ }
+ if(errorMessage)redirect(`/app/clients/${clientId}/statement?lang=${language}&toast_error=${encodeURIComponent(errorMessage)}`);
+ redirect(`/app/clients/${clientId}/statement?lang=${language}&toast=${encodeURIComponent("Statement accepted by Meta — awaiting delivery confirmation")}`);
 }
