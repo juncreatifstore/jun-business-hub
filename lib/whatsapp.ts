@@ -32,7 +32,8 @@ export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await 
 
 export async function saveWhatsAppConfig(input:{phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string;webhookVerifyToken?:string}){
  const defaultTemplate=input.defaultTemplate.trim()||DEFAULT_TEST_TEMPLATE;
- const languageCode=input.languageCode.trim()||DEFAULT_TEST_LANGUAGE;
+ const requestedLanguage=input.languageCode.trim()||DEFAULT_TEST_LANGUAGE;
+ const languageCode=defaultTemplate===DEFAULT_TEST_TEMPLATE?DEFAULT_TEST_LANGUAGE:requestedLanguage;
  await Promise.all([
   set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",defaultTemplate),set("whatsapp.language_code",languageCode),
   input.accessToken?.trim()?set("whatsapp.access_token_enc",encryptSecret(input.accessToken.trim())):Promise.resolve(),
@@ -49,7 +50,7 @@ async function send(payload:unknown){const c=await credentials();const r=await f
 export async function sendWhatsAppText(to:string,body:string){if(!body.trim())throw new Error("Message is empty");return send({messaging_product:"whatsapp",recipient_type:"individual",to:normalizePhone(to),type:"text",text:{preview_url:true,body:body.trim().slice(0,4096)}});}
 export async function sendWhatsAppTemplate(to:string,templateName:string,languageCode:string,bodyParameters:string[]=[]){
  const name=templateName.trim()||DEFAULT_TEST_TEMPLATE;
- const language=languageCode.trim()||(name===DEFAULT_TEST_TEMPLATE?DEFAULT_TEST_LANGUAGE:"fr");
+ const language=name===DEFAULT_TEST_TEMPLATE?DEFAULT_TEST_LANGUAGE:(languageCode.trim()||"fr");
  return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name,language:{code:language},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text}))}]}:{})}});
 }
 
