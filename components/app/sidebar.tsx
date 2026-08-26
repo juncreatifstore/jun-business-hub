@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Mail, Bell, Users, FolderKanban, CheckSquare, HardDrive,
+  LayoutDashboard, Mail, MessageCircle, Bell, Users, FolderKanban, CheckSquare, HardDrive,
   FileText, PenTool, Lock, CreditCard, ReceiptText, Undo2, BarChart3,
   Sparkles, UsersRound, Building2, ScrollText, Settings, X,
 } from "lucide-react";
@@ -14,6 +14,7 @@ const sections: { label: string | null; items: { href: string; label: string; ic
     label: "Communication",
     items: [
       { href: "/app/mail", label: "Mail", icon: Mail },
+      { href: "/app/whatsapp/inbox", label: "WhatsApp Inbox", icon: MessageCircle },
       { href: "/app/notifications", label: "Notifications", icon: Bell },
     ],
   },
