@@ -4,6 +4,7 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
 const PREFIX="whatsapp.";
 const LEGACY_TEST_TEMPLATE="hello_world";
+export const GENERAL_DOCUMENT_TEMPLATE="jun_document_notification";
 export type WhatsAppConfig={
  phoneNumberId:string;
  businessAccountId:string;
@@ -24,14 +25,14 @@ export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await 
  displayPhone:s["whatsapp.display_phone"]??"",
  graphVersion:s["whatsapp.graph_version"]??"v23.0",
  defaultTemplate:storedTemplate===LEGACY_TEST_TEMPLATE?"":storedTemplate,
- languageCode:s["whatsapp.language_code"]?.trim()||"en_US",
+ languageCode:s["whatsapp.language_code"]?.trim()||"fr",
  tokenConfigured:Boolean(s["whatsapp.access_token_enc"]),
  webhookVerifyTokenConfigured:Boolean(s["whatsapp.webhook_verify_token_enc"]),
 };}
 
 export async function saveWhatsAppConfig(input:{phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string;webhookVerifyToken?:string}){
  const defaultTemplate=input.defaultTemplate.trim();
- const languageCode=input.languageCode.trim()||"en_US";
+ const languageCode=input.languageCode.trim()||"fr";
  await Promise.all([
   set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",defaultTemplate),set("whatsapp.language_code",languageCode),
   input.accessToken?.trim()?set("whatsapp.access_token_enc",encryptSecret(input.accessToken.trim())):Promise.resolve(),
@@ -49,8 +50,32 @@ export async function sendWhatsAppText(to:string,body:string){if(!body.trim())th
 export async function sendWhatsAppTemplate(to:string,templateName:string,languageCode:string,bodyParameters:string[]=[]){
  const name=templateName.trim();
  if(!name)throw new Error("No approved WhatsApp template is configured. Choose Free text for an active 24-hour conversation, or enter the exact approved template name from Meta WhatsApp Manager in Settings → WhatsApp.");
- const language=languageCode.trim()||"en_US";
- return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name,language:{code:language},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text}))}]}:{})}});
+ const language=languageCode.trim()||"fr";
+ return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name,language:{code:language},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text:text.slice(0,1024)}))}]}:{})}});
+}
+
+export async function sendWhatsAppDocumentTemplate(input:{to:string;templateName:string;languageCode:string;mediaId:string;filename:string;clientName:string;documentLabel:string;reference:string}){
+ const name=input.templateName.trim();
+ if(!name)throw new Error("No approved document template is configured in Settings → WhatsApp.");
+ if(!input.mediaId)throw new Error("WhatsApp media ID is required");
+ const language=input.languageCode.trim()||"fr";
+ return send({
+  messaging_product:"whatsapp",
+  to:normalizePhone(input.to),
+  type:"template",
+  template:{
+   name,
+   language:{code:language},
+   components:[
+    {type:"header",parameters:[{type:"document",document:{id:input.mediaId,filename:input.filename.slice(0,240)}}]},
+    {type:"body",parameters:[
+     {type:"text",text:input.clientName.slice(0,1024)},
+     {type:"text",text:input.documentLabel.slice(0,1024)},
+     {type:"text",text:input.reference.slice(0,1024)},
+    ]},
+   ],
+  },
+ });
 }
 
 export async function uploadWhatsAppMedia(data:Buffer,mimeType:string,filename:string){
