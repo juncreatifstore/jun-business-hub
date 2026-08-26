@@ -42,13 +42,13 @@ export async function sendClientWhatsApp(clientId:string,formData:FormData){
    :await sendWhatsAppText(to,message);
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_CLIENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,mode,to,messageId,template:mode==="TEMPLATE"?selectedTemplate:null}});
-  await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_SENT",message:`WhatsApp ${mode==="TEMPLATE"?"template":"message"} sent to ${to}${messageId?` · ${messageId}`:""}`}}).catch(()=>null);
+  await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_ACCEPTED",message:`WhatsApp ${mode==="TEMPLATE"?"template":"message"} accepted by Meta for ${to}${messageId?` · ${messageId}`:""}`}}).catch(()=>null);
   revalidatePath(`/app/clients/${clientId}`);
  }catch(e){
   errorMessage=e instanceof Error?e.message:"WhatsApp send failed";
  }
  if(errorMessage)redirect(`/app/clients/${clientId}/whatsapp?toast_error=${encodeURIComponent(errorMessage)}`);
- redirect(`/app/clients/${clientId}/whatsapp?toast=${encodeURIComponent("WhatsApp sent successfully")}`);
+ redirect(`/app/clients/${clientId}/whatsapp?toast=${encodeURIComponent("Accepted by Meta — awaiting delivery confirmation")}`);
 }
 
 export async function sendDocumentByWhatsApp(documentId:string,formData:FormData){
@@ -71,12 +71,12 @@ export async function sendDocumentByWhatsApp(documentId:string,formData:FormData
    :await sendWhatsAppDocument(to,mediaId,filename,String(formData.get("caption")||`JUN CREATIF AND TRAVEL LLC — ${doc.title}`).trim());
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_DOCUMENT_SEND",resourceType:"Document",resourceId:doc.id,after:{documentId:doc.documentId,clientId:doc.client.id,to,messageId,mediaId,template:cfg.defaultTemplate||null}});
-  await prisma.activity.create({data:{userId:user.id,clientId:doc.client.id,caseId:doc.caseId??undefined,type:"WHATSAPP_DOCUMENT_SENT",message:`Document ${doc.documentId} sent by WhatsApp to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"Document",resourceId:doc.id}}).catch(()=>null);
+  await prisma.activity.create({data:{userId:user.id,clientId:doc.client.id,caseId:doc.caseId??undefined,type:"WHATSAPP_ACCEPTED",message:`Document ${doc.documentId} accepted by Meta for WhatsApp delivery to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"Document",resourceId:doc.id}}).catch(()=>null);
   revalidatePath(`/app/documents/${documentId}`);
   revalidatePath(`/app/clients/${doc.client.id}`);
  }catch(e){
   errorMessage=e instanceof Error?e.message:"WhatsApp document send failed";
  }
  if(errorMessage)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent(errorMessage)}`);
- redirect(`/app/documents/${documentId}?toast=${encodeURIComponent("Document sent by WhatsApp")}`);
+ redirect(`/app/documents/${documentId}?toast=${encodeURIComponent("Accepted by Meta — awaiting delivery confirmation")}`);
 }
