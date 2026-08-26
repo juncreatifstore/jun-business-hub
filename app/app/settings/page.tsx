@@ -39,6 +39,7 @@ export default async function SettingsPage() {
       <div className="mb-8 flex flex-wrap gap-3">
         <a href="/app/settings/security" className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm hover:border-electric hover:text-electric">Security — MFA & sessions →</a>
         <a href="/app/settings/email" className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2 text-sm hover:border-electric hover:text-electric">Email — Connect Gmail →</a>
+        <a href="/app/settings/whatsapp" className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-4 py-2 text-sm font-medium text-emerald-700 hover:border-emerald-500 hover:bg-emerald-500/[0.1]">WhatsApp — Configure Meta Cloud API →</a>
       </div>
 
       <form action={saveSettings} encType="multipart/form-data" className="max-w-5xl space-y-8">
