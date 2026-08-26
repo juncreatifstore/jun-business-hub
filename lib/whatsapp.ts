@@ -6,6 +6,7 @@ const PREFIX="whatsapp.";
 const LEGACY_TEST_TEMPLATE="hello_world";
 export const GENERAL_DOCUMENT_TEMPLATE="jun_document_notification";
 export type WhatsAppConfig={
+ appId:string;
  phoneNumberId:string;
  businessAccountId:string;
  displayPhone:string;
@@ -20,6 +21,7 @@ async function rows(){const r=await prisma.appSetting.findMany({where:{key:{star
 async function set(key:string,value:string){await prisma.appSetting.upsert({where:{key},create:{key,value},update:{value}});}
 
 export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await rows();const storedTemplate=s["whatsapp.default_template"]?.trim()||"";return{
+ appId:s["whatsapp.app_id"]?.trim()||"",
  phoneNumberId:s["whatsapp.phone_number_id"]??"",
  businessAccountId:s["whatsapp.business_account_id"]??"",
  displayPhone:s["whatsapp.display_phone"]??"",
@@ -30,11 +32,11 @@ export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await 
  webhookVerifyTokenConfigured:Boolean(s["whatsapp.webhook_verify_token_enc"]),
 };}
 
-export async function saveWhatsAppConfig(input:{phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string;webhookVerifyToken?:string}){
+export async function saveWhatsAppConfig(input:{appId:string;phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string;webhookVerifyToken?:string}){
  const defaultTemplate=input.defaultTemplate.trim();
  const languageCode=input.languageCode.trim()||"fr";
  await Promise.all([
-  set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",defaultTemplate),set("whatsapp.language_code",languageCode),
+  set("whatsapp.app_id",input.appId.trim()),set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",defaultTemplate),set("whatsapp.language_code",languageCode),
   input.accessToken?.trim()?set("whatsapp.access_token_enc",encryptSecret(input.accessToken.trim())):Promise.resolve(),
   input.webhookVerifyToken?.trim()?set("whatsapp.webhook_verify_token_enc",encryptSecret(input.webhookVerifyToken.trim())):Promise.resolve(),
  ]);
