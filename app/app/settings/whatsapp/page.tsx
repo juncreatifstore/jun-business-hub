@@ -6,6 +6,7 @@ import { GENERAL_DOCUMENT_TEMPLATE, getWhatsAppConfig } from "@/lib/whatsapp";
 import { getWhatsAppWabaSubscriptionStatus } from "@/lib/whatsapp-waba-subscription";
 import { saveWhatsAppSettings } from "@/services/whatsapp";
 import { subscribeWhatsAppAppToWaba } from "@/services/whatsapp-waba-subscription";
+import { testWhatsAppWebhookLocally } from "@/services/whatsapp-webhook-test";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,16 @@ export const dynamic="force-dynamic";
 
 export default async function WhatsAppSettingsPage(){
  const user=await requireUser();if(!can(user,"SETTINGS_MANAGE"))redirect("/app/forbidden");
- const [cfg,subscription,heartbeatRow]=await Promise.all([
+ const [cfg,subscription,heartbeatRow,localTestRow]=await Promise.all([
   getWhatsAppConfig(),
   getWhatsAppWabaSubscriptionStatus(),
   prisma.appSetting.findUnique({where:{key:"whatsapp.webhook.last_event"},select:{value:true}}),
+  prisma.appSetting.findUnique({where:{key:"whatsapp.webhook.last_local_test"},select:{value:true}}),
  ]);
  let heartbeat:{receivedAt?:string;messages?:number;statuses?:number;entries?:number}|null=null;
+ let localTest:{testedAt?:string;ok?:boolean;phone?:string;messageId?:string;httpStatus?:number}|null=null;
  try{heartbeat=heartbeatRow?.value?JSON.parse(heartbeatRow.value):null}catch{heartbeat=null}
+ try{localTest=localTestRow?.value?JSON.parse(localTestRow.value):null}catch{localTest=null}
  return <div className="max-w-4xl">
   <PageHeader title="WhatsApp Business" subtitle="Connect JUN Business Hub to the official Meta WhatsApp Cloud API."/>
   <div className="mb-5"><Link href="/app/settings" className="text-sm text-electric hover:underline">← Back to Settings</Link></div>
@@ -40,8 +44,16 @@ export default async function WhatsAppSettingsPage(){
      {heartbeat?.receivedAt?<div className="mt-2 text-xs text-muted2">Messages: {heartbeat.messages||0} · Statuses: {heartbeat.statuses||0} · Entries: {heartbeat.entries||0}</div>:<div className="mt-2 text-xs text-amber-800">If a client replies and this stays empty, Meta is not delivering events to JUN.</div>}
     </div>
    </div>
-   <form action={subscribeWhatsAppAppToWaba}><Button type="submit" variant="primary">Subscribe Meta app to WABA</Button></form>
-   <p className="text-xs text-muted2">This subscribes the Meta application associated with the saved Permanent Access Token to the saved WhatsApp Business Account. The operation is safe to repeat.</p>
+   <div className={`rounded-xl border p-4 ${localTest?.ok?"border-emerald-200 bg-emerald-50":"border-blue-200 bg-blue-50"}`}>
+    <div className="text-xs font-semibold uppercase tracking-wide">End-to-end JUN webhook test</div>
+    <div className="mt-1 text-sm font-medium">{localTest?.testedAt?(localTest.ok?"PASS — webhook → database → Inbox works":"FAIL — test did not reach the Inbox"):"Not tested yet"}</div>
+    {localTest?.testedAt?<div className="mt-2 text-xs text-muted2">{new Intl.DateTimeFormat("fr-FR",{dateStyle:"medium",timeStyle:"medium"}).format(new Date(localTest.testedAt))} · HTTP {localTest.httpStatus||"—"}{localTest.phone?` · +${localTest.phone}`:""}</div>:<div className="mt-2 text-xs text-blue-900">This test sends a simulated Meta payload through JUN&apos;s public webhook URL and verifies that it appears in the WhatsApp Inbox.</div>}
+   </div>
+   <div className="flex flex-wrap gap-2">
+    <form action={subscribeWhatsAppAppToWaba}><Button type="submit" variant="outline">Subscribe Meta app to WABA</Button></form>
+    <form action={testWhatsAppWebhookLocally}><Button type="submit" variant="primary">Test Webhook locally</Button></form>
+   </div>
+   <p className="text-xs text-muted2">If the end-to-end test passes but real client replies never update “Last webhook received by JUN”, the JUN side is healthy and the remaining problem is Meta webhook delivery/configuration.</p>
   </CardContent></Card>
 
   <form action={saveWhatsAppSettings} className="space-y-5">
