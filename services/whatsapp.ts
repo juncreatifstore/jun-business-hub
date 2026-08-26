@@ -15,22 +15,33 @@ export async function saveWhatsAppSettings(formData:FormData){
   phoneNumberId:String(formData.get("phoneNumberId")||""),businessAccountId:String(formData.get("businessAccountId")||""),displayPhone:String(formData.get("displayPhone")||""),graphVersion:String(formData.get("graphVersion")||"v23.0"),defaultTemplate:String(formData.get("defaultTemplate")||""),languageCode:String(formData.get("languageCode")||"fr"),accessToken:accessToken||undefined,webhookVerifyToken:webhookVerifyToken||undefined,
  });
  await audit({userId:user.id,action:"WHATSAPP_SETTINGS_UPDATE",resourceType:"AppSetting",resourceId:"whatsapp",after:{tokenUpdated:Boolean(accessToken.trim()),webhookVerifyTokenUpdated:Boolean(webhookVerifyToken.trim())}});
- revalidatePath("/app/settings/whatsapp");redirect("/app/settings/whatsapp?toast=WhatsApp settings saved");
+ revalidatePath("/app/settings/whatsapp");
+ redirect("/app/settings/whatsapp?toast=WhatsApp settings saved");
 }
 
 export async function sendClientWhatsApp(clientId:string,formData:FormData){
  const user=await assertPermission("CLIENT_READ");
- const client=await prisma.client.findUnique({where:{id:clientId},select:{id:true,internalId:true,firstName:true,lastName:true,whatsapp:true,phone:true}});if(!client)redirect("/app/clients?toast_error=Client not found");
- const to=String(formData.get("to")||client.whatsapp||client.phone||"").trim(),mode=String(formData.get("mode")||"TEMPLATE"),message=String(formData.get("message")||"").trim(),template=String(formData.get("template")||"").trim(),language=String(formData.get("language")||"fr").trim();
+ const client=await prisma.client.findUnique({where:{id:clientId},select:{id:true,internalId:true,firstName:true,lastName:true,whatsapp:true,phone:true}});
+ if(!client)redirect("/app/clients?toast_error=Client not found");
+ const to=String(formData.get("to")||client.whatsapp||client.phone||"").trim();
+ const mode=String(formData.get("mode")||"TEXT");
+ const message=String(formData.get("message")||"").trim();
+ const template=String(formData.get("template")||"").trim();
+ const language=String(formData.get("language")||"fr").trim();
  if(!to)redirect(`/app/clients/${clientId}/whatsapp?toast_error=${encodeURIComponent("Client has no WhatsApp number")}`);
+ let errorMessage="";
  try{
   const cfg=await getWhatsAppConfig();
   const result=mode==="TEXT"?await sendWhatsAppText(to,message):await sendWhatsAppTemplate(to,template||cfg.defaultTemplate,language||cfg.languageCode,[]);
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_CLIENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,mode,to,messageId,template:mode==="TEMPLATE"?(template||cfg.defaultTemplate):null}});
   await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_SENT",message:`WhatsApp ${mode==="TEMPLATE"?"template":"message"} sent to ${to}${messageId?` · ${messageId}`:""}`}}).catch(()=>null);
-  revalidatePath(`/app/clients/${clientId}`);redirect(`/app/clients/${clientId}/whatsapp?toast=${encodeURIComponent("WhatsApp sent successfully")}`);
- }catch(e){redirect(`/app/clients/${clientId}/whatsapp?toast_error=${encodeURIComponent(e instanceof Error?e.message:"WhatsApp send failed")}`);}
+  revalidatePath(`/app/clients/${clientId}`);
+ }catch(e){
+  errorMessage=e instanceof Error?e.message:"WhatsApp send failed";
+ }
+ if(errorMessage)redirect(`/app/clients/${clientId}/whatsapp?toast_error=${encodeURIComponent(errorMessage)}`);
+ redirect(`/app/clients/${clientId}/whatsapp?toast=${encodeURIComponent("WhatsApp sent successfully")}`);
 }
 
 export async function sendDocumentByWhatsApp(documentId:string,formData:FormData){
@@ -41,6 +52,7 @@ export async function sendDocumentByWhatsApp(documentId:string,formData:FormData
  const to=String(formData.get("to")||doc.client.whatsapp||doc.client.phone||"").trim();
  if(!to)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Client has no WhatsApp number")}`);
  if(!doc.finalPdfKey)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Finalize the document first so JUN has an official PDF to send")}`);
+ let errorMessage="";
  try{
   const pdf=await storage().download(doc.finalPdfKey);
   const filename=`${doc.documentId}-${doc.title}`.replace(/[^a-zA-Z0-9._-]+/g,"-").slice(0,180)+".pdf";
@@ -50,7 +62,11 @@ export async function sendDocumentByWhatsApp(documentId:string,formData:FormData
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_DOCUMENT_SEND",resourceType:"Document",resourceId:doc.id,after:{documentId:doc.documentId,clientId:doc.client.id,to,messageId,mediaId}});
   await prisma.activity.create({data:{userId:user.id,clientId:doc.client.id,caseId:doc.caseId??undefined,type:"WHATSAPP_DOCUMENT_SENT",message:`Document ${doc.documentId} sent by WhatsApp to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"Document",resourceId:doc.id}}).catch(()=>null);
-  revalidatePath(`/app/documents/${documentId}`);revalidatePath(`/app/clients/${doc.client.id}`);
-  redirect(`/app/documents/${documentId}?toast=${encodeURIComponent("Document sent by WhatsApp")}`);
- }catch(e){redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent(e instanceof Error?e.message:"WhatsApp document send failed")}`);}
+  revalidatePath(`/app/documents/${documentId}`);
+  revalidatePath(`/app/clients/${doc.client.id}`);
+ }catch(e){
+  errorMessage=e instanceof Error?e.message:"WhatsApp document send failed";
+ }
+ if(errorMessage)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent(errorMessage)}`);
+ redirect(`/app/documents/${documentId}?toast=${encodeURIComponent("Document sent by WhatsApp")}`);
 }
