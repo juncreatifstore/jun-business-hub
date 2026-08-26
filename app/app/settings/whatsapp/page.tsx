@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser, can } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { GENERAL_DOCUMENT_TEMPLATE, getWhatsAppConfig } from "@/lib/whatsapp";
+import { getWhatsAppWabaSubscriptionStatus } from "@/lib/whatsapp-waba-subscription";
 import { saveWhatsAppSettings } from "@/services/whatsapp";
+import { subscribeWhatsAppAppToWaba } from "@/services/whatsapp-waba-subscription";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,10 +15,35 @@ export const dynamic="force-dynamic";
 
 export default async function WhatsAppSettingsPage(){
  const user=await requireUser();if(!can(user,"SETTINGS_MANAGE"))redirect("/app/forbidden");
- const cfg=await getWhatsAppConfig();
+ const [cfg,subscription,heartbeatRow]=await Promise.all([
+  getWhatsAppConfig(),
+  getWhatsAppWabaSubscriptionStatus(),
+  prisma.appSetting.findUnique({where:{key:"whatsapp.webhook.last_event"},select:{value:true}}),
+ ]);
+ let heartbeat:{receivedAt?:string;messages?:number;statuses?:number;entries?:number}|null=null;
+ try{heartbeat=heartbeatRow?.value?JSON.parse(heartbeatRow.value):null}catch{heartbeat=null}
  return <div className="max-w-4xl">
   <PageHeader title="WhatsApp Business" subtitle="Connect JUN Business Hub to the official Meta WhatsApp Cloud API."/>
   <div className="mb-5"><Link href="/app/settings" className="text-sm text-electric hover:underline">← Back to Settings</Link></div>
+
+  <Card className="mb-5"><CardHeader><CardTitle>Incoming messages diagnostic</CardTitle></CardHeader><CardContent className="space-y-4">
+   <div className="grid gap-3 sm:grid-cols-2">
+    <div className={`rounded-xl border p-4 ${subscription.ok&&subscription.subscribedApps.length?"border-emerald-200 bg-emerald-50":"border-amber-200 bg-amber-50"}`}>
+     <div className="text-xs font-semibold uppercase tracking-wide">WABA app subscription</div>
+     <div className="mt-1 text-sm font-medium">{!subscription.configured?"Configuration incomplete":subscription.ok&&subscription.subscribedApps.length?`Subscribed · ${subscription.subscribedApps.length} app${subscription.subscribedApps.length===1?"":"s"}`:subscription.ok?"No subscribed app detected":"Unable to verify"}</div>
+     {subscription.error?<div className="mt-2 break-words text-xs text-red-700">{subscription.error}</div>:null}
+     {subscription.subscribedApps.length?<div className="mt-2 text-xs text-muted2">{subscription.subscribedApps.map(a=>a.name||a.id||"Meta app").join(" · ")}</div>:null}
+    </div>
+    <div className={`rounded-xl border p-4 ${heartbeat?.receivedAt?"border-emerald-200 bg-emerald-50":"border-amber-200 bg-amber-50"}`}>
+     <div className="text-xs font-semibold uppercase tracking-wide">Last webhook received by JUN</div>
+     <div className="mt-1 text-sm font-medium">{heartbeat?.receivedAt?new Intl.DateTimeFormat("fr-FR",{dateStyle:"medium",timeStyle:"medium"}).format(new Date(heartbeat.receivedAt)):"No webhook received yet"}</div>
+     {heartbeat?.receivedAt?<div className="mt-2 text-xs text-muted2">Messages: {heartbeat.messages||0} · Statuses: {heartbeat.statuses||0} · Entries: {heartbeat.entries||0}</div>:<div className="mt-2 text-xs text-amber-800">If a client replies and this stays empty, Meta is not delivering events to JUN.</div>}
+    </div>
+   </div>
+   <form action={subscribeWhatsAppAppToWaba}><Button type="submit" variant="primary">Subscribe Meta app to WABA</Button></form>
+   <p className="text-xs text-muted2">This subscribes the Meta application associated with the saved Permanent Access Token to the saved WhatsApp Business Account. The operation is safe to repeat.</p>
+  </CardContent></Card>
+
   <form action={saveWhatsAppSettings} className="space-y-5">
    <Card><CardHeader><CardTitle>Meta connection</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2">
     <Field label="Phone Number ID"><Input name="phoneNumberId" defaultValue={cfg.phoneNumberId} placeholder="Meta Phone Number ID" required/></Field>
@@ -27,7 +55,7 @@ export default async function WhatsAppSettingsPage(){
    <Card><CardHeader><CardTitle>Webhook</CardTitle></CardHeader><CardContent className="space-y-5">
     <Field label="Callback URL"><Input value="https://juncreatif.org/api/webhooks/whatsapp" readOnly/></Field>
     <Field label={cfg.webhookVerifyTokenConfigured?"Webhook Verify Token — already configured (leave blank to keep it)":"Webhook Verify Token"}><Input name="webhookVerifyToken" type="password" placeholder={cfg.webhookVerifyTokenConfigured?"••••••••••••":"Create a private verification token"}/></Field>
-    <p className="text-xs text-muted2">In Meta Webhooks, use the Callback URL above and paste the exact same Verify Token that you enter here.</p>
+    <p className="text-xs text-muted2">In Meta Webhooks, use the Callback URL above and paste the exact same Verify Token that you enter here. Keep the <strong>messages</strong> field subscribed.</p>
    </CardContent></Card>
    <Card><CardHeader><CardTitle>General document template</CardTitle></CardHeader><CardContent className="space-y-5">
     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
