@@ -11,6 +11,7 @@ export type WhatsAppConfig={
  defaultTemplate:string;
  languageCode:string;
  tokenConfigured:boolean;
+ webhookVerifyTokenConfigured:boolean;
 };
 
 async function rows(){const r=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},select:{key:true,value:true}});return Object.fromEntries(r.map(x=>[x.key,x.value]));}
@@ -24,14 +25,18 @@ export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await 
  defaultTemplate:s["whatsapp.default_template"]??"",
  languageCode:s["whatsapp.language_code"]??"fr",
  tokenConfigured:Boolean(s["whatsapp.access_token_enc"]),
+ webhookVerifyTokenConfigured:Boolean(s["whatsapp.webhook_verify_token_enc"]),
 };}
 
-export async function saveWhatsAppConfig(input:{phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string}){
+export async function saveWhatsAppConfig(input:{phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string;webhookVerifyToken?:string}){
  await Promise.all([
   set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",input.defaultTemplate.trim()),set("whatsapp.language_code",input.languageCode.trim()||"fr"),
   input.accessToken?.trim()?set("whatsapp.access_token_enc",encryptSecret(input.accessToken.trim())):Promise.resolve(),
+  input.webhookVerifyToken?.trim()?set("whatsapp.webhook_verify_token_enc",encryptSecret(input.webhookVerifyToken.trim())):Promise.resolve(),
  ]);
 }
+
+export async function getWhatsAppWebhookVerifyToken(){const s=await rows();const enc=s["whatsapp.webhook_verify_token_enc"];return enc?decryptSecret(enc):"";}
 
 async function credentials(){const s=await rows();const enc=s["whatsapp.access_token_enc"],phoneNumberId=s["whatsapp.phone_number_id"],graphVersion=s["whatsapp.graph_version"]||"v23.0";if(!enc||!phoneNumberId)throw new Error("WhatsApp is not configured. Open Settings → WhatsApp.");return{token:decryptSecret(enc),phoneNumberId,graphVersion};}
 function normalizePhone(phone:string){const n=phone.replace(/[^0-9]/g,"");if(n.length<8)throw new Error("Invalid WhatsApp number. Use international format, for example +52…");return n;}
