@@ -54,6 +54,28 @@ export async function sendWhatsAppTemplate(to:string,templateName:string,languag
  return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name,language:{code:language},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text:text.slice(0,1024)}))}]}:{})}});
 }
 
+export async function sendWhatsAppGeneralTemplate(input:{to:string;templateName:string;languageCode:string;clientName:string;documentLabel:string;reference:string}){
+ const name=input.templateName.trim();
+ if(!name)throw new Error("No approved document template is configured in Settings → WhatsApp.");
+ return send({
+  messaging_product:"whatsapp",
+  to:normalizePhone(input.to),
+  type:"template",
+  template:{
+   name,
+   language:{code:input.languageCode.trim()||"fr"},
+   components:[{
+    type:"body",
+    parameters:[
+     {type:"text",parameter_name:"customer_name",text:input.clientName.slice(0,1024)},
+     {type:"text",parameter_name:"document_type",text:input.documentLabel.slice(0,1024)},
+     {type:"text",parameter_name:"document_reference",text:input.reference.slice(0,1024)},
+    ],
+   }],
+  },
+ });
+}
+
 export async function sendWhatsAppDocumentTemplate(input:{to:string;templateName:string;languageCode:string;mediaId:string;filename:string;clientName:string;documentLabel:string;reference:string}){
  const name=input.templateName.trim();
  if(!name)throw new Error("No approved document template is configured in Settings → WhatsApp.");
@@ -69,9 +91,9 @@ export async function sendWhatsAppDocumentTemplate(input:{to:string;templateName
    components:[
     {type:"header",parameters:[{type:"document",document:{id:input.mediaId,filename:input.filename.slice(0,240)}}]},
     {type:"body",parameters:[
-     {type:"text",text:input.clientName.slice(0,1024)},
-     {type:"text",text:input.documentLabel.slice(0,1024)},
-     {type:"text",text:input.reference.slice(0,1024)},
+     {type:"text",parameter_name:"customer_name",text:input.clientName.slice(0,1024)},
+     {type:"text",parameter_name:"document_type",text:input.documentLabel.slice(0,1024)},
+     {type:"text",parameter_name:"document_reference",text:input.reference.slice(0,1024)},
     ]},
    ],
   },
