@@ -83,16 +83,33 @@ async function recordStatus(status: MetaStatus) {
   });
 }
 
+async function recordWebhookHeartbeat(input: { messages: number; statuses: number; entries: number }) {
+  const value = JSON.stringify({
+    receivedAt: new Date().toISOString(),
+    messages: input.messages,
+    statuses: input.statuses,
+    entries: input.entries,
+  });
+  await prisma.appSetting.upsert({
+    where: { key: "whatsapp.webhook.last_event" },
+    create: { key: "whatsapp.webhook.last_event", value },
+    update: { value },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const entries = Array.isArray(body?.entry) ? body.entry : [];
+    let messageCount = 0;
+    let statusCount = 0;
 
     for (const entry of entries) {
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
       for (const change of changes) {
         const value = change?.value || {};
         const statuses: MetaStatus[] = Array.isArray(value?.statuses) ? value.statuses : [];
+        statusCount += statuses.length;
         for (const status of statuses) {
           await recordStatus(status).catch((error) => {
             console.error("[WhatsApp webhook status]", error);
@@ -108,6 +125,7 @@ export async function POST(request: NextRequest) {
         }
 
         const messages = Array.isArray(value?.messages) ? value.messages : [];
+        messageCount += messages.length;
         for (const message of messages) {
           const from = String(message?.from || "").replace(/[^0-9]/g, "");
           await recordIncomingWhatsAppMessage({
@@ -120,7 +138,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.info("[WhatsApp webhook] processed", { entries: entries.length });
+    await recordWebhookHeartbeat({ messages: messageCount, statuses: statusCount, entries: entries.length }).catch((error) => {
+      console.error("[WhatsApp webhook heartbeat]", error);
+    });
+
+    console.info("[WhatsApp webhook] processed", { entries: entries.length, messages: messageCount, statuses: statusCount });
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error) {
     console.error("[WhatsApp webhook] invalid payload", error);
