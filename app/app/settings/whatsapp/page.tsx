@@ -22,7 +22,12 @@ export default async function WhatsAppSettingsPage(){
     <Field label="WhatsApp Business Account ID"><Input name="businessAccountId" defaultValue={cfg.businessAccountId} placeholder="WABA ID"/></Field>
     <Field label="Connected phone"><Input name="displayPhone" defaultValue={cfg.displayPhone} placeholder="+52..."/></Field>
     <Field label="Graph API version"><Input name="graphVersion" defaultValue={cfg.graphVersion||"v23.0"}/></Field>
-    <div className="sm:col-span-2"><Field label={cfg.tokenConfigured?"Access token — already configured (leave blank to keep it)":"Permanent access token"}><Input name="accessToken" type="password" placeholder={cfg.tokenConfigured?"••••••••••••":"Paste Meta permanent token"}/></Field><p className="mt-2 text-xs text-muted2">The token is encrypted before being stored. JUN never displays it again.</p></div>
+    <div className="sm:col-span-2"><Field label={cfg.tokenConfigured?"Permanent Access Token — already configured (leave blank to keep it)":"Permanent Access Token"}><Input name="accessToken" type="password" placeholder={cfg.tokenConfigured?"••••••••••••":"Paste Meta permanent token"}/></Field><p className="mt-2 text-xs text-muted2">The token is encrypted before being stored. JUN never displays it again.</p></div>
+   </CardContent></Card>
+   <Card><CardHeader><CardTitle>Webhook</CardTitle></CardHeader><CardContent className="space-y-5">
+    <Field label="Callback URL"><Input value="https://juncreatif.org/api/webhooks/whatsapp" readOnly/></Field>
+    <Field label={cfg.webhookVerifyTokenConfigured?"Webhook Verify Token — already configured (leave blank to keep it)":"Webhook Verify Token"}><Input name="webhookVerifyToken" type="password" placeholder={cfg.webhookVerifyTokenConfigured?"••••••••••••":"Create a private verification token"}/></Field>
+    <p className="text-xs text-muted2">In Meta Webhooks, use the Callback URL above and paste the exact same Verify Token that you enter here.</p>
    </CardContent></Card>
    <Card><CardHeader><CardTitle>Notification defaults</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2">
     <Field label="Default approved template"><Input name="defaultTemplate" defaultValue={cfg.defaultTemplate} placeholder="document_ready"/></Field>
