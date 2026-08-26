@@ -44,7 +44,7 @@ Votre document {'{{2}}'} est maintenant disponible.
 Référence : {'{{3}}'}
 
 JUN CREATIF AND TRAVEL LLC</pre></div>
-      <p><strong>Sample values:</strong> {{1: "Ruth Joseph", 2: "Official Payment Receipt", 3: "REC-2026-001"} ? "" : ""}</p>
+      <p><strong>Sample values:</strong> 1 = Ruth Joseph · 2 = Official Payment Receipt · 3 = REC-2026-001</p>
      </div>
     </div>
     <div className="grid gap-5 sm:grid-cols-2">
