@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BarChart3, BookOpen, BrainCircuit, CreditCard, Gauge, Landmark, ReceiptText, Send, Undo2, WalletCards, CircleDollarSign, Scale, Target, FileText } from "lucide-react";
+import { FinanceWhatsAppAction } from "@/components/app/finance-whatsapp-action";
 
 const links = [
   { href: "/app/finance", label: "Control Center", icon: Gauge },
@@ -20,7 +21,8 @@ const links = [
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   return <div data-finance-release="phase13-invoicing-ar-2026-08-21">
-    <div className="mb-4 flex flex-wrap justify-end gap-2">
+    <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+      <FinanceWhatsAppAction />
       {links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium text-ink hover:bg-surface"><Icon className="h-4 w-4" />{label}</Link>)}
     </div>
     {children}
