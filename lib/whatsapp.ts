@@ -50,7 +50,9 @@ export async function uploadWhatsAppMedia(data:Buffer,mimeType:string,filename:s
  const form=new FormData();
  form.set("messaging_product","whatsapp");
  form.set("type",mimeType||"application/octet-stream");
- form.set("file",new Blob([data],{type:mimeType||"application/octet-stream"}),filename||"document.pdf");
+ const bytes=new Uint8Array(data.byteLength);
+ bytes.set(data);
+ form.set("file",new Blob([bytes.buffer],{type:mimeType||"application/octet-stream"}),filename||"document.pdf");
  const r=await fetch(`https://graph.facebook.com/${c.graphVersion}/${encodeURIComponent(c.phoneNumberId)}/media`,{method:"POST",headers:{Authorization:`Bearer ${c.token}`},body:form,cache:"no-store"});
  const payload=await r.json().catch(()=>({}));
  if(!r.ok)throw new Error(`Meta WhatsApp media upload ${r.status}: ${JSON.stringify(payload)}`);
