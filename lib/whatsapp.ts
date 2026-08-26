@@ -44,3 +44,20 @@ async function send(payload:unknown){const c=await credentials();const r=await f
 
 export async function sendWhatsAppText(to:string,body:string){if(!body.trim())throw new Error("Message is empty");return send({messaging_product:"whatsapp",recipient_type:"individual",to:normalizePhone(to),type:"text",text:{preview_url:true,body:body.trim().slice(0,4096)}});}
 export async function sendWhatsAppTemplate(to:string,templateName:string,languageCode:string,bodyParameters:string[]=[]){if(!templateName.trim())throw new Error("Template name is required");return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name:templateName.trim(),language:{code:languageCode.trim()||"fr"},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text}))}]}:{})}});}
+
+export async function uploadWhatsAppMedia(data:Buffer,mimeType:string,filename:string){
+ const c=await credentials();
+ const form=new FormData();
+ form.set("messaging_product","whatsapp");
+ form.set("type",mimeType||"application/octet-stream");
+ form.set("file",new Blob([data],{type:mimeType||"application/octet-stream"}),filename||"document.pdf");
+ const r=await fetch(`https://graph.facebook.com/${c.graphVersion}/${encodeURIComponent(c.phoneNumberId)}/media`,{method:"POST",headers:{Authorization:`Bearer ${c.token}`},body:form,cache:"no-store"});
+ const payload=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(`Meta WhatsApp media upload ${r.status}: ${JSON.stringify(payload)}`);
+ const id=String((payload as {id?:string}).id||"");if(!id)throw new Error("Meta did not return a media ID");return id;
+}
+
+export async function sendWhatsAppDocument(to:string,mediaId:string,filename:string,caption?:string){
+ if(!mediaId)throw new Error("WhatsApp media ID is required");
+ return send({messaging_product:"whatsapp",recipient_type:"individual",to:normalizePhone(to),type:"document",document:{id:mediaId,filename:filename.slice(0,240),...(caption?.trim()?{caption:caption.trim().slice(0,1024)}:{})}});
+}
