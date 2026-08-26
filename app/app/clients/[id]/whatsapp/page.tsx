@@ -17,17 +17,19 @@ export default async function ClientWhatsAppPage({params,searchParams}:{params:{
  if(!client)notFound();
  const action=sendClientWhatsApp.bind(null,client.id),number=client.whatsapp||client.phone||"";
  const prefilled=String(searchParams.message||"").slice(0,4096);
- const defaultMode=searchParams.mode==="TEXT"||searchParams.mode==="TEMPLATE"?searchParams.mode:(prefilled?"TEXT":"TEMPLATE");
+ const requestedMode=searchParams.mode==="TEXT"||searchParams.mode==="TEMPLATE"?searchParams.mode:null;
+ const defaultMode=requestedMode??(prefilled||!cfg.defaultTemplate?"TEXT":"TEMPLATE");
  return <div className="max-w-4xl">
   <PageHeader title={`WhatsApp · ${client.firstName} ${client.lastName}`} subtitle={`${client.internalId} · Send official JUN notifications through Meta WhatsApp Cloud API.`}/>
   <div className="mb-5 flex gap-3"><Link href={`/app/clients/${client.id}`} className="text-sm text-electric hover:underline">← Client 360</Link><Link href="/app/settings/whatsapp" className="text-sm text-electric hover:underline">WhatsApp settings →</Link></div>
   <form action={action} className="space-y-5">
    <Card><CardHeader><CardTitle>Recipient</CardTitle></CardHeader><CardContent><Field label="WhatsApp number" hint="International format, including country code"><Input name="to" defaultValue={number} placeholder="+52..." required/></Field></CardContent></Card>
    <Card><CardHeader><CardTitle>Send mode</CardTitle></CardHeader><CardContent className="space-y-5">
-    <Field label="Mode"><Select name="mode" defaultValue={defaultMode}><option value="TEMPLATE">Approved Meta template — recommended for notifications</option><option value="TEXT">Free text — only inside active 24-hour window</option></Select></Field>
-    <div className="grid gap-5 sm:grid-cols-2"><Field label="Template name"><Input name="template" defaultValue={searchParams.template||cfg.defaultTemplate} placeholder="document_ready"/></Field><Field label="Language"><Input name="language" defaultValue={searchParams.language||cfg.languageCode||"fr"}/></Field></div>
+    <Field label="Mode"><Select name="mode" defaultValue={defaultMode}><option value="TEXT">Free text — use inside an active 24-hour conversation</option><option value="TEMPLATE">Approved Meta template — required for most business-initiated messages outside 24 hours</option></Select></Field>
+    <div className="grid gap-5 sm:grid-cols-2"><Field label="Approved template name"><Input name="template" defaultValue={searchParams.template||cfg.defaultTemplate} placeholder="Exact name from Meta WhatsApp Manager"/></Field><Field label="Template language"><Input name="language" defaultValue={searchParams.language||cfg.languageCode||"en_US"} placeholder="en_US, fr, es_MX..."/></Field></div>
     <Field label="Free-text message" hint="Used only when mode = Free text"><Textarea name="message" rows={7} defaultValue={prefilled} placeholder={`Bonjour ${client.firstName},\n\nVotre document JUN est maintenant disponible.`}/></Field>
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Meta requires approved templates for most business-initiated notifications outside the 24-hour customer service window. If a free-text send is rejected, use an approved template.</div>
+    {!cfg.defaultTemplate?<div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">No approved template is configured in JUN. For the current test, keep <strong>Free text</strong> selected because the client has already opened a conversation. To send notifications outside the 24-hour window, create or select an approved template in Meta WhatsApp Manager, then save its exact name and language in Settings → WhatsApp.</div>:null}
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Template names are specific to your WhatsApp Business Account. JUN no longer assumes that Meta's old <strong>hello_world</strong> template exists.</div>
    </CardContent></Card>
    <Button type="submit" variant="primary" disabled={!cfg.tokenConfigured||!cfg.phoneNumberId}>Send on WhatsApp</Button>{!cfg.tokenConfigured||!cfg.phoneNumberId?<p className="mt-2 text-sm text-amber-600">Configure Meta WhatsApp first in Settings → WhatsApp.</p>:null}
   </form>
