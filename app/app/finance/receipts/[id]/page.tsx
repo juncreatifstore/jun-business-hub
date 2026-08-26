@@ -25,6 +25,7 @@ export default async function ReceiptDetailPage({ params }: { params: { id: stri
   const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://www.juncreatif.org").replace(/\/$/, "");
   const verifyUrl = `${baseUrl}${verifyPath}`;
   const pdfUrl = `${baseUrl}/api/receipts/${payment.id}/pdf`;
+  const waMessage = `Bonjour ${payment.client.firstName},\n\nVotre reçu officiel ${meta.receiptReference} est disponible dans JUN Business Hub.\nMontant : ${formatMoney(Number(payment.amount), payment.currency)}.\n\nRéférence de vérification : ${verifyUrl}`;
 
   return <div className="max-w-5xl">
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -52,6 +53,7 @@ export default async function ReceiptDetailPage({ params }: { params: { id: stri
       <Card><CardHeader><CardTitle>Actions & proof</CardTitle></CardHeader><CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
           {meta.status === "ACTIVE" ? <a href={`/api/receipts/${payment.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="primary">Open PDF</Button></a> : null}
+          {meta.status === "ACTIVE" ? <Link href={`/app/clients/${payment.client.id}/whatsapp?mode=TEXT&message=${encodeURIComponent(waMessage)}`}><Button variant="primary">Send by WhatsApp</Button></Link> : null}
           <Link href={`/app/finance/receipts/${payment.id}/print`}><Button variant="outline">Print view</Button></Link>
           <Link href={verifyPath} target="_blank"><Button variant="outline">Verify QR</Button></Link>
           <Link href={`/app/finance/payments/${payment.id}`}><Button variant="outline">Payment ledger</Button></Link>
