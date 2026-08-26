@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
 const PREFIX="whatsapp.";
+const DEFAULT_TEST_TEMPLATE="hello_world";
+const DEFAULT_TEST_LANGUAGE="en_US";
 export type WhatsAppConfig={
  phoneNumberId:string;
  businessAccountId:string;
@@ -22,15 +24,17 @@ export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await 
  businessAccountId:s["whatsapp.business_account_id"]??"",
  displayPhone:s["whatsapp.display_phone"]??"",
  graphVersion:s["whatsapp.graph_version"]??"v23.0",
- defaultTemplate:s["whatsapp.default_template"]??"",
- languageCode:s["whatsapp.language_code"]??"fr",
+ defaultTemplate:s["whatsapp.default_template"]?.trim()||DEFAULT_TEST_TEMPLATE,
+ languageCode:s["whatsapp.language_code"]?.trim()||DEFAULT_TEST_LANGUAGE,
  tokenConfigured:Boolean(s["whatsapp.access_token_enc"]),
  webhookVerifyTokenConfigured:Boolean(s["whatsapp.webhook_verify_token_enc"]),
 };}
 
 export async function saveWhatsAppConfig(input:{phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string;webhookVerifyToken?:string}){
+ const defaultTemplate=input.defaultTemplate.trim()||DEFAULT_TEST_TEMPLATE;
+ const languageCode=input.languageCode.trim()||DEFAULT_TEST_LANGUAGE;
  await Promise.all([
-  set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",input.defaultTemplate.trim()),set("whatsapp.language_code",input.languageCode.trim()||"fr"),
+  set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",defaultTemplate),set("whatsapp.language_code",languageCode),
   input.accessToken?.trim()?set("whatsapp.access_token_enc",encryptSecret(input.accessToken.trim())):Promise.resolve(),
   input.webhookVerifyToken?.trim()?set("whatsapp.webhook_verify_token_enc",encryptSecret(input.webhookVerifyToken.trim())):Promise.resolve(),
  ]);
@@ -43,7 +47,11 @@ function normalizePhone(phone:string){const n=phone.replace(/[^0-9]/g,"");if(n.l
 async function send(payload:unknown){const c=await credentials();const r=await fetch(`https://graph.facebook.com/${c.graphVersion}/${encodeURIComponent(c.phoneNumberId)}/messages`,{method:"POST",headers:{Authorization:`Bearer ${c.token}`,"Content-Type":"application/json"},body:JSON.stringify(payload),cache:"no-store"});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(`Meta WhatsApp API ${r.status}: ${JSON.stringify(data)}`);return data as {messages?:{id:string}[]};}
 
 export async function sendWhatsAppText(to:string,body:string){if(!body.trim())throw new Error("Message is empty");return send({messaging_product:"whatsapp",recipient_type:"individual",to:normalizePhone(to),type:"text",text:{preview_url:true,body:body.trim().slice(0,4096)}});}
-export async function sendWhatsAppTemplate(to:string,templateName:string,languageCode:string,bodyParameters:string[]=[]){if(!templateName.trim())throw new Error("Template name is required");return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name:templateName.trim(),language:{code:languageCode.trim()||"fr"},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text}))}]}:{})}});}
+export async function sendWhatsAppTemplate(to:string,templateName:string,languageCode:string,bodyParameters:string[]=[]){
+ const name=templateName.trim()||DEFAULT_TEST_TEMPLATE;
+ const language=languageCode.trim()||(name===DEFAULT_TEST_TEMPLATE?DEFAULT_TEST_LANGUAGE:"fr");
+ return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name,language:{code:language},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text}))}]}:{})}});
+}
 
 export async function uploadWhatsAppMedia(data:Buffer,mimeType:string,filename:string){
  const c=await credentials();
