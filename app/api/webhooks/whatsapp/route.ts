@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWhatsAppWebhookVerifyToken } from "@/lib/whatsapp";
+import { recordIncomingWhatsAppMessage } from "@/lib/whatsapp-inbox";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -51,8 +52,6 @@ async function recordStatus(status: MetaStatus) {
   const state = String(status.status || "").trim().toLowerCase();
   if (!messageId || !state) return;
 
-  // Outbound send activities already contain Meta's wamid. Reuse that record to
-  // attach delivery callbacks to the same client/document without a schema change.
   const origin = await prisma.activity.findFirst({
     where: { message: { contains: messageId } },
     orderBy: { createdAt: "desc" },
@@ -63,7 +62,6 @@ async function recordStatus(status: MetaStatus) {
   const recipient = status.recipient_id ? ` to ${status.recipient_id}` : "";
   const reason = state === "failed" ? ` · ${failureDetails(status)}` : "";
 
-  // Meta may retry webhooks. Avoid duplicate status rows for the same wamid/state.
   const duplicate = await prisma.activity.findFirst({
     where: {
       type: `WHATSAPP_${label}`,
@@ -93,21 +91,39 @@ export async function POST(request: NextRequest) {
     for (const entry of entries) {
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
       for (const change of changes) {
-        const statuses: MetaStatus[] = Array.isArray(change?.value?.statuses) ? change.value.statuses : [];
+        const value = change?.value || {};
+        const statuses: MetaStatus[] = Array.isArray(value?.statuses) ? value.statuses : [];
         for (const status of statuses) {
           await recordStatus(status).catch((error) => {
             console.error("[WhatsApp webhook status]", error);
           });
         }
+
+        const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
+        const contactNames = new Map<string, string>();
+        for (const contact of contacts) {
+          const waId = String(contact?.wa_id || "").replace(/[^0-9]/g, "");
+          const name = String(contact?.profile?.name || "").trim();
+          if (waId && name) contactNames.set(waId, name);
+        }
+
+        const messages = Array.isArray(value?.messages) ? value.messages : [];
+        for (const message of messages) {
+          const from = String(message?.from || "").replace(/[^0-9]/g, "");
+          await recordIncomingWhatsAppMessage({
+            message,
+            contactName: contactNames.get(from),
+          }).catch((error) => {
+            console.error("[WhatsApp webhook inbound]", error);
+          });
+        }
       }
     }
 
-    // Keep a concise log for troubleshooting incoming messages and unexpected events.
-    console.info("[WhatsApp webhook]", JSON.stringify(body));
+    console.info("[WhatsApp webhook] processed", { entries: entries.length });
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error) {
     console.error("[WhatsApp webhook] invalid payload", error);
-    // Meta requires a fast 200 response to avoid unnecessary retries.
     return NextResponse.json({ received: true }, { status: 200 });
   }
 }
