@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppTemplate, sendWhatsAppText } from "@/lib/whatsapp";
+import { storage } from "@/lib/storage";
+import { getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppDocument, sendWhatsAppTemplate, sendWhatsAppText, uploadWhatsAppMedia } from "@/lib/whatsapp";
 
 export async function saveWhatsAppSettings(formData:FormData){
  const user=await assertPermission("SETTINGS_MANAGE");
@@ -30,4 +31,26 @@ export async function sendClientWhatsApp(clientId:string,formData:FormData){
   await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_SENT",message:`WhatsApp ${mode==="TEMPLATE"?"template":"message"} sent to ${to}${messageId?` · ${messageId}`:""}`}}).catch(()=>null);
   revalidatePath(`/app/clients/${clientId}`);redirect(`/app/clients/${clientId}/whatsapp?toast=${encodeURIComponent("WhatsApp sent successfully")}`);
  }catch(e){redirect(`/app/clients/${clientId}/whatsapp?toast_error=${encodeURIComponent(e instanceof Error?e.message:"WhatsApp send failed")}`);}
+}
+
+export async function sendDocumentByWhatsApp(documentId:string,formData:FormData){
+ const user=await assertPermission("DOCUMENT_READ");
+ const doc=await prisma.document.findUnique({where:{id:documentId},include:{client:true,case:true}});
+ if(!doc)redirect("/app/documents?toast_error=Document not found");
+ if(!doc.client)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("This document is not linked to a client")}`);
+ const to=String(formData.get("to")||doc.client.whatsapp||doc.client.phone||"").trim();
+ if(!to)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Client has no WhatsApp number")}`);
+ if(!doc.finalPdfKey)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Finalize the document first so JUN has an official PDF to send")}`);
+ try{
+  const pdf=await storage().download(doc.finalPdfKey);
+  const filename=`${doc.documentId}-${doc.title}`.replace(/[^a-zA-Z0-9._-]+/g,"-").slice(0,180)+".pdf";
+  const mediaId=await uploadWhatsAppMedia(pdf,"application/pdf",filename);
+  const caption=String(formData.get("caption")||`JUN CREATIF AND TRAVEL LLC — ${doc.title}`).trim();
+  const result=await sendWhatsAppDocument(to,mediaId,filename,caption);
+  const messageId=result.messages?.[0]?.id??null;
+  await audit({userId:user.id,action:"WHATSAPP_DOCUMENT_SEND",resourceType:"Document",resourceId:doc.id,after:{documentId:doc.documentId,clientId:doc.client.id,to,messageId,mediaId}});
+  await prisma.activity.create({data:{userId:user.id,clientId:doc.client.id,caseId:doc.caseId??undefined,type:"WHATSAPP_DOCUMENT_SENT",message:`Document ${doc.documentId} sent by WhatsApp to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"Document",resourceId:doc.id}}).catch(()=>null);
+  revalidatePath(`/app/documents/${documentId}`);revalidatePath(`/app/clients/${doc.client.id}`);
+  redirect(`/app/documents/${documentId}?toast=${encodeURIComponent("Document sent by WhatsApp")}`);
+ }catch(e){redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent(e instanceof Error?e.message:"WhatsApp document send failed")}`);}
 }
