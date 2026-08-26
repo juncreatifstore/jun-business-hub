@@ -13,6 +13,26 @@ export type WhatsAppWabaSubscriptionStatus = {
   error?: string;
 };
 
+type RawSubscribedApp = {
+  id?: string | number;
+  name?: string;
+  whatsapp_business_api_data?: {
+    id?: string | number;
+    name?: string;
+    link?: string;
+  };
+};
+
+function normalizeSubscribedApp(app: RawSubscribedApp): { id?: string; name?: string } {
+  const nested = app?.whatsapp_business_api_data;
+  const id = String(nested?.id ?? app?.id ?? "").trim();
+  const name = String(nested?.name ?? app?.name ?? "").trim();
+  return {
+    ...(id ? { id } : {}),
+    ...(name ? { name } : {}),
+  };
+}
+
 async function credentials() {
   const rows = await prisma.appSetting.findMany({
     where: { key: { in: ["whatsapp.app_id", "whatsapp.business_account_id", "whatsapp.access_token_enc", "whatsapp.graph_version"] } },
@@ -37,20 +57,36 @@ export async function getWhatsAppWabaSubscriptionStatus(): Promise<WhatsAppWabaS
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return { configured: true, ok: false, expectedAppId: c.appId, appMatch: c.appId ? false : null, subscribedApps: [], error: `Meta ${response.status}: ${JSON.stringify(payload)}` };
+      return { configured: true, ok: false, expectedAppId: c.appId, appMatch: null, subscribedApps: [], error: `Meta ${response.status}: ${JSON.stringify(payload)}` };
     }
-    const data = Array.isArray((payload as { data?: unknown[] }).data) ? (payload as { data: Array<{ id?: string; name?: string }> }).data : [];
-    const matchedApp = c.appId ? data.find((app) => String(app.id || "") === c.appId) : undefined;
+
+    const rawData = Array.isArray((payload as { data?: unknown[] }).data)
+      ? (payload as { data: RawSubscribedApp[] }).data
+      : [];
+    const data = rawData.map(normalizeSubscribedApp);
+    const appsWithId = data.filter((app) => Boolean(app.id));
+    const matchedApp = c.appId ? appsWithId.find((app) => app.id === c.appId) : undefined;
+
+    // Do not report a false mismatch when Meta omits application IDs from the response.
+    // A mismatch is conclusive only when at least one subscribed App ID is actually returned.
+    const appMatch = !c.appId
+      ? null
+      : matchedApp
+        ? true
+        : appsWithId.length > 0
+          ? false
+          : null;
+
     return {
       configured: true,
       ok: true,
       expectedAppId: c.appId,
-      appMatch: c.appId ? Boolean(matchedApp) : null,
+      appMatch,
       matchedApp,
       subscribedApps: data,
     };
   } catch (error) {
-    return { configured: true, ok: false, expectedAppId: c.appId, appMatch: c.appId ? false : null, subscribedApps: [], error: error instanceof Error ? error.message : "Unable to query Meta WABA subscription." };
+    return { configured: true, ok: false, expectedAppId: c.appId, appMatch: null, subscribedApps: [], error: error instanceof Error ? error.message : "Unable to query Meta WABA subscription." };
   }
 }
 
