@@ -5,7 +5,7 @@ import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
-import { getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppDocument, sendWhatsAppTemplate, sendWhatsAppText, uploadWhatsAppMedia } from "@/lib/whatsapp";
+import { getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppDocument, sendWhatsAppDocumentTemplate, sendWhatsAppTemplate, sendWhatsAppText, uploadWhatsAppMedia } from "@/lib/whatsapp";
 
 export async function saveWhatsAppSettings(formData:FormData){
  const user=await assertPermission("SETTINGS_MANAGE");
@@ -28,11 +28,14 @@ export async function sendClientWhatsApp(clientId:string,formData:FormData){
  const message=String(formData.get("message")||"").trim();
  const template=String(formData.get("template")||"").trim();
  const language=String(formData.get("language")||"fr").trim();
+ const reference=String(formData.get("reference")||client.internalId).trim();
  if(!to)redirect(`/app/clients/${clientId}/whatsapp?toast_error=${encodeURIComponent("Client has no WhatsApp number")}`);
  let errorMessage="";
  try{
   const cfg=await getWhatsAppConfig();
-  const result=mode==="TEXT"?await sendWhatsAppText(to,message):await sendWhatsAppTemplate(to,template||cfg.defaultTemplate,language||cfg.languageCode,[]);
+  const result=mode==="TEXT"
+   ?await sendWhatsAppText(to,message)
+   :await sendWhatsAppTemplate(to,template||cfg.defaultTemplate,language||cfg.languageCode,[`${client.firstName} ${client.lastName}`.trim(),message||"Une mise à jour est disponible dans votre dossier JUN.",reference]);
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_CLIENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,mode,to,messageId,template:mode==="TEMPLATE"?(template||cfg.defaultTemplate):null}});
   await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_SENT",message:`WhatsApp ${mode==="TEMPLATE"?"template":"message"} sent to ${to}${messageId?` · ${messageId}`:""}`}}).catch(()=>null);
@@ -54,13 +57,16 @@ export async function sendDocumentByWhatsApp(documentId:string,formData:FormData
  if(!doc.finalPdfKey)redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Finalize the document first so JUN has an official PDF to send")}`);
  let errorMessage="";
  try{
+  const cfg=await getWhatsAppConfig();
   const pdf=await storage().download(doc.finalPdfKey);
   const filename=`${doc.documentId}-${doc.title}`.replace(/[^a-zA-Z0-9._-]+/g,"-").slice(0,180)+".pdf";
   const mediaId=await uploadWhatsAppMedia(pdf,"application/pdf",filename);
-  const caption=String(formData.get("caption")||`JUN CREATIF AND TRAVEL LLC — ${doc.title}`).trim();
-  const result=await sendWhatsAppDocument(to,mediaId,filename,caption);
+  const clientName=`${doc.client.firstName} ${doc.client.lastName}`.trim();
+  const result=cfg.defaultTemplate
+   ?await sendWhatsAppDocumentTemplate({to,templateName:cfg.defaultTemplate,languageCode:cfg.languageCode,mediaId,filename,clientName,documentLabel:doc.title,reference:doc.documentId})
+   :await sendWhatsAppDocument(to,mediaId,filename,String(formData.get("caption")||`JUN CREATIF AND TRAVEL LLC — ${doc.title}`).trim());
   const messageId=result.messages?.[0]?.id??null;
-  await audit({userId:user.id,action:"WHATSAPP_DOCUMENT_SEND",resourceType:"Document",resourceId:doc.id,after:{documentId:doc.documentId,clientId:doc.client.id,to,messageId,mediaId}});
+  await audit({userId:user.id,action:"WHATSAPP_DOCUMENT_SEND",resourceType:"Document",resourceId:doc.id,after:{documentId:doc.documentId,clientId:doc.client.id,to,messageId,mediaId,template:cfg.defaultTemplate||null}});
   await prisma.activity.create({data:{userId:user.id,clientId:doc.client.id,caseId:doc.caseId??undefined,type:"WHATSAPP_DOCUMENT_SENT",message:`Document ${doc.documentId} sent by WhatsApp to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"Document",resourceId:doc.id}}).catch(()=>null);
   revalidatePath(`/app/documents/${documentId}`);
   revalidatePath(`/app/clients/${doc.client.id}`);
