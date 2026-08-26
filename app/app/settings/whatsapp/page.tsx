@@ -29,9 +29,10 @@ export default async function WhatsAppSettingsPage(){
     <Field label={cfg.webhookVerifyTokenConfigured?"Webhook Verify Token — already configured (leave blank to keep it)":"Webhook Verify Token"}><Input name="webhookVerifyToken" type="password" placeholder={cfg.webhookVerifyTokenConfigured?"••••••••••••":"Create a private verification token"}/></Field>
     <p className="text-xs text-muted2">In Meta Webhooks, use the Callback URL above and paste the exact same Verify Token that you enter here.</p>
    </CardContent></Card>
-   <Card><CardHeader><CardTitle>Notification defaults</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2">
-    <Field label="Default approved template"><Input name="defaultTemplate" defaultValue={cfg.defaultTemplate} placeholder="document_ready"/></Field>
-    <Field label="Template language code"><Input name="languageCode" defaultValue={cfg.languageCode||"fr"} placeholder="fr, en_US, es_MX..."/></Field>
+   <Card><CardHeader><CardTitle>Notification templates</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2">
+    <Field label="Default approved template"><Input name="defaultTemplate" defaultValue={cfg.defaultTemplate} placeholder="Exact approved template name"/></Field>
+    <Field label="Template language code"><Input name="languageCode" defaultValue={cfg.languageCode||"en_US"} placeholder="en_US, fr, es_MX..."/></Field>
+    <div className="sm:col-span-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">Enter the exact template name and language that appear as approved in your Meta WhatsApp Manager. Template availability is specific to your WhatsApp Business Account. JUN does not assume that <strong>hello_world</strong> exists.</div>
     <p className="text-xs text-muted2 sm:col-span-2">For messages initiated by JUN outside the 24-hour customer service window, use an approved Meta template. Free-text messages are intended for an active 24-hour conversation window.</p>
    </CardContent></Card>
    <div className="flex items-center gap-3"><Button type="submit" variant="primary">Save WhatsApp connection</Button><span className={`text-sm ${cfg.tokenConfigured&&cfg.phoneNumberId?"text-emerald-600":"text-amber-600"}`}>{cfg.tokenConfigured&&cfg.phoneNumberId?"Configuration saved":"Configuration incomplete"}</span></div>
