@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 
 const PREFIX="whatsapp.";
-const DEFAULT_TEST_TEMPLATE="hello_world";
-const DEFAULT_TEST_LANGUAGE="en_US";
+const LEGACY_TEST_TEMPLATE="hello_world";
 export type WhatsAppConfig={
  phoneNumberId:string;
  businessAccountId:string;
@@ -19,21 +18,20 @@ export type WhatsAppConfig={
 async function rows(){const r=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},select:{key:true,value:true}});return Object.fromEntries(r.map(x=>[x.key,x.value]));}
 async function set(key:string,value:string){await prisma.appSetting.upsert({where:{key},create:{key,value},update:{value}});}
 
-export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await rows();return{
+export async function getWhatsAppConfig():Promise<WhatsAppConfig>{const s=await rows();const storedTemplate=s["whatsapp.default_template"]?.trim()||"";return{
  phoneNumberId:s["whatsapp.phone_number_id"]??"",
  businessAccountId:s["whatsapp.business_account_id"]??"",
  displayPhone:s["whatsapp.display_phone"]??"",
  graphVersion:s["whatsapp.graph_version"]??"v23.0",
- defaultTemplate:s["whatsapp.default_template"]?.trim()||DEFAULT_TEST_TEMPLATE,
- languageCode:s["whatsapp.language_code"]?.trim()||DEFAULT_TEST_LANGUAGE,
+ defaultTemplate:storedTemplate===LEGACY_TEST_TEMPLATE?"":storedTemplate,
+ languageCode:s["whatsapp.language_code"]?.trim()||"en_US",
  tokenConfigured:Boolean(s["whatsapp.access_token_enc"]),
  webhookVerifyTokenConfigured:Boolean(s["whatsapp.webhook_verify_token_enc"]),
 };}
 
 export async function saveWhatsAppConfig(input:{phoneNumberId:string;businessAccountId:string;displayPhone:string;graphVersion:string;defaultTemplate:string;languageCode:string;accessToken?:string;webhookVerifyToken?:string}){
- const defaultTemplate=input.defaultTemplate.trim()||DEFAULT_TEST_TEMPLATE;
- const requestedLanguage=input.languageCode.trim()||DEFAULT_TEST_LANGUAGE;
- const languageCode=defaultTemplate===DEFAULT_TEST_TEMPLATE?DEFAULT_TEST_LANGUAGE:requestedLanguage;
+ const defaultTemplate=input.defaultTemplate.trim();
+ const languageCode=input.languageCode.trim()||"en_US";
  await Promise.all([
   set("whatsapp.phone_number_id",input.phoneNumberId.trim()),set("whatsapp.business_account_id",input.businessAccountId.trim()),set("whatsapp.display_phone",input.displayPhone.trim()),set("whatsapp.graph_version",input.graphVersion.trim()||"v23.0"),set("whatsapp.default_template",defaultTemplate),set("whatsapp.language_code",languageCode),
   input.accessToken?.trim()?set("whatsapp.access_token_enc",encryptSecret(input.accessToken.trim())):Promise.resolve(),
@@ -49,8 +47,9 @@ async function send(payload:unknown){const c=await credentials();const r=await f
 
 export async function sendWhatsAppText(to:string,body:string){if(!body.trim())throw new Error("Message is empty");return send({messaging_product:"whatsapp",recipient_type:"individual",to:normalizePhone(to),type:"text",text:{preview_url:true,body:body.trim().slice(0,4096)}});}
 export async function sendWhatsAppTemplate(to:string,templateName:string,languageCode:string,bodyParameters:string[]=[]){
- const name=templateName.trim()||DEFAULT_TEST_TEMPLATE;
- const language=name===DEFAULT_TEST_TEMPLATE?DEFAULT_TEST_LANGUAGE:(languageCode.trim()||"fr");
+ const name=templateName.trim();
+ if(!name)throw new Error("No approved WhatsApp template is configured. Choose Free text for an active 24-hour conversation, or enter the exact approved template name from Meta WhatsApp Manager in Settings → WhatsApp.");
+ const language=languageCode.trim()||"en_US";
  return send({messaging_product:"whatsapp",to:normalizePhone(to),type:"template",template:{name,language:{code:language},...(bodyParameters.length?{components:[{type:"body",parameters:bodyParameters.map(text=>({type:"text",text}))}]}:{})}});
 }
 
