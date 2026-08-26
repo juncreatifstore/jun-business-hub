@@ -18,7 +18,7 @@ export default async function ClientWhatsAppPage({params,searchParams}:{params:{
  const action=sendClientWhatsApp.bind(null,client.id),number=client.whatsapp||client.phone||"";
  const prefilled=String(searchParams.message||"").slice(0,4096);
  const requestedMode=searchParams.mode==="TEXT"||searchParams.mode==="TEMPLATE"?searchParams.mode:null;
- const defaultMode=requestedMode??(prefilled||!cfg.defaultTemplate?"TEXT":"TEMPLATE");
+ const defaultMode=prefilled?"TEXT":(requestedMode??(!cfg.defaultTemplate?"TEXT":"TEMPLATE"));
  return <div className="max-w-4xl">
   <PageHeader title={`WhatsApp · ${client.firstName} ${client.lastName}`} subtitle={`${client.internalId} · Send official JUN notifications through Meta WhatsApp Cloud API.`}/>
   <div className="mb-5 flex gap-3"><Link href={`/app/clients/${client.id}`} className="text-sm text-electric hover:underline">← Client 360</Link><Link href="/app/settings/whatsapp" className="text-sm text-electric hover:underline">WhatsApp settings →</Link></div>
@@ -28,8 +28,9 @@ export default async function ClientWhatsAppPage({params,searchParams}:{params:{
     <Field label="Mode"><Select name="mode" defaultValue={defaultMode}><option value="TEXT">Free text — use inside an active 24-hour conversation</option><option value="TEMPLATE">Approved Meta template — required for most business-initiated messages outside 24 hours</option></Select></Field>
     <div className="grid gap-5 sm:grid-cols-2"><Field label="Approved template name"><Input name="template" defaultValue={searchParams.template||cfg.defaultTemplate} placeholder="Exact name from Meta WhatsApp Manager"/></Field><Field label="Template language"><Input name="language" defaultValue={searchParams.language||cfg.languageCode||"en_US"} placeholder="en_US, fr, es_MX..."/></Field></div>
     <Field label="Free-text message" hint="Used only when mode = Free text"><Textarea name="message" rows={7} defaultValue={prefilled} placeholder={`Bonjour ${client.firstName},\n\nVotre document JUN est maintenant disponible.`}/></Field>
-    {!cfg.defaultTemplate?<div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">No approved template is configured in JUN. For the current test, keep <strong>Free text</strong> selected because the client has already opened a conversation. To send notifications outside the 24-hour window, create or select an approved template in Meta WhatsApp Manager, then save its exact name and language in Settings → WhatsApp.</div>:null}
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Template names are specific to your WhatsApp Business Account. JUN no longer assumes that Meta's old <strong>hello_world</strong> template exists.</div>
+    {prefilled?<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">A message is already prepared, so JUN automatically uses <strong>Free text</strong>. This works only while the client has an active 24-hour WhatsApp conversation window.</div>:null}
+    {!cfg.defaultTemplate?<div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">No approved template is configured in JUN. To send notifications outside the 24-hour window, create or select an approved template in Meta WhatsApp Manager, then save its exact name and language in Settings → WhatsApp.</div>:null}
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Template names are specific to your WhatsApp Business Account. JUN never assumes a template exists.</div>
    </CardContent></Card>
    <Button type="submit" variant="primary" disabled={!cfg.tokenConfigured||!cfg.phoneNumberId}>Send on WhatsApp</Button>{!cfg.tokenConfigured||!cfg.phoneNumberId?<p className="mt-2 text-sm text-amber-600">Configure Meta WhatsApp first in Settings → WhatsApp.</p>:null}
   </form>
