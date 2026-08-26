@@ -28,6 +28,7 @@ export default async function WhatsAppSettingsPage(){
  let localTest:{testedAt?:string;ok?:boolean;phone?:string;messageId?:string;httpStatus?:number}|null=null;
  try{heartbeat=heartbeatRow?.value?JSON.parse(heartbeatRow.value):null}catch{heartbeat=null}
  try{localTest=localTestRow?.value?JSON.parse(localTestRow.value):null}catch{localTest=null}
+ const subscribedIds=subscription.subscribedApps.map(a=>a.id).filter(Boolean) as string[];
  return <div className="max-w-6xl">
   <PageHeader title="WhatsApp Business" subtitle="Connect JUN Business Hub to the official Meta WhatsApp Cloud API."/>
   <div className="mb-5"><Link href="/app/settings" className="text-sm text-electric hover:underline">← Back to Settings</Link></div>
@@ -38,12 +39,13 @@ export default async function WhatsAppSettingsPage(){
      <div className="text-xs font-semibold uppercase tracking-wide">WABA app subscription</div>
      <div className="mt-1 text-sm font-medium">{!subscription.configured?"Configuration incomplete":subscription.ok&&subscription.subscribedApps.length?`Subscribed · ${subscription.subscribedApps.length} app${subscription.subscribedApps.length===1?"":"s"}`:subscription.ok?"No subscribed app detected":"Unable to verify"}</div>
      {subscription.error?<div className="mt-2 break-words text-xs text-red-700">{subscription.error}</div>:null}
-     {subscription.subscribedApps.length?<div className="mt-2 text-xs text-muted2">{subscription.subscribedApps.map(a=>a.name||a.id||"Meta app").join(" · ")}</div>:null}
+     {subscription.subscribedApps.length?<div className="mt-2 text-xs text-muted2">{subscription.subscribedApps.map(a=>[a.name||"Meta app",a.id?`ID ${a.id}`:""].filter(Boolean).join(" · ")).join(" | ")}</div>:null}
     </div>
     <div className={`rounded-xl border p-4 ${subscription.appMatch===true?"border-emerald-200 bg-emerald-50":subscription.appMatch===false?"border-red-200 bg-red-50":"border-amber-200 bg-amber-50"}`}>
      <div className="text-xs font-semibold uppercase tracking-wide">Meta App ID ↔ subscribed app</div>
-     <div className={`mt-1 text-sm font-semibold ${subscription.appMatch===true?"text-emerald-800":subscription.appMatch===false?"text-red-800":"text-amber-800"}`}>{subscription.appMatch===true?"MATCH":subscription.appMatch===false?"MISMATCH":"APP ID REQUIRED"}</div>
+     <div className={`mt-1 text-sm font-semibold ${subscription.appMatch===true?"text-emerald-800":subscription.appMatch===false?"text-red-800":"text-amber-800"}`}>{subscription.appMatch===true?"MATCH":subscription.appMatch===false?"MISMATCH":"UNVERIFIED"}</div>
      {subscription.expectedAppId?<div className="mt-2 text-xs text-muted2">Configured App ID: {subscription.expectedAppId}</div>:<div className="mt-2 text-xs text-amber-800">Enter the Meta App ID below, save, then reload this page.</div>}
+     {subscribedIds.length?<div className="mt-1 text-xs text-muted2">Subscribed App ID{ subscribedIds.length===1?"":"s" }: {subscribedIds.join(", ")}</div>:subscription.expectedAppId?<div className="mt-1 text-xs text-amber-800">Meta did not return a subscribed App ID, so JUN will not report a false mismatch.</div>:null}
      {subscription.matchedApp?<div className="mt-1 text-xs text-muted2">{subscription.matchedApp.name||"Meta app"}</div>:null}
     </div>
     <div className={`rounded-xl border p-4 ${phoneWabaMatch.ok&&phoneWabaMatch.match?"border-emerald-200 bg-emerald-50":phoneWabaMatch.configured?"border-red-200 bg-red-50":"border-amber-200 bg-amber-50"}`}>
@@ -67,7 +69,7 @@ export default async function WhatsAppSettingsPage(){
     <form action={subscribeWhatsAppAppToWaba}><Button type="submit" variant="outline">Subscribe Meta app to WABA</Button></form>
     <form action={testWhatsAppWebhookLocally}><Button type="submit" variant="primary">Test Webhook locally</Button></form>
    </div>
-   <p className="text-xs text-muted2">For real incoming replies, the configured Meta App ID must match one of the apps returned by the WABA subscription, the Phone Number ID must belong to the same WABA, and a real client reply must update “Last webhook received by JUN”.</p>
+   <p className="text-xs text-muted2">For real incoming replies, the Meta app, WABA, Phone Number ID and webhook subscription must all belong to the same WhatsApp configuration. A real client reply must update “Last webhook received by JUN”.</p>
   </CardContent></Card>
 
   <form action={saveWhatsAppSettings} className="space-y-5">
