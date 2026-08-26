@@ -8,10 +8,12 @@ import { getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppTemplate, sendWhatsA
 
 export async function saveWhatsAppSettings(formData:FormData){
  const user=await assertPermission("SETTINGS_MANAGE");
+ const accessToken=String(formData.get("accessToken")||"");
+ const webhookVerifyToken=String(formData.get("webhookVerifyToken")||"");
  await saveWhatsAppConfig({
-  phoneNumberId:String(formData.get("phoneNumberId")||""),businessAccountId:String(formData.get("businessAccountId")||""),displayPhone:String(formData.get("displayPhone")||""),graphVersion:String(formData.get("graphVersion")||"v23.0"),defaultTemplate:String(formData.get("defaultTemplate")||""),languageCode:String(formData.get("languageCode")||"fr"),accessToken:String(formData.get("accessToken")||"")||undefined,
+  phoneNumberId:String(formData.get("phoneNumberId")||""),businessAccountId:String(formData.get("businessAccountId")||""),displayPhone:String(formData.get("displayPhone")||""),graphVersion:String(formData.get("graphVersion")||"v23.0"),defaultTemplate:String(formData.get("defaultTemplate")||""),languageCode:String(formData.get("languageCode")||"fr"),accessToken:accessToken||undefined,webhookVerifyToken:webhookVerifyToken||undefined,
  });
- await audit({userId:user.id,action:"WHATSAPP_SETTINGS_UPDATE",resourceType:"AppSetting",resourceId:"whatsapp",after:{tokenUpdated:Boolean(String(formData.get("accessToken")||"").trim())}});
+ await audit({userId:user.id,action:"WHATSAPP_SETTINGS_UPDATE",resourceType:"AppSetting",resourceId:"whatsapp",after:{tokenUpdated:Boolean(accessToken.trim()),webhookVerifyTokenUpdated:Boolean(webhookVerifyToken.trim())}});
  revalidatePath("/app/settings/whatsapp");redirect("/app/settings/whatsapp?toast=WhatsApp settings saved");
 }
 
