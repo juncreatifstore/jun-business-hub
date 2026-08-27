@@ -39,7 +39,7 @@ export async function setOutgoingTreasuryAccount(currency:string,treasuryAccount
 
 export async function buildCompanyFinanceEntries(){
   const [payments,refunds,expenses,settings,treasury]=await Promise.all([
-    prisma.payment.findMany({where:{status:{in:["CONFIRMED","PARTIALLY_REFUNDED","REFUNDED"]}},select:{id:true,reference:true,clientId:true,caseId:true,amount:true,currency:true,paidAt:true,status:true},orderBy:{paidAt:"asc"}}),
+    prisma.payment.findMany({where:{status:{in:["CONFIRMED","PARTIALLY_REFUNDED","REFUNDED"]}},select:{id:true,reference:true,clientId:true,caseId:true,amount:true,currency:true,paidAt:true,createdAt:true,status:true},orderBy:{paidAt:"asc"}}),
     prisma.refund.findMany({where:{status:{in:["PARTIALLY_PAID","PAID"]}},select:{id:true,refundNumber:true,clientId:true,caseId:true,currency:true,installments:{where:{status:"PAID"},select:{id:true,amount:true,paidAt:true}}}}),
     listFinanceExpenses(5000),readSettings(),getTreasuryStore()
   ]);
@@ -48,9 +48,9 @@ export async function buildCompanyFinanceEntries(){
   const validTreasuryIds=new Set(treasury.accounts.map(a=>a.id));
   const entries:ConsolidatedFinanceEntry[]=[];
   for(const p of payments){
-    const meta=paymentMeta.get(p.id);const treasuryAccountId=meta?.accountId?mapping.get(meta.accountId)||null:null;
-    entries.push({id:`PAYMENT:${p.id}`,sourceType:"PAYMENT",sourceId:p.id,reference:p.reference,caseId:p.caseId,clientId:p.clientId,direction:"IN",amount:round(Number(p.amount)),currency:p.currency.toUpperCase(),occurredAt:p.paidAt.toISOString(),category:"CLIENT_PAYMENT",treasuryAccountId:treasuryAccountId&&validTreasuryIds.has(treasuryAccountId)?treasuryAccountId:null});
-    const fee=round(Number(meta?.feeAmount||0));if(fee>0)entries.push({id:`PAYMENT_FEE:${p.id}`,sourceType:"PAYMENT_FEE",sourceId:p.id,reference:p.reference,caseId:p.caseId,clientId:p.clientId,direction:"OUT",amount:fee,currency:p.currency.toUpperCase(),occurredAt:p.paidAt.toISOString(),category:"PAYMENT_FEE",treasuryAccountId:treasuryAccountId&&validTreasuryIds.has(treasuryAccountId)?treasuryAccountId:null});
+    const meta=paymentMeta.get(p.id);const treasuryAccountId=meta?.accountId?mapping.get(meta.accountId)||null:null;const occurredAt=(p.paidAt??p.createdAt).toISOString();
+    entries.push({id:`PAYMENT:${p.id}`,sourceType:"PAYMENT",sourceId:p.id,reference:p.reference,caseId:p.caseId,clientId:p.clientId,direction:"IN",amount:round(Number(p.amount)),currency:p.currency.toUpperCase(),occurredAt,category:"CLIENT_PAYMENT",treasuryAccountId:treasuryAccountId&&validTreasuryIds.has(treasuryAccountId)?treasuryAccountId:null});
+    const fee=round(Number(meta?.feeAmount||0));if(fee>0)entries.push({id:`PAYMENT_FEE:${p.id}`,sourceType:"PAYMENT_FEE",sourceId:p.id,reference:p.reference,caseId:p.caseId,clientId:p.clientId,direction:"OUT",amount:fee,currency:p.currency.toUpperCase(),occurredAt,category:"PAYMENT_FEE",treasuryAccountId:treasuryAccountId&&validTreasuryIds.has(treasuryAccountId)?treasuryAccountId:null});
   }
   for(const r of refunds)for(const i of r.installments){const c=r.currency.toUpperCase();const out=settings.outgoingAccountByCurrency[c]||null;entries.push({id:`REFUND:${i.id}`,sourceType:"REFUND",sourceId:i.id,reference:r.refundNumber,caseId:r.caseId,clientId:r.clientId,direction:"OUT",amount:round(Number(i.amount)),currency:c,occurredAt:(i.paidAt||new Date()).toISOString(),category:"REFUND",treasuryAccountId:out&&validTreasuryIds.has(out)?out:null})}
   for(const e of expenses)for(const p of e.payments){const c=e.currency.toUpperCase();const out=settings.outgoingAccountByCurrency[c]||null;entries.push({id:`EXPENSE:${p.id}`,sourceType:"EXPENSE",sourceId:p.id,reference:e.expenseNumber,caseId:e.caseId,clientId:e.clientId,direction:"OUT",amount:round(Number(p.amount)),currency:c,occurredAt:p.paidAt,category:e.category,treasuryAccountId:out&&validTreasuryIds.has(out)?out:null})}
