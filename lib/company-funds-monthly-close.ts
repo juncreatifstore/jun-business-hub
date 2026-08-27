@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getTreasuryStore } from "@/lib/company-funds";
 import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
 import { buildCompanyFinanceEntries } from "@/lib/company-funds-finance-sync";
+import { assertFinancialMonthReadyToClose } from "@/lib/company-funds-monthly-close-validation";
 
 const PREFIX="company.funds.month-close.";
 export type MonthCloseStatus="CLOSED"|"REOPENED";
@@ -41,5 +42,5 @@ async function buildSnapshot(period:string):Promise<MonthlyCloseSnapshot>{
     financeByCurrency,
   };
 }
-export async function closeFinancialMonth(period:string,userId:string,note:string){if(!validPeriod(period))throw new Error("Invalid closing period");const existing=await getMonthlyFinancialClose(period);if(existing?.status==="CLOSED")throw new Error("This month is already closed");const {end}=periodBounds(period);if(end.getTime()>Date.now())throw new Error("A future month cannot be closed");const now=new Date().toISOString();const snapshot=await buildSnapshot(period);const row:MonthlyFinancialClose={id:existing?.id||randomUUID(),period,status:"CLOSED",closedAt:now,closedById:userId,closeNote:note.trim().slice(0,2000),reopenedAt:null,reopenedById:null,reopenReason:null,snapshot};await prisma.appSetting.upsert({where:{key:key(period)},create:{key:key(period),value:JSON.stringify(row)},update:{value:JSON.stringify(row)}});return row}
+export async function closeFinancialMonth(period:string,userId:string,note:string){if(!validPeriod(period))throw new Error("Invalid closing period");const existing=await getMonthlyFinancialClose(period);if(existing?.status==="CLOSED")throw new Error("This month is already closed");const {end}=periodBounds(period);if(end.getTime()>Date.now())throw new Error("A future month cannot be closed");await assertFinancialMonthReadyToClose(period);const now=new Date().toISOString();const snapshot=await buildSnapshot(period);const row:MonthlyFinancialClose={id:existing?.id||randomUUID(),period,status:"CLOSED",closedAt:now,closedById:userId,closeNote:note.trim().slice(0,2000),reopenedAt:null,reopenedById:null,reopenReason:null,snapshot};await prisma.appSetting.upsert({where:{key:key(period)},create:{key:key(period),value:JSON.stringify(row)},update:{value:JSON.stringify(row)}});return row}
 export async function reopenFinancialMonth(period:string,userId:string,reason:string){const row=await getMonthlyFinancialClose(period);if(!row||row.status!=="CLOSED")throw new Error("This financial month is not closed");if(reason.trim().length<10)throw new Error("A detailed reopening reason is required");row.status="REOPENED";row.reopenedAt=new Date().toISOString();row.reopenedById=userId;row.reopenReason=reason.trim().slice(0,2000);await prisma.appSetting.update({where:{key:key(period)},data:{value:JSON.stringify(row)}});return row}
