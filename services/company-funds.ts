@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
+import { ensureFinancialAuthorization } from "@/lib/company-funds-approvals";
 import {
   addProjectIntegration, addTreasuryAccount, addTreasuryForecastItem, addTreasuryInvestment, addTreasuryLoan,
   addTreasuryPartner, addTreasurySource, resolveTreasuryReconciliation, setTreasuryAccountConnectionKey,
   updateTreasuryAccountBalance, updateTreasuryForecastStatus,
   type TreasuryAccountType, type TreasuryConnectionMode, type TreasuryDirection, type TreasuryForecastStatus,
-  type TreasuryInvestmentStatus, type TreasuryLoanStatus, type TreasuryPartnerType, type TreasurySourceKind,
+  type TreasuryLoanStatus, type TreasuryPartnerType, type TreasurySourceKind,
 } from "@/lib/company-funds";
 
 async function superAdmin() {
@@ -19,7 +20,7 @@ async function superAdmin() {
 }
 function text(form: FormData, key: string, max = 500) { return String(form.get(key) || "").trim().slice(0, max); }
 function money(form: FormData, key: string) { const n = Number(String(form.get(key) || "0").replace(/,/g,"")); if (!Number.isFinite(n) || n < 0) throw new Error(`${key} must be a non-negative number`); return Math.round(n*100)/100; }
-function refresh() { revalidatePath("/app/company-funds"); }
+function refresh() { revalidatePath("/app/company-funds"); revalidatePath("/app/company-funds/authorizations"); revalidatePath("/app/company-funds/executive"); }
 
 export async function createTreasuryAccountAction(form: FormData) {
   const user = await superAdmin();
@@ -62,8 +63,10 @@ export async function createTreasuryLoanAction(form:FormData){
   await audit({userId:user.id,action:"COMPANY_FUNDS_LOAN_CREATE",resourceType:"TreasuryLoan",resourceId:loan.id,after:{lender:loan.lender,principal:loan.principal,currency:loan.currency}});refresh();
 }
 export async function createTreasuryInvestmentAction(form:FormData){
-  const user=await superAdmin(); const investment=await addTreasuryInvestment({name:text(form,"name",140),country:text(form,"country",80),currency:text(form,"currency",3).toUpperCase(),amount:money(form,"amount"),investedAt:text(form,"investedAt",40),projectIntegrationId:text(form,"projectIntegrationId")||null,expectedReturnPercent:money(form,"expectedReturnPercent"),status:(text(form,"status")||"ACTIVE") as TreasuryInvestmentStatus,counterparty:text(form,"counterparty",160),note:text(form,"note",500)});
-  await audit({userId:user.id,action:"COMPANY_FUNDS_INVESTMENT_CREATE",resourceType:"TreasuryInvestment",resourceId:investment.id,after:{name:investment.name,amount:investment.amount,currency:investment.currency}});refresh();
+  const user=await superAdmin(); const amount=money(form,"amount"); const currency=text(form,"currency",3).toUpperCase();
+  const investment=await addTreasuryInvestment({name:text(form,"name",140),country:text(form,"country",80),currency,amount,investedAt:text(form,"investedAt",40),projectIntegrationId:text(form,"projectIntegrationId")||null,expectedReturnPercent:money(form,"expectedReturnPercent"),status:"PLANNED",counterparty:text(form,"counterparty",160),note:text(form,"note",500)});
+  const authorization=await ensureFinancialAuthorization({type:"INVESTMENT",resourceId:investment.id,reference:`INV-${investment.id.slice(0,8).toUpperCase()}`,description:`Investissement ${investment.name}`,amount:investment.amount,currency:investment.currency,requestedById:user.id});
+  await audit({userId:user.id,action:"COMPANY_FUNDS_INVESTMENT_CREATE",resourceType:"TreasuryInvestment",resourceId:investment.id,after:{name:investment.name,amount:investment.amount,currency:investment.currency,status:investment.status,authorizationId:authorization.id}});refresh();
 }
 export async function createTreasuryForecastItemAction(form:FormData){
   const user=await superAdmin();
