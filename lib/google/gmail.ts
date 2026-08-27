@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { getMailThreadState, saveMailThreadState } from "@/lib/mail-thread-state";
+import { isClientCommunicationBanned } from "@/lib/client-communication-policy";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
@@ -10,21 +11,14 @@ const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
-export function googleConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
-}
-
-export function googleAuthUrl(state: string): string {
-  const p = new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID??"",redirect_uri:process.env.GOOGLE_REDIRECT_URI??"",response_type:"code",scope:SCOPES,access_type:"offline",prompt:"consent",state});
-  return `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
-}
+export function googleConfigured(): boolean { return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI); }
+export function googleAuthUrl(state: string): string { const p = new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID??"",redirect_uri:process.env.GOOGLE_REDIRECT_URI??"",response_type:"code",scope:SCOPES,access_type:"offline",prompt:"consent",state}); return `https://accounts.google.com/o/oauth2/v2/auth?${p}`; }
 
 export async function exchangeCode(code: string): Promise<{ accessToken: string; refreshToken?: string; expiresIn: number; email: string; scope: string }> {
-  const res = await fetch("https://oauth2.googleapis.com/token", {method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({code,client_id:process.env.GOOGLE_CLIENT_ID??"",client_secret:process.env.GOOGLE_CLIENT_SECRET??"",redirect_uri:process.env.GOOGLE_REDIRECT_URI??"",grant_type:"authorization_code"})});
-  if (!res.ok) throw new Error(`Google token exchange failed: ${await res.text()}`);
-  const t = await res.json() as {access_token:string;refresh_token?:string;expires_in:number;scope:string};
-  const who = await fetch("https://www.googleapis.com/oauth2/v2/userinfo",{headers:{Authorization:`Bearer ${t.access_token}`}});
-  const info = await who.json() as {email?:string};if(!info.email)throw new Error("Could not read the Google account email");
+  const res=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({code,client_id:process.env.GOOGLE_CLIENT_ID??"",client_secret:process.env.GOOGLE_CLIENT_SECRET??"",redirect_uri:process.env.GOOGLE_REDIRECT_URI??"",grant_type:"authorization_code"})});
+  if(!res.ok)throw new Error(`Google token exchange failed: ${await res.text()}`);
+  const t=await res.json() as {access_token:string;refresh_token?:string;expires_in:number;scope:string};
+  const who=await fetch("https://www.googleapis.com/oauth2/v2/userinfo",{headers:{Authorization:`Bearer ${t.access_token}`}});const info=await who.json() as {email?:string};if(!info.email)throw new Error("Could not read the Google account email");
   return {accessToken:t.access_token,refreshToken:t.refresh_token,expiresIn:t.expires_in,email:info.email,scope:t.scope};
 }
 
@@ -51,47 +45,40 @@ function header(m:GmailMessage,name:string){return m.payload?.headers?.find(h=>h
 function decodeBody(m:GmailMessage){const b64=(d?:string)=>d?Buffer.from(d.replace(/-/g,"+").replace(/_/g,"/"),"base64").toString("utf8"):"";const walk=(parts:NonNullable<GmailMessage["payload"]>["parts"]):string=>{for(const p of parts??[]){if(p.mimeType==="text/plain"&&p.body?.data)return b64(p.body.data);const nested=walk(p.parts as never);if(nested)return nested;}return""};return b64(m.payload?.body?.data)||walk(m.payload?.parts);}
 
 export async function getGmailSystemLabelStats(accountId:string){
-  const {token}=await accessTokenFor(accountId);
-  const ids=["INBOX","SENT","DRAFT","TRASH","SPAM","STARRED","IMPORTANT"] as const;
+  const {token}=await accessTokenFor(accountId);const ids=["INBOX","SENT","DRAFT","TRASH","SPAM","STARRED","IMPORTANT"] as const;
   const rows=await Promise.all(ids.map(async id=>{try{return await gmail<GmailLabel>(token,`/labels/${id}`)}catch{return{id,name:id} as GmailLabel}}));
   return Object.fromEntries(rows.map(r=>[r.id,{messagesTotal:r.messagesTotal??0,messagesUnread:r.messagesUnread??0,threadsTotal:r.threadsTotal??0,threadsUnread:r.threadsUnread??0}])) as Record<string,{messagesTotal:number;messagesUnread:number;threadsTotal:number;threadsUnread:number}>;
 }
 
 const FOLDER_QUERY:Record<string,string>={INBOX:"in:inbox",SENT:"in:sent",DRAFTS:"in:drafts",IMPORTANT:"is:important"};
-async function syncStateFromLabels(threadId:string,labelIds:string[]|undefined){
-  const labels=new Set(labelIds??[]),current=await getMailThreadState(threadId);
-  const next={...current,isRead:!labels.has("UNREAD"),starred:labels.has("STARRED"),trashed:labels.has("TRASH"),archived:!labels.has("INBOX")&&!labels.has("TRASH")&&!labels.has("SPAM")&&!labels.has("SENT")&&!labels.has("DRAFT"),updatedAt:new Date().toISOString(),updatedById:null};
-  if(current.starred!==next.starred||current.trashed!==next.trashed||current.archived!==next.archived||current.isRead!==next.isRead)await saveMailThreadState(next);
-}
+async function syncStateFromLabels(threadId:string,labelIds:string[]|undefined){const labels=new Set(labelIds??[]),current=await getMailThreadState(threadId);const next={...current,isRead:!labels.has("UNREAD"),starred:labels.has("STARRED"),trashed:labels.has("TRASH"),archived:!labels.has("INBOX")&&!labels.has("TRASH")&&!labels.has("SPAM")&&!labels.has("SENT")&&!labels.has("DRAFT"),updatedAt:new Date().toISOString(),updatedById:null};if(current.starred!==next.starred||current.trashed!==next.trashed||current.archived!==next.archived||current.isRead!==next.isRead)await saveMailThreadState(next);}
 
 export async function syncFolder(accountId:string,folder:"INBOX"|"SENT"|"DRAFTS"|"IMPORTANT",max=250):Promise<number>{
-  const {token}=await accessTokenFor(accountId);let created=0,seen=0,pageToken:string|undefined;
-  const processedThreads=new Set<string>();
+  const {token}=await accessTokenFor(accountId);let created=0,seen=0,pageToken:string|undefined;const processedThreads=new Set<string>();
   while(seen<max){
-    const pageSize=Math.min(100,max-seen);
-    const path=`/messages?maxResults=${pageSize}&q=${encodeURIComponent(FOLDER_QUERY[folder])}${pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:""}`;
-    const list=await gmail<{messages?:{id:string;threadId:string}[];nextPageToken?:string}>(token,path);
-    const refs=list.messages??[];if(!refs.length)break;
+    const pageSize=Math.min(100,max-seen);const path=`/messages?maxResults=${pageSize}&q=${encodeURIComponent(FOLDER_QUERY[folder])}${pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:""}`;
+    const list=await gmail<{messages?:{id:string;threadId:string}[];nextPageToken?:string}>(token,path);const refs=list.messages??[];if(!refs.length)break;
     for(const ref of refs){
       seen++;if(processedThreads.has(ref.threadId))continue;processedThreads.add(ref.threadId);
       const m=await gmail<GmailMessage>(token,`/messages/${ref.id}?format=full`);
       const subject=header(m,"Subject")||"(no subject)",from=header(m,"From"),to=header(m,"To"),body=decodeBody(m).slice(0,20_000),snippet=m.snippet?.slice(0,500)||body.slice(0,500)||null;
       const emails=`${from} ${to}`.match(/[\w.+-]+@[\w.-]+\.\w+/g)??[];
       const client=emails.length?await prisma.client.findFirst({where:{email:{in:emails.map(e=>e.toLowerCase())}},select:{id:true}}):null;
-      const existing=await prisma.mailThread.findFirst({where:{gmailThreadId:m.threadId,mailAccountId:accountId},select:{id:true}});
-      const when=m.internalDate?new Date(Number(m.internalDate)):new Date();
+      if(folder==="INBOX"&&client&&await isClientCommunicationBanned(client.id)){
+        await gmail(token,`/threads/${m.threadId}/modify`,{method:"POST",body:JSON.stringify({addLabelIds:["TRASH"],removeLabelIds:["INBOX","UNREAD"]})}).catch(()=>null);
+        await prisma.activity.create({data:{clientId:client.id,type:"CLIENT_COMMUNICATION_BLOCKED_INBOUND",message:`Inbound email auto-trashed · ${subject}`,resourceType:"Client",resourceId:client.id}}).catch(()=>null);
+        continue;
+      }
+      const existing=await prisma.mailThread.findFirst({where:{gmailThreadId:m.threadId,mailAccountId:accountId},select:{id:true}});const when=m.internalDate?new Date(Number(m.internalDate)):new Date();
       const thread=existing?await prisma.mailThread.update({where:{id:existing.id},data:{subject,snippet,fromEmail:from.slice(0,300)||null,toEmails:emails,lastMessageAt:when,...(client?{clientId:client.id}:{}),...(folder==="IMPORTANT"?{requiresAttention:true}:{}),...(folder==="DRAFTS"?{aiDraft:body||m.snippet||""}:{})}}):await prisma.mailThread.create({data:{gmailThreadId:m.threadId,mailAccountId:accountId,clientId:client?.id??null,subject,snippet,fromEmail:from.slice(0,300)||null,toEmails:emails,lastMessageAt:when,requiresAttention:folder==="IMPORTANT",aiDraft:folder==="DRAFTS"?body||m.snippet||"":null}});
-      await syncStateFromLabels(thread.id,m.labelIds);
-      if(!existing)created++;
+      await syncStateFromLabels(thread.id,m.labelIds);if(!existing)created++;
     }
     if(!list.nextPageToken)break;pageToken=list.nextPageToken;
   }
   return created;
 }
 
-export async function syncMailboxRecent(accountId:string,maxPerFolder=250){
-  let total=0;for(const folder of ["INBOX","SENT","DRAFTS","IMPORTANT"] as const)total+=await syncFolder(accountId,folder,maxPerFolder);return total;
-}
+export async function syncMailboxRecent(accountId:string,maxPerFolder=250){let total=0;for(const folder of ["INBOX","SENT","DRAFTS","IMPORTANT"] as const)total+=await syncFolder(accountId,folder,maxPerFolder);return total;}
 
 type GmailAttachment={filename:string;mimeType:string;data:Buffer|Uint8Array};
 function safeHeaderValue(value:string){return value.replace(/[\r\n]/g," ");}function safeFilename(value:string){return value.replace(/[\r\n"\\]/g,"_").slice(0,180)||"attachment";}function base64Lines(data:Buffer|Uint8Array){return Buffer.from(data).toString("base64").replace(/(.{76})/g,"$1\r\n");}function base64Url(value:string){return Buffer.from(value).toString("base64").replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
