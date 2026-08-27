@@ -13,11 +13,13 @@ export type TreasuryPartnerType = "INDIVIDUAL" | "COMPANY";
 export type TreasuryLoanStatus = "ACTIVE" | "PAID" | "DEFAULTED" | "CANCELLED";
 export type TreasuryInvestmentStatus = "PLANNED" | "ACTIVE" | "EXITED" | "CANCELLED";
 export type TreasuryDirection = "IN" | "OUT";
+export type TreasuryReconciliationStatus = "MATCHED" | "REVIEW" | "RESOLVED";
 
 export type TreasuryAccount = {
   id: string; name: string; country: string; institution: string; type: TreasuryAccountType; currency: string;
   balance: number; connectionMode: TreasuryConnectionMode; provider: string; externalRef: string; active: boolean;
   dailyUpdateRequired: boolean; lastSyncAt: string | null; note: string; createdAt: string; updatedAt: string;
+  connectionKeyHash?: string | null; lastExternalSyncId?: string | null;
 };
 export type TreasurySource = {
   id: string; name: string; kind: TreasurySourceKind; country: string; currency: string; amount: number;
@@ -49,26 +51,38 @@ export type ProjectCashflow = {
   amount: number; currency: string; occurredAt: string; description: string; accountId: string | null;
   createdAt: string;
 };
+export type TreasuryAccountSnapshot = {
+  id: string; accountId: string; balance: number; source: "MANUAL" | "PROVIDER"; externalId: string | null;
+  capturedAt: string; createdAt: string;
+};
+export type TreasuryReconciliation = {
+  id: string; accountId: string; expectedBalance: number; reportedBalance: number; difference: number;
+  status: TreasuryReconciliationStatus; periodStart: string | null; periodEnd: string; note: string;
+  createdAt: string; resolvedAt: string | null;
+};
 export type TreasuryStore = {
   accounts: TreasuryAccount[]; sources: TreasurySource[]; partners: TreasuryPartner[]; loans: TreasuryLoan[];
   investments: TreasuryInvestment[]; integrations: ProjectIntegration[]; projectCashflows: ProjectCashflow[];
-  updatedAt: string;
+  accountSnapshots: TreasuryAccountSnapshot[]; reconciliations: TreasuryReconciliation[]; updatedAt: string;
 };
 
-const emptyStore = (): TreasuryStore => ({ accounts: [], sources: [], partners: [], loans: [], investments: [], integrations: [], projectCashflows: [], updatedAt: new Date().toISOString() });
+const emptyStore = (): TreasuryStore => ({ accounts: [], sources: [], partners: [], loans: [], investments: [], integrations: [], projectCashflows: [], accountSnapshots: [], reconciliations: [], updatedAt: new Date().toISOString() });
 function round(n: number) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 function asMoney(v: unknown) { const n = Number(v || 0); return Number.isFinite(n) ? round(n) : 0; }
 
 function normalizeStore(raw: unknown): TreasuryStore {
   const r = raw && typeof raw === "object" ? raw as Partial<TreasuryStore> : {};
+  const accounts = Array.isArray(r.accounts) ? r.accounts.map(a => ({ ...a, connectionKeyHash: a.connectionKeyHash || null, lastExternalSyncId: a.lastExternalSyncId || null })) : [];
   return {
-    accounts: Array.isArray(r.accounts) ? r.accounts : [],
+    accounts,
     sources: Array.isArray(r.sources) ? r.sources : [],
     partners: Array.isArray(r.partners) ? r.partners : [],
     loans: Array.isArray(r.loans) ? r.loans : [],
     investments: Array.isArray(r.investments) ? r.investments : [],
     integrations: Array.isArray(r.integrations) ? r.integrations : [],
     projectCashflows: Array.isArray(r.projectCashflows) ? r.projectCashflows : [],
+    accountSnapshots: Array.isArray(r.accountSnapshots) ? r.accountSnapshots : [],
+    reconciliations: Array.isArray(r.reconciliations) ? r.reconciliations : [],
     updatedAt: String(r.updatedAt || new Date().toISOString()),
   };
 }
@@ -84,14 +98,26 @@ export async function saveTreasuryStore(store: TreasuryStore) {
   return normalized;
 }
 
+function pushSnapshot(store: TreasuryStore, account: TreasuryAccount, source: "MANUAL" | "PROVIDER", externalId: string | null, capturedAt: string) {
+  const snapshot: TreasuryAccountSnapshot = { id: randomUUID(), accountId: account.id, balance: account.balance, source, externalId, capturedAt, createdAt: new Date().toISOString() };
+  store.accountSnapshots.unshift(snapshot);
+  store.accountSnapshots = store.accountSnapshots.slice(0, 10000);
+  return snapshot;
+}
+
 export async function addTreasuryAccount(input: Omit<TreasuryAccount, "id" | "createdAt" | "updatedAt" | "lastSyncAt">) {
   const store = await getTreasuryStore(); const now = new Date().toISOString();
-  const account: TreasuryAccount = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), balance: asMoney(input.balance), lastSyncAt: input.connectionMode === "MANUAL" ? now : null, createdAt: now, updatedAt: now };
-  store.accounts.unshift(account); await saveTreasuryStore(store); return account;
+  const account: TreasuryAccount = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), balance: asMoney(input.balance), connectionKeyHash: input.connectionKeyHash || null, lastExternalSyncId: null, lastSyncAt: input.connectionMode === "MANUAL" ? now : null, createdAt: now, updatedAt: now };
+  store.accounts.unshift(account); if (account.connectionMode === "MANUAL") pushSnapshot(store, account, "MANUAL", null, now); await saveTreasuryStore(store); return account;
 }
 export async function updateTreasuryAccountBalance(id: string, balance: number) {
   const store = await getTreasuryStore(); const account = store.accounts.find(a => a.id === id); if (!account) throw new Error("Treasury account not found");
-  account.balance = asMoney(balance); account.lastSyncAt = new Date().toISOString(); account.updatedAt = account.lastSyncAt; await saveTreasuryStore(store); return account;
+  account.balance = asMoney(balance); account.lastSyncAt = new Date().toISOString(); account.updatedAt = account.lastSyncAt; pushSnapshot(store, account, "MANUAL", null, account.lastSyncAt); await saveTreasuryStore(store); return account;
+}
+export async function setTreasuryAccountConnectionKey(id: string, apiKey: string) {
+  if (apiKey.trim().length < 20) throw new Error("Connection key must contain at least 20 characters");
+  const store = await getTreasuryStore(); const account = store.accounts.find(a => a.id === id); if (!account) throw new Error("Treasury account not found");
+  account.connectionMode = "CONNECTED"; account.connectionKeyHash = sha256(apiKey.trim()); account.updatedAt = new Date().toISOString(); await saveTreasuryStore(store); return account;
 }
 export async function addTreasurySource(input: Omit<TreasurySource, "id" | "createdAt">) {
   const store = await getTreasuryStore(); const source: TreasurySource = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), amount: asMoney(input.amount), createdAt: new Date().toISOString() }; store.sources.unshift(source); await saveTreasuryStore(store); return source;
@@ -120,8 +146,29 @@ export async function ingestProjectCashflow(input: { projectCode: string; apiKey
   const occurredAt = new Date(input.occurredAt); if (Number.isNaN(occurredAt.getTime())) throw new Error("Invalid occurredAt");
   const tx: ProjectCashflow = { id: randomUUID(), integrationId: integration.id, externalId: input.externalId.trim(), direction: input.direction, category: input.category.trim().slice(0,100) || "OTHER", amount, currency, occurredAt: occurredAt.toISOString(), description: input.description.trim().slice(0,500), accountId: input.accountId || null, createdAt: new Date().toISOString() };
   store.projectCashflows.unshift(tx); integration.lastSyncAt = new Date().toISOString(); integration.lastExternalId = tx.externalId; integration.updatedAt = integration.lastSyncAt;
-  if (tx.accountId) { const account = store.accounts.find(a => a.id === tx.accountId && a.currency === tx.currency); if (account) { account.balance = round(account.balance + (tx.direction === "IN" ? tx.amount : -tx.amount)); account.lastSyncAt = integration.lastSyncAt; account.updatedAt = integration.lastSyncAt; } }
+  if (tx.accountId) { const account = store.accounts.find(a => a.id === tx.accountId && a.currency === tx.currency); if (account) { account.balance = round(account.balance + (tx.direction === "IN" ? tx.amount : -tx.amount)); account.updatedAt = integration.lastSyncAt; } }
   await saveTreasuryStore(store); return { transaction: tx, duplicate: false };
+}
+
+export async function ingestTreasuryAccountSync(input: { accountId: string; apiKey: string; externalId: string; balance: number; currency: string; capturedAt?: string | null; note?: string }) {
+  const store = await getTreasuryStore(); const account = store.accounts.find(a => a.id === input.accountId && a.active); if (!account) throw new Error("Unknown treasury account");
+  if (account.connectionMode !== "CONNECTED" || !account.connectionKeyHash) throw new Error("Account API connection is not configured");
+  if (account.connectionKeyHash !== sha256(input.apiKey.trim())) throw new Error("Invalid account API key");
+  if (!input.externalId.trim()) throw new Error("externalId is required");
+  const duplicate = store.accountSnapshots.find(s => s.accountId === account.id && s.externalId === input.externalId.trim()); if (duplicate) return { snapshot: duplicate, duplicate: true, reconciliation: null };
+  const currency = input.currency.toUpperCase(); if (currency !== account.currency) throw new Error(`Currency mismatch: expected ${account.currency}`);
+  const reportedBalance = asMoney(input.balance); const expectedBalance = account.balance; const difference = round(reportedBalance - expectedBalance);
+  const captured = input.capturedAt ? new Date(input.capturedAt) : new Date(); if (Number.isNaN(captured.getTime())) throw new Error("Invalid capturedAt");
+  const previousSnapshot = store.accountSnapshots.find(s => s.accountId === account.id) || null;
+  const now = new Date().toISOString(); account.balance = reportedBalance; account.lastSyncAt = captured.toISOString(); account.lastExternalSyncId = input.externalId.trim(); account.updatedAt = now;
+  const snapshot = pushSnapshot(store, account, "PROVIDER", input.externalId.trim(), captured.toISOString());
+  const reconciliation: TreasuryReconciliation = { id: randomUUID(), accountId: account.id, expectedBalance, reportedBalance, difference, status: Math.abs(difference) < 0.01 ? "MATCHED" : "REVIEW", periodStart: previousSnapshot?.capturedAt || null, periodEnd: captured.toISOString(), note: String(input.note || "").slice(0,500), createdAt: now, resolvedAt: null };
+  store.reconciliations.unshift(reconciliation); store.reconciliations = store.reconciliations.slice(0, 5000); await saveTreasuryStore(store);
+  return { snapshot, duplicate: false, reconciliation };
+}
+export async function resolveTreasuryReconciliation(id: string, note: string) {
+  const store = await getTreasuryStore(); const row = store.reconciliations.find(r => r.id === id); if (!row) throw new Error("Reconciliation not found");
+  row.status = "RESOLVED"; row.resolvedAt = new Date().toISOString(); row.note = [row.note, note.trim()].filter(Boolean).join(" · ").slice(0,500); await saveTreasuryStore(store); return row;
 }
 
 export function treasuryByCurrency(store: TreasuryStore) {
@@ -145,4 +192,11 @@ export function projectPerformance(store: TreasuryStore) {
     const profit = round(income - expense); const margin = income > 0 ? round(profit / income * 100) : null;
     return { ...integration, income, expense, profit, margin, transactionCount: rows.length };
   });
+}
+
+export function treasuryReconciliationSummary(store: TreasuryStore) {
+  const review = store.reconciliations.filter(r => r.status === "REVIEW");
+  const matched = store.reconciliations.filter(r => r.status === "MATCHED");
+  const resolved = store.reconciliations.filter(r => r.status === "RESOLVED");
+  return { reviewCount: review.length, matchedCount: matched.length, resolvedCount: resolved.length, recent: store.reconciliations.slice(0,50) };
 }
