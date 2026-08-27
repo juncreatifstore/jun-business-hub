@@ -2,7 +2,6 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
-import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
 import { getTreasuryTransfer } from "@/lib/company-funds-transfers";
 
 const REQUEST_PREFIX="company.funds.authorization.";
@@ -35,13 +34,7 @@ export async function createFinancialAuthorization(input:{type:FinancialAuthoriz
   const a:FinancialAuthorization={id:randomUUID(),type:input.type,resourceId:input.resourceId,reference:input.reference.trim().slice(0,160),description:input.description.trim().slice(0,800),amount:round(input.amount),currency:input.currency.toUpperCase(),requestedById:input.requestedById,requiredApprovals,reason:input.reason.trim().slice(0,1000),reserveImpact:Boolean(input.reserveImpact),status:autoApproved?"APPROVED":"PENDING",decisions:[],createdAt:now,updatedAt:now,approvedAt:autoApproved?now:null,rejectedAt:null};return save(a)
 }
 
-async function finalizeApprovedResource(a:FinancialAuthorization){
-  if(a.type!=="INVESTMENT")return;
-  const store=await getTreasuryStore();const investment=store.investments.find(i=>i.id===a.resourceId);if(!investment||investment.status!=="PLANNED")return;
-  investment.status="ACTIVE";investment.updatedAt=new Date().toISOString();await saveTreasuryStore(store);
-}
-
-export async function decideFinancialAuthorization(id:string,userId:string,decision:"APPROVE"|"REJECT",note:string){const a=await getFinancialAuthorization(id);if(!a)throw new Error("Authorization not found");if(a.status!=="PENDING")throw new Error("Authorization is no longer pending");if(a.requestedById===userId)throw new Error("Requester cannot approve their own financial authorization");if(a.decisions.some(d=>d.userId===userId))throw new Error("You already decided this authorization");const now=new Date().toISOString();a.decisions.push({userId,decision,note:note.trim().slice(0,1000),decidedAt:now});if(decision==="REJECT"){a.status="REJECTED";a.rejectedAt=now}else{const approvals=a.decisions.filter(d=>d.decision==="APPROVE").length;if(approvals>=a.requiredApprovals){a.status="APPROVED";a.approvedAt=now}}a.updatedAt=now;const saved=await save(a);if(saved.status==="APPROVED")await finalizeApprovedResource(saved);return saved}
+export async function decideFinancialAuthorization(id:string,userId:string,decision:"APPROVE"|"REJECT",note:string){const a=await getFinancialAuthorization(id);if(!a)throw new Error("Authorization not found");if(a.status!=="PENDING")throw new Error("Authorization is no longer pending");if(a.requestedById===userId)throw new Error("Requester cannot approve their own financial authorization");if(a.decisions.some(d=>d.userId===userId))throw new Error("You already decided this authorization");const now=new Date().toISOString();a.decisions.push({userId,decision,note:note.trim().slice(0,1000),decidedAt:now});if(decision==="REJECT"){a.status="REJECTED";a.rejectedAt=now}else{const approvals=a.decisions.filter(d=>d.decision==="APPROVE").length;if(approvals>=a.requiredApprovals){a.status="APPROVED";a.approvedAt=now}}a.updatedAt=now;return save(a)}
 
 export async function ensureFinancialAuthorization(input:{type:FinancialAuthorizationType;resourceId:string;reference:string;description:string;amount:number;currency:string;requestedById:string;accountId?:string|null}){
   const existing=await findAuthorizationForResource(input.type,input.resourceId);if(existing)return existing;
@@ -52,7 +45,7 @@ export async function ensureFinancialAuthorization(input:{type:FinancialAuthoriz
   const reserveImpact=available!=null&&amount>available+0.005;
   let required=amount>=policy.dualApprovalThreshold?2:amount>=policy.singleApprovalThreshold?1:0;if(reserveImpact&&policy.reserveOverrideAlwaysDual)required=Math.max(required,2);
   const reason=reserveImpact?"La sortie dépasse le cash libre après réserves protégées.":required===2?"Montant supérieur au seuil de double approbation.":required===1?"Montant supérieur au seuil d’approbation.":"Opération sous les seuils d’approbation configurés.";
-  const authorization=await createFinancialAuthorization({...input,amount,currency,requiredApprovals:required,reason,reserveImpact});if(authorization.status==="APPROVED")await finalizeApprovedResource(authorization);return authorization;
+  return createFinancialAuthorization({...input,amount,currency,requiredApprovals:required,reason,reserveImpact});
 }
 
 export async function financialAuthorizationApproved(type:FinancialAuthorizationType,resourceId:string){const a=await findAuthorizationForResource(type,resourceId);return Boolean(a&&a.status==="APPROVED")}
