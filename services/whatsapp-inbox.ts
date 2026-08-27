@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { decodeWhatsAppInboxPayload, encodeWhatsAppInboxPayload, normalizeWhatsAppPhone } from "@/lib/whatsapp-inbox";
+import { getClientCommunicationBan, isClientCommunicationBanned, setClientCommunicationBan } from "@/lib/client-communication-policy";
 
 function assertStaff(role: string) {
   if (role === "CLIENT") throw new Error("Forbidden");
@@ -15,6 +16,7 @@ function priorityKey(phone: string) { return `whatsapp.inbox.priority.${phone}`;
 function assignmentKey(phone: string) { return `whatsapp.inbox.assignment.${phone}`; }
 function tagsKey(phone: string) { return `whatsapp.inbox.tags.${phone}`; }
 function notesKey(phone: string) { return `whatsapp.inbox.notes.${phone}`; }
+function caseKey(phone: string) { return `whatsapp.inbox.case.${phone}`; }
 
 function cleanPhone(phone: string) {
   const normalized = normalizeWhatsAppPhone(phone);
@@ -25,6 +27,14 @@ function cleanPhone(phone: string) {
 function refreshInbox() {
   revalidatePath("/app/whatsapp");
   revalidatePath("/app/whatsapp/inbox");
+}
+
+async function conversationClient(phone: string) {
+  return prisma.activity.findFirst({
+    where: { resourceType: "WhatsAppConversation", resourceId: phone, clientId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { clientId: true, caseId: true },
+  });
 }
 
 export async function markWhatsAppConversationRead(phone: string) {
@@ -42,18 +52,9 @@ export async function setWhatsAppConversationStatus(phone: string, status: "OPEN
   const user = await requireUser();
   assertStaff(user.role);
   const normalized = cleanPhone(phone);
-
-  await prisma.appSetting.upsert({
-    where: { key: statusKey(normalized) },
-    create: { key: statusKey(normalized), value: status },
-    update: { value: status },
-  });
-
+  await prisma.appSetting.upsert({ where: { key: statusKey(normalized) }, create: { key: statusKey(normalized), value: status }, update: { value: status } });
   if (status === "RESOLVED") {
-    await prisma.activity.updateMany({
-      where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" },
-      data: { type: "WHATSAPP_INBOUND_READ" },
-    });
+    await prisma.activity.updateMany({ where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" }, data: { type: "WHATSAPP_INBOUND_READ" } });
   }
   refreshInbox();
 }
@@ -62,11 +63,7 @@ export async function setWhatsAppConversationPriority(phone: string, priority: "
   const user = await requireUser();
   assertStaff(user.role);
   const normalized = cleanPhone(phone);
-  await prisma.appSetting.upsert({
-    where: { key: priorityKey(normalized) },
-    create: { key: priorityKey(normalized), value: priority },
-    update: { value: priority },
-  });
+  await prisma.appSetting.upsert({ where: { key: priorityKey(normalized) }, create: { key: priorityKey(normalized), value: priority }, update: { value: priority } });
   refreshInbox();
 }
 
@@ -75,11 +72,8 @@ export async function assignWhatsAppConversationToMe(phone: string) {
   assertStaff(user.role);
   const normalized = cleanPhone(phone);
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Utilisateur JUN";
-  await prisma.appSetting.upsert({
-    where: { key: assignmentKey(normalized) },
-    create: { key: assignmentKey(normalized), value: JSON.stringify({ userId: user.id, name, assignedAt: new Date().toISOString() }) },
-    update: { value: JSON.stringify({ userId: user.id, name, assignedAt: new Date().toISOString() }) },
-  });
+  const value = JSON.stringify({ userId: user.id, name, assignedAt: new Date().toISOString() });
+  await prisma.appSetting.upsert({ where: { key: assignmentKey(normalized) }, create: { key: assignmentKey(normalized), value }, update: { value } });
   refreshInbox();
 }
 
@@ -91,20 +85,54 @@ export async function unassignWhatsAppConversation(phone: string) {
   refreshInbox();
 }
 
+export async function setWhatsAppConversationCase(phone: string, formData: FormData) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const caseId = String(formData.get("caseId") || "").trim();
+  const origin = await conversationClient(normalized);
+  if (!origin?.clientId) throw new Error("Conversation is not linked to a client");
+  if (!caseId) {
+    await prisma.appSetting.deleteMany({ where: { key: caseKey(normalized) } });
+    refreshInbox();
+    return;
+  }
+  const validCase = await prisma.case.findFirst({ where: { id: caseId, clientId: origin.clientId }, select: { id: true } });
+  if (!validCase) throw new Error("Case does not belong to this client");
+  await prisma.appSetting.upsert({ where: { key: caseKey(normalized) }, create: { key: caseKey(normalized), value: caseId }, update: { value: caseId } });
+  refreshInbox();
+}
+
+export async function setWhatsAppClientCommunicationBan(phone: string, banned: boolean, formData?: FormData) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const origin = await conversationClient(normalized);
+  if (!origin?.clientId) throw new Error("This WhatsApp contact is not linked to a JUN client");
+  const reason = String(formData?.get("reason") || "").trim();
+  await setClientCommunicationBan({ clientId: origin.clientId, banned, reason, userId: user.id });
+  await prisma.activity.create({
+    data: {
+      userId: user.id,
+      clientId: origin.clientId,
+      caseId: origin.caseId ?? undefined,
+      type: banned ? "CLIENT_COMMUNICATION_BANNED" : "CLIENT_COMMUNICATION_UNBANNED",
+      message: banned ? `Global communication ban enabled${reason ? ` · ${reason}` : ""}` : "Global communication ban removed",
+      resourceType: "Client",
+      resourceId: origin.clientId,
+    },
+  }).catch(() => null);
+  refreshInbox();
+  revalidatePath(`/app/clients/${origin.clientId}`);
+}
+
 export async function updateWhatsAppConversationTags(phone: string, formData: FormData) {
   const user = await requireUser();
   assertStaff(user.role);
   const normalized = cleanPhone(phone);
-  const tags = String(formData.get("tags") || "")
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean)
-    .slice(0, 12);
-  await prisma.appSetting.upsert({
-    where: { key: tagsKey(normalized) },
-    create: { key: tagsKey(normalized), value: JSON.stringify(tags) },
-    update: { value: JSON.stringify(tags) },
-  });
+  const tags = String(formData.get("tags") || "").split(",").map((tag) => tag.trim()).filter(Boolean).slice(0, 12);
+  const value = JSON.stringify(tags);
+  await prisma.appSetting.upsert({ where: { key: tagsKey(normalized) }, create: { key: tagsKey(normalized), value }, update: { value } });
   refreshInbox();
 }
 
@@ -120,11 +148,8 @@ export async function addWhatsAppInternalNote(phone: string, formData: FormData)
   const author = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Utilisateur JUN";
   notes.unshift({ id: `${Date.now()}-${user.id}`, text: text.slice(0, 2000), author, createdAt: new Date().toISOString() });
   notes = notes.slice(0, 30);
-  await prisma.appSetting.upsert({
-    where: { key: notesKey(normalized) },
-    create: { key: notesKey(normalized), value: JSON.stringify(notes) },
-    update: { value: JSON.stringify(notes) },
-  });
+  const value = JSON.stringify(notes);
+  await prisma.appSetting.upsert({ where: { key: notesKey(normalized) }, create: { key: notesKey(normalized), value }, update: { value } });
   refreshInbox();
 }
 
@@ -135,64 +160,46 @@ export async function replyWhatsAppConversation(phone: string, formData: FormDat
   const body = String(formData.get("message") || "").trim();
   if (!body) throw new Error("Message is empty");
 
+  const origin = await conversationClient(normalized);
+  if (origin?.clientId && await isClientCommunicationBanned(origin.clientId)) {
+    const ban = await getClientCommunicationBan(origin.clientId);
+    throw new Error(`Client banni — aucun message WhatsApp ne peut être envoyé${ban.reason ? `: ${ban.reason}` : ""}`);
+  }
+
   const recent = await prisma.activity.findMany({
-    where: {
-      resourceType: "WhatsAppConversation",
-      resourceId: normalized,
-      type: "WHATSAPP_OUTBOUND_REPLY",
-      createdAt: { gte: new Date(Date.now() - 15_000) },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    select: { message: true },
+    where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_OUTBOUND_REPLY", createdAt: { gte: new Date(Date.now() - 15_000) } },
+    orderBy: { createdAt: "desc" }, take: 5, select: { message: true },
   });
   const duplicate = recent.some((row) => {
     const payload = decodeWhatsAppInboxPayload(row.message);
     return payload?.direction === "OUTBOUND" && payload.text.trim() === body;
   });
-  if (duplicate) {
-    refreshInbox();
-    return;
+  if (duplicate) { refreshInbox(); return; }
+
+  let attachedCaseId = origin?.caseId ?? undefined;
+  const caseSetting = await prisma.appSetting.findUnique({ where: { key: caseKey(normalized) }, select: { value: true } });
+  if (caseSetting?.value && origin?.clientId) {
+    const valid = await prisma.case.findFirst({ where: { id: caseSetting.value, clientId: origin.clientId }, select: { id: true } });
+    if (valid) attachedCaseId = valid.id;
   }
 
   const result = await sendWhatsAppText(normalized, body);
   const messageId = String(result.messages?.[0]?.id || `local-${Date.now()}`);
-  const origin = await prisma.activity.findFirst({
-    where: { resourceType: "WhatsAppConversation", resourceId: normalized, clientId: { not: null } },
-    orderBy: { createdAt: "desc" },
-    select: { clientId: true, caseId: true },
-  });
-
   await prisma.activity.create({
     data: {
       type: "WHATSAPP_OUTBOUND_REPLY",
-      message: encodeWhatsAppInboxPayload({
-        direction: "OUTBOUND",
-        phone: normalized,
-        messageId,
-        type: "text",
-        text: body,
-        timestamp: new Date().toISOString(),
-      }),
+      message: encodeWhatsAppInboxPayload({ direction: "OUTBOUND", phone: normalized, messageId, type: "text", text: body, timestamp: new Date().toISOString() }),
       userId: user.id,
       clientId: origin?.clientId ?? undefined,
-      caseId: origin?.caseId ?? undefined,
+      caseId: attachedCaseId,
       resourceType: "WhatsAppConversation",
       resourceId: normalized,
     },
   });
 
   await Promise.all([
-    prisma.activity.updateMany({
-      where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" },
-      data: { type: "WHATSAPP_INBOUND_READ" },
-    }),
-    prisma.appSetting.upsert({
-      where: { key: statusKey(normalized) },
-      create: { key: statusKey(normalized), value: "OPEN" },
-      update: { value: "OPEN" },
-    }),
+    prisma.activity.updateMany({ where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" }, data: { type: "WHATSAPP_INBOUND_READ" } }),
+    prisma.appSetting.upsert({ where: { key: statusKey(normalized) }, create: { key: statusKey(normalized), value: "OPEN" }, update: { value: "OPEN" } }),
   ]);
-
   refreshInbox();
 }
