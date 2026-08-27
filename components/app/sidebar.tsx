@@ -84,7 +84,11 @@ export function Sidebar({ open, onClose, role }: { open: boolean; onClose: () =>
             if (!items.length) return null;
             return <div key={i} className="mt-4 first:mt-0">
               {s.label ? <p className="px-2 pb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">{s.label}</p> : null}
-              {items.map((item) => { const active = item.href === "/app" ? pathname === "/app" : pathname === item.href || pathname.startsWith(`${item.href}/`); return <Link key={item.href} href={item.href} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}><item.icon className="h-4 w-4" />{item.label}</Link>; })}
+              {items.map((item) => {
+                const exactOnly=item.href==="/app"||item.href==="/app/company-funds";
+                const active=exactOnly?pathname===item.href:pathname===item.href||pathname.startsWith(`${item.href}/`);
+                return <Link key={item.href} href={item.href} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}><item.icon className="h-4 w-4" />{item.label}</Link>;
+              })}
             </div>;
           })}
         </nav>
