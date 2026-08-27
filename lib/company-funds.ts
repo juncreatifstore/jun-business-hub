@@ -14,6 +14,7 @@ export type TreasuryLoanStatus = "ACTIVE" | "PAID" | "DEFAULTED" | "CANCELLED";
 export type TreasuryInvestmentStatus = "PLANNED" | "ACTIVE" | "EXITED" | "CANCELLED";
 export type TreasuryDirection = "IN" | "OUT";
 export type TreasuryReconciliationStatus = "MATCHED" | "REVIEW" | "RESOLVED";
+export type TreasuryForecastStatus = "PLANNED" | "CONFIRMED" | "PAID" | "CANCELLED";
 
 export type TreasuryAccount = {
   id: string; name: string; country: string; institution: string; type: TreasuryAccountType; currency: string;
@@ -60,13 +61,19 @@ export type TreasuryReconciliation = {
   status: TreasuryReconciliationStatus; periodStart: string | null; periodEnd: string; note: string;
   createdAt: string; resolvedAt: string | null;
 };
+export type TreasuryForecastItem = {
+  id: string; label: string; direction: TreasuryDirection; amount: number; currency: string; dueDate: string;
+  category: string; projectIntegrationId: string | null; accountId: string | null; status: TreasuryForecastStatus;
+  note: string; createdAt: string; updatedAt: string;
+};
 export type TreasuryStore = {
   accounts: TreasuryAccount[]; sources: TreasurySource[]; partners: TreasuryPartner[]; loans: TreasuryLoan[];
   investments: TreasuryInvestment[]; integrations: ProjectIntegration[]; projectCashflows: ProjectCashflow[];
-  accountSnapshots: TreasuryAccountSnapshot[]; reconciliations: TreasuryReconciliation[]; updatedAt: string;
+  accountSnapshots: TreasuryAccountSnapshot[]; reconciliations: TreasuryReconciliation[];
+  forecastItems: TreasuryForecastItem[]; updatedAt: string;
 };
 
-const emptyStore = (): TreasuryStore => ({ accounts: [], sources: [], partners: [], loans: [], investments: [], integrations: [], projectCashflows: [], accountSnapshots: [], reconciliations: [], updatedAt: new Date().toISOString() });
+const emptyStore = (): TreasuryStore => ({ accounts: [], sources: [], partners: [], loans: [], investments: [], integrations: [], projectCashflows: [], accountSnapshots: [], reconciliations: [], forecastItems: [], updatedAt: new Date().toISOString() });
 function round(n: number) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 function asMoney(v: unknown) { const n = Number(v || 0); return Number.isFinite(n) ? round(n) : 0; }
 
@@ -83,6 +90,7 @@ function normalizeStore(raw: unknown): TreasuryStore {
     projectCashflows: Array.isArray(r.projectCashflows) ? r.projectCashflows : [],
     accountSnapshots: Array.isArray(r.accountSnapshots) ? r.accountSnapshots : [],
     reconciliations: Array.isArray(r.reconciliations) ? r.reconciliations : [],
+    forecastItems: Array.isArray(r.forecastItems) ? r.forecastItems : [],
     updatedAt: String(r.updatedAt || new Date().toISOString()),
   };
 }
@@ -131,6 +139,15 @@ export async function addTreasuryLoan(input: Omit<TreasuryLoan, "id" | "createdA
 export async function addTreasuryInvestment(input: Omit<TreasuryInvestment, "id" | "createdAt" | "updatedAt">) {
   const store = await getTreasuryStore(); const now = new Date().toISOString(); const investment: TreasuryInvestment = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), amount: asMoney(input.amount), expectedReturnPercent: asMoney(input.expectedReturnPercent), createdAt: now, updatedAt: now }; store.investments.unshift(investment); await saveTreasuryStore(store); return investment;
 }
+export async function addTreasuryForecastItem(input: Omit<TreasuryForecastItem, "id" | "createdAt" | "updatedAt">) {
+  const store = await getTreasuryStore(); const due = new Date(input.dueDate); if (Number.isNaN(due.getTime())) throw new Error("Invalid forecast due date");
+  const now = new Date().toISOString(); const item: TreasuryForecastItem = { ...input, id: randomUUID(), label: input.label.trim().slice(0,160), amount: asMoney(input.amount), currency: input.currency.toUpperCase(), dueDate: due.toISOString(), category: input.category.trim().slice(0,80) || "OTHER", note: input.note.trim().slice(0,500), createdAt: now, updatedAt: now };
+  if (item.amount <= 0) throw new Error("Forecast amount must be greater than zero");
+  store.forecastItems.unshift(item); store.forecastItems = store.forecastItems.slice(0,5000); await saveTreasuryStore(store); return item;
+}
+export async function updateTreasuryForecastStatus(id: string, status: TreasuryForecastStatus) {
+  const store = await getTreasuryStore(); const item = store.forecastItems.find(f => f.id === id); if (!item) throw new Error("Forecast item not found"); item.status = status; item.updatedAt = new Date().toISOString(); await saveTreasuryStore(store); return item;
+}
 export async function addProjectIntegration(input: { code: string; name: string; country: string; currency: string; caseId: string | null; apiKey: string }) {
   const store = await getTreasuryStore(); if (store.integrations.some(i => i.code.toLowerCase() === input.code.toLowerCase())) throw new Error("Project code already exists");
   const now = new Date().toISOString(); const integration: ProjectIntegration = { id: randomUUID(), code: input.code.trim(), name: input.name.trim(), country: input.country.trim(), currency: input.currency.toUpperCase(), caseId: input.caseId, apiKeyHash: sha256(input.apiKey), enabled: true, lastSyncAt: null, lastExternalId: null, createdAt: now, updatedAt: now }; store.integrations.unshift(integration); await saveTreasuryStore(store); return integration;
@@ -172,7 +189,7 @@ export async function resolveTreasuryReconciliation(id: string, note: string) {
 }
 
 export function treasuryByCurrency(store: TreasuryStore) {
-  const currencies = new Set<string>(); store.accounts.forEach(a => currencies.add(a.currency)); store.sources.forEach(s => currencies.add(s.currency)); store.loans.forEach(l => currencies.add(l.currency)); store.investments.forEach(i => currencies.add(i.currency)); store.projectCashflows.forEach(t => currencies.add(t.currency));
+  const currencies = new Set<string>(); store.accounts.forEach(a => currencies.add(a.currency)); store.sources.forEach(s => currencies.add(s.currency)); store.loans.forEach(l => currencies.add(l.currency)); store.investments.forEach(i => currencies.add(i.currency)); store.projectCashflows.forEach(t => currencies.add(t.currency)); store.forecastItems.forEach(f=>currencies.add(f.currency));
   return Array.from(currencies).sort().map(currency => {
     const cash = round(store.accounts.filter(a => a.active && a.currency === currency).reduce((s,a) => s + a.balance, 0));
     const projectIn = round(store.projectCashflows.filter(t => t.currency === currency && t.direction === "IN").reduce((s,t) => s + t.amount, 0));
@@ -199,4 +216,46 @@ export function treasuryReconciliationSummary(store: TreasuryStore) {
   const matched = store.reconciliations.filter(r => r.status === "MATCHED");
   const resolved = store.reconciliations.filter(r => r.status === "RESOLVED");
   return { reviewCount: review.length, matchedCount: matched.length, resolvedCount: resolved.length, recent: store.reconciliations.slice(0,50) };
+}
+
+export function companyWealthByCurrency(store: TreasuryStore) {
+  return treasuryByCurrency(store).map(row => {
+    const activeInvestments = round(store.investments.filter(i => i.currency === row.currency && i.status === "ACTIVE").reduce((s,i)=>s+i.amount,0));
+    const partnerCapital = round(store.partners.filter(p=>p.currency===row.currency&&p.status==="ACTIVE").reduce((s,p)=>s+p.capitalContributed,0));
+    const assets = round(row.cash + activeInvestments);
+    const liabilities = row.loanOutstanding;
+    const netWorth = round(assets - liabilities);
+    const debtToAssetsPercent = assets > 0 ? round(liabilities / assets * 100) : liabilities > 0 ? null : 0;
+    return { currency: row.currency, cash: row.cash, investments: activeInvestments, assets, liabilities, netWorth, partnerCapital, projectProfit: row.projectProfit, debtToAssetsPercent };
+  });
+}
+
+export function partnerEconomics(store: TreasuryStore) {
+  const profits = new Map<string,number>();
+  for (const row of treasuryByCurrency(store)) profits.set(row.currency,row.projectProfit);
+  return store.partners.filter(p=>p.status==="ACTIVE").map(partner=>{
+    const currencyProfit=profits.get(partner.currency)||0;
+    const theoreticalProfitShare=round(Math.max(0,currencyProfit)*partner.profitSharePercent/100);
+    return {...partner,theoreticalProfitShare,totalEconomicExposure:round(partner.capitalContributed+theoreticalProfitShare)};
+  });
+}
+
+export function cashForecastByCurrency(store: TreasuryStore, now = new Date()) {
+  const currencies = new Set(treasuryByCurrency(store).map(r=>r.currency));
+  store.forecastItems.forEach(f=>currencies.add(f.currency));
+  const horizons = [30,60,90] as const;
+  return Array.from(currencies).sort().map(currency=>{
+    const openingCash=round(store.accounts.filter(a=>a.active&&a.currency===currency).reduce((s,a)=>s+a.balance,0));
+    const rows = horizons.map(days=>{
+      const end = new Date(now.getTime()+days*24*60*60*1000);
+      const planned = store.forecastItems.filter(f=>f.currency===currency&&!["PAID","CANCELLED"].includes(f.status)&&new Date(f.dueDate)>=now&&new Date(f.dueDate)<=end);
+      const plannedIn=round(planned.filter(f=>f.direction==="IN").reduce((s,f)=>s+f.amount,0));
+      const plannedOut=round(planned.filter(f=>f.direction==="OUT").reduce((s,f)=>s+f.amount,0));
+      const loanDue=round(store.loans.filter(l=>l.currency===currency&&l.status==="ACTIVE"&&l.dueDate&&new Date(l.dueDate)>=now&&new Date(l.dueDate)<=end).reduce((s,l)=>s+l.outstandingBalance,0));
+      const futureInvestments=round(store.investments.filter(i=>i.currency===currency&&i.status==="PLANNED"&&i.investedAt&&new Date(i.investedAt)>=now&&new Date(i.investedAt)<=end).reduce((s,i)=>s+i.amount,0));
+      const projectedCash=round(openingCash+plannedIn-plannedOut-loanDue-futureInvestments);
+      return { days, plannedIn, plannedOut, loanDue, futureInvestments, projectedCash, risk: projectedCash < 0 ? "CRITICAL" as const : projectedCash < openingCash*0.2 ? "WATCH" as const : "HEALTHY" as const };
+    });
+    return {currency,openingCash,horizons:rows};
+  });
 }
