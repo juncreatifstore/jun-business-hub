@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Mail, MessageCircle, Bell, Users, FolderKanban, CheckSquare, HardDrive,
   FileText, PenTool, Lock, CreditCard, ReceiptText, Undo2, BarChart3,
-  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark, Gauge, RefreshCw, SearchCheck, ArrowRightLeft, PiggyBank, FileCheck2,
+  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark, Gauge, RefreshCw, SearchCheck, ArrowRightLeft, PiggyBank, FileCheck2, CalendarCheck2,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean };
@@ -50,6 +50,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
       { href: "/app/company-funds/reserves", label: "Réserves financières", icon: PiggyBank, superAdminOnly: true },
       { href: "/app/company-funds/authorizations", label: "Autorisations financières", icon: Lock, superAdminOnly: true },
       { href: "/app/company-funds/execution-evidence", label: "Preuves exécution", icon: FileCheck2, superAdminOnly: true },
+      { href: "/app/company-funds/monthly-close", label: "Clôture mensuelle", icon: CalendarCheck2, superAdminOnly: true },
       { href: "/app/company-funds/executive", label: "Direction financière", icon: Gauge, superAdminOnly: true },
     ],
   },
