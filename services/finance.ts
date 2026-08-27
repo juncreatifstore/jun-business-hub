@@ -8,6 +8,7 @@ import { paymentSchema, refundSchema, emptyToNull, parseDate } from "@/lib/valid
 import { nextNumber } from "@/lib/sequence";
 import { splitInstallments } from "@/lib/money";
 import { savePaymentCoreMeta } from "@/lib/finance-payment-core";
+import { assertFinancialPeriodOpen } from "@/lib/company-funds-monthly-close";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { FormState } from "@/services/clients";
@@ -27,6 +28,8 @@ export async function createPayment(_prev: FormState, formData: FormData): Promi
     if (linkedCase.clientId !== d.clientId) return { message: "Selected case belongs to a different client." };
   }
 
+  const paidAt = parseDate(d.paidAt) ?? new Date();
+  try { await assertFinancialPeriodOpen(paidAt); } catch (error) { return { message: error instanceof Error ? error.message : "Financial period is closed." }; }
   const reference = await nextNumber("PAY");
   const payment = await prisma.payment.create({
     data: {
@@ -37,7 +40,7 @@ export async function createPayment(_prev: FormState, formData: FormData): Promi
       currency: d.currency.toUpperCase(),
       method: d.method,
       providerRef: emptyToNull(d.providerRef),
-      paidAt: parseDate(d.paidAt) ?? new Date(),
+      paidAt,
       notes: emptyToNull(d.notes),
       recordedById: user.id,
     },
@@ -48,7 +51,7 @@ export async function createPayment(_prev: FormState, formData: FormData): Promi
     serviceLabel: emptyToNull(d.serviceLabel),
     providerRef: emptyToNull(d.providerRef),
   });
-  await audit({ userId: user.id, action: "PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, amount: d.amount, expectedAmount, currency: payment.currency, method: payment.method, providerRef: payment.providerRef, serviceLabel: emptyToNull(d.serviceLabel) } });
+  await audit({ userId: user.id, action: "PAYMENT_CREATE", resourceType: "Payment", resourceId: payment.id, after: { reference, amount: d.amount, expectedAmount, currency: payment.currency, method: payment.method, providerRef: payment.providerRef, serviceLabel: emptyToNull(d.serviceLabel), paidAt: payment.paidAt } });
   await logActivity({ type: "PAYMENT_CREATED", message: `Payment ${reference} recorded (${payment.currency} ${d.amount})`, userId: user.id, clientId: d.clientId, caseId: payment.caseId });
   redirect(`/app/finance/payments/${payment.id}?toast=${encodeURIComponent("Payment recorded — pending confirmation")}`);
 }
@@ -57,6 +60,7 @@ export async function confirmPayment(paymentId: string) {
   const user = await assertPermission("PAYMENT_APPROVE");
   const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { client: true } });
   if (!payment || payment.status !== "PENDING") return;
+  await assertFinancialPeriodOpen(payment.paidAt ?? payment.createdAt);
 
   const receiptRef = `RCT-${payment.reference}`;
   await prisma.$transaction([
@@ -166,8 +170,10 @@ export async function markInstallmentPaid(installmentId: string) {
   const inst = await prisma.refundInstallment.findUnique({ where: { id: installmentId }, include: { refund: { include: { installments: true } } } });
   if (!inst || inst.status === "PAID") return;
   if (!["APPROVED", "PARTIALLY_PAID"].includes(inst.refund.status)) return;
+  const paidAt = new Date();
+  await assertFinancialPeriodOpen(paidAt);
 
-  await prisma.refundInstallment.update({ where: { id: installmentId }, data: { status: "PAID", paidAt: new Date() } });
+  await prisma.refundInstallment.update({ where: { id: installmentId }, data: { status: "PAID", paidAt } });
   const remaining = inst.refund.installments.filter((i) => i.id !== installmentId && i.status !== "PAID" && i.status !== "CANCELLED").length;
   const newStatus = remaining === 0 ? "PAID" : "PARTIALLY_PAID";
   await prisma.refund.update({ where: { id: inst.refundId }, data: { status: newStatus } });
