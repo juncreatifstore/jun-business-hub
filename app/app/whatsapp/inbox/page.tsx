@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decodeWhatsAppInboxPayload, normalizeWhatsAppPhone, type WhatsAppInboxPayload } from "@/lib/whatsapp-inbox";
 import { getClientCommunicationBan } from "@/lib/client-communication-policy";
+import { getClientFinanceOverview } from "@/lib/client-finance-overview";
 import {
   addWhatsAppInternalNote, assignWhatsAppConversationToMe, markWhatsAppConversationRead,
   replyWhatsAppConversation, setWhatsAppConversationPriority, setWhatsAppConversationStatus,
@@ -85,7 +86,6 @@ export default async function WhatsAppInboxPage({ searchParams }:{ searchParams:
 
   const clientSummary=selected?.clientId ? await loadClientSummary(selected.clientId) : null;
   const ban=selected?.clientId ? await getClientCommunicationBan(selected.clientId) : {banned:false};
-  const operatorName=[user.firstName,user.lastName].filter(Boolean).join(" ")||"Utilisateur JUN";
 
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs uppercase tracking-[.18em] text-muted2">Communication · Premium workspace</p><h1 className="mt-1 flex items-center gap-2 text-3xl font-semibold"><MessageCircle className="h-7 w-7"/> WhatsApp Inbox</h1><p className="mt-1 text-sm text-muted2">Conversations, dossier, finance et activité client dans une seule vue.</p></div><div className="flex flex-wrap items-center gap-2"><Metric label="Conversations" value={allConversations.length}/><Metric label="Non lus" value={unreadTotal} emphasis={unreadTotal>0}/><Metric label="Urgentes" value={urgentCount} danger={urgentCount>0}/><Link href="/app/whatsapp" className="rounded-xl bg-electric px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm">Nouvel envoi</Link></div></div>
@@ -105,7 +105,7 @@ export default async function WhatsAppInboxPage({ searchParams }:{ searchParams:
 
         {clientSummary?<><PanelSection title="Dossier attaché" icon={<Briefcase className="h-3.5 w-3.5"/>}><form action={setWhatsAppConversationCase.bind(null,selected.phone)} className="space-y-2"><select name="caseId" defaultValue={selected.attachedCaseId||""} className="w-full rounded-lg border border-line bg-white px-2 py-2 text-xs"><option value="">— Aucun dossier —</option>{clientSummary.cases.map(c=><option key={c.id} value={c.id}>{c.caseNumber} · {c.title}</option>)}</select><Button size="sm" variant="outline" className="w-full">Attacher ce dossier</Button></form>{selected.attachedCaseId?<Link href={`/app/cases/${selected.attachedCaseId}`} className="mt-2 block text-xs font-medium text-electric hover:underline">Ouvrir le dossier attaché →</Link>:null}</PanelSection>
 
-        <PanelSection title="Finance client" icon={<DollarSign className="h-3.5 w-3.5"/>}><div className="grid grid-cols-2 gap-2"><MiniStat label="Paiements confirmés" value={formatMoney(clientSummary.confirmedPayments,clientSummary.primaryCurrency)}/><MiniStat label="En attente" value={formatMoney(clientSummary.pendingPayments,clientSummary.primaryCurrency)}/><MiniStat label="Remboursé" value={formatMoney(clientSummary.refundedPayments,clientSummary.primaryCurrency)}/><MiniStat label="Remboursements" value={String(clientSummary.refundCount)}/></div><Link href={`/app/clients/${selected.clientId}/finance`} className="mt-2 block text-xs font-medium text-electric hover:underline">Voir finance complète →</Link></PanelSection>
+        <PanelSection title="Finance client" icon={<DollarSign className="h-3.5 w-3.5"/>}><div className="grid grid-cols-2 gap-2"><MiniStat label="Montant brut reçu" value={formatMoney(clientSummary.grossReceived,clientSummary.primaryCurrency)}/><MiniStat label="Net reçu" value={formatMoney(clientSummary.netReceived,clientSummary.primaryCurrency)}/><MiniStat label="Remboursements approuvés" value={formatMoney(clientSummary.approvedRefunds,clientSummary.primaryCurrency)}/><MiniStat label="Remboursements payés" value={formatMoney(clientSummary.refundPaid,clientSummary.primaryCurrency)}/><MiniStat label="Dépenses payées" value={formatMoney(clientSummary.expensePaid,clientSummary.primaryCurrency)}/><MiniStat label="Profit réalisé" value={formatMoney(clientSummary.realizedProfit,clientSummary.primaryCurrency)}/></div><Link href={`/app/clients/${selected.clientId}/finance`} className="mt-2 block text-xs font-medium text-electric hover:underline">Voir finance complète →</Link></PanelSection>
 
         <PanelSection title="Activité récente" icon={<Activity className="h-3.5 w-3.5"/>}><div className="space-y-2">{clientSummary.activities.length?clientSummary.activities.map(a=><div key={a.id} className="rounded-lg bg-surface p-2 text-xs"><div className="font-medium text-ink">{a.type.replaceAll("_"," ")}</div><div className="mt-0.5 line-clamp-2 text-muted2">{a.message}</div><div className="mt-1 text-[10px] text-muted2">{formatWhen(a.createdAt)}</div></div>):<div className="text-xs text-muted2">Aucune activité récente.</div>}</div><Link href={`/app/clients/${selected.clientId}/history`} className="mt-2 block text-xs font-medium text-electric hover:underline">Historique complet →</Link></PanelSection>
 
@@ -128,17 +128,23 @@ export default async function WhatsAppInboxPage({ searchParams }:{ searchParams:
 }
 
 async function loadClientSummary(clientId:string){
-  const [cases,payments,refunds,activities,documentCount]=await Promise.all([
+  const [cases,activities,documentCount,finance]=await Promise.all([
     prisma.case.findMany({where:{clientId},orderBy:{updatedAt:"desc"},take:12,select:{id:true,caseNumber:true,title:true,status:true}}),
-    prisma.payment.findMany({where:{clientId},select:{amount:true,currency:true,status:true}}),
-    prisma.refund.findMany({where:{clientId},select:{id:true,status:true}}),
     prisma.activity.findMany({where:{clientId},orderBy:{createdAt:"desc"},take:6,select:{id:true,type:true,message:true,createdAt:true}}),
     prisma.document.count({where:{clientId}}),
+    getClientFinanceOverview(clientId),
   ]);
-  const primaryCurrency=payments[0]?.currency||"USD";
-  const same=payments.filter(p=>p.currency===primaryCurrency);
-  const sum=(status:string[])=>same.filter(p=>status.includes(p.status)).reduce((n,p)=>n+Number(p.amount),0);
-  return {cases,activities,documentCount,paymentCount:payments.length,refundCount:refunds.length,primaryCurrency,confirmedPayments:sum(["CONFIRMED"]),pendingPayments:sum(["PENDING"]),refundedPayments:sum(["REFUNDED","PARTIALLY_REFUNDED"])};
+  const preferred=finance.summaries.find(s=>s.currency==="USD")||finance.summaries[0];
+  const primaryCurrency=preferred?.currency||"USD";
+  return {
+    cases,activities,documentCount,paymentCount:finance.payments.length,refundCount:finance.refunds.length,primaryCurrency,
+    grossReceived:preferred?.grossReceived||0,
+    netReceived:preferred?.netReceived||0,
+    approvedRefunds:preferred?.approvedRefunds||0,
+    refundPaid:preferred?.refundPaid||0,
+    expensePaid:preferred?.expensePaid||0,
+    realizedProfit:preferred?.realizedProfit||0,
+  };
 }
 
 function rowPhone(row:Row){if(row.resourceType==="WhatsAppConversation")return normalizeWhatsAppPhone(String(row.resourceId||""));return normalizeWhatsAppPhone(row.client?.whatsapp||row.client?.phone||"");}
