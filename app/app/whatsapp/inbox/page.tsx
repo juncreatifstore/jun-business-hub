@@ -11,8 +11,12 @@ import {
   ExternalLink,
   Clock3,
   Inbox,
-  CircleDot,
   MoreHorizontal,
+  Tag,
+  UserCog,
+  StickyNote,
+  CreditCard,
+  FileText,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -113,6 +117,7 @@ export default async function WhatsAppInboxPage({
   const unreadTotal = rows.filter((r) => r.type === "WHATSAPP_INBOUND_UNREAD").length;
   const unreadConversations = allConversations.filter((c) => c.unread > 0).length;
   const linkedConversations = allConversations.filter((c) => c.clientId).length;
+  const operatorName = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Utilisateur JUN";
 
   return (
     <div className="space-y-4">
@@ -146,7 +151,7 @@ export default async function WhatsAppInboxPage({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid min-h-[720px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm xl:grid-cols-[340px_minmax(0,1fr)_300px]">
+        <div className="grid min-h-[720px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm xl:grid-cols-[330px_minmax(0,1fr)_320px]">
           <aside className="border-b border-line bg-white xl:border-b-0 xl:border-r">
             <div className="border-b border-line p-4">
               <form method="get" className="space-y-3">
@@ -226,10 +231,10 @@ export default async function WhatsAppInboxPage({
             </div>
           </aside>
 
-          <section className="flex min-w-0 flex-col bg-[#f7f8fa]">
+          <section className="flex min-w-0 flex-col bg-[#f6f7f9]">
             {selected ? (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3.5">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-electric text-sm font-semibold text-white">{initials(selected.name)}</div>
                     <div className="min-w-0">
@@ -258,14 +263,14 @@ export default async function WhatsAppInboxPage({
                     <form action={setWhatsAppConversationStatus.bind(null, selected.phone, selected.status === "RESOLVED" ? "OPEN" : "RESOLVED")}>
                       <Button variant="outline" size="sm">{selected.status === "RESOLVED" ? "Rouvrir" : "Résoudre"}</Button>
                     </form>
-                    <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-muted2 hover:bg-surface" aria-label="Plus d’options">
+                    <button type="button" className="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-white text-muted2 hover:bg-surface" aria-label="Plus d’options">
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-4 py-5 md:px-7">
-                  <div className="mx-auto max-w-3xl space-y-2.5">
+                <div className="flex-1 overflow-y-auto px-4 py-3 md:px-6">
+                  <div className="mx-auto max-w-4xl space-y-1.5">
                     {messages.map(({ row, payload }, index) => {
                       if (!payload) return null;
                       const previous = index > 0 ? messages[index - 1]?.payload : null;
@@ -274,20 +279,20 @@ export default async function WhatsAppInboxPage({
                       return (
                         <div key={row.id}>
                           {showDate ? (
-                            <div className="my-5 flex items-center gap-3 text-[10px] font-medium uppercase tracking-wide text-muted2">
+                            <div className="my-3 flex items-center gap-3 text-[10px] font-medium uppercase tracking-wide text-muted2">
                               <div className="h-px flex-1 bg-line" />
                               <span>{formatDay(new Date(payload.timestamp))}</span>
                               <div className="h-px flex-1 bg-line" />
                             </div>
                           ) : null}
                           <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
-                            <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm shadow-sm md:max-w-[68%] ${outbound ? "rounded-br-md bg-[#162033] text-white" : "rounded-bl-md border border-line bg-white text-ink"}`}>
+                            <div className={`min-w-[138px] max-w-[90%] rounded-2xl px-4 py-2.5 text-sm shadow-sm md:max-w-[74%] ${outbound ? "rounded-br-md bg-[#162033] text-white" : "rounded-bl-md border border-line bg-white text-ink"}`}>
                               {payload.type !== "text" ? (
                                 <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70"><Paperclip className="h-3 w-3" />{payload.type.replaceAll("_", " ")}</div>
                               ) : null}
                               <div className="whitespace-pre-wrap break-words leading-relaxed">{payload.text}</div>
                               {payload.filename ? <div className="mt-2 rounded-lg bg-black/5 px-2 py-1 text-xs opacity-80">{payload.filename}</div> : null}
-                              <div className="mt-1.5 flex items-center justify-end gap-1 text-[10px] opacity-60">
+                              <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-60">
                                 {formatTime(new Date(payload.timestamp))}
                                 {outbound ? <CheckCheck className="h-3.5 w-3.5" /> : null}
                                 {outbound && row.user ? <span>· {row.user.firstName}</span> : null}
@@ -300,20 +305,26 @@ export default async function WhatsAppInboxPage({
                   </div>
                 </div>
 
-                <form action={replyWhatsAppConversation.bind(null, selected.phone)} className="sticky bottom-0 z-10 border-t border-line bg-white/95 p-4 backdrop-blur">
-                  <div className="mx-auto max-w-3xl rounded-2xl border border-line bg-white shadow-sm focus-within:border-electric">
+                <form action={replyWhatsAppConversation.bind(null, selected.phone)} className="sticky bottom-0 z-10 border-t border-line bg-white/95 px-4 py-3 backdrop-blur">
+                  <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-white shadow-sm focus-within:border-electric">
                     <Textarea
                       name="message"
-                      rows={3}
+                      rows={2}
                       required
                       maxLength={4096}
                       placeholder="Écrire une réponse au client…"
-                      className="min-h-[82px] resize-none border-0 shadow-none focus:ring-0"
+                      className="min-h-[58px] resize-none border-0 shadow-none focus:ring-0"
                     />
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-3 py-2">
-                      <div className="flex items-center gap-2 text-[11px] text-muted2">
-                        <Clock3 className="h-3.5 w-3.5" />
-                        <span>{serviceWindowLabel(selected.lastInboundAt)}</span>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Link href="/app/whatsapp" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink">
+                          <FileText className="h-3.5 w-3.5" /> Modèles
+                        </Link>
+                        <span className="hidden h-4 w-px bg-line sm:block" />
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted2">
+                          <Clock3 className="h-3.5 w-3.5" />
+                          <span className="truncate">{serviceWindowLabel(selected.lastInboundAt)}</span>
+                        </div>
                       </div>
                       <Button variant="primary" type="submit"><Send className="h-4 w-4" /> Envoyer</Button>
                     </div>
@@ -327,16 +338,16 @@ export default async function WhatsAppInboxPage({
 
           <aside className="hidden border-l border-line bg-white xl:block">
             {selected ? (
-              <div className="p-5">
+              <div className="max-h-[720px] overflow-y-auto p-5">
                 <div className="text-xs font-semibold uppercase tracking-[.14em] text-muted2">Client</div>
-                <div className="mt-5 text-center">
+                <div className="mt-4 text-center">
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-electric/10 text-lg font-semibold text-electric">{initials(selected.name)}</div>
                   <div className="mt-3 font-semibold">{selected.name}</div>
                   <div className="mt-1 text-xs text-muted2">+{selected.phone}</div>
                   <div className="mt-2 flex justify-center"><ConversationStatusBadge status={selected.status} /></div>
                 </div>
 
-                <div className="mt-6 space-y-3 border-t border-line pt-5">
+                <div className="mt-5 space-y-3 border-t border-line pt-4">
                   <InfoRow label="Client ID" value={selected.internalId || "Non lié"} />
                   <InfoRow label="Dossier" value={selected.caseNumber || "Aucun dossier"} />
                   <InfoRow label="Dernier message" value={formatWhen(selected.lastAt)} />
@@ -344,24 +355,47 @@ export default async function WhatsAppInboxPage({
                   <InfoRow label="Fenêtre Meta" value={serviceWindowLabel(selected.lastInboundAt)} />
                 </div>
 
-                <div className="mt-6 space-y-2 border-t border-line pt-5">
-                  {selected.clientId ? (
-                    <Link href={`/app/clients/${selected.clientId}`} className="flex items-center justify-between rounded-xl border border-line px-3 py-3 text-sm font-medium hover:bg-surface">
-                      <span className="flex items-center gap-2"><UserRound className="h-4 w-4" /> Client 360</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
-                    </Link>
-                  ) : (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Ce numéro n’est pas encore lié à un client JUN.</div>
-                  )}
-                  {selected.caseId ? (
-                    <Link href={`/app/cases/${selected.caseId}`} className="flex items-center justify-between rounded-xl border border-line px-3 py-3 text-sm font-medium hover:bg-surface">
-                      <span className="flex items-center gap-2"><Briefcase className="h-4 w-4" /> Ouvrir le dossier</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
-                    </Link>
-                  ) : null}
+                <div className="mt-5 border-t border-line pt-4">
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted2"><Tag className="h-3.5 w-3.5" /> Tags</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {selected.clientId ? <ContextTag label="Client" /> : <ContextTag label="Contact non lié" tone="amber" />}
+                    {selected.caseId ? <ContextTag label="Dossier actif" tone="blue" /> : null}
+                    <ContextTag label={selected.status === "RESOLVED" ? "Résolu" : selected.status === "WAITING" ? "En attente" : "Ouvert"} tone={selected.status === "WAITING" ? "amber" : selected.status === "RESOLVED" ? "slate" : "green"} />
+                  </div>
                 </div>
 
-                <div className="mt-6 rounded-xl bg-surface p-3 text-xs text-muted2">
-                  <div className="font-medium text-ink">Conseil opérateur</div>
-                  <p className="mt-1 leading-relaxed">Gardez les réponses courtes, confirmez les informations sensibles et ouvrez Client 360 avant toute action importante.</p>
+                <div className="mt-5 border-t border-line pt-4">
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-muted2"><UserCog className="h-3.5 w-3.5" /> Opérateur connecté</div>
+                  <div className="mt-2 rounded-xl bg-surface px-3 py-2.5 text-sm font-medium text-ink">{operatorName}</div>
+                </div>
+
+                <div className="mt-5 border-t border-line pt-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted2">Actions rapides</div>
+                  <div className="mt-2 grid gap-2">
+                    {selected.clientId ? (
+                      <Link href={`/app/clients/${selected.clientId}`} className="flex items-center justify-between rounded-xl border border-line px-3 py-2.5 text-sm font-medium hover:bg-surface">
+                        <span className="flex items-center gap-2"><UserRound className="h-4 w-4" /> Client 360</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
+                      </Link>
+                    ) : (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Ce numéro n’est pas encore lié à un client JUN.</div>
+                    )}
+                    {selected.caseId ? (
+                      <Link href={`/app/cases/${selected.caseId}`} className="flex items-center justify-between rounded-xl border border-line px-3 py-2.5 text-sm font-medium hover:bg-surface">
+                        <span className="flex items-center gap-2"><Briefcase className="h-4 w-4" /> Ouvrir le dossier</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
+                      </Link>
+                    ) : null}
+                    <Link href="/app/payments" className="flex items-center justify-between rounded-xl border border-line px-3 py-2.5 text-sm font-medium hover:bg-surface">
+                      <span className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Paiements</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
+                    </Link>
+                    <Link href="/app/whatsapp" className="flex items-center justify-between rounded-xl border border-line px-3 py-2.5 text-sm font-medium hover:bg-surface">
+                      <span className="flex items-center gap-2"><FileText className="h-4 w-4" /> Modèles WhatsApp</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-xl border border-line bg-surface/70 p-3 text-xs text-muted2">
+                  <div className="flex items-center gap-2 font-medium text-ink"><StickyNote className="h-4 w-4" /> Notes internes</div>
+                  <p className="mt-1.5 leading-relaxed">Utilisez Client 360 pour consulter ou compléter le contexte client avant une action sensible.</p>
                 </div>
               </div>
             ) : null}
@@ -489,6 +523,11 @@ function ConversationStatusBadge({ status, compact = false }: { status: Conversa
       : "bg-emerald-50 text-emerald-700";
   const label = status === "RESOLVED" ? "Résolu" : status === "WAITING" ? "En attente" : "Ouvert";
   return <span className={`inline-flex items-center rounded-full font-semibold ${styles} ${compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"}`}>{label}</span>;
+}
+
+function ContextTag({ label, tone = "green" }: { label: string; tone?: "green" | "amber" | "blue" | "slate" }) {
+  const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "blue" ? "bg-blue-50 text-blue-700" : tone === "slate" ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-700";
+  return <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${style}`}>{label}</span>;
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
