@@ -6,7 +6,8 @@ import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import {
   addProjectIntegration, addTreasuryAccount, addTreasuryInvestment, addTreasuryLoan,
-  addTreasuryPartner, addTreasurySource, updateTreasuryAccountBalance,
+  addTreasuryPartner, addTreasurySource, resolveTreasuryReconciliation, setTreasuryAccountConnectionKey,
+  updateTreasuryAccountBalance,
   type TreasuryAccountType, type TreasuryConnectionMode, type TreasuryInvestmentStatus,
   type TreasuryLoanStatus, type TreasuryPartnerType, type TreasurySourceKind,
 } from "@/lib/company-funds";
@@ -22,17 +23,31 @@ function refresh() { revalidatePath("/app/company-funds"); }
 
 export async function createTreasuryAccountAction(form: FormData) {
   const user = await superAdmin();
+  const connectionMode = text(form,"connectionMode") as TreasuryConnectionMode;
+  const connectionKey = text(form,"connectionKey",256);
+  if (connectionMode === "CONNECTED" && connectionKey.length > 0 && connectionKey.length < 20) throw new Error("Connection key must contain at least 20 characters");
   const account = await addTreasuryAccount({
     name: text(form,"name",120), country: text(form,"country",80), institution: text(form,"institution",120),
     type: text(form,"type") as TreasuryAccountType, currency: text(form,"currency",3).toUpperCase(), balance: money(form,"balance"),
-    connectionMode: text(form,"connectionMode") as TreasuryConnectionMode, provider: text(form,"provider",100), externalRef: text(form,"externalRef",120),
+    connectionMode, provider: text(form,"provider",100), externalRef: text(form,"externalRef",120),
     active: true, dailyUpdateRequired: form.get("dailyUpdateRequired") === "on", note: text(form,"note",500),
+    connectionKeyHash: null, lastExternalSyncId: null,
   });
-  await audit({userId:user.id,action:"COMPANY_FUNDS_ACCOUNT_CREATE",resourceType:"TreasuryAccount",resourceId:account.id,after:{name:account.name,country:account.country,currency:account.currency}}); refresh();
+  if (connectionMode === "CONNECTED" && connectionKey.length >= 20) await setTreasuryAccountConnectionKey(account.id, connectionKey);
+  await audit({userId:user.id,action:"COMPANY_FUNDS_ACCOUNT_CREATE",resourceType:"TreasuryAccount",resourceId:account.id,after:{name:account.name,country:account.country,currency:account.currency,connectionMode}}); refresh();
 }
 export async function updateTreasuryAccountBalanceAction(id:string, form:FormData) {
   const user=await superAdmin(); const account=await updateTreasuryAccountBalance(id,money(form,"balance"));
   await audit({userId:user.id,action:"COMPANY_FUNDS_ACCOUNT_BALANCE",resourceType:"TreasuryAccount",resourceId:id,after:{balance:account.balance,currency:account.currency}}); refresh();
+}
+export async function configureTreasuryAccountConnectionAction(id:string, form:FormData) {
+  const user=await superAdmin(); const apiKey=text(form,"connectionKey",256); if(apiKey.length<20) throw new Error("Connection key must contain at least 20 characters");
+  const account=await setTreasuryAccountConnectionKey(id,apiKey);
+  await audit({userId:user.id,action:"COMPANY_FUNDS_ACCOUNT_CONNECT",resourceType:"TreasuryAccount",resourceId:id,after:{provider:account.provider,externalRef:account.externalRef}}); refresh();
+}
+export async function resolveTreasuryReconciliationAction(id:string, form:FormData) {
+  const user=await superAdmin(); const row=await resolveTreasuryReconciliation(id,text(form,"note",500));
+  await audit({userId:user.id,action:"COMPANY_FUNDS_RECONCILIATION_RESOLVE",resourceType:"TreasuryReconciliation",resourceId:id,after:{difference:row.difference,status:row.status}}); refresh();
 }
 export async function createTreasurySourceAction(form:FormData){
   const user=await superAdmin(); const source=await addTreasurySource({name:text(form,"name",120),kind:text(form,"kind") as TreasurySourceKind,country:text(form,"country",80),currency:text(form,"currency",3).toUpperCase(),amount:money(form,"amount"),receivedAt:text(form,"receivedAt",40)||new Date().toISOString(),accountId:text(form,"accountId")||null,partnerId:text(form,"partnerId")||null,note:text(form,"note",500)});
