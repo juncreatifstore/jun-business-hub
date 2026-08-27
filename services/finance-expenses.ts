@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientBlock } from "@/lib/client-transaction-block";
 import { ensureFinancialAuthorization } from "@/lib/company-funds-approvals";
 import { createFinancialExecutionEvidence } from "@/lib/company-funds-execution-evidence";
+import { assertFinancialPeriodOpen } from "@/lib/company-funds-monthly-close";
 import { ensureUniversalFinancialReceipt } from "@/lib/finance-universal-receipts";
 import { EXPENSE_CATEGORIES, canExpenseTransition, expensePaidTotal, expenseRemaining, getFinanceExpense, makeExpenseNumber, saveFinanceExpense, type ExpenseCategory, type ExpenseStatus, type FinanceExpense } from "@/lib/finance-expenses";
 
@@ -52,9 +53,9 @@ export async function recordExpensePayment(id:string,formData:FormData){
     revalidatePath("/app/company-funds/authorizations");
     throw new Error(`Autorisation financière requise avant paiement (${authorization.reference}).`);
   }
-  const paidAt=new Date().toISOString();
-  await createFinancialExecutionEvidence({authorizationId:authorization.id,transactionReference:transactionRef,proofFileId,note:`${method} · ${text(formData.get("note"),1000)}`,executedById:user.id,executedAt:paidAt});
-  const payment={id:randomUUID(),amount,paidAt,method,transactionRef,proofFileId,note:text(formData.get("note"),2000),recordedById:user.id}; const payments=[...e.payments,payment]; const total=Math.round(payments.reduce((s,p)=>s+p.amount,0)*100)/100; const status:ExpenseStatus=total>=e.amount?"PAID":"PARTIALLY_PAID";
+  const paidAt=new Date();await assertFinancialPeriodOpen(paidAt);const paidAtIso=paidAt.toISOString();
+  await createFinancialExecutionEvidence({authorizationId:authorization.id,transactionReference:transactionRef,proofFileId,note:`${method} · ${text(formData.get("note"),1000)}`,executedById:user.id,executedAt:paidAtIso});
+  const payment={id:randomUUID(),amount,paidAt:paidAtIso,method,transactionRef,proofFileId,note:text(formData.get("note"),2000),recordedById:user.id}; const payments=[...e.payments,payment]; const total=Math.round(payments.reduce((s,p)=>s+p.amount,0)*100)/100; const status:ExpenseStatus=total>=e.amount?"PAID":"PARTIALLY_PAID";
   const next:FinanceExpense={...e,payments,status,updatedAt:new Date().toISOString()}; await saveFinanceExpense(next);
   await ensureUniversalFinancialReceipt({sourceType:"EXPENSE",sourceId:payment.id,clientId:e.clientId,amount,currency:e.currency,direction:"DEBIT",title:"Expense payment receipt",description:`${e.expenseNumber} · ${e.vendorName} · ${e.description}`,status:"PAID",method,transactionReference:transactionRef,issuedById:user.id});
   await audit({userId:user.id,action:"EXPENSE_PAYMENT_RECORDED",resourceType:"Expense",resourceId:id,after:{paymentId:payment.id,amount,currency:e.currency,method,transactionRef,proofFileId,status,authorizationId:authorization.id}}); await logActivity({userId:user.id,type:"FINANCE_EXPENSE_PAID",message:`Recorded ${e.currency} ${amount.toFixed(2)} on ${e.expenseNumber}`,clientId:e.clientId||undefined,caseId:e.caseId||undefined}); revalidatePath(`/app/finance/expenses/${id}`); revalidatePath("/app/finance/expenses"); revalidatePath("/app/finance"); revalidatePath("/app/company-funds/authorizations"); revalidatePath("/app/company-funds/execution-evidence");
