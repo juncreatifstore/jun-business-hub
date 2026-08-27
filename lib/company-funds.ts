@@ -259,3 +259,74 @@ export function cashForecastByCurrency(store: TreasuryStore, now = new Date()) {
     return {currency,openingCash,horizons:rows};
   });
 }
+
+export function monthlyTreasuryDashboard(store: TreasuryStore, now = new Date(), months = 12) {
+  const integrations = new Map(store.integrations.map(i=>[i.id,i]));
+  const currencies = new Set(treasuryByCurrency(store).map(r=>r.currency));
+  return Array.from(currencies).sort().map(currency=>{
+    const rows = Array.from({length:months},(_,offset)=>{
+      const d = new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-offset,1));
+      const next = new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1));
+      const cashflows=store.projectCashflows.filter(t=>t.currency===currency&&new Date(t.occurredAt)>=d&&new Date(t.occurredAt)<next);
+      const income=round(cashflows.filter(t=>t.direction==="IN").reduce((s,t)=>s+t.amount,0));
+      const expense=round(cashflows.filter(t=>t.direction==="OUT").reduce((s,t)=>s+t.amount,0));
+      const profit=round(income-expense);
+      const activeProjects=new Set(cashflows.map(t=>integrations.get(t.integrationId)?.id).filter((v):v is string=>Boolean(v))).size;
+      return {month:d.toISOString().slice(0,7),income,expense,profit,activeProjects,margin:income>0?round(profit/income*100):null};
+    }).reverse();
+    return {currency,months:rows};
+  });
+}
+
+export function cashBurnAndRunway(store: TreasuryStore, now = new Date()) {
+  const since = new Date(now.getTime()-90*24*60*60*1000);
+  return treasuryByCurrency(store).map(row=>{
+    const out90=round(store.projectCashflows.filter(t=>t.currency===row.currency&&t.direction==="OUT"&&new Date(t.occurredAt)>=since&&new Date(t.occurredAt)<=now).reduce((s,t)=>s+t.amount,0));
+    const monthlyBurn=round(out90/3);
+    const runwayMonths=monthlyBurn>0?round(row.cash/monthlyBurn):null;
+    return {currency:row.currency,cash:row.cash,out90,monthlyBurn,runwayMonths,status:runwayMonths===null?"NO_DATA" as const:runwayMonths<2?"CRITICAL" as const:runwayMonths<4?"WATCH" as const:"HEALTHY" as const};
+  });
+}
+
+export function profitabilityByCountry(store: TreasuryStore) {
+  const integrationMap=new Map(store.integrations.map(i=>[i.id,i]));
+  const bucket=new Map<string,{country:string;currency:string;income:number;expense:number;projects:Set<string>}>();
+  for(const tx of store.projectCashflows){
+    const integration=integrationMap.get(tx.integrationId); if(!integration)continue;
+    const key=`${integration.country||"Non défini"}::${tx.currency}`;
+    const row=bucket.get(key)||{country:integration.country||"Non défini",currency:tx.currency,income:0,expense:0,projects:new Set<string>()};
+    if(tx.direction==="IN")row.income+=tx.amount;else row.expense+=tx.amount;
+    row.projects.add(integration.id);bucket.set(key,row);
+  }
+  return Array.from(bucket.values()).map(row=>{const income=round(row.income),expense=round(row.expense),profit=round(income-expense);return{country:row.country,currency:row.currency,income,expense,profit,margin:income>0?round(profit/income*100):null,projectCount:row.projects.size};}).sort((a,b)=>b.profit-a.profit);
+}
+
+export function accountConcentration(store: TreasuryStore) {
+  const rows: Array<{accountId:string;name:string;institution:string;country:string;currency:string;balance:number;sharePercent:number;risk:"HIGH"|"WATCH"|"NORMAL"}> = [];
+  for(const currency of new Set(store.accounts.filter(a=>a.active).map(a=>a.currency))){
+    const accounts=store.accounts.filter(a=>a.active&&a.currency===currency); const total=accounts.reduce((s,a)=>s+a.balance,0);
+    for(const account of accounts){const sharePercent=total>0?round(account.balance/total*100):0;rows.push({accountId:account.id,name:account.name,institution:account.institution,country:account.country,currency,balance:account.balance,sharePercent,risk:sharePercent>=70?"HIGH":sharePercent>=50?"WATCH":"NORMAL"});}
+  }
+  return rows.sort((a,b)=>b.sharePercent-a.sharePercent);
+}
+
+export function loanMaturitySchedule(store: TreasuryStore, now = new Date()) {
+  return store.loans.filter(l=>l.status==="ACTIVE").map(loan=>{
+    const due=loan.dueDate?new Date(loan.dueDate):null; const valid=due&&!Number.isNaN(due.getTime());
+    const daysUntilDue=valid?Math.ceil((due!.getTime()-now.getTime())/(24*60*60*1000)):null;
+    const annualInterest=round(loan.outstandingBalance*loan.interestRate/100);
+    const severity=daysUntilDue===null?"NO_DATE" as const:daysUntilDue<0?"OVERDUE" as const:daysUntilDue<=30?"DUE_SOON" as const:daysUntilDue<=90?"WATCH" as const:"NORMAL" as const;
+    return {...loan,daysUntilDue,annualInterest,severity};
+  }).sort((a,b)=>(a.daysUntilDue??999999)-(b.daysUntilDue??999999));
+}
+
+export function executiveTreasuryAlerts(store: TreasuryStore, now = new Date()) {
+  const alerts: Array<{id:string;severity:"CRITICAL"|"WARNING"|"INFO";title:string;detail:string;currency?:string}> = [];
+  for(const a of store.accounts.filter(a=>a.active&&a.dailyUpdateRequired&&(!a.lastSyncAt||now.getTime()-new Date(a.lastSyncAt).getTime()>36*60*60*1000))) alerts.push({id:`stale-${a.id}`,severity:"WARNING",title:"Compte non mis à jour",detail:`${a.name} · ${a.country} · dernière synchronisation ${a.lastSyncAt||"jamais"}`,currency:a.currency});
+  for(const r of store.reconciliations.filter(r=>r.status==="REVIEW").slice(0,20)){const a=store.accounts.find(x=>x.id===r.accountId);alerts.push({id:`rec-${r.id}`,severity:"CRITICAL",title:"Écart de réconciliation",detail:`${a?.name||"Compte"} · différence ${r.difference}`,currency:a?.currency});}
+  for(const f of cashForecastByCurrency(store,now)) for(const h of f.horizons.filter(h=>h.risk!=="HEALTHY")) alerts.push({id:`forecast-${f.currency}-${h.days}`,severity:h.risk==="CRITICAL"?"CRITICAL":"WARNING",title:`Trésorerie ${h.days} jours`,detail:`Cash projeté ${h.projectedCash}`,currency:f.currency});
+  for(const c of accountConcentration(store).filter(c=>c.risk!=="NORMAL")) alerts.push({id:`conc-${c.accountId}`,severity:c.risk==="HIGH"?"CRITICAL":"WARNING",title:"Concentration bancaire",detail:`${c.sharePercent}% des liquidités ${c.currency} sont sur ${c.name}`,currency:c.currency});
+  for(const l of loanMaturitySchedule(store,now).filter(l=>["OVERDUE","DUE_SOON"].includes(l.severity))) alerts.push({id:`loan-${l.id}`,severity:l.severity==="OVERDUE"?"CRITICAL":"WARNING",title:l.severity==="OVERDUE"?"Prêt en retard":"Prêt à échéance proche",detail:`${l.lender} · solde ${l.outstandingBalance} · ${l.daysUntilDue} jour(s)`,currency:l.currency});
+  for(const p of projectPerformance(store).filter(p=>p.profit<0)) alerts.push({id:`project-${p.id}`,severity:"WARNING",title:"Projet déficitaire",detail:`${p.name} · profit ${p.profit}`,currency:p.currency});
+  return alerts.sort((a,b)=>({CRITICAL:0,WARNING:1,INFO:2}[a.severity]-{CRITICAL:0,WARNING:1,INFO:2}[b.severity]));
+}
