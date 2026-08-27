@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Mail, MessageCircle, Bell, Users, FolderKanban, CheckSquare, HardDrive,
   FileText, PenTool, Lock, CreditCard, ReceiptText, Undo2, BarChart3,
-  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark, Gauge, RefreshCw,
+  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark, Gauge, RefreshCw, SearchCheck,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean };
@@ -45,6 +45,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
       { href: "/app/finance/reports", label: "Reports", icon: BarChart3 },
       { href: "/app/company-funds", label: "Fonds de l’entreprise", icon: Landmark, superAdminOnly: true },
       { href: "/app/company-funds/consolidation", label: "Consolidation Finance", icon: RefreshCw, superAdminOnly: true },
+      { href: "/app/company-funds/reconciliation", label: "Réconciliation transactions", icon: SearchCheck, superAdminOnly: true },
       { href: "/app/company-funds/executive", label: "Direction financière", icon: Gauge, superAdminOnly: true },
     ],
   },
