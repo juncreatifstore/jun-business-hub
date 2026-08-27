@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getCurrentUser } from "@/lib/auth";
-import { getMonthlyFinancialClose } from "@/lib/company-funds-monthly-close";
+import { getMonthlyFinancialClose, verifyMonthlyCloseIntegrity } from "@/lib/company-funds-monthly-close";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ export async function GET(_request:Request,{params}:{params:{period:string}}){
   if(!user||user.role!=="SUPER_ADMIN")return NextResponse.json({ok:false,error:"Forbidden"},{status:403});
   const close=await getMonthlyFinancialClose(params.period);
   if(!close)return NextResponse.json({ok:false,error:"Monthly close not found"},{status:404});
+  const integrity=await verifyMonthlyCloseIntegrity(params.period);
 
   const pdf=await PDFDocument.create();
   const regular=await pdf.embedFont(StandardFonts.Helvetica);
@@ -27,7 +28,7 @@ export async function GET(_request:Request,{params}:{params:{period:string}}){
   };
   const rule=()=>{if(y<55){page=pdf.addPage(pageSize);y=800}page.drawLine({start:{x:42,y},end:{x:553,y},thickness:.5,color:rgb(.8,.82,.85)});y-=12};
 
-  draw("JUN CREATIF AND TRAVEL LLC",15,true);draw("RAPPORT OFFICIEL DE CLOTURE FINANCIERE MENSUELLE",12,true);draw(`Periode: ${close.period} | Statut: ${close.status}`,10,true);draw(`Cloture: ${new Date(close.closedAt).toISOString()} | ID: ${close.id}`,8);if(close.closeNote)draw(`Note: ${close.closeNote}`,8);if(close.reopenedAt)draw(`Reouverture: ${new Date(close.reopenedAt).toISOString()} | Motif: ${close.reopenReason||"-"}`,8);rule();
+  draw("JUN CREATIF AND TRAVEL LLC",15,true);draw("RAPPORT OFFICIEL DE CLOTURE FINANCIERE MENSUELLE",12,true);draw(`Periode: ${close.period} | Revision: ${close.revision} | Statut: ${close.status}`,10,true);draw(`Cloture: ${new Date(close.closedAt).toISOString()} | ID: ${close.id}`,8);if(close.closeNote)draw(`Note: ${close.closeNote}`,8);if(close.reopenedAt)draw(`Reouverture: ${new Date(close.reopenedAt).toISOString()} | Motif: ${close.reopenReason||"-"}`,8);rule();
 
   draw("RESULTAT FINANCE PAR DEVISE",10,true);
   if(!close.snapshot.financeByCurrency.length)draw("Aucun flux Finance JUN pour cette periode.",8);
@@ -49,7 +50,10 @@ export async function GET(_request:Request,{params}:{params:{period:string}}){
   draw("INVESTISSEMENTS",10,true);
   for(const i of close.snapshot.investments)draw(`${i.name} | ${i.country} | ${i.status} | ${money(i.amount,i.currency)}`,8);
   rule();
-  draw("Controle d'integrite",9,true);draw("Ce document est genere depuis le snapshot immuable conserve par JUN au moment de la cloture. Toute correction posterieure exige la reouverture auditee de la periode.",8);
+  draw("CERTIFICAT D'INTEGRITE",10,true);
+  draw(`Verification de chaine: ${integrity.status} | Empreintes verifiees: ${integrity.verified} | Legacy: ${integrity.legacy} | Erreurs: ${integrity.broken}`,8);
+  if(close.integrity){draw(`Algorithme: ${close.integrity.algorithm}`,8);draw(`Empreinte snapshot: ${close.integrity.snapshotHash}`,7);draw(`Empreinte chainee: ${close.integrity.chainHash}`,7);draw(`Empreinte precedente: ${close.integrity.previousHash||"GENESIS"}`,7)}else draw("Cette cloture precede l'activation du scellement cryptographique JUN.",8);
+  draw("Ce document est genere depuis le snapshot conserve par JUN au moment de la cloture. Toute modification d'une revision scellee modifie son empreinte et est detectee par la verification de chaine.",8);
   draw(`Genere le ${new Date().toISOString()} par ${user.firstName} ${user.lastName} (${user.role})`,8);
 
   const bytes=await pdf.save();
@@ -57,7 +61,7 @@ export async function GET(_request:Request,{params}:{params:{period:string}}){
     status:200,
     headers:{
       "Content-Type":"application/pdf",
-      "Content-Disposition":`attachment; filename="JUN-cloture-${close.period}.pdf"`,
+      "Content-Disposition":`attachment; filename="JUN-cloture-${close.period}-R${close.revision}.pdf"`,
       "Cache-Control":"no-store",
     },
   });
