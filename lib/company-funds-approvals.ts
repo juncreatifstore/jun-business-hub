@@ -2,13 +2,14 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
+import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
 import { getTreasuryTransfer } from "@/lib/company-funds-transfers";
 
 const REQUEST_PREFIX="company.funds.authorization.";
 const POLICY_KEY="company.funds.authorization.policy";
 
 export type FinancialAuthorizationStatus="PENDING"|"APPROVED"|"REJECTED"|"CANCELLED";
-export type FinancialAuthorizationType="TRANSFER"|"EXPENSE"|"REFUND"|"INVESTMENT"|"RESERVE_OVERRIDE"|"OTHER";
+export type FinancialAuthorizationType="TRANSFER"|"EXPENSE"|"REFUND"|"INVESTMENT"|"LOAN"|"RESERVE_OVERRIDE"|"OTHER";
 export type FinancialApprovalDecision={userId:string;decision:"APPROVE"|"REJECT";note:string;decidedAt:string};
 export type FinancialAuthorization={
   id:string;type:FinancialAuthorizationType;resourceId:string;reference:string;description:string;
@@ -33,8 +34,27 @@ export async function createFinancialAuthorization(input:{type:FinancialAuthoriz
   const now=new Date().toISOString();const a:FinancialAuthorization={id:randomUUID(),type:input.type,resourceId:input.resourceId,reference:input.reference.trim().slice(0,160),description:input.description.trim().slice(0,800),amount:round(input.amount),currency:input.currency.toUpperCase(),requestedById:input.requestedById,requiredApprovals:Math.max(1,Math.min(3,Math.trunc(input.requiredApprovals))),reason:input.reason.trim().slice(0,1000),reserveImpact:Boolean(input.reserveImpact),status:"PENDING",decisions:[],createdAt:now,updatedAt:now,approvedAt:null,rejectedAt:null};return save(a)
 }
 
-export async function decideFinancialAuthorization(id:string,userId:string,decision:"APPROVE"|"REJECT",note:string){const a=await getFinancialAuthorization(id);if(!a)throw new Error("Authorization not found");if(a.status!=="PENDING")throw new Error("Authorization is no longer pending");if(a.requestedById===userId)throw new Error("Requester cannot approve their own financial authorization");if(a.decisions.some(d=>d.userId===userId))throw new Error("You already decided this authorization");const now=new Date().toISOString();a.decisions.push({userId,decision,note:note.trim().slice(0,1000),decidedAt:now});if(decision==="REJECT"){a.status="REJECTED";a.rejectedAt=now}else{const approvals=a.decisions.filter(d=>d.decision==="APPROVE").length;if(approvals>=a.requiredApprovals){a.status="APPROVED";a.approvedAt=now}}a.updatedAt=now;return save(a)}
+async function finalizeApprovedResource(a:FinancialAuthorization){
+  if(a.type!=="INVESTMENT")return;
+  const store=await getTreasuryStore();const investment=store.investments.find(i=>i.id===a.resourceId);if(!investment||investment.status!=="PLANNED")return;
+  investment.status="ACTIVE";investment.updatedAt=new Date().toISOString();await saveTreasuryStore(store);
+}
 
-export async function ensureTransferAuthorization(transferId:string,requestedById:string){const transfer=await getTreasuryTransfer(transferId);if(!transfer)throw new Error("Transfer not found");const existing=await findAuthorizationForResource("TRANSFER",transfer.id);if(existing)return existing;const [policy,reserves]=await Promise.all([getFinancialAuthorizationPolicy(),getFinancialReserveDashboard()]);const debit=round(transfer.sentAmount+transfer.feeAmount);const account=reserves.accountUsage.find(a=>a.accountId===transfer.fromAccountId);const reserveImpact=Boolean(account&&debit>account.available+0.005);let required=debit>=policy.dualApprovalThreshold?2:debit>=policy.singleApprovalThreshold?1:1;if(reserveImpact&&policy.reserveOverrideAlwaysDual)required=Math.max(required,2);const reason=reserveImpact?"La sortie dépasse le cash libre après réserves protégées.":debit>=policy.dualApprovalThreshold?"Montant supérieur au seuil de double approbation.":"Autorisation financière requise avant exécution.";return createFinancialAuthorization({type:"TRANSFER",resourceId:transfer.id,reference:transfer.reference,description:`Transfert interne ${transfer.fromCurrency} ${debit.toFixed(2)} vers ${transfer.toCurrency}`,amount:debit,currency:transfer.fromCurrency,requestedById,requiredApprovals:required,reason,reserveImpact})}
+export async function decideFinancialAuthorization(id:string,userId:string,decision:"APPROVE"|"REJECT",note:string){const a=await getFinancialAuthorization(id);if(!a)throw new Error("Authorization not found");if(a.status!=="PENDING")throw new Error("Authorization is no longer pending");if(a.requestedById===userId)throw new Error("Requester cannot approve their own financial authorization");if(a.decisions.some(d=>d.userId===userId))throw new Error("You already decided this authorization");const now=new Date().toISOString();a.decisions.push({userId,decision,note:note.trim().slice(0,1000),decidedAt:now});if(decision==="REJECT"){a.status="REJECTED";a.rejectedAt=now}else{const approvals=a.decisions.filter(d=>d.decision==="APPROVE").length;if(approvals>=a.requiredApprovals){a.status="APPROVED";a.approvedAt=now}}a.updatedAt=now;const saved=await save(a);if(saved.status==="APPROVED")await finalizeApprovedResource(saved);return saved}
 
-export async function transferAuthorizationApproved(transferId:string){const a=await findAuthorizationForResource("TRANSFER",transferId);return Boolean(a&&a.status==="APPROVED")}
+export async function ensureFinancialAuthorization(input:{type:FinancialAuthorizationType;resourceId:string;reference:string;description:string;amount:number;currency:string;requestedById:string;accountId?:string|null}){
+  const existing=await findAuthorizationForResource(input.type,input.resourceId);if(existing)return existing;
+  const [policy,reserves]=await Promise.all([getFinancialAuthorizationPolicy(),getFinancialReserveDashboard()]);const amount=round(input.amount);const currency=input.currency.toUpperCase();
+  const account=input.accountId?reserves.accountUsage.find(a=>a.accountId===input.accountId):null;
+  const currencyRow=reserves.byCurrency.find(r=>r.currency===currency);
+  const available=account?account.available:currencyRow?.available;
+  const reserveImpact=available!=null&&amount>available+0.005;
+  let required=amount>=policy.dualApprovalThreshold?2:amount>=policy.singleApprovalThreshold?1:1;if(reserveImpact&&policy.reserveOverrideAlwaysDual)required=Math.max(required,2);
+  const reason=reserveImpact?"La sortie dépasse le cash libre après réserves protégées.":amount>=policy.dualApprovalThreshold?"Montant supérieur au seuil de double approbation.":"Autorisation financière requise avant exécution.";
+  return createFinancialAuthorization({...input,amount,currency,requiredApprovals:required,reason,reserveImpact});
+}
+
+export async function financialAuthorizationApproved(type:FinancialAuthorizationType,resourceId:string){const a=await findAuthorizationForResource(type,resourceId);return Boolean(a&&a.status==="APPROVED")}
+
+export async function ensureTransferAuthorization(transferId:string,requestedById:string){const transfer=await getTreasuryTransfer(transferId);if(!transfer)throw new Error("Transfer not found");const debit=round(transfer.sentAmount+transfer.feeAmount);return ensureFinancialAuthorization({type:"TRANSFER",resourceId:transfer.id,reference:transfer.reference,description:`Transfert interne ${transfer.fromCurrency} ${debit.toFixed(2)} vers ${transfer.toCurrency}`,amount:debit,currency:transfer.fromCurrency,requestedById,accountId:transfer.fromAccountId})}
+export async function transferAuthorizationApproved(transferId:string){return financialAuthorizationApproved("TRANSFER",transferId)}
