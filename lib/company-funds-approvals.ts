@@ -31,7 +31,8 @@ export async function findAuthorizationForResource(type:FinancialAuthorizationTy
 
 export async function createFinancialAuthorization(input:{type:FinancialAuthorizationType;resourceId:string;reference:string;description:string;amount:number;currency:string;requestedById:string;requiredApprovals:number;reason:string;reserveImpact?:boolean}){
   const existing=await findAuthorizationForResource(input.type,input.resourceId);if(existing&&["PENDING","APPROVED"].includes(existing.status))return existing;
-  const now=new Date().toISOString();const a:FinancialAuthorization={id:randomUUID(),type:input.type,resourceId:input.resourceId,reference:input.reference.trim().slice(0,160),description:input.description.trim().slice(0,800),amount:round(input.amount),currency:input.currency.toUpperCase(),requestedById:input.requestedById,requiredApprovals:Math.max(1,Math.min(3,Math.trunc(input.requiredApprovals))),reason:input.reason.trim().slice(0,1000),reserveImpact:Boolean(input.reserveImpact),status:"PENDING",decisions:[],createdAt:now,updatedAt:now,approvedAt:null,rejectedAt:null};return save(a)
+  const now=new Date().toISOString();const requiredApprovals=Math.max(0,Math.min(3,Math.trunc(input.requiredApprovals)));const autoApproved=requiredApprovals===0;
+  const a:FinancialAuthorization={id:randomUUID(),type:input.type,resourceId:input.resourceId,reference:input.reference.trim().slice(0,160),description:input.description.trim().slice(0,800),amount:round(input.amount),currency:input.currency.toUpperCase(),requestedById:input.requestedById,requiredApprovals,reason:input.reason.trim().slice(0,1000),reserveImpact:Boolean(input.reserveImpact),status:autoApproved?"APPROVED":"PENDING",decisions:[],createdAt:now,updatedAt:now,approvedAt:autoApproved?now:null,rejectedAt:null};return save(a)
 }
 
 async function finalizeApprovedResource(a:FinancialAuthorization){
@@ -49,9 +50,9 @@ export async function ensureFinancialAuthorization(input:{type:FinancialAuthoriz
   const currencyRow=reserves.byCurrency.find(r=>r.currency===currency);
   const available=account?account.available:currencyRow?.available;
   const reserveImpact=available!=null&&amount>available+0.005;
-  let required=amount>=policy.dualApprovalThreshold?2:amount>=policy.singleApprovalThreshold?1:1;if(reserveImpact&&policy.reserveOverrideAlwaysDual)required=Math.max(required,2);
-  const reason=reserveImpact?"La sortie dépasse le cash libre après réserves protégées.":amount>=policy.dualApprovalThreshold?"Montant supérieur au seuil de double approbation.":"Autorisation financière requise avant exécution.";
-  return createFinancialAuthorization({...input,amount,currency,requiredApprovals:required,reason,reserveImpact});
+  let required=amount>=policy.dualApprovalThreshold?2:amount>=policy.singleApprovalThreshold?1:0;if(reserveImpact&&policy.reserveOverrideAlwaysDual)required=Math.max(required,2);
+  const reason=reserveImpact?"La sortie dépasse le cash libre après réserves protégées.":required===2?"Montant supérieur au seuil de double approbation.":required===1?"Montant supérieur au seuil d’approbation.":"Opération sous les seuils d’approbation configurés.";
+  const authorization=await createFinancialAuthorization({...input,amount,currency,requiredApprovals:required,reason,reserveImpact});if(authorization.status==="APPROVED")await finalizeApprovedResource(authorization);return authorization;
 }
 
 export async function financialAuthorizationApproved(type:FinancialAuthorizationType,resourceId:string){const a=await findAuthorizationForResource(type,resourceId);return Boolean(a&&a.status==="APPROVED")}
