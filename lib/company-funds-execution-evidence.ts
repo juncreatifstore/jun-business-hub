@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getFinancialAuthorization, type FinancialAuthorizationType } from "@/lib/company-funds-approvals";
 import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
+import { getTreasuryTransfer } from "@/lib/company-funds-transfers";
 
 const PREFIX="company.funds.execution-evidence.";
 export type FinancialExecutionEvidence={
@@ -18,7 +19,13 @@ export async function createFinancialExecutionEvidence(input:{authorizationId:st
   const existing=await getExecutionEvidenceForAuthorization(authorization.id);if(existing)return existing;
   const txRef=input.transactionReference.trim().slice(0,180);if(!txRef)throw new Error("Transaction reference is required");
   const proof=await prisma.file.findUnique({where:{id:input.proofFileId},select:{id:true}});if(!proof)throw new Error("Execution proof file not found");
-  const treasury=await getTreasuryStore();if(input.treasuryAccountId&&!treasury.accounts.some(a=>a.id===input.treasuryAccountId&&a.active))throw new Error("Treasury account not found");
+  const treasury=await getTreasuryStore();const selectedAccount=input.treasuryAccountId?treasury.accounts.find(a=>a.id===input.treasuryAccountId&&a.active):null;if(input.treasuryAccountId&&!selectedAccount)throw new Error("Treasury account not found");
+  if(authorization.type==="TRANSFER"){
+    const transfer=await getTreasuryTransfer(authorization.resourceId);if(!transfer)throw new Error("Transfer not found");
+    if(!["INITIATED","IN_TRANSIT"].includes(transfer.status))throw new Error("Transfer execution evidence can only be recorded after the transfer has been initiated");
+    if(!input.treasuryAccountId)throw new Error("Source treasury account is required for transfer execution evidence");
+    if(input.treasuryAccountId!==transfer.fromAccountId)throw new Error("Transfer execution evidence must reference the source treasury account");
+  }
   const executedAt=input.executedAt?new Date(input.executedAt):new Date();if(Number.isNaN(executedAt.getTime()))throw new Error("Invalid execution date");
   const now=new Date().toISOString();const evidence:FinancialExecutionEvidence={id:randomUUID(),authorizationId:authorization.id,type:authorization.type,resourceId:authorization.resourceId,reference:authorization.reference,treasuryAccountId:input.treasuryAccountId||null,transactionReference:txRef,proofFileId:proof.id,note:String(input.note||"").trim().slice(0,1000),executedById:input.executedById,executedAt:executedAt.toISOString(),createdAt:now};
   await prisma.appSetting.create({data:{key:`${PREFIX}${evidence.id}`,value:JSON.stringify(evidence)}});
