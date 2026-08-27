@@ -26,5 +26,5 @@ export async function GET(_request:Request,{params}:{params:{period:string}}){
     ["period","status","audit_id","created_at","user","email","action","resource_type","resource_id","before","after"].map(csv).join(","),
     ...rows.map(r=>[close.period,close.status,r.id,r.createdAt.toISOString(),r.user?`${r.user.firstName} ${r.user.lastName}`:"System",r.user?.email||"",r.action,r.resourceType,r.resourceId||"",r.before,r.after].map(csv).join(","))
   ];
-  return new NextResponse(lines.join("\n"),{status:200,headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":`attachment; filename="JUN-audit-${close.period}.csv"`,`Cache-Control":"no-store"`}});
+  return new NextResponse(lines.join("\n"),{status:200,headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":`attachment; filename="JUN-audit-${close.period}.csv"`,"Cache-Control":"no-store"}});
 }
