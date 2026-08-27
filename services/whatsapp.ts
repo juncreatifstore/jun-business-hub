@@ -8,6 +8,7 @@ import { storage } from "@/lib/storage";
 import { getClientFinancialAccount, type ClientStatementLanguage } from "@/lib/client-financial-account";
 import { renderClientStatementV2 } from "@/services/pdf/client-statement-v2";
 import { GENERAL_DOCUMENT_TEMPLATE, getWhatsAppConfig, saveWhatsAppConfig, sendWhatsAppDocument, sendWhatsAppDocumentTemplate, sendWhatsAppTemplate, sendWhatsAppText, uploadWhatsAppMedia } from "@/lib/whatsapp";
+import { recordOutgoingWhatsAppMessage } from "@/lib/whatsapp-inbox";
 
 export async function saveWhatsAppSettings(formData:FormData){
  const user=await assertPermission("SETTINGS_MANAGE");
@@ -45,7 +46,16 @@ export async function sendClientWhatsApp(clientId:string,formData:FormData){
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_CLIENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,mode,to,messageId,template:mode==="TEMPLATE"?selectedTemplate:null}});
   await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_ACCEPTED",message:`WhatsApp ${mode==="TEMPLATE"?"template":"message"} accepted by Meta for ${to}${messageId?` · ${messageId}`:""}`}}).catch(()=>null);
+  await recordOutgoingWhatsAppMessage({
+   phone:to,
+   messageId,
+   type:mode==="TEMPLATE"?"template":"text",
+   text:mode==="TEMPLATE"?`Modèle WhatsApp envoyé · ${selectedTemplate}`:message,
+   clientId:client.id,
+   userId:user.id,
+  }).catch(()=>null);
   revalidatePath(`/app/clients/${clientId}`);
+  revalidatePath("/app/whatsapp/inbox");
  }catch(e){
   errorMessage=e instanceof Error?e.message:"WhatsApp send failed";
  }
@@ -68,14 +78,28 @@ export async function sendDocumentByWhatsApp(documentId:string,formData:FormData
   const filename=`${doc.documentId}-${doc.title}`.replace(/[^a-zA-Z0-9._-]+/g,"-").slice(0,180)+".pdf";
   const mediaId=await uploadWhatsAppMedia(pdf,"application/pdf",filename);
   const clientName=`${doc.client.firstName} ${doc.client.lastName}`.trim();
+  const caption=String(formData.get("caption")||`JUN CREATIF AND TRAVEL LLC — ${doc.title}`).trim();
   const result=cfg.defaultTemplate
    ?await sendWhatsAppDocumentTemplate({to,templateName:cfg.defaultTemplate,languageCode:cfg.languageCode,mediaId,filename,clientName,documentLabel:doc.title,reference:doc.documentId})
-   :await sendWhatsAppDocument(to,mediaId,filename,String(formData.get("caption")||`JUN CREATIF AND TRAVEL LLC — ${doc.title}`).trim());
+   :await sendWhatsAppDocument(to,mediaId,filename,caption);
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_DOCUMENT_SEND",resourceType:"Document",resourceId:doc.id,after:{documentId:doc.documentId,clientId:doc.client.id,to,messageId,mediaId,template:cfg.defaultTemplate||null}});
   await prisma.activity.create({data:{userId:user.id,clientId:doc.client.id,caseId:doc.caseId??undefined,type:"WHATSAPP_ACCEPTED",message:`Document ${doc.documentId} accepted by Meta for WhatsApp delivery to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"Document",resourceId:doc.id}}).catch(()=>null);
+  await recordOutgoingWhatsAppMessage({
+   phone:to,
+   messageId,
+   type:"document",
+   text:`Document envoyé · ${doc.title}`,
+   filename,
+   mediaId,
+   caption,
+   clientId:doc.client.id,
+   caseId:doc.caseId,
+   userId:user.id,
+  }).catch(()=>null);
   revalidatePath(`/app/documents/${documentId}`);
   revalidatePath(`/app/clients/${doc.client.id}`);
+  revalidatePath("/app/whatsapp/inbox");
  }catch(e){
   errorMessage=e instanceof Error?e.message:"WhatsApp document send failed";
  }
@@ -113,7 +137,18 @@ export async function sendClientStatementByWhatsApp(clientId:string,formData:For
   const messageId=result.messages?.[0]?.id??null;
   await audit({userId:user.id,action:"WHATSAPP_STATEMENT_SEND",resourceType:"Client",resourceId:client.id,after:{clientInternalId:client.internalId,to,messageId,mediaId,template:cfg.defaultTemplate,reference,language}});
   await prisma.activity.create({data:{userId:user.id,clientId:client.id,type:"WHATSAPP_ACCEPTED",message:`Statement ${reference} accepted by Meta for WhatsApp delivery to ${to}${messageId?` · ${messageId}`:""}`,resourceType:"ClientStatement",resourceId:reference}}).catch(()=>null);
+  await recordOutgoingWhatsAppMessage({
+   phone:to,
+   messageId,
+   type:"document",
+   text:`${label} envoyé`,
+   filename,
+   mediaId,
+   clientId:client.id,
+   userId:user.id,
+  }).catch(()=>null);
   revalidatePath(`/app/clients/${clientId}`);
+  revalidatePath("/app/whatsapp/inbox");
  }catch(e){
   errorMessage=e instanceof Error?e.message:"WhatsApp statement send failed";
  }
