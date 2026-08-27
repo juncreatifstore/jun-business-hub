@@ -30,11 +30,25 @@ function refreshInbox() {
 }
 
 async function conversationClient(phone: string) {
-  return prisma.activity.findFirst({
+  const activity = await prisma.activity.findFirst({
     where: { resourceType: "WhatsAppConversation", resourceId: phone, clientId: { not: null } },
     orderBy: { createdAt: "desc" },
     select: { clientId: true, caseId: true },
   });
+  if (activity?.clientId) return activity;
+
+  // Fallback for conversations reconstructed from legacy WhatsApp history where
+  // the latest WhatsAppConversation activity is not yet linked to the client.
+  const clients = await prisma.client.findMany({
+    where: { archivedAt: null, OR: [{ whatsapp: { not: null } }, { phone: { not: null } }] },
+    select: { id: true, whatsapp: true, phone: true },
+  });
+  const client = clients.find((row) => {
+    const wa = normalizeWhatsAppPhone(row.whatsapp || "");
+    const tel = normalizeWhatsAppPhone(row.phone || "");
+    return wa === phone || tel === phone;
+  });
+  return client ? { clientId: client.id, caseId: null } : null;
 }
 
 export async function markWhatsAppConversationRead(phone: string) {
@@ -91,15 +105,48 @@ export async function setWhatsAppConversationCase(phone: string, formData: FormD
   const normalized = cleanPhone(phone);
   const caseId = String(formData.get("caseId") || "").trim();
   const origin = await conversationClient(normalized);
-  if (!origin?.clientId) throw new Error("Conversation is not linked to a client");
+
+  // Do not let a normal UI action crash the entire Inbox. If the number is not
+  // linked yet, simply leave the conversation unchanged.
+  if (!origin?.clientId) {
+    refreshInbox();
+    return;
+  }
+
   if (!caseId) {
     await prisma.appSetting.deleteMany({ where: { key: caseKey(normalized) } });
     refreshInbox();
     return;
   }
-  const validCase = await prisma.case.findFirst({ where: { id: caseId, clientId: origin.clientId }, select: { id: true } });
-  if (!validCase) throw new Error("Case does not belong to this client");
-  await prisma.appSetting.upsert({ where: { key: caseKey(normalized) }, create: { key: caseKey(normalized), value: caseId }, update: { value: caseId } });
+
+  const validCase = await prisma.case.findFirst({
+    where: { id: caseId, clientId: origin.clientId },
+    select: { id: true },
+  });
+  if (!validCase) {
+    refreshInbox();
+    return;
+  }
+
+  await prisma.appSetting.upsert({
+    where: { key: caseKey(normalized) },
+    create: { key: caseKey(normalized), value: validCase.id },
+    update: { value: validCase.id },
+  });
+
+  // Keep current/future WhatsApp timeline records connected to the chosen case.
+  await prisma.activity.updateMany({
+    where: {
+      resourceType: "WhatsAppConversation",
+      resourceId: normalized,
+      clientId: origin.clientId,
+      caseId: null,
+    },
+    data: { caseId: validCase.id },
+  }).catch(() => null);
+
+  revalidatePath(`/app/cases/${validCase.id}`);
+  revalidatePath(`/app/clients/${origin.clientId}`);
   refreshInbox();
 }
 
