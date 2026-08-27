@@ -10,32 +10,38 @@ function assertStaff(role: string) {
   if (role === "CLIENT") throw new Error("Forbidden");
 }
 
-function statusKey(phone: string) {
-  return `whatsapp.inbox.status.${phone}`;
+function statusKey(phone: string) { return `whatsapp.inbox.status.${phone}`; }
+function priorityKey(phone: string) { return `whatsapp.inbox.priority.${phone}`; }
+function assignmentKey(phone: string) { return `whatsapp.inbox.assignment.${phone}`; }
+function tagsKey(phone: string) { return `whatsapp.inbox.tags.${phone}`; }
+function notesKey(phone: string) { return `whatsapp.inbox.notes.${phone}`; }
+
+function cleanPhone(phone: string) {
+  const normalized = normalizeWhatsAppPhone(phone);
+  if (!normalized) throw new Error("Invalid WhatsApp number");
+  return normalized;
+}
+
+function refreshInbox() {
+  revalidatePath("/app/whatsapp");
+  revalidatePath("/app/whatsapp/inbox");
 }
 
 export async function markWhatsAppConversationRead(phone: string) {
   const user = await requireUser();
   assertStaff(user.role);
-  const normalized = normalizeWhatsAppPhone(phone);
-  if (!normalized) return;
+  const normalized = cleanPhone(phone);
   await prisma.activity.updateMany({
-    where: {
-      resourceType: "WhatsAppConversation",
-      resourceId: normalized,
-      type: "WHATSAPP_INBOUND_UNREAD",
-    },
+    where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" },
     data: { type: "WHATSAPP_INBOUND_READ" },
   });
-  revalidatePath("/app/whatsapp");
-  revalidatePath("/app/whatsapp/inbox");
+  refreshInbox();
 }
 
 export async function setWhatsAppConversationStatus(phone: string, status: "OPEN" | "WAITING" | "RESOLVED") {
   const user = await requireUser();
   assertStaff(user.role);
-  const normalized = normalizeWhatsAppPhone(phone);
-  if (!normalized) throw new Error("Invalid WhatsApp number");
+  const normalized = cleanPhone(phone);
 
   await prisma.appSetting.upsert({
     where: { key: statusKey(normalized) },
@@ -45,27 +51,90 @@ export async function setWhatsAppConversationStatus(phone: string, status: "OPEN
 
   if (status === "RESOLVED") {
     await prisma.activity.updateMany({
-      where: {
-        resourceType: "WhatsAppConversation",
-        resourceId: normalized,
-        type: "WHATSAPP_INBOUND_UNREAD",
-      },
+      where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" },
       data: { type: "WHATSAPP_INBOUND_READ" },
     });
   }
+  refreshInbox();
+}
 
-  revalidatePath("/app/whatsapp/inbox");
+export async function setWhatsAppConversationPriority(phone: string, priority: "NORMAL" | "HIGH" | "URGENT") {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  await prisma.appSetting.upsert({
+    where: { key: priorityKey(normalized) },
+    create: { key: priorityKey(normalized), value: priority },
+    update: { value: priority },
+  });
+  refreshInbox();
+}
+
+export async function assignWhatsAppConversationToMe(phone: string) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Utilisateur JUN";
+  await prisma.appSetting.upsert({
+    where: { key: assignmentKey(normalized) },
+    create: { key: assignmentKey(normalized), value: JSON.stringify({ userId: user.id, name, assignedAt: new Date().toISOString() }) },
+    update: { value: JSON.stringify({ userId: user.id, name, assignedAt: new Date().toISOString() }) },
+  });
+  refreshInbox();
+}
+
+export async function unassignWhatsAppConversation(phone: string) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  await prisma.appSetting.deleteMany({ where: { key: assignmentKey(normalized) } });
+  refreshInbox();
+}
+
+export async function updateWhatsAppConversationTags(phone: string, formData: FormData) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const tags = String(formData.get("tags") || "")
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+  await prisma.appSetting.upsert({
+    where: { key: tagsKey(normalized) },
+    create: { key: tagsKey(normalized), value: JSON.stringify(tags) },
+    update: { value: JSON.stringify(tags) },
+  });
+  refreshInbox();
+}
+
+export async function addWhatsAppInternalNote(phone: string, formData: FormData) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const text = String(formData.get("note") || "").trim();
+  if (!text) return;
+  const existing = await prisma.appSetting.findUnique({ where: { key: notesKey(normalized) }, select: { value: true } });
+  let notes: Array<{ id: string; text: string; author: string; createdAt: string }> = [];
+  try { notes = existing?.value ? JSON.parse(existing.value) : []; } catch { notes = []; }
+  const author = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "Utilisateur JUN";
+  notes.unshift({ id: `${Date.now()}-${user.id}`, text: text.slice(0, 2000), author, createdAt: new Date().toISOString() });
+  notes = notes.slice(0, 30);
+  await prisma.appSetting.upsert({
+    where: { key: notesKey(normalized) },
+    create: { key: notesKey(normalized), value: JSON.stringify(notes) },
+    update: { value: JSON.stringify(notes) },
+  });
+  refreshInbox();
 }
 
 export async function replyWhatsAppConversation(phone: string, formData: FormData) {
   const user = await requireUser();
   assertStaff(user.role);
-  const normalized = normalizeWhatsAppPhone(phone);
+  const normalized = cleanPhone(phone);
   const body = String(formData.get("message") || "").trim();
-  if (!normalized) throw new Error("Invalid WhatsApp number");
   if (!body) throw new Error("Message is empty");
 
-  // Protect operators from accidental double-click / rapid resubmission.
   const recent = await prisma.activity.findMany({
     where: {
       resourceType: "WhatsAppConversation",
@@ -82,7 +151,7 @@ export async function replyWhatsAppConversation(phone: string, formData: FormDat
     return payload?.direction === "OUTBOUND" && payload.text.trim() === body;
   });
   if (duplicate) {
-    revalidatePath("/app/whatsapp/inbox");
+    refreshInbox();
     return;
   }
 
@@ -125,6 +194,5 @@ export async function replyWhatsAppConversation(phone: string, formData: FormDat
     }),
   ]);
 
-  revalidatePath("/app/whatsapp");
-  revalidatePath("/app/whatsapp/inbox");
+  refreshInbox();
 }
