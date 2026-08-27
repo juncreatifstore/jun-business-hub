@@ -48,6 +48,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
       { href: "/app/company-funds/reconciliation", label: "Réconciliation transactions", icon: SearchCheck, superAdminOnly: true },
       { href: "/app/company-funds/transfers", label: "Transferts internes", icon: ArrowRightLeft, superAdminOnly: true },
       { href: "/app/company-funds/reserves", label: "Réserves financières", icon: PiggyBank, superAdminOnly: true },
+      { href: "/app/company-funds/authorizations", label: "Autorisations financières", icon: Lock, superAdminOnly: true },
       { href: "/app/company-funds/executive", label: "Direction financière", icon: Gauge, superAdminOnly: true },
     ],
   },
