@@ -38,6 +38,14 @@ export async function createFinancialAuthorization(input:{type:FinancialAuthoriz
 
 export async function decideFinancialAuthorization(id:string,userId:string,decision:"APPROVE"|"REJECT",note:string){const a=await getFinancialAuthorization(id);if(!a)throw new Error("Authorization not found");if(a.status!=="PENDING")throw new Error("Authorization is no longer pending");if(a.requestedById===userId)throw new Error("Requester cannot approve their own financial authorization");if(a.decisions.some(d=>d.userId===userId))throw new Error("You already decided this authorization");const now=new Date().toISOString();a.decisions.push({userId,decision,note:note.trim().slice(0,1000),decidedAt:now});if(decision==="REJECT"){a.status="REJECTED";a.rejectedAt=now}else{const approvals=a.decisions.filter(d=>d.decision==="APPROVE").length;if(approvals>=a.requiredApprovals){a.status="APPROVED";a.approvedAt=now}}a.updatedAt=now;return save(a)}
 
+export async function cancelPendingFinancialAuthorizationForResource(type:FinancialAuthorizationType,resourceId:string){
+  const authorization=await findLatestAuthorizationForResource(type,resourceId);
+  if(!authorization||authorization.status!=="PENDING")return null;
+  authorization.status="CANCELLED";
+  authorization.updatedAt=new Date().toISOString();
+  return save(authorization);
+}
+
 export async function ensureFinancialAuthorization(input:{type:FinancialAuthorizationType;resourceId:string;reference:string;description:string;amount:number;currency:string;requestedById:string;accountId?:string|null}){
   const existing=await findAuthorizationForResource(input.type,input.resourceId);if(existing)return existing;
   const [policy,reserves]=await Promise.all([getFinancialAuthorizationPolicy(),getFinancialReserveDashboard()]);const amount=round(input.amount);const currency=input.currency.toUpperCase();
