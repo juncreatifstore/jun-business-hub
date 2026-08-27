@@ -34,7 +34,7 @@ export async function validateFinancialMonthClose(period:string):Promise<Monthly
     return !Number.isFinite(latest)||latest<endMinus3Days.getTime();
   });
 
-  const criticalReserveAlerts=reserves.alerts.filter(a=>a.severity==="CRITICAL");
+  const criticalReserveAlerts=reserves.alerts.filter(a=>a.type==="CRITICAL");
   const reserveShortfalls=reserves.byCurrency.filter(r=>r.shortfall>0&&!r.overReserved);
   const countryMinimums=reserves.countryMinimums.filter(r=>!r.met);
 
