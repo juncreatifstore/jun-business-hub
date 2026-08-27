@@ -1,0 +1,16 @@
+"use server";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth";
+import { audit } from "@/lib/audit";
+import { cancelTreasuryTransfer, completeTreasuryTransfer, createTreasuryTransfer, initiateTreasuryTransfer } from "@/lib/company-funds-transfers";
+
+async function superAdmin(){const user=await requireUser();if(user.role!=="SUPER_ADMIN")redirect("/app/forbidden");return user;}
+function text(form:FormData,key:string,max=800){return String(form.get(key)||"").trim().slice(0,max)}
+function num(form:FormData,key:string){const n=Number(String(form.get(key)||"0").replace(/,/g,""));if(!Number.isFinite(n))throw new Error(`${key} is invalid`);return n}
+function refresh(){revalidatePath("/app/company-funds/transfers");revalidatePath("/app/company-funds");revalidatePath("/app/company-funds/executive");}
+
+export async function createTreasuryTransferAction(form:FormData){const user=await superAdmin();const transfer=await createTreasuryTransfer({fromAccountId:text(form,"fromAccountId",100),toAccountId:text(form,"toAccountId",100),sentAmount:num(form,"sentAmount"),feeAmount:num(form,"feeAmount"),fxRate:num(form,"fxRate")||1,externalReference:text(form,"externalReference",180),note:text(form,"note",800),createdById:user.id});await audit({userId:user.id,action:"COMPANY_FUNDS_TRANSFER_CREATE",resourceType:"TreasuryTransfer",resourceId:transfer.id,after:{reference:transfer.reference,fromAccountId:transfer.fromAccountId,toAccountId:transfer.toAccountId,sentAmount:transfer.sentAmount,feeAmount:transfer.feeAmount,fxRate:transfer.fxRate}});refresh();}
+export async function initiateTreasuryTransferAction(id:string){const user=await superAdmin();const transfer=await initiateTreasuryTransfer(id);await audit({userId:user.id,action:"COMPANY_FUNDS_TRANSFER_INITIATE",resourceType:"TreasuryTransfer",resourceId:id,after:{status:transfer.status,initiatedAt:transfer.initiatedAt}});refresh();}
+export async function completeTreasuryTransferAction(id:string,form:FormData){const user=await superAdmin();const transfer=await completeTreasuryTransfer(id,num(form,"actualReceivedAmount"),text(form,"externalReference",180));await audit({userId:user.id,action:"COMPANY_FUNDS_TRANSFER_COMPLETE",resourceType:"TreasuryTransfer",resourceId:id,after:{status:transfer.status,actualReceivedAmount:transfer.actualReceivedAmount,completedAt:transfer.completedAt}});refresh();}
+export async function cancelTreasuryTransferAction(id:string){const user=await superAdmin();const transfer=await cancelTreasuryTransfer(id);await audit({userId:user.id,action:"COMPANY_FUNDS_TRANSFER_CANCEL",resourceType:"TreasuryTransfer",resourceId:id,after:{status:transfer.status}});refresh();}
