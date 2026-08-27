@@ -1,16 +1,30 @@
 import Link from "next/link";
-import { MessageCircle, CheckCheck, UserRound, Paperclip } from "lucide-react";
+import {
+  MessageCircle,
+  CheckCheck,
+  UserRound,
+  Paperclip,
+  Search,
+  Send,
+  Phone,
+  Briefcase,
+  ExternalLink,
+  Clock3,
+  Inbox,
+  CircleDot,
+} from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decodeWhatsAppInboxPayload } from "@/lib/whatsapp-inbox";
 import { markWhatsAppConversationRead, replyWhatsAppConversation } from "@/services/whatsapp-inbox";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 
 export const dynamic = "force-dynamic";
 
 type Row = Awaited<ReturnType<typeof loadRows>>[number];
+type FilterKey = "all" | "unread" | "linked" | "unknown";
 
 async function loadRows() {
   return prisma.activity.findMany({
@@ -29,54 +43,314 @@ async function loadRows() {
   });
 }
 
-export default async function WhatsAppInboxPage({ searchParams }: { searchParams: { phone?: string } }) {
+export default async function WhatsAppInboxPage({
+  searchParams,
+}: {
+  searchParams: { phone?: string; q?: string; filter?: string };
+}) {
   const user = await requireUser();
-  if (user.role === "CLIENT") return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">WhatsApp Inbox is available to JUN staff only.</div>;
+  if (user.role === "CLIENT") {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        WhatsApp Inbox is available to JUN staff only.
+      </div>
+    );
+  }
 
   const rows = await loadRows();
-  const conversations = groupConversations(rows);
+  const allConversations = groupConversations(rows);
+  const query = String(searchParams.q || "").trim().toLowerCase();
+  const rawFilter = String(searchParams.filter || "all") as FilterKey;
+  const filter: FilterKey = ["all", "unread", "linked", "unknown"].includes(rawFilter) ? rawFilter : "all";
+
+  const conversations = allConversations.filter((c) => {
+    const matchesQuery = !query || [c.name, c.phone, c.internalId || "", c.caseNumber || "", c.preview]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+    if (!matchesQuery) return false;
+    if (filter === "unread") return c.unread > 0;
+    if (filter === "linked") return Boolean(c.clientId);
+    if (filter === "unknown") return !c.clientId;
+    return true;
+  });
+
   const requested = String(searchParams.phone || "").replace(/[^0-9]/g, "");
-  const selectedPhone = conversations.some((c) => c.phone === requested) ? requested : conversations[0]?.phone || "";
-  const selected = conversations.find((c) => c.phone === selectedPhone);
+  const selectedPhone = conversations.some((c) => c.phone === requested)
+    ? requested
+    : conversations[0]?.phone || allConversations[0]?.phone || "";
+  const selected = allConversations.find((c) => c.phone === selectedPhone);
   const messages = rows
     .filter((r) => r.resourceId === selectedPhone)
     .map((r) => ({ row: r, payload: decodeWhatsAppInboxPayload(r.message) }))
     .filter((x) => x.payload)
     .reverse();
+
   const unreadTotal = rows.filter((r) => r.type === "WHATSAPP_INBOUND_UNREAD").length;
+  const unreadConversations = allConversations.filter((c) => c.unread > 0).length;
+  const linkedConversations = allConversations.filter((c) => c.clientId).length;
 
-  return <div className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="text-xs uppercase tracking-[.18em] text-muted2">Communication</p><h1 className="mt-1 flex items-center gap-2 text-3xl font-semibold"><MessageCircle className="h-7 w-7"/>WhatsApp Inbox</h1><p className="mt-1 text-sm text-muted2">Incoming client replies from the JUN WhatsApp Business number.</p></div>
-      <div className="flex items-center gap-2"><Link href="/app/whatsapp" className="rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium">Send notifications</Link><div className="rounded-full border border-line bg-white px-3 py-1.5 text-sm"><strong>{unreadTotal}</strong> unread</div></div>
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[.18em] text-muted2">Communication</p>
+          <h1 className="mt-1 flex items-center gap-2 text-3xl font-semibold">
+            <MessageCircle className="h-7 w-7" /> WhatsApp Inbox
+          </h1>
+          <p className="mt-1 text-sm text-muted2">Centre de conversations clients WhatsApp en temps réel.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-muted2">
+            <strong className="text-ink">{allConversations.length}</strong> conversations
+          </div>
+          <div className="rounded-xl border border-line bg-white px-3 py-2 text-xs text-muted2">
+            <strong className="text-ink">{unreadTotal}</strong> non lus
+          </div>
+          <Link href="/app/whatsapp" className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-medium hover:bg-surface">
+            Envoyer une notification
+          </Link>
+        </div>
+      </div>
+
+      {!allConversations.length ? (
+        <Card>
+          <CardContent className="p-10 text-center">
+            <Inbox className="mx-auto h-10 w-10 text-muted2" />
+            <div className="mt-3 font-medium">Aucune conversation WhatsApp</div>
+            <div className="mt-1 text-sm text-muted2">Les réponses clients apparaîtront automatiquement ici.</div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid min-h-[720px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm xl:grid-cols-[360px_minmax(0,1fr)_300px]">
+          <aside className="border-b border-line bg-white xl:border-b-0 xl:border-r">
+            <div className="border-b border-line p-4">
+              <form method="get" className="space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2" />
+                  <input
+                    name="q"
+                    defaultValue={searchParams.q || ""}
+                    placeholder="Rechercher nom, téléphone, dossier…"
+                    className="h-10 w-full rounded-xl border border-line bg-surface/40 pl-9 pr-3 text-sm outline-none focus:border-electric focus:bg-white"
+                  />
+                </div>
+                <div className="grid grid-cols-4 gap-1 rounded-xl bg-surface p-1 text-[11px] font-medium">
+                  {([
+                    ["all", "Tous", allConversations.length],
+                    ["unread", "Non lus", unreadConversations],
+                    ["linked", "Clients", linkedConversations],
+                    ["unknown", "Inconnus", allConversations.length - linkedConversations],
+                  ] as const).map(([key, label, count]) => (
+                    <button
+                      key={key}
+                      type="submit"
+                      name="filter"
+                      value={key}
+                      className={`rounded-lg px-2 py-2 text-center ${filter === key ? "bg-white text-ink shadow-sm" : "text-muted2 hover:text-ink"}`}
+                    >
+                      <span className="block">{label}</span>
+                      <span className="mt-0.5 block text-[10px] opacity-70">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              </form>
+            </div>
+
+            <div className="max-h-[650px] overflow-y-auto">
+              {!conversations.length ? (
+                <div className="p-8 text-center text-sm text-muted2">Aucune conversation ne correspond à ce filtre.</div>
+              ) : (
+                conversations.map((c) => {
+                  const selectedNow = c.phone === selectedPhone;
+                  const params = new URLSearchParams();
+                  params.set("phone", c.phone);
+                  if (searchParams.q) params.set("q", searchParams.q);
+                  if (filter !== "all") params.set("filter", filter);
+                  return (
+                    <Link
+                      key={c.phone}
+                      href={`/app/whatsapp/inbox?${params.toString()}`}
+                      className={`block border-b border-line/70 p-4 transition ${selectedNow ? "bg-electric/5" : "hover:bg-surface/70"}`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${selectedNow ? "bg-electric text-white" : "bg-surface text-ink"}`}>
+                          {initials(c.name)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className={`truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>{c.name}</div>
+                            <div className="shrink-0 text-[10px] text-muted2">{formatListWhen(c.lastAt)}</div>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted2">
+                            <span>+{c.phone}</span>
+                            {c.clientId ? <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">CLIENT</span> : null}
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <div className={`truncate text-xs ${c.unread ? "font-medium text-ink" : "text-muted2"}`}>{c.preview}</div>
+                            {c.unread ? (
+                              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">{c.unread}</span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })
+              )}
+            </div>
+          </aside>
+
+          <section className="flex min-w-0 flex-col bg-[#f7f8fa]">
+            {selected ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-electric text-sm font-semibold text-white">{initials(selected.name)}</div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h2 className="truncate font-semibold">{selected.name}</h2>
+                        {selected.unread ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">NOUVEAU</span> : <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] font-medium text-muted2">À JOUR</span>}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-muted2">
+                        <Phone className="h-3 w-3" /> +{selected.phone}
+                        {selected.internalId ? <span>· {selected.internalId}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selected.clientId ? (
+                      <Link href={`/app/clients/${selected.clientId}`} className="rounded-lg border border-line bg-white px-3 py-2 text-xs font-medium hover:bg-surface xl:hidden">Client 360</Link>
+                    ) : null}
+                    {selected.unread ? (
+                      <form action={markWhatsAppConversationRead.bind(null, selected.phone)}>
+                        <Button variant="outline" size="sm"><CheckCheck className="h-4 w-4" /> Marquer lu</Button>
+                      </form>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 py-5 md:px-7">
+                  <div className="mx-auto max-w-4xl space-y-3">
+                    {messages.map(({ row, payload }, index) => {
+                      if (!payload) return null;
+                      const previous = index > 0 ? messages[index - 1]?.payload : null;
+                      const showDate = !previous || dayKey(previous.timestamp) !== dayKey(payload.timestamp);
+                      const outbound = payload.direction === "OUTBOUND";
+                      return (
+                        <div key={row.id}>
+                          {showDate ? (
+                            <div className="my-5 flex items-center gap-3 text-[10px] font-medium uppercase tracking-wide text-muted2">
+                              <div className="h-px flex-1 bg-line" />
+                              <span>{formatDay(new Date(payload.timestamp))}</span>
+                              <div className="h-px flex-1 bg-line" />
+                            </div>
+                          ) : null}
+                          <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm shadow-sm md:max-w-[72%] ${outbound ? "rounded-br-md bg-[#162033] text-white" : "rounded-bl-md border border-line bg-white text-ink"}`}>
+                              {payload.type !== "text" ? (
+                                <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70"><Paperclip className="h-3 w-3" />{payload.type.replaceAll("_", " ")}</div>
+                              ) : null}
+                              <div className="whitespace-pre-wrap break-words leading-relaxed">{payload.text}</div>
+                              {payload.filename ? <div className="mt-2 rounded-lg bg-black/5 px-2 py-1 text-xs opacity-80">{payload.filename}</div> : null}
+                              <div className="mt-1.5 flex items-center justify-end gap-1 text-[10px] opacity-60">
+                                {formatTime(new Date(payload.timestamp))}
+                                {outbound ? <CheckCheck className="h-3.5 w-3.5" /> : null}
+                                {outbound && row.user ? <span>· {row.user.firstName}</span> : null}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <form action={replyWhatsAppConversation.bind(null, selected.phone)} className="border-t border-line bg-white p-4">
+                  <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-white shadow-sm focus-within:border-electric">
+                    <Textarea
+                      name="message"
+                      rows={3}
+                      required
+                      maxLength={4096}
+                      placeholder="Écrire une réponse au client…"
+                      className="min-h-[86px] resize-none border-0 shadow-none focus:ring-0"
+                    />
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-3 py-2">
+                      <div className="flex items-center gap-2 text-[11px] text-muted2">
+                        <Clock3 className="h-3.5 w-3.5" /> Fenêtre de service Meta active après une réponse client.
+                      </div>
+                      <Button variant="primary" type="submit"><Send className="h-4 w-4" /> Envoyer</Button>
+                    </div>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-sm text-muted2">Sélectionnez une conversation.</div>
+            )}
+          </section>
+
+          <aside className="hidden border-l border-line bg-white xl:block">
+            {selected ? (
+              <div className="p-5">
+                <div className="text-xs font-semibold uppercase tracking-[.14em] text-muted2">Client</div>
+                <div className="mt-5 text-center">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-electric/10 text-lg font-semibold text-electric">{initials(selected.name)}</div>
+                  <div className="mt-3 font-semibold">{selected.name}</div>
+                  <div className="mt-1 text-xs text-muted2">+{selected.phone}</div>
+                  <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+                    <CircleDot className="h-3 w-3" /> WhatsApp actif
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-3 border-t border-line pt-5">
+                  <InfoRow label="Client ID" value={selected.internalId || "Non lié"} />
+                  <InfoRow label="Dossier" value={selected.caseNumber || "Aucun dossier"} />
+                  <InfoRow label="Dernier message" value={formatWhen(selected.lastAt)} />
+                  <InfoRow label="Messages non lus" value={String(selected.unread)} />
+                </div>
+
+                <div className="mt-6 space-y-2 border-t border-line pt-5">
+                  {selected.clientId ? (
+                    <Link href={`/app/clients/${selected.clientId}`} className="flex items-center justify-between rounded-xl border border-line px-3 py-3 text-sm font-medium hover:bg-surface">
+                      <span className="flex items-center gap-2"><UserRound className="h-4 w-4" /> Client 360</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
+                    </Link>
+                  ) : (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">Ce numéro n’est pas encore lié à un client JUN.</div>
+                  )}
+                  {selected.caseId ? (
+                    <Link href={`/app/cases/${selected.caseId}`} className="flex items-center justify-between rounded-xl border border-line px-3 py-3 text-sm font-medium hover:bg-surface">
+                      <span className="flex items-center gap-2"><Briefcase className="h-4 w-4" /> Ouvrir le dossier</span><ExternalLink className="h-3.5 w-3.5 text-muted2" />
+                    </Link>
+                  ) : null}
+                </div>
+
+                <div className="mt-6 rounded-xl bg-surface p-3 text-xs text-muted2">
+                  <div className="font-medium text-ink">Conseil opérateur</div>
+                  <p className="mt-1 leading-relaxed">Gardez les réponses courtes, confirmez les informations sensibles et ouvrez Client 360 avant toute action importante.</p>
+                </div>
+              </div>
+            ) : null}
+          </aside>
+        </div>
+      )}
     </div>
-
-    {!conversations.length ? <Card><CardContent className="p-8 text-center text-sm text-muted2">No incoming WhatsApp replies yet. When a client replies, the conversation will appear here automatically.</CardContent></Card> :
-    <div className="grid min-h-[650px] gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-      <Card className="overflow-hidden"><CardHeader><CardTitle>Conversations</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[720px] overflow-y-auto divide-y divide-line">{conversations.map((c) => <Link key={c.phone} href={`/app/whatsapp/inbox?phone=${encodeURIComponent(c.phone)}`} className={`block p-4 hover:bg-surface ${c.phone===selectedPhone?"bg-surface":""}`}>
-        <div className="flex items-start justify-between gap-2"><div className="min-w-0"><div className="truncate font-medium">{c.name}</div><div className="mt-0.5 text-xs text-muted2">+{c.phone}{c.clientId?` · ${c.internalId}`:" · Unknown contact"}</div></div>{c.unread?<span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">{c.unread} NEW</span>:null}</div>
-        <div className="mt-2 truncate text-sm text-muted2">{c.preview}</div><div className="mt-1 text-[10px] text-muted2">{formatWhen(c.lastAt)}</div>
-      </Link>)}</div></CardContent></Card>
-
-      <Card className="overflow-hidden">{selected ? <>
-        <CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>{selected.name}</CardTitle><div className="mt-1 text-xs text-muted2">+{selected.phone}</div>{selected.clientId?<div className="mt-2 flex flex-wrap gap-3 text-xs"><Link className="text-electric hover:underline" href={`/app/clients/${selected.clientId}`}><UserRound className="mr-1 inline h-3.5 w-3.5"/>Open Client 360</Link>{selected.caseId?<Link className="text-electric hover:underline" href={`/app/cases/${selected.caseId}`}>Open Case</Link>:null}</div>:<div className="mt-2 text-xs text-amber-700">This number is not linked to a JUN client yet.</div>}</div>
-          {selected.unread?<form action={markWhatsAppConversationRead.bind(null,selected.phone)}><Button variant="outline" size="sm"><CheckCheck className="h-4 w-4"/>Mark read</Button></form>:null}
-        </div></CardHeader>
-        <CardContent className="flex min-h-[560px] flex-col p-0">
-          <div className="flex-1 space-y-3 overflow-y-auto bg-surface/50 p-4">{messages.map(({row,payload}) => payload ? <div key={row.id} className={`flex ${payload.direction==="OUTBOUND"?"justify-end":"justify-start"}`}><div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm shadow-sm ${payload.direction==="OUTBOUND"?"bg-night text-white":"border border-line bg-white text-ink"}`}>
-            {payload.type!=="text"?<div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70"><Paperclip className="h-3 w-3"/>{payload.type.replaceAll("_"," ")}</div>:null}
-            <div className="whitespace-pre-wrap break-words">{payload.text}</div>{payload.filename?<div className="mt-1 text-xs opacity-70">{payload.filename}</div>:null}
-            <div className="mt-1 text-right text-[10px] opacity-60">{formatWhen(new Date(payload.timestamp))}{payload.direction==="OUTBOUND"&&row.user?` · ${row.user.firstName}`:""}</div>
-          </div></div> : null)}</div>
-          <form action={replyWhatsAppConversation.bind(null,selected.phone)} className="border-t border-line bg-white p-4"><Textarea name="message" rows={3} required maxLength={4096} placeholder="Reply to this client on WhatsApp…"/><div className="mt-2 flex items-center justify-between gap-3"><p className="text-[11px] text-muted2">A client reply opens Meta&apos;s customer-service window, so free-text replies can be sent from JUN while that window is active.</p><Button variant="primary" type="submit">Send reply</Button></div></form>
-        </CardContent>
-      </> : null}</Card>
-    </div>}
-  </div>;
+  );
 }
 
 function groupConversations(rows: Row[]) {
-  const map = new Map<string, {phone:string;name:string;clientId:string|null;internalId:string|null;caseId:string|null;preview:string;lastAt:Date;unread:number}>();
+  const map = new Map<string, {
+    phone: string;
+    name: string;
+    clientId: string | null;
+    internalId: string | null;
+    caseId: string | null;
+    caseNumber: string | null;
+    preview: string;
+    lastAt: Date;
+    unread: number;
+  }>();
+
   for (const row of rows) {
     const phone = String(row.resourceId || "");
     if (!phone) continue;
@@ -90,15 +364,50 @@ function groupConversations(rows: Row[]) {
         clientId: row.client?.id || null,
         internalId: row.client?.internalId || null,
         caseId: row.case?.id || null,
+        caseNumber: row.case?.caseNumber || null,
         preview: payload.text,
         lastAt: row.createdAt,
         unread: row.type === "WHATSAPP_INBOUND_UNREAD" ? 1 : 0,
       });
-    } else if (row.type === "WHATSAPP_INBOUND_UNREAD") existing.unread++;
+    } else if (row.type === "WHATSAPP_INBOUND_UNREAD") {
+      existing.unread++;
+    }
   }
-  return [...map.values()].sort((a,b)=>b.lastAt.getTime()-a.lastAt.getTime());
+  return [...map.values()].sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "WA";
 }
 
 function formatWhen(value: Date) {
-  return new Intl.DateTimeFormat("fr-FR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }).format(value);
+  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(value);
+}
+
+function formatTime(value: Date) {
+  return new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(value);
+}
+
+function formatListWhen(value: Date) {
+  const now = new Date();
+  if (dayKey(now) === dayKey(value)) return formatTime(value);
+  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" }).format(value);
+}
+
+function dayKey(value: Date | string) {
+  const d = new Date(value);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDay(value: Date) {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (dayKey(value) === dayKey(now)) return "Aujourd’hui";
+  if (dayKey(value) === dayKey(yesterday)) return "Hier";
+  return new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "2-digit", month: "long" }).format(value);
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return <div><div className="text-[10px] uppercase tracking-wide text-muted2">{label}</div><div className="mt-0.5 text-sm font-medium text-ink">{value}</div></div>;
 }
