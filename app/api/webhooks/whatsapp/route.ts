@@ -9,27 +9,50 @@ export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("hub.mode");
   const token = request.nextUrl.searchParams.get("hub.verify_token");
   const challenge = request.nextUrl.searchParams.get("hub.challenge");
-  const envExpected = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
-  const dbExpected = await getWhatsAppWebhookVerifyToken();
-  const expected = envExpected || dbExpected;
 
-  console.info("[WhatsApp webhook verify]", {
+  const envToken = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
+  const dbToken = await getWhatsAppWebhookVerifyToken();
+  const expected = envToken || dbToken;
+  const tokenMatches = Boolean(token && expected && token === expected);
+
+  const diagnostic = {
     mode,
     tokenPresent: Boolean(token),
     challengePresent: Boolean(challenge),
-    envTokenConfigured: Boolean(envExpected),
-    dbTokenConfigured: Boolean(dbExpected),
+    envTokenConfigured: Boolean(envToken),
+    dbTokenConfigured: Boolean(dbToken),
     expectedTokenConfigured: Boolean(expected),
-    tokenMatches: Boolean(token && expected && token === expected),
+    tokenMatches,
     host: request.headers.get("host"),
     userAgent: request.headers.get("user-agent"),
-  });
+  };
 
-  if (mode === "subscribe" && expected && token === expected && challenge) {
-    return new NextResponse(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
+  if (mode === "subscribe" && tokenMatches && challenge) {
+    console.warn("[WhatsApp webhook verify] SUCCESS", diagnostic);
+    return new NextResponse(challenge, {
+      status: 200,
+      headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" },
+    });
   }
 
-  return NextResponse.json({ ok: false, error: "Webhook verification failed" }, { status: 403 });
+  // Use error level temporarily so the diagnostic is visible even when Vercel log filters hide info logs.
+  console.error("[WhatsApp webhook verify] FAILED", diagnostic);
+  return NextResponse.json(
+    {
+      ok: false,
+      error: "Webhook verification failed",
+      diagnostic: {
+        mode,
+        tokenPresent: Boolean(token),
+        challengePresent: Boolean(challenge),
+        envTokenConfigured: Boolean(envToken),
+        dbTokenConfigured: Boolean(dbToken),
+        expectedTokenConfigured: Boolean(expected),
+        tokenMatches,
+      },
+    },
+    { status: 403, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 type MetaStatus = {
