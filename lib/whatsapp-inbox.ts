@@ -97,6 +97,62 @@ async function notificationRecipients(client: { ownerId: string | null } | null)
   return [...ids];
 }
 
+export async function recordOutgoingWhatsAppMessage(input: {
+  phone: string;
+  messageId?: string | null;
+  type: string;
+  text: string;
+  clientId?: string | null;
+  caseId?: string | null;
+  userId?: string | null;
+  mediaId?: string;
+  filename?: string;
+  caption?: string;
+  timestamp?: Date | string;
+}) {
+  const phone = normalizeWhatsAppPhone(input.phone);
+  if (!phone) return null;
+  const messageId = String(input.messageId || `local-${Date.now()}`).trim();
+
+  const duplicate = await prisma.activity.findFirst({
+    where: {
+      resourceType: "WhatsAppConversation",
+      resourceId: phone,
+      message: { contains: messageId },
+    },
+    select: { id: true },
+  });
+  if (duplicate) return duplicate;
+
+  const timestamp = input.timestamp instanceof Date
+    ? input.timestamp.toISOString()
+    : input.timestamp
+      ? new Date(input.timestamp).toISOString()
+      : new Date().toISOString();
+
+  return prisma.activity.create({
+    data: {
+      type: "WHATSAPP_OUTBOUND_REPLY",
+      message: encodeWhatsAppInboxPayload({
+        direction: "OUTBOUND",
+        phone,
+        messageId,
+        type: input.type || "text",
+        text: String(input.text || "").trim() || "Message WhatsApp envoyé",
+        mediaId: input.mediaId,
+        filename: input.filename,
+        caption: input.caption,
+        timestamp,
+      }),
+      userId: input.userId || undefined,
+      clientId: input.clientId || undefined,
+      caseId: input.caseId || undefined,
+      resourceType: "WhatsAppConversation",
+      resourceId: phone,
+    },
+  });
+}
+
 export async function recordIncomingWhatsAppMessage(input: {
   message: any;
   contactName?: string;
