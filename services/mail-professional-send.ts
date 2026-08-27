@@ -9,12 +9,21 @@ import { gmailSendAdvanced } from "@/lib/google/gmail-advanced-send";
 import { deleteMailComposeMeta, getMailComposeMeta, listMailSignatures } from "@/lib/mail-compose-meta";
 import { approvalIsCurrent, computeMailDraftHash, getMailApproval, markMailApprovalSent } from "@/lib/mail-approval";
 import { acquireMailSendLock, assertMailboxAccess, markMailSendFailure, markMailSendSuccess } from "@/lib/mail-security";
+import { findBannedClientByEmail, getClientCommunicationBan, isClientCommunicationBanned } from "@/lib/client-communication-policy";
 
 export async function sendProfessionalDraft(threadId:string){
  const user=await assertPermission("EMAIL_SEND");
  const thread=await prisma.mailThread.findUnique({where:{id:threadId},include:{account:true}});if(!thread||!thread.aiDraft)redirect("/app/mail?toast_error=Professional draft not found");
  await assertMailboxAccess(user,thread.mailAccountId);
  const meta=await getMailComposeMeta(threadId);if(!meta)redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("This is not a professional draft")}`);
+ if(thread.clientId&&await isClientCommunicationBanned(thread.clientId)){
+  const ban=await getClientCommunicationBan(thread.clientId);
+  redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(`Client banni — email bloqué partout dans JUN${ban.reason?`: ${ban.reason}`:""}`)}`);
+ }
+ for(const email of [...meta.to,...meta.cc,...meta.bcc]){
+  const banned=await findBannedClientByEmail(email);
+  if(banned)redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(`Destinataire banni — aucun email ne peut être envoyé à ${email}`)}`);
+ }
  if(thread.aiLevel!=="AUTO"){
   const approval=await getMailApproval(threadId),valid=await approvalIsCurrent(threadId);
   if(!valid)redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(approval?.status==="APPROVED"?"Draft changed after approval — submit the new version for approval":"This email requires approval before sending")}`);
@@ -32,9 +41,8 @@ export async function sendProfessionalDraft(threadId:string){
  try{sendLock=await acquireMailSendLock({threadId:thread.id,fingerprint,userId:user.id});}
  catch(e){redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"Email send is already in progress")}`);}
  let gmailMessageId:string;
- try{
-  gmailMessageId=await gmailSendAdvanced(thread.mailAccountId,{to:meta.to,cc:meta.cc,bcc:meta.bcc,subject:thread.subject||"(no subject)",text,inReplyToGmailId:sourceMessageId,threadId:meta.mode==="REPLY"||meta.mode==="REPLY_ALL"?gmailThreadId:undefined,attachments});
- }catch(e){await markMailSendFailure({threadId:thread.id,attemptId:sendLock.attemptId,error:e,accountId:thread.mailAccountId,userId:user.id});redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"Gmail send failed")}`);}
+ try{gmailMessageId=await gmailSendAdvanced(thread.mailAccountId,{to:meta.to,cc:meta.cc,bcc:meta.bcc,subject:thread.subject||"(no subject)",text,inReplyToGmailId:sourceMessageId,threadId:meta.mode==="REPLY"||meta.mode==="REPLY_ALL"?gmailThreadId:undefined,attachments});}
+ catch(e){await markMailSendFailure({threadId:thread.id,attemptId:sendLock.attemptId,error:e,accountId:thread.mailAccountId,userId:user.id});redirect(`/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"Gmail send failed")}`);}
  await markMailSendSuccess({threadId:thread.id,attemptId:sendLock.attemptId,gmailMessageId});
  if(thread.aiLevel!=="AUTO")await markMailApprovalSent(thread.id,user.id);
  await prisma.mailThread.update({where:{id:thread.id},data:{snippet:text.slice(0,500),aiDraft:null,lastMessageAt:new Date(),requiresAttention:false,toEmails:meta.to}});
