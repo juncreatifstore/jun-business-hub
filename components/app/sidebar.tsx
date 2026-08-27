@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Mail, MessageCircle, Bell, Users, FolderKanban, CheckSquare, HardDrive,
   FileText, PenTool, Lock, CreditCard, ReceiptText, Undo2, BarChart3,
-  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark,
+  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark, Gauge,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean };
@@ -44,6 +44,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
       { href: "/app/finance/refunds", label: "Refunds", icon: Undo2 },
       { href: "/app/finance/reports", label: "Reports", icon: BarChart3 },
       { href: "/app/company-funds", label: "Fonds de l’entreprise", icon: Landmark, superAdminOnly: true },
+      { href: "/app/company-funds/executive", label: "Direction financière", icon: Gauge, superAdminOnly: true },
     ],
   },
   { label: "AI", items: [{ href: "/app/ai", label: "JUN AI", icon: Sparkles }] },
@@ -76,7 +77,7 @@ export function Sidebar({ open, onClose, role }: { open: boolean; onClose: () =>
             if (!items.length) return null;
             return <div key={i} className="mt-4 first:mt-0">
               {s.label ? <p className="px-2 pb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">{s.label}</p> : null}
-              {items.map((item) => { const active = item.href === "/app" ? pathname === "/app" : pathname.startsWith(item.href); return <Link key={item.href} href={item.href} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}><item.icon className="h-4 w-4" />{item.label}</Link>; })}
+              {items.map((item) => { const active = item.href === "/app" ? pathname === "/app" : pathname === item.href || pathname.startsWith(`${item.href}/`); return <Link key={item.href} href={item.href} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}><item.icon className="h-4 w-4" />{item.label}</Link>; })}
             </div>;
           })}
         </nav>
