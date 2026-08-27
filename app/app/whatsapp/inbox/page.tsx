@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { decodeWhatsAppInboxPayload } from "@/lib/whatsapp-inbox";
+import { decodeWhatsAppInboxPayload, normalizeWhatsAppPhone, type WhatsAppInboxPayload } from "@/lib/whatsapp-inbox";
 import {
   markWhatsAppConversationRead,
   replyWhatsAppConversation,
@@ -39,14 +39,19 @@ type ConversationStatus = "OPEN" | "WAITING" | "RESOLVED";
 async function loadRows() {
   return prisma.activity.findMany({
     where: {
-      resourceType: "WhatsAppConversation",
-      type: { in: ["WHATSAPP_INBOUND_UNREAD", "WHATSAPP_INBOUND_READ", "WHATSAPP_OUTBOUND_REPLY"] },
-      resourceId: { not: null },
+      OR: [
+        {
+          resourceType: "WhatsAppConversation",
+          type: { in: ["WHATSAPP_INBOUND_UNREAD", "WHATSAPP_INBOUND_READ", "WHATSAPP_OUTBOUND_REPLY"] },
+          resourceId: { not: null },
+        },
+        { type: "WHATSAPP_ACCEPTED", clientId: { not: null } },
+      ],
     },
     orderBy: { createdAt: "desc" },
-    take: 1000,
+    take: 2000,
     include: {
-      client: { select: { id: true, internalId: true, firstName: true, lastName: true } },
+      client: { select: { id: true, internalId: true, firstName: true, lastName: true, whatsapp: true, phone: true } },
       case: { select: { id: true, caseNumber: true, title: true } },
       user: { select: { firstName: true, lastName: true } },
     },
@@ -108,9 +113,9 @@ export default async function WhatsAppInboxPage({
   const selected = allConversations.find((c) => c.phone === selectedPhone);
 
   const rawMessages = rows
-    .filter((r) => r.resourceId === selectedPhone)
-    .map((r) => ({ row: r, payload: decodeWhatsAppInboxPayload(r.message) }))
-    .filter((x) => x.payload)
+    .filter((r) => rowPhone(r) === selectedPhone)
+    .map((r) => ({ row: r, payload: payloadForRow(r) }))
+    .filter((x): x is { row: Row; payload: WhatsAppInboxPayload } => Boolean(x.payload))
     .reverse();
   const messages = dedupeTimeline(rawMessages);
 
@@ -147,7 +152,7 @@ export default async function WhatsAppInboxPage({
           <CardContent className="p-10 text-center">
             <Inbox className="mx-auto h-10 w-10 text-muted2" />
             <div className="mt-3 font-medium">Aucune conversation WhatsApp</div>
-            <div className="mt-1 text-sm text-muted2">Les réponses clients apparaîtront automatiquement ici.</div>
+            <div className="mt-1 text-sm text-muted2">Les réponses clients et les envois WhatsApp apparaîtront automatiquement ici.</div>
           </CardContent>
         </Card>
       ) : (
@@ -272,7 +277,6 @@ export default async function WhatsAppInboxPage({
                 <div className="flex-1 overflow-y-auto px-4 py-3 md:px-6">
                   <div className="mx-auto max-w-4xl space-y-1.5">
                     {messages.map(({ row, payload }, index) => {
-                      if (!payload) return null;
                       const previous = index > 0 ? messages[index - 1]?.payload : null;
                       const showDate = !previous || dayKey(previous.timestamp) !== dayKey(payload.timestamp);
                       const outbound = payload.direction === "OUTBOUND";
@@ -406,6 +410,63 @@ export default async function WhatsAppInboxPage({
   );
 }
 
+function rowPhone(row: Row) {
+  if (row.resourceType === "WhatsAppConversation") return normalizeWhatsAppPhone(String(row.resourceId || ""));
+  return normalizeWhatsAppPhone(row.client?.whatsapp || row.client?.phone || "");
+}
+
+function payloadForRow(row: Row): WhatsAppInboxPayload | null {
+  const decoded = decodeWhatsAppInboxPayload(row.message);
+  if (decoded) return decoded;
+  if (row.type !== "WHATSAPP_ACCEPTED") return null;
+
+  const phone = rowPhone(row);
+  if (!phone) return null;
+  const messageId = extractAcceptedMessageId(row.message) || `legacy-${row.id}`;
+  const documentMatch = row.message.match(/^Document\s+(.+?)\s+accepted by Meta/i);
+  const statementMatch = row.message.match(/^Statement\s+(.+?)\s+accepted by Meta/i);
+  const templateMatch = row.message.match(/^WhatsApp template accepted by Meta/i);
+  const genericMessage = row.message.match(/^WhatsApp message accepted by Meta/i);
+
+  if (documentMatch) {
+    const reference = documentMatch[1].trim();
+    return {
+      direction: "OUTBOUND",
+      phone,
+      messageId,
+      type: "document",
+      text: `Document envoyé · ${reference}`,
+      filename: `${reference}.pdf`,
+      timestamp: row.createdAt.toISOString(),
+    };
+  }
+  if (statementMatch) {
+    const reference = statementMatch[1].trim();
+    return {
+      direction: "OUTBOUND",
+      phone,
+      messageId,
+      type: "document",
+      text: `Relevé envoyé · ${reference}`,
+      filename: `${reference}.pdf`,
+      timestamp: row.createdAt.toISOString(),
+    };
+  }
+  return {
+    direction: "OUTBOUND",
+    phone,
+    messageId,
+    type: templateMatch ? "template" : "text",
+    text: templateMatch ? "Modèle WhatsApp envoyé" : genericMessage ? "Message WhatsApp envoyé" : "Envoi WhatsApp accepté par Meta",
+    timestamp: row.createdAt.toISOString(),
+  };
+}
+
+function extractAcceptedMessageId(message: string) {
+  const match = String(message || "").match(/\s·\s([^\s·]+)\s*$/);
+  return match?.[1] || "";
+}
+
 function groupConversations(rows: Row[]) {
   const map = new Map<string, {
     phone: string;
@@ -421,9 +482,9 @@ function groupConversations(rows: Row[]) {
   }>();
 
   for (const row of rows) {
-    const phone = String(row.resourceId || "");
+    const phone = rowPhone(row);
     if (!phone) continue;
-    const payload = decodeWhatsAppInboxPayload(row.message);
+    const payload = payloadForRow(row);
     if (!payload) continue;
     const existing = map.get(phone);
     const isInbound = payload.direction === "INBOUND";
@@ -443,20 +504,33 @@ function groupConversations(rows: Row[]) {
     } else {
       if (row.type === "WHATSAPP_INBOUND_UNREAD") existing.unread++;
       if (!existing.lastInboundAt && isInbound) existing.lastInboundAt = new Date(payload.timestamp);
+      if (!existing.clientId && row.client) {
+        existing.clientId = row.client.id;
+        existing.internalId = row.client.internalId;
+        existing.name = `${row.client.firstName} ${row.client.lastName}`;
+      }
+      if (!existing.caseId && row.case) {
+        existing.caseId = row.case.id;
+        existing.caseNumber = row.case.caseNumber;
+      }
     }
   }
   return [...map.values()].sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
 }
 
-function dedupeTimeline<T extends { row: Row; payload: ReturnType<typeof decodeWhatsAppInboxPayload> }>(items: T[]) {
+function dedupeTimeline<T extends { row: Row; payload: WhatsAppInboxPayload }>(items: T[]) {
   const result: T[] = [];
-  const seenIds = new Set<string>();
+  const indexById = new Map<string, number>();
   for (const item of items) {
     const payload = item.payload;
-    if (!payload) continue;
     const id = String(payload.messageId || "").trim();
-    if (id && seenIds.has(id)) continue;
-    if (id) seenIds.add(id);
+    if (id && indexById.has(id)) {
+      const index = indexById.get(id)!;
+      const existing = result[index];
+      if (existing.row.type === "WHATSAPP_ACCEPTED" && item.row.type !== "WHATSAPP_ACCEPTED") result[index] = item;
+      continue;
+    }
+    if (id) indexById.set(id, result.length);
 
     const previous = result[result.length - 1]?.payload;
     if (
