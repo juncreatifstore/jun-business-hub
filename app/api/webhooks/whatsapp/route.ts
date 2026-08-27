@@ -9,7 +9,21 @@ export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("hub.mode");
   const token = request.nextUrl.searchParams.get("hub.verify_token");
   const challenge = request.nextUrl.searchParams.get("hub.challenge");
-  const expected = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || (await getWhatsAppWebhookVerifyToken());
+  const envExpected = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
+  const dbExpected = await getWhatsAppWebhookVerifyToken();
+  const expected = envExpected || dbExpected;
+
+  console.info("[WhatsApp webhook verify]", {
+    mode,
+    tokenPresent: Boolean(token),
+    challengePresent: Boolean(challenge),
+    envTokenConfigured: Boolean(envExpected),
+    dbTokenConfigured: Boolean(dbExpected),
+    expectedTokenConfigured: Boolean(expected),
+    tokenMatches: Boolean(token && expected && token === expected),
+    host: request.headers.get("host"),
+    userAgent: request.headers.get("user-agent"),
+  });
 
   if (mode === "subscribe" && expected && token === expected && challenge) {
     return new NextResponse(challenge, { status: 200, headers: { "Content-Type": "text/plain" } });
