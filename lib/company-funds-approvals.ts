@@ -26,10 +26,12 @@ export async function saveFinancialAuthorizationPolicy(policy:FinancialAuthoriza
 export async function listFinancialAuthorizations(limit=1000){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:REQUEST_PREFIX}},orderBy:{updatedAt:"desc"},take:limit,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is FinancialAuthorization=>Boolean(v))}
 export async function getFinancialAuthorization(id:string){const row=await prisma.appSetting.findUnique({where:{key:`${REQUEST_PREFIX}${id}`},select:{value:true}});return row?parse(row.value):null}
 async function save(a:FinancialAuthorization){await prisma.appSetting.upsert({where:{key:`${REQUEST_PREFIX}${a.id}`},create:{key:`${REQUEST_PREFIX}${a.id}`,value:JSON.stringify(a)},update:{value:JSON.stringify(a)}});return a}
-export async function findAuthorizationForResource(type:FinancialAuthorizationType,resourceId:string){const all=await listFinancialAuthorizations();return all.find(a=>a.type===type&&a.resourceId===resourceId&&!['CANCELLED'].includes(a.status))||null}
+
+export async function findLatestAuthorizationForResource(type:FinancialAuthorizationType,resourceId:string){const all=await listFinancialAuthorizations();return all.find(a=>a.type===type&&a.resourceId===resourceId)||null}
+export async function findAuthorizationForResource(type:FinancialAuthorizationType,resourceId:string){const all=await listFinancialAuthorizations();return all.find(a=>a.type===type&&a.resourceId===resourceId&&["PENDING","APPROVED"].includes(a.status))||null}
 
 export async function createFinancialAuthorization(input:{type:FinancialAuthorizationType;resourceId:string;reference:string;description:string;amount:number;currency:string;requestedById:string;requiredApprovals:number;reason:string;reserveImpact?:boolean}){
-  const existing=await findAuthorizationForResource(input.type,input.resourceId);if(existing&&["PENDING","APPROVED"].includes(existing.status))return existing;
+  const existing=await findAuthorizationForResource(input.type,input.resourceId);if(existing)return existing;
   const now=new Date().toISOString();const requiredApprovals=Math.max(0,Math.min(3,Math.trunc(input.requiredApprovals)));const autoApproved=requiredApprovals===0;
   const a:FinancialAuthorization={id:randomUUID(),type:input.type,resourceId:input.resourceId,reference:input.reference.trim().slice(0,160),description:input.description.trim().slice(0,800),amount:round(input.amount),currency:input.currency.toUpperCase(),requestedById:input.requestedById,requiredApprovals,reason:input.reason.trim().slice(0,1000),reserveImpact:Boolean(input.reserveImpact),status:autoApproved?"APPROVED":"PENDING",decisions:[],createdAt:now,updatedAt:now,approvedAt:autoApproved?now:null,rejectedAt:null};return save(a)
 }
@@ -48,7 +50,7 @@ export async function ensureFinancialAuthorization(input:{type:FinancialAuthoriz
   return createFinancialAuthorization({...input,amount,currency,requiredApprovals:required,reason,reserveImpact});
 }
 
-export async function financialAuthorizationApproved(type:FinancialAuthorizationType,resourceId:string){const a=await findAuthorizationForResource(type,resourceId);return Boolean(a&&a.status==="APPROVED")}
+export async function financialAuthorizationApproved(type:FinancialAuthorizationType,resourceId:string){const latest=await findLatestAuthorizationForResource(type,resourceId);return Boolean(latest&&latest.status==="APPROVED")}
 
 export async function ensureTransferAuthorization(transferId:string,requestedById:string){const transfer=await getTreasuryTransfer(transferId);if(!transfer)throw new Error("Transfer not found");const debit=round(transfer.sentAmount+transfer.feeAmount);return ensureFinancialAuthorization({type:"TRANSFER",resourceId:transfer.id,reference:transfer.reference,description:`Transfert interne ${transfer.fromCurrency} ${debit.toFixed(2)} vers ${transfer.toCurrency}`,amount:debit,currency:transfer.fromCurrency,requestedById,accountId:transfer.fromAccountId})}
 export async function transferAuthorizationApproved(transferId:string){return financialAuthorizationApproved("TRANSFER",transferId)}
