@@ -5,11 +5,11 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import {
-  addProjectIntegration, addTreasuryAccount, addTreasuryInvestment, addTreasuryLoan,
+  addProjectIntegration, addTreasuryAccount, addTreasuryForecastItem, addTreasuryInvestment, addTreasuryLoan,
   addTreasuryPartner, addTreasurySource, resolveTreasuryReconciliation, setTreasuryAccountConnectionKey,
-  updateTreasuryAccountBalance,
-  type TreasuryAccountType, type TreasuryConnectionMode, type TreasuryInvestmentStatus,
-  type TreasuryLoanStatus, type TreasuryPartnerType, type TreasurySourceKind,
+  updateTreasuryAccountBalance, updateTreasuryForecastStatus,
+  type TreasuryAccountType, type TreasuryConnectionMode, type TreasuryDirection, type TreasuryForecastStatus,
+  type TreasuryInvestmentStatus, type TreasuryLoanStatus, type TreasuryPartnerType, type TreasurySourceKind,
 } from "@/lib/company-funds";
 
 async function superAdmin() {
@@ -64,6 +64,19 @@ export async function createTreasuryLoanAction(form:FormData){
 export async function createTreasuryInvestmentAction(form:FormData){
   const user=await superAdmin(); const investment=await addTreasuryInvestment({name:text(form,"name",140),country:text(form,"country",80),currency:text(form,"currency",3).toUpperCase(),amount:money(form,"amount"),investedAt:text(form,"investedAt",40),projectIntegrationId:text(form,"projectIntegrationId")||null,expectedReturnPercent:money(form,"expectedReturnPercent"),status:(text(form,"status")||"ACTIVE") as TreasuryInvestmentStatus,counterparty:text(form,"counterparty",160),note:text(form,"note",500)});
   await audit({userId:user.id,action:"COMPANY_FUNDS_INVESTMENT_CREATE",resourceType:"TreasuryInvestment",resourceId:investment.id,after:{name:investment.name,amount:investment.amount,currency:investment.currency}});refresh();
+}
+export async function createTreasuryForecastItemAction(form:FormData){
+  const user=await superAdmin();
+  const item=await addTreasuryForecastItem({
+    label:text(form,"label",160),direction:text(form,"direction") as TreasuryDirection,amount:money(form,"amount"),currency:text(form,"currency",3).toUpperCase(),
+    dueDate:text(form,"dueDate",40),category:text(form,"category",80),projectIntegrationId:text(form,"projectIntegrationId")||null,accountId:text(form,"accountId")||null,
+    status:"PLANNED",note:text(form,"note",500),
+  });
+  await audit({userId:user.id,action:"COMPANY_FUNDS_FORECAST_CREATE",resourceType:"TreasuryForecastItem",resourceId:item.id,after:{label:item.label,direction:item.direction,amount:item.amount,currency:item.currency,dueDate:item.dueDate}});refresh();
+}
+export async function setTreasuryForecastStatusAction(id:string,form:FormData){
+  const user=await superAdmin(); const status=text(form,"status") as TreasuryForecastStatus; if(!["PLANNED","CONFIRMED","PAID","CANCELLED"].includes(status)) throw new Error("Invalid forecast status");
+  const item=await updateTreasuryForecastStatus(id,status); await audit({userId:user.id,action:"COMPANY_FUNDS_FORECAST_STATUS",resourceType:"TreasuryForecastItem",resourceId:id,after:{status:item.status}});refresh();
 }
 export async function createProjectIntegrationAction(form:FormData){
   const user=await superAdmin(); const apiKey=text(form,"apiKey",256); if(apiKey.length<20) throw new Error("API key must contain at least 20 characters");
