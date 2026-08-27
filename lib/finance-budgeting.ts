@@ -60,7 +60,7 @@ function parsePlan(value:string):FinanceBudgetPlan|null{
       ...p,
       currency:String(p.currency||"USD").toUpperCase(),
       lines:BUDGET_CATEGORIES.map(def=>{const found=Array.isArray(p.lines)?p.lines.find(line=>line.category===def.category):undefined;return{category:def.category,label:def.label,monthly:safeMonthly(found?.monthly)}}),
-      projects:(Array.isArray((p as any).projects)?(p as any).projects:[]).map(safeProject).filter((v):v is BudgetProject=>Boolean(v)),
+      projects:(Array.isArray((p as any).projects)?(p as any).projects:[]).map((item:unknown)=>safeProject(item)).filter((v:BudgetProject|null):v is BudgetProject=>v!==null),
       assumptions:{...DEFAULT_ASSUMPTIONS,...(p.assumptions||{})},
       note:String(p.note||""),
     };
