@@ -17,7 +17,7 @@ export function AppShell({
   const [open, setOpen] = useState(false);
   return (
     <div className="flex min-h-screen">
-      <Sidebar open={open} onClose={() => setOpen(false)} />
+      <Sidebar open={open} onClose={() => setOpen(false)} role={user.role} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header user={user} unread={unread} onMenu={() => setOpen(true)} />
         <main className="flex-1 p-4 sm:p-6"><ContextBack />{children}</main>
