@@ -53,5 +53,12 @@ export async function GET(_request:Request,{params}:{params:{period:string}}){
   draw(`Genere le ${new Date().toISOString()} par ${user.firstName} ${user.lastName} (${user.role})`,8);
 
   const bytes=await pdf.save();
-  return new NextResponse(Buffer.from(bytes),{status:200,headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="JUN-cloture-${close.period}.pdf"`,`Cache-Control":"no-store"`}});
+  return new NextResponse(Buffer.from(bytes),{
+    status:200,
+    headers:{
+      "Content-Type":"application/pdf",
+      "Content-Disposition":`attachment; filename="JUN-cloture-${close.period}.pdf"`,
+      "Cache-Control":"no-store",
+    },
+  });
 }
