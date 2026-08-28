@@ -17,11 +17,30 @@ function slugify(value:string){
     .replace(/(^-|-$)/g,"");
 }
 
+function resolveSectionCard(heading:HTMLHeadingElement|null){
+  if(!heading)return null;
+  const header=heading.parentElement;
+  const card=header?.parentElement;
+  if(!(header instanceof HTMLElement)||!(card instanceof HTMLElement))return null;
+  if(card.firstElementChild!==header)return null;
+  if(!header.classList.contains("border-b")||!header.classList.contains("border-line"))return null;
+  if(!header.classList.contains("px-5")||!header.classList.contains("py-3.5"))return null;
+  if(!card.classList.contains("rounded-xl")||!card.classList.contains("border")||!card.classList.contains("bg-white")||!card.classList.contains("shadow-sm"))return null;
+  const content=Array.from(card.children).find(child=>child!==header&&child instanceof HTMLElement&&child.classList.contains("p-5"));
+  return content?card:null;
+}
+
 function getSectionCard(id:string){
   const heading=document.getElementById(id);
-  const header=heading?.parentElement;
-  const card=header?.parentElement;
-  return card instanceof HTMLElement?card:null;
+  return heading instanceof HTMLHeadingElement?resolveSectionCard(heading):null;
+}
+
+function resetSectionCard(card:HTMLElement){
+  card.style.display="";
+  delete card.dataset.companyFundsCollapsed;
+  delete card.dataset.companyFundsFocused;
+  const children=Array.from(card.children) as HTMLElement[];
+  children.slice(1).forEach(child=>{child.style.display=""});
 }
 
 export function CompanyFundsOverviewNavigator(){
@@ -43,7 +62,7 @@ export function CompanyFundsOverviewNavigator(){
     const timer=window.setTimeout(()=>{
       const root=document.querySelector("main")??document.body;
       const headings=Array.from(root.querySelectorAll<HTMLHeadingElement>("h3"))
-        .filter(node=>node.textContent?.trim());
+        .filter(node=>Boolean(node.textContent?.trim())&&Boolean(resolveSectionCard(node)));
 
       const used=new Map<string,number>();
       const next:Section[]=[];
@@ -97,7 +116,7 @@ export function CompanyFundsOverviewNavigator(){
     return()=>{
       for(const section of sections){
         const card=getSectionCard(section.id);
-        if(card)card.style.display="";
+        if(card)resetSectionCard(card);
       }
     };
   },[collapsed,focusId,isOverview,sections]);
@@ -264,7 +283,7 @@ export function CompanyFundsOverviewNavigator(){
           {sections.map(section=>{
             const isCollapsed=collapsed.includes(section.id);
             return <div key={section.id} className={cn("inline-flex items-center rounded-lg transition",activeId===section.id?"bg-ink text-white":"text-muted2 hover:bg-surface hover:text-ink")}>
-              <button type="button" onClick={()=>go(section.id)} className="px-2.5 py-1.5 text-[11px] font-medium">{section.label}</button>
+              <button type="button" onClick={()=>go(section.id)} aria-current={activeId===section.id?"location":undefined} className="px-2.5 py-1.5 text-[11px] font-medium">{section.label}</button>
               <button type="button" onClick={()=>setOneCollapsed(section.id,!isCollapsed)} className={cn("mr-1 inline-flex h-5 w-5 items-center justify-center rounded-md",activeId===section.id?"hover:bg-white/15":"hover:bg-white")} aria-label={isCollapsed?`Développer ${section.label}`:`Réduire ${section.label}`} title={isCollapsed?"Développer":"Réduire"}>
                 {isCollapsed?<ChevronDown className="h-3 w-3"/>:<ChevronUp className="h-3 w-3"/>}
               </button>
@@ -289,7 +308,7 @@ export function CompanyFundsOverviewNavigator(){
         <div className="max-h-[42vh] overflow-y-auto rounded-lg bg-surface/50 p-1">{sections.map((section,index)=>{
           const isCollapsed=collapsed.includes(section.id);
           return <div key={section.id} className={cn("flex items-center rounded-lg transition",activeId===section.id?"bg-ink text-white":"text-ink hover:bg-white")}>
-            <button type="button" onClick={()=>go(section.id)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left text-sm"><span className={cn("inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold",activeId===section.id?"bg-white/15":"bg-white text-muted2")}>{index+1}</span><span className="truncate">{section.label}</span></button>
+            <button type="button" onClick={()=>go(section.id)} aria-current={activeId===section.id?"location":undefined} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left text-sm"><span className={cn("inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold",activeId===section.id?"bg-white/15":"bg-white text-muted2")}>{index+1}</span><span className="truncate">{section.label}</span></button>
             <button type="button" onClick={()=>setOneCollapsed(section.id,!isCollapsed)} className={cn("mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",activeId===section.id?"hover:bg-white/15":"hover:bg-surface")} aria-label={isCollapsed?`Développer ${section.label}`:`Réduire ${section.label}`}>
               {isCollapsed?<ChevronDown className="h-4 w-4"/>:<ChevronUp className="h-4 w-4"/>}
             </button>
@@ -315,7 +334,7 @@ export function CompanyFundsOverviewNavigator(){
           {filteredSections.map((section,index)=>{
             const selected=index===finderIndex;
             const isCollapsed=collapsed.includes(section.id);
-            return <button key={section.id} type="button" onMouseEnter={()=>setFinderIndex(index)} onClick={()=>go(section.id)} className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition",selected?"bg-surface":"hover:bg-surface/70")}>
+            return <button key={section.id} type="button" onMouseEnter={()=>setFinderIndex(index)} onClick={()=>go(section.id)} aria-current={section.id===activeId?"location":undefined} className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition",selected?"bg-surface":"hover:bg-surface/70")}>
               <span className={cn("inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",section.id===activeId?"bg-ink text-white":"bg-white border border-line text-muted2")}>{sections.findIndex(item=>item.id===section.id)+1}</span>
               <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-ink">{section.label}</span><span className="block text-[10px] text-muted2">{section.id===activeId?"Section actuelle":isCollapsed?"Réduite":"Disponible"}</span></span>
               {selected?<span className="text-[10px] font-medium text-muted2">Entrée ↵</span>:null}
