@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
+  Activity,
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
@@ -44,6 +45,7 @@ const items = [
   { href: "/app/company-funds/reserves", label: "Réserves financières", short: "Réserves", icon: PiggyBank, group: "Opérations" },
   { href: "/app/company-funds/authorizations", label: "Autorisations financières", short: "Autorisations", icon: Lock, group: "Sécurité" },
   { href: "/app/company-funds/execution-evidence", label: "Preuves d’exécution", short: "Preuves", icon: FileCheck2, group: "Sécurité" },
+  { href: "/app/company-funds/timeline", label: "Timeline des opérations", short: "Timeline", icon: Activity, group: "Sécurité" },
 ] as const;
 
 type ItemHref=(typeof items)[number]["href"];
