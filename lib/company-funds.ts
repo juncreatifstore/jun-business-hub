@@ -101,9 +101,24 @@ export async function getTreasuryStore() {
   try { return normalizeStore(JSON.parse(row.value)); } catch { return emptyStore(); }
 }
 export async function saveTreasuryStore(store: TreasuryStore) {
-  const normalized = { ...store, updatedAt: new Date().toISOString() };
-  await prisma.appSetting.upsert({ where: { key: STORE_KEY }, create: { key: STORE_KEY, value: JSON.stringify(normalized) }, update: { value: JSON.stringify(normalized) } });
-  return normalized;
+  const expectedVersion=String(store.updatedAt||"");
+  const saved=await prisma.$transaction(async tx=>{
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${STORE_KEY}))`;
+    const currentRow=await tx.appSetting.findUnique({where:{key:STORE_KEY},select:{value:true}});
+    if(currentRow){
+      let current:TreasuryStore;
+      try{current=normalizeStore(JSON.parse(currentRow.value));}catch{throw new Error("Treasury store is corrupted and cannot be updated safely.");}
+      if(expectedVersion&&current.updatedAt!==expectedVersion){
+        throw new Error("Treasury data changed concurrently. Refresh and retry; no financial data was overwritten.");
+      }
+    }
+    const normalized={...store,updatedAt:new Date().toISOString()};
+    const value=JSON.stringify(normalized);
+    await tx.appSetting.upsert({where:{key:STORE_KEY},create:{key:STORE_KEY,value},update:{value}});
+    return normalized;
+  },{isolationLevel:"Serializable"});
+  store.updatedAt=saved.updatedAt;
+  return saved;
 }
 
 function pushSnapshot(store: TreasuryStore, account: TreasuryAccount, source: "MANUAL" | "PROVIDER", externalId: string | null, capturedAt: string) {
