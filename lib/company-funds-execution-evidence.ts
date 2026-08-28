@@ -2,13 +2,14 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getFinancialAuthorization, type FinancialAuthorization, type FinancialAuthorizationType } from "@/lib/company-funds-approvals";
-import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
+import { getTreasuryStore, type TreasuryStore } from "@/lib/company-funds";
 import { getTreasuryTransfer } from "@/lib/company-funds-transfers";
 import { invalidateCompanyFundsWorkQueue } from "@/lib/company-funds-work-queue-cache";
 import { recordCompanyFundsEntityHistory } from "@/lib/company-funds-entity-history";
 
 const PREFIX="company.funds.execution-evidence.";
 const AUTH_PREFIX="company.funds.authorization.";
+const TREASURY_STORE_KEY="company.funds.store";
 export type FinancialExecutionEvidence={
   id:string;authorizationId:string;type:FinancialAuthorizationType;resourceId:string;reference:string;
   treasuryAccountId:string|null;transactionReference:string;proofFileId:string;note:string;
@@ -16,9 +17,21 @@ export type FinancialExecutionEvidence={
 };
 function parse(value:string):FinancialExecutionEvidence|null{try{const v=JSON.parse(value) as FinancialExecutionEvidence;return v?.id&&v?.authorizationId&&v?.proofFileId?v:null}catch{return null}}
 function parseAuthorization(value:string):FinancialAuthorization|null{try{const v=JSON.parse(value) as FinancialAuthorization;return v?.id&&v?.resourceId?v:null}catch{return null}}
+function parseTreasuryStore(value:string):TreasuryStore{try{const v=JSON.parse(value) as TreasuryStore;if(!v||!Array.isArray(v.investments)||!Array.isArray(v.accounts))throw new Error("Invalid treasury store");return v}catch{throw new Error("Treasury store is unavailable")}}
 function normalizeTransactionReference(value:string){return value.trim().toLocaleLowerCase("en-US")}
 export async function listFinancialExecutionEvidence(limit=1000){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},orderBy:{updatedAt:"desc"},take:limit,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is FinancialExecutionEvidence=>Boolean(v))}
 export async function getExecutionEvidenceForAuthorization(authorizationId:string){const rows=await listFinancialExecutionEvidence();return rows.find(e=>e.authorizationId===authorizationId)||null}
+
+async function activateInvestmentFromEvidence(resourceId:string){
+  return prisma.$transaction(async tx=>{
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${TREASURY_STORE_KEY}))`;
+    const row=await tx.appSetting.findUnique({where:{key:TREASURY_STORE_KEY},select:{value:true}});if(!row)throw new Error("Treasury store is unavailable");
+    const store=parseTreasuryStore(row.value);const investment=store.investments.find(i=>i.id===resourceId);if(!investment||investment.status!=="PLANNED")return null;
+    const before={...investment};const now=new Date().toISOString();investment.status="ACTIVE";investment.updatedAt=now;store.updatedAt=now;
+    await tx.appSetting.update({where:{key:TREASURY_STORE_KEY},data:{value:JSON.stringify(store)}});
+    return{before,after:{...investment},effectiveAt:now};
+  },{isolationLevel:"Serializable"});
+}
 
 export async function createFinancialExecutionEvidence(input:{authorizationId:string;treasuryAccountId?:string|null;transactionReference:string;proofFileId:string;note?:string;executedById:string;executedAt?:string|null}){
   const authorization=await getFinancialAuthorization(input.authorizationId);if(!authorization)throw new Error("Financial authorization not found");if(authorization.status!=="APPROVED")throw new Error("Financial authorization must be approved before execution evidence can be recorded");
@@ -66,12 +79,10 @@ export async function createFinancialExecutionEvidence(input:{authorizationId:st
   },{isolationLevel:"Serializable"});
 
   if(evidence.type==="INVESTMENT"){
-    const investment=treasury.investments.find(i=>i.id===evidence.resourceId);
-    if(investment&&investment.status==="PLANNED"){
-      const now=new Date().toISOString();
-      await recordCompanyFundsEntityHistory({entityType:"INVESTMENT",entityId:investment.id,snapshot:{...investment},effectiveAt:investment.updatedAt||investment.createdAt,reason:"BASELINE_BEFORE_ACTIVATION"});
-      investment.status="ACTIVE";investment.updatedAt=now;await saveTreasuryStore(treasury);
-      await recordCompanyFundsEntityHistory({entityType:"INVESTMENT",entityId:investment.id,snapshot:{...investment},effectiveAt:now,reason:"ACTIVATED_BY_EXECUTION_EVIDENCE"});
+    const activation=await activateInvestmentFromEvidence(evidence.resourceId);
+    if(activation){
+      await recordCompanyFundsEntityHistory({entityType:"INVESTMENT",entityId:evidence.resourceId,snapshot:activation.before,effectiveAt:String(activation.before.updatedAt||activation.before.createdAt),reason:"BASELINE_BEFORE_ACTIVATION"});
+      await recordCompanyFundsEntityHistory({entityType:"INVESTMENT",entityId:evidence.resourceId,snapshot:activation.after,effectiveAt:activation.effectiveAt,reason:"ACTIVATED_BY_EXECUTION_EVIDENCE"});
     }
   }
   invalidateCompanyFundsWorkQueue();
