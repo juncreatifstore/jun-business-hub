@@ -1,10 +1,10 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { assertPermission } from "@/lib/auth";
-import { audit } from "@/lib/audit";
+import { audit, logActivity } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { ensureFinancialAuthorization } from "@/lib/company-funds-approvals";
-import { markRefundInstallmentPaid } from "@/services/refunds";
+import { executeRefundInstallmentPayout } from "@/lib/refund-installment-payout-safe";
 import { confirmLegacyRefundFullyPaid } from "@/services/refund-legacy-settlement";
 
 async function requireAuthorization(input:{resourceId:string;reference:string;description:string;amount:number;currency:string;requestedById:string}){
@@ -20,9 +20,18 @@ async function requireAuthorization(input:{resourceId:string;reference:string;de
 export async function markRefundInstallmentPaidAuthorized(installmentId:string):Promise<void>{
   const user=await assertPermission("REFUND_APPROVE");
   const inst=await prisma.refundInstallment.findUnique({where:{id:installmentId},include:{refund:true}});if(!inst)throw new Error("Refund installment not found");
+  // A completed retry returns before creating a new authorization or touching a closed period.
+  if(inst.status==="PAID")return;
   await requireAuthorization({resourceId:`installment:${inst.id}`,reference:`${inst.refund.refundNumber}-${inst.number}`,description:`Paiement remboursement ${inst.refund.refundNumber} · tranche ${inst.number}`,amount:Number(inst.amount),currency:inst.refund.currency,requestedById:user.id});
-  await markRefundInstallmentPaid(installmentId);
-  revalidatePath(`/app/finance/refunds/${inst.refundId}`);revalidatePath("/app/company-funds/authorizations");
+  const result=await executeRefundInstallmentPayout(installmentId,user.id);
+  if(!result.duplicate){
+    await audit({userId:user.id,action:"REFUND_INSTALLMENT_PAID",resourceType:"RefundInstallment",resourceId:installmentId,after:{refund:result.refundNumber,amount:result.amount,currency:result.currency,newStatus:result.newStatus,method:result.method,transactionRef:result.transactionRef,proofFileId:result.proofFileId,authorizationId:result.authorizationId,paidAt:result.paidAt}});
+    await logActivity({type:"REFUND_UPDATED",message:`Refund payment recorded on ${result.refundNumber} (${result.newStatus.replaceAll("_"," ")})`,userId:user.id,clientId:result.clientId,caseId:result.caseId});
+  }
+  revalidatePath(`/app/finance/refunds/${result.refundId}`);revalidatePath("/app/finance/refunds");revalidatePath("/app/finance/payments");
+  revalidatePath(`/app/clients/${result.clientId}`);revalidatePath(`/app/clients/${result.clientId}/account`);revalidatePath(`/app/clients/${result.clientId}/statement`);
+  if(result.paymentId)revalidatePath(`/app/finance/payments/${result.paymentId}`);
+  revalidatePath("/app/company-funds/authorizations");revalidatePath("/app/company-funds/execution-evidence");revalidatePath("/app/company-funds/timeline");
 }
 
 export async function confirmLegacyRefundFullyPaidAuthorized(refundId:string,formData:FormData):Promise<void>{
