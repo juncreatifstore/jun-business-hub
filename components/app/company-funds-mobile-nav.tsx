@@ -58,7 +58,9 @@ export function CompanyFundsMobileNav({workQueue}:{workQueue:WorkQueue}){
   const pathname=usePathname();
   const [open,setOpen]=useState(false);
   const [query,setQuery]=useState("");
-  const closeButtonRef=useRef<HTMLButtonElement|null>(null);
+  const menuRef=useRef<HTMLDivElement|null>(null);
+  const searchInputRef=useRef<HTMLInputElement|null>(null);
+  const triggerRef=useRef<HTMLButtonElement|null>(null);
   const primary=[items[0],items[1],items[5],items[7]];
   const primaryHrefs=new Set<string>(primary.map(item=>item.href));
   const currentItem=items.find(item=>active(pathname,item.href));
@@ -70,15 +72,36 @@ export function CompanyFundsMobileNav({workQueue}:{workQueue:WorkQueue}){
     return items.filter(item=>`${item.group} ${item.label} ${item.short}`.toLowerCase().includes(q));
   },[query]);
 
+  function closeMenu(restoreFocus=true){
+    setOpen(false);
+    if(restoreFocus)window.setTimeout(()=>triggerRef.current?.focus(),0);
+  }
+
   useEffect(()=>{
     if(!open){setQuery("");return;}
     const previousOverflow=document.body.style.overflow;
     document.body.style.overflow="hidden";
-    const timer=window.setTimeout(()=>closeButtonRef.current?.focus(),0);
+    const timer=window.setTimeout(()=>searchInputRef.current?.focus(),0);
     const onKeyDown=(event:KeyboardEvent)=>{
       if(event.key==="Escape"){
         event.preventDefault();
-        setOpen(false);
+        closeMenu();
+        return;
+      }
+      if(event.key!=="Tab")return;
+      const dialog=menuRef.current;
+      if(!dialog)return;
+      const focusable=Array.from(dialog.querySelectorAll<HTMLElement>("a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex='-1'])"))
+        .filter(element=>element.offsetParent!==null);
+      if(!focusable.length)return;
+      const first=focusable[0];
+      const last=focusable[focusable.length-1];
+      if(event.shiftKey&&document.activeElement===first){
+        event.preventDefault();
+        last.focus();
+      }else if(!event.shiftKey&&document.activeElement===last){
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown",onKeyDown);
@@ -87,6 +110,7 @@ export function CompanyFundsMobileNav({workQueue}:{workQueue:WorkQueue}){
       window.removeEventListener("keydown",onKeyDown);
       document.body.style.overflow=previousOverflow;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[open]);
 
   useEffect(()=>{setOpen(false)},[pathname]);
@@ -94,26 +118,27 @@ export function CompanyFundsMobileNav({workQueue}:{workQueue:WorkQueue}){
   return <>
     <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur md:hidden" aria-label="Navigation mobile Fonds de l’entreprise">
       <div className="grid grid-cols-5 gap-1">
-        {primary.map(item=>{const Icon=item.icon;const isCurrent=active(pathname,item.href);const count=countFor(item.href,workQueue);return <Link key={item.href} href={item.href} aria-current={isCurrent?"page":undefined} onClick={()=>setOpen(false)} className={cn("relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",isCurrent?"bg-ink text-white":"text-muted2 active:bg-surface")}><Icon className="h-4 w-4"/><span className="max-w-full truncate">{item.short}</span>{count>0?<span className={cn("absolute right-2 top-1 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold",isCurrent?"bg-white text-ink":"bg-red-100 text-red-700")}>{count>9?"9+":count}</span>:null}</Link>})}
-        <button type="button" onClick={()=>setOpen(true)} aria-expanded={open} aria-controls="company-funds-mobile-menu" className={cn("relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",moreActive||open?"bg-ink text-white":"text-muted2 active:bg-surface")}><Menu className="h-4 w-4"/><span>Plus</span>{workQueue.total>0?<span className={cn("absolute right-2 top-1 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold",moreActive||open?"bg-white text-ink":"bg-amber-100 text-amber-800")}>{workQueue.total>9?"9+":workQueue.total}</span>:null}</button>
+        {primary.map(item=>{const Icon=item.icon;const isCurrent=active(pathname,item.href);const count=countFor(item.href,workQueue);return <Link key={item.href} href={item.href} aria-current={isCurrent?"page":undefined} onClick={()=>closeMenu(false)} className={cn("relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",isCurrent?"bg-ink text-white":"text-muted2 active:bg-surface")}><Icon className="h-4 w-4"/><span className="max-w-full truncate">{item.short}</span>{count>0?<span className={cn("absolute right-2 top-1 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold",isCurrent?"bg-white text-ink":"bg-red-100 text-red-700")}>{count>9?"9+":count}</span>:null}</Link>})}
+        <button ref={triggerRef} type="button" onClick={()=>setOpen(true)} aria-expanded={open} aria-controls="company-funds-mobile-menu" aria-haspopup="dialog" className={cn("relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",moreActive||open?"bg-ink text-white":"text-muted2 active:bg-surface")}><Menu className="h-4 w-4"/><span>Plus</span>{workQueue.total>0?<span className={cn("absolute right-2 top-1 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold",moreActive||open?"bg-white text-ink":"bg-amber-100 text-amber-800")}>{workQueue.total>9?"9+":workQueue.total}</span>:null}</button>
       </div>
     </div>
 
-    {open?<div className="fixed inset-0 z-[90] bg-black/35 md:hidden" onMouseDown={()=>setOpen(false)}>
-      <div id="company-funds-mobile-menu" role="dialog" aria-modal="true" aria-labelledby="company-funds-mobile-menu-title" className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-hidden rounded-t-3xl bg-white shadow-2xl" onMouseDown={event=>event.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-line px-4 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted2">Fonds de l’entreprise</p><h2 id="company-funds-mobile-menu-title" className="mt-1 text-lg font-semibold text-ink">Toutes les options</h2></div><button ref={closeButtonRef} type="button" onClick={()=>setOpen(false)} className="rounded-xl border border-line p-2 text-muted2" aria-label="Fermer le menu Fonds de l’entreprise"><X className="h-5 w-5"/></button></div>
+    {open?<div className="fixed inset-0 z-[90] bg-black/35 md:hidden" onMouseDown={()=>closeMenu()}>
+      <div ref={menuRef} id="company-funds-mobile-menu" role="dialog" aria-modal="true" aria-labelledby="company-funds-mobile-menu-title" aria-describedby="company-funds-mobile-menu-description" className="absolute inset-x-0 bottom-0 max-h-[82vh] overflow-hidden rounded-t-3xl bg-white shadow-2xl" onMouseDown={event=>event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-line px-4 py-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted2">Fonds de l’entreprise</p><h2 id="company-funds-mobile-menu-title" className="mt-1 text-lg font-semibold text-ink">Toutes les options</h2><p id="company-funds-mobile-menu-description" className="sr-only">Recherchez ou choisissez une section financière. Utilisez Échap pour fermer le menu.</p></div><button type="button" onClick={()=>closeMenu()} className="rounded-xl border border-line p-2 text-muted2" aria-label="Fermer le menu Fonds de l’entreprise"><X className="h-5 w-5"/></button></div>
         <div className="border-b border-line px-3 py-3">
           <label className="relative block">
+            <span className="sr-only">Rechercher une option Fonds de l’entreprise</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2"/>
-            <input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Rechercher une option…" className="h-11 w-full rounded-xl border border-line bg-surface/40 pl-9 pr-9 text-sm outline-none focus:border-electric"/>
-            {query?<button type="button" onClick={()=>setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted2" aria-label="Effacer la recherche"><X className="h-3.5 w-3.5"/></button>:null}
+            <input ref={searchInputRef} value={query} onChange={event=>setQuery(event.target.value)} placeholder="Rechercher une option…" className="h-11 w-full rounded-xl border border-line bg-surface/40 pl-9 pr-9 text-sm outline-none focus:border-electric"/>
+            {query?<button type="button" onClick={()=>{setQuery("");searchInputRef.current?.focus()}} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted2" aria-label="Effacer la recherche"><X className="h-3.5 w-3.5"/></button>:null}
           </label>
         </div>
         <div className="overflow-y-auto px-3 py-3" style={{maxHeight:"calc(82vh - 151px)"}}>
           {(["Pilotage","Contrôle","Opérations","Sécurité"] as const).map(group=>{
             const groupItems=filteredItems.filter(item=>item.group===group);
             if(!groupItems.length)return null;
-            return <div key={group} className="mb-4"><p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted2">{group}</p><div className="grid grid-cols-1 gap-1.5">{groupItems.map(item=>{const Icon=item.icon;const isCurrent=active(pathname,item.href);const count=countFor(item.href,workQueue);return <Link key={item.href} href={item.href} aria-current={isCurrent?"page":undefined} onClick={()=>setOpen(false)} className={cn("flex items-center gap-3 rounded-2xl border px-3 py-3 transition",isCurrent?"border-ink bg-ink text-white":"border-line bg-white text-ink active:bg-surface")}><span className={cn("inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",isCurrent?"bg-white/10":"bg-surface")}><Icon className="h-4 w-4"/></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.label}</span><span className={cn("mt-0.5 block text-[11px]",isCurrent?"text-white/60":"text-muted2")}>{group}</span></span>{count>0?<span className={cn("inline-flex min-w-7 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold",isCurrent?"bg-white text-ink":"bg-red-100 text-red-700")}>{count}</span>:null}</Link>})}</div></div>;
+            return <div key={group} className="mb-4"><p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted2">{group}</p><div className="grid grid-cols-1 gap-1.5">{groupItems.map(item=>{const Icon=item.icon;const isCurrent=active(pathname,item.href);const count=countFor(item.href,workQueue);return <Link key={item.href} href={item.href} aria-current={isCurrent?"page":undefined} onClick={()=>closeMenu(false)} className={cn("flex items-center gap-3 rounded-2xl border px-3 py-3 transition",isCurrent?"border-ink bg-ink text-white":"border-line bg-white text-ink active:bg-surface")}><span className={cn("inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",isCurrent?"bg-white/10":"bg-surface")}><Icon className="h-4 w-4"/></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.label}</span><span className={cn("mt-0.5 block text-[11px]",isCurrent?"text-white/60":"text-muted2")}>{group}</span></span>{count>0?<span className={cn("inline-flex min-w-7 items-center justify-center rounded-full px-2 py-1 text-[10px] font-bold",isCurrent?"bg-white text-ink":"bg-red-100 text-red-700")}>{count}</span>:null}</Link>})}</div></div>;
           })}
           {!filteredItems.length?<div className="px-4 py-10 text-center text-sm text-muted2">Aucune option trouvée.</div>:null}
         </div>
