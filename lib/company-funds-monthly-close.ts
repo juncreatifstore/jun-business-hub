@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getTreasuryStore } from "@/lib/company-funds";
-import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
+import { listFinancialReserves } from "@/lib/company-funds-reserves";
 import { buildCompanyFinanceEntries } from "@/lib/company-funds-finance-sync";
 import { assertFinancialMonthReadyToClose } from "@/lib/company-funds-monthly-close-validation";
 
@@ -11,6 +11,7 @@ const REVISION_PREFIX = "company.funds.month-close-revision.";
 
 export type MonthCloseStatus = "CLOSED" | "REOPENED";
 export type MonthlyCloseAccountBalanceSource = "SNAPSHOT_MANUAL" | "SNAPSHOT_PROVIDER" | "ACCOUNT_LAST_KNOWN";
+export type MonthlyCloseEntityStateSource = "ENTITY_LAST_KNOWN";
 
 export type MonthlyCloseSnapshot = {
   accounts: Array<{
@@ -24,9 +25,39 @@ export type MonthlyCloseSnapshot = {
     balanceSource?: MonthlyCloseAccountBalanceSource | null;
     snapshotId?: string | null;
   }>;
-  reserves: Array<{ id: string; name: string; kind: string; country: string | null; currency: string; targetAmount: number; reservedAmount: number }>;
-  loans: Array<{ id: string; lender: string; currency: string; principal: number; outstandingBalance: number; interestRate: number; dueDate: string; status: string }>;
-  investments: Array<{ id: string; name: string; country: string; currency: string; amount: number; status: string }>;
+  reserves: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    country: string | null;
+    currency: string;
+    targetAmount: number;
+    reservedAmount: number;
+    stateAsOf?: string | null;
+    stateSource?: MonthlyCloseEntityStateSource | null;
+  }>;
+  loans: Array<{
+    id: string;
+    lender: string;
+    currency: string;
+    principal: number;
+    outstandingBalance: number;
+    interestRate: number;
+    dueDate: string;
+    status: string;
+    stateAsOf?: string | null;
+    stateSource?: MonthlyCloseEntityStateSource | null;
+  }>;
+  investments: Array<{
+    id: string;
+    name: string;
+    country: string;
+    currency: string;
+    amount: number;
+    status: string;
+    stateAsOf?: string | null;
+    stateSource?: MonthlyCloseEntityStateSource | null;
+  }>;
   financeByCurrency: Array<{ currency: string; income: number; refunds: number; expenses: number; fees: number; net: number; entryCount: number }>;
 };
 
@@ -223,11 +254,108 @@ function historicalAccountRows(treasury: Awaited<ReturnType<typeof getTreasurySt
   return rows;
 }
 
+function historicalReserveRows(reserves: Awaited<ReturnType<typeof listFinancialReserves>>, end: Date): MonthlyCloseSnapshot["reserves"] {
+  const endTime = end.getTime();
+  const rows: MonthlyCloseSnapshot["reserves"] = [];
+  const missing: string[] = [];
+
+  for (const reserve of reserves) {
+    const createdAt = validTime(reserve.createdAt);
+    if (createdAt !== null && createdAt >= endTime) continue;
+    const updatedAt = validTime(reserve.updatedAt);
+    if (updatedAt === null || updatedAt >= endTime) {
+      missing.push(`${reserve.name} (${reserve.currency})`);
+      continue;
+    }
+    if (!reserve.active) continue;
+    rows.push({
+      id: reserve.id,
+      name: reserve.name,
+      kind: reserve.kind,
+      country: reserve.country,
+      currency: reserve.currency,
+      targetAmount: round(reserve.targetAmount),
+      reservedAmount: round(reserve.reservedAmount),
+      stateAsOf: reserve.updatedAt,
+      stateSource: "ENTITY_LAST_KNOWN",
+    });
+  }
+
+  if (missing.length) {
+    throw new Error(`Clôture impossible: l’état historique des réserves avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
+  }
+  return rows;
+}
+
+function historicalLoanRows(treasury: Awaited<ReturnType<typeof getTreasuryStore>>, end: Date): MonthlyCloseSnapshot["loans"] {
+  const endTime = end.getTime();
+  const rows: MonthlyCloseSnapshot["loans"] = [];
+  const missing: string[] = [];
+
+  for (const loan of treasury.loans) {
+    const createdAt = validTime(loan.createdAt);
+    if (createdAt !== null && createdAt >= endTime) continue;
+    const updatedAt = validTime(loan.updatedAt);
+    if (updatedAt === null || updatedAt >= endTime) {
+      missing.push(`${loan.lender} (${loan.currency})`);
+      continue;
+    }
+    rows.push({
+      id: loan.id,
+      lender: loan.lender,
+      currency: loan.currency,
+      principal: round(loan.principal),
+      outstandingBalance: round(loan.outstandingBalance),
+      interestRate: loan.interestRate,
+      dueDate: loan.dueDate,
+      status: loan.status,
+      stateAsOf: loan.updatedAt,
+      stateSource: "ENTITY_LAST_KNOWN",
+    });
+  }
+
+  if (missing.length) {
+    throw new Error(`Clôture impossible: l’état historique des prêts avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
+  }
+  return rows;
+}
+
+function historicalInvestmentRows(treasury: Awaited<ReturnType<typeof getTreasuryStore>>, end: Date): MonthlyCloseSnapshot["investments"] {
+  const endTime = end.getTime();
+  const rows: MonthlyCloseSnapshot["investments"] = [];
+  const missing: string[] = [];
+
+  for (const investment of treasury.investments) {
+    const createdAt = validTime(investment.createdAt);
+    if (createdAt !== null && createdAt >= endTime) continue;
+    const updatedAt = validTime(investment.updatedAt);
+    if (updatedAt === null || updatedAt >= endTime) {
+      missing.push(`${investment.name} (${investment.currency})`);
+      continue;
+    }
+    rows.push({
+      id: investment.id,
+      name: investment.name,
+      country: investment.country,
+      currency: investment.currency,
+      amount: round(investment.amount),
+      status: investment.status,
+      stateAsOf: investment.updatedAt,
+      stateSource: "ENTITY_LAST_KNOWN",
+    });
+  }
+
+  if (missing.length) {
+    throw new Error(`Clôture impossible: l’état historique des investissements avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
+  }
+  return rows;
+}
+
 async function buildSnapshot(period: string): Promise<MonthlyCloseSnapshot> {
   const [{ start, end }, treasury, reserves, entries] = await Promise.all([
     Promise.resolve(periodBounds(period)),
     getTreasuryStore(),
-    getFinancialReserveDashboard(),
+    listFinancialReserves(),
     buildCompanyFinanceEntries(),
   ]);
 
@@ -247,18 +375,9 @@ async function buildSnapshot(period: string): Promise<MonthlyCloseSnapshot> {
 
   return {
     accounts: historicalAccountRows(treasury, end),
-    reserves: reserves.active.map((reserve) => ({
-      id: reserve.id, name: reserve.name, kind: reserve.kind, country: reserve.country, currency: reserve.currency,
-      targetAmount: round(reserve.targetAmount), reservedAmount: round(reserve.reservedAmount),
-    })),
-    loans: treasury.loans.map((loan) => ({
-      id: loan.id, lender: loan.lender, currency: loan.currency, principal: round(loan.principal),
-      outstandingBalance: round(loan.outstandingBalance), interestRate: loan.interestRate, dueDate: loan.dueDate, status: loan.status,
-    })),
-    investments: treasury.investments.map((investment) => ({
-      id: investment.id, name: investment.name, country: investment.country, currency: investment.currency,
-      amount: round(investment.amount), status: investment.status,
-    })),
+    reserves: historicalReserveRows(reserves, end),
+    loans: historicalLoanRows(treasury, end),
+    investments: historicalInvestmentRows(treasury, end),
     financeByCurrency,
   };
 }
