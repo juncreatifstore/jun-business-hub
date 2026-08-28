@@ -14,12 +14,21 @@ export type FinancialExecutionEvidence={
   executedById:string;executedAt:string;createdAt:string;
 };
 function parse(value:string):FinancialExecutionEvidence|null{try{const v=JSON.parse(value) as FinancialExecutionEvidence;return v?.id&&v?.authorizationId&&v?.proofFileId?v:null}catch{return null}}
+function normalizeTransactionReference(value:string){return value.trim().toLocaleLowerCase("en-US")}
 export async function listFinancialExecutionEvidence(limit=1000){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},orderBy:{updatedAt:"desc"},take:limit,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is FinancialExecutionEvidence=>Boolean(v))}
 export async function getExecutionEvidenceForAuthorization(authorizationId:string){const rows=await listFinancialExecutionEvidence();return rows.find(e=>e.authorizationId===authorizationId)||null}
 export async function createFinancialExecutionEvidence(input:{authorizationId:string;treasuryAccountId?:string|null;transactionReference:string;proofFileId:string;note?:string;executedById:string;executedAt?:string|null}){
   const authorization=await getFinancialAuthorization(input.authorizationId);if(!authorization)throw new Error("Financial authorization not found");if(authorization.status!=="APPROVED")throw new Error("Financial authorization must be approved before execution evidence can be recorded");
-  const existing=await getExecutionEvidenceForAuthorization(authorization.id);if(existing)return existing;
   const txRef=input.transactionReference.trim().slice(0,180);if(!txRef)throw new Error("Transaction reference is required");
+  const normalizedTxRef=normalizeTransactionReference(txRef);
+  const existing=await getExecutionEvidenceForAuthorization(authorization.id);
+  if(existing){
+    if(normalizeTransactionReference(existing.transactionReference)!==normalizedTxRef)throw new Error("This financial authorization already has execution evidence with a different transaction reference");
+    return existing;
+  }
+  const evidenceRows=await listFinancialExecutionEvidence(10000);
+  const reused=evidenceRows.find(e=>e.authorizationId!==authorization.id&&normalizeTransactionReference(e.transactionReference)===normalizedTxRef);
+  if(reused)throw new Error(`Transaction reference ${txRef} is already linked to another financial execution (${reused.reference}).`);
   const proof=await prisma.file.findUnique({where:{id:input.proofFileId},select:{id:true}});if(!proof)throw new Error("Execution proof file not found");
   const treasury=await getTreasuryStore();const selectedAccount=input.treasuryAccountId?treasury.accounts.find(a=>a.id===input.treasuryAccountId&&a.active):null;if(input.treasuryAccountId&&!selectedAccount)throw new Error("Treasury account not found");
   if(authorization.type==="TRANSFER"){
