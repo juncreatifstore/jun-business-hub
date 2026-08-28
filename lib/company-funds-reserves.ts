@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getTreasuryStore } from "@/lib/company-funds";
+import { invalidateCompanyFundsWorkQueue } from "@/lib/company-funds-work-queue-cache";
 
 const PREFIX="company.funds.reserve.";
 export type ReserveKind="EMERGENCY"|"TAX"|"CLIENT_REFUNDS"|"OPERATING"|"INVESTMENT"|"COUNTRY_MINIMUM"|"OTHER";
@@ -14,7 +15,7 @@ function round(v:number){return Math.round((Number(v||0)+Number.EPSILON)*100)/10
 function parse(value:string):FinancialReserve|null{try{const r=JSON.parse(value) as FinancialReserve;if(!r?.id||!r.name)return null;return{...r,country:r.country||null,currency:String(r.currency||"USD").toUpperCase(),accountId:r.accountId||null,targetAmount:Math.max(0,round(r.targetAmount)),reservedAmount:Math.max(0,round(r.reservedAmount)),active:r.active!==false,note:String(r.note||"")}}catch{return null}}
 export async function listFinancialReserves(){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},orderBy:{updatedAt:"desc"},take:2000,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is FinancialReserve=>Boolean(v))}
 export async function getFinancialReserve(id:string){const row=await prisma.appSetting.findUnique({where:{key:`${PREFIX}${id}`},select:{value:true}});return row?parse(row.value):null}
-async function save(r:FinancialReserve){await prisma.appSetting.upsert({where:{key:`${PREFIX}${r.id}`},create:{key:`${PREFIX}${r.id}`,value:JSON.stringify(r)},update:{value:JSON.stringify(r)}});return r}
+async function save(r:FinancialReserve){await prisma.appSetting.upsert({where:{key:`${PREFIX}${r.id}`},create:{key:`${PREFIX}${r.id}`,value:JSON.stringify(r)},update:{value:JSON.stringify(r)}});invalidateCompanyFundsWorkQueue();return r}
 export async function createFinancialReserve(input:{name:string;kind:ReserveKind;country?:string|null;currency:string;accountId?:string|null;targetAmount:number;reservedAmount:number;note?:string}){
   const treasury=await getTreasuryStore();const currency=input.currency.toUpperCase();const account=input.accountId?treasury.accounts.find(a=>a.id===input.accountId):null;
   if(input.accountId&&!account)throw new Error("Treasury account not found");if(account&&account.currency!==currency)throw new Error("Reserve currency must match treasury account currency");
