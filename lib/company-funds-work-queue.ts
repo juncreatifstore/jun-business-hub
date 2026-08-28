@@ -6,6 +6,7 @@ import { listFinancialExecutionEvidence } from "@/lib/company-funds-execution-ev
 import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
 import { listTreasuryTransfers } from "@/lib/company-funds-transfers";
 import { listBankTransactions } from "@/lib/finance-bank-reconciliation";
+import { COMPANY_FUNDS_WORK_QUEUE_TAG } from "@/lib/company-funds-work-queue-cache";
 
 export type CompanyFundsWorkQueue = {
   total: number;
@@ -50,8 +51,8 @@ async function computeCompanyFundsWorkQueue(): Promise<CompanyFundsWorkQueue> {
 
 const getCachedCompanyFundsWorkQueue = unstable_cache(
   computeCompanyFundsWorkQueue,
-  ["company-funds-work-queue-v1"],
-  { revalidate: 10 },
+  ["company-funds-work-queue-v2"],
+  { revalidate: 10, tags: [COMPANY_FUNDS_WORK_QUEUE_TAG] },
 );
 
 export async function getCompanyFundsWorkQueue(): Promise<CompanyFundsWorkQueue> {
