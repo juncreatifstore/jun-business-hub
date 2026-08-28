@@ -22,6 +22,28 @@
   --jun-muted: 218 12% 45%;        /* secondary text   */
 }
 
+/* Authenticated application theme. Public pages keep the light palette above. */
+.jun-app-dark {
+  --jun-night: 222 47% 7%;
+  --jun-night-soft: 218 35% 11%;
+  --jun-surface: 218 35% 10%;
+  --jun-line: 217 24% 18%;
+  --jun-ink: 210 40% 96%;
+  --jun-muted: 215 16% 64%;
+  color-scheme: dark;
+}
+
+.jun-app-dark input,
+.jun-app-dark textarea,
+.jun-app-dark select {
+  color: hsl(var(--jun-ink));
+}
+
+.jun-app-dark input::placeholder,
+.jun-app-dark textarea::placeholder {
+  color: hsl(var(--jun-muted));
+}
+
 html { scroll-behavior: smooth; }
 body { @apply bg-surface text-ink antialiased; }
 
