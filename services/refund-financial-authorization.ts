@@ -36,7 +36,9 @@ export async function markRefundInstallmentPaidAuthorized(installmentId:string):
 
 export async function confirmLegacyRefundFullyPaidAuthorized(refundId:string,formData:FormData):Promise<void>{
   const user=await assertPermission("REFUND_APPROVE");
-  const refund=await prisma.refund.findUnique({where:{id:refundId},select:{id:true,refundNumber:true,amount:true,currency:true}});if(!refund)throw new Error("Refund not found");
+  const refund=await prisma.refund.findUnique({where:{id:refundId},select:{id:true,refundNumber:true,amount:true,currency:true,status:true}});if(!refund)throw new Error("Refund not found");
+  // Completed retries return before authorization or closed-period checks.
+  if(refund.status==="PAID")return;
   await requireAuthorization({resourceId:`legacy:${refund.id}`,reference:refund.refundNumber,description:`Remboursement complet legacy ${refund.refundNumber}`,amount:Number(refund.amount),currency:refund.currency,requestedById:user.id});
   await confirmLegacyRefundFullyPaid(refundId,formData);
   revalidatePath(`/app/finance/refunds/${refundId}`);revalidatePath("/app/company-funds/authorizations");
