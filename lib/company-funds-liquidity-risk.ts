@@ -1,6 +1,7 @@
 import "server-only";
-import { getTreasuryStore } from "@/lib/company-funds";
-import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
+import { getTreasuryStore, type TreasuryStore } from "@/lib/company-funds";
+import { listFinancialReserves } from "@/lib/company-funds-reserves";
+import { filterTreasuryStore, type CompanyFundsFilterParams } from "@/lib/company-funds-filters";
 
 function round(v:number){return Math.round((Number(v||0)+Number.EPSILON)*100)/100}
 
@@ -9,14 +10,29 @@ export type ProtectedCashForecast={
   currency:string;horizon:Horizon;cashNow:number;reserved:number;availableNow:number;plannedIn:number;plannedOut:number;loanDue:number;investmentPlanned:number;projectedCash:number;protectedAvailable:number;reserveDeficit:number;status:"HEALTHY"|"WATCH"|"CRITICAL";
 };
 
-export async function getProtectedCashForecast(){
-  const [store,reserves]=await Promise.all([getTreasuryStore(),getFinancialReserveDashboard()]);
+const emptyFilters:CompanyFundsFilterParams={country:"",currency:"",periodDays:null};
+
+function reserveMatchesScope(reserve:{country:string|null;currency:string;accountId:string|null},store:TreasuryStore,filters:CompanyFundsFilterParams){
+  if(filters.currency&&reserve.currency!==filters.currency)return false;
+  if(!filters.country)return true;
+  if(reserve.country)return reserve.country===filters.country;
+  if(reserve.accountId)return store.accounts.some(account=>account.id===reserve.accountId);
+  return false;
+}
+
+export async function getProtectedCashForecast(filters:CompanyFundsFilterParams=emptyFilters){
+  const [rawStore,reserves]=await Promise.all([getTreasuryStore(),listFinancialReserves()]);
+  const store=filterTreasuryStore(rawStore,{...filters,periodDays:null});
+  const activeReserves=reserves.filter(r=>r.active&&reserveMatchesScope(r,store,filters));
   const now=new Date();
-  const currencies=[...new Set([...store.accounts.filter(a=>a.active).map(a=>a.currency),...store.forecastItems.filter(f=>f.status!=="CANCELLED").map(f=>f.currency),...reserves.byCurrency.map(r=>r.currency),...store.loans.filter(l=>l.status==="ACTIVE").map(l=>l.currency),...store.investments.filter(i=>i.status==="PLANNED").map(i=>i.currency)])].sort();
+  const currencies=[...new Set([...store.accounts.filter(a=>a.active).map(a=>a.currency),...store.forecastItems.filter(f=>f.status!=="CANCELLED").map(f=>f.currency),...activeReserves.map(r=>r.currency),...store.loans.filter(l=>l.status==="ACTIVE").map(l=>l.currency),...store.investments.filter(i=>i.status==="PLANNED").map(i=>i.currency)])].sort();
   const horizons:Horizon[]=[30,60,90];const rows:ProtectedCashForecast[]=[];
   for(const currency of currencies){
     const cashNow=round(store.accounts.filter(a=>a.active&&a.currency===currency).reduce((s,a)=>s+a.balance,0));
-    const reserveRow=reserves.byCurrency.find(r=>r.currency===currency);const reserved=round(reserveRow?.reserved||0);const reserveTarget=round(reserveRow?.target||0);const availableNow=round(cashNow-reserved);
+    const reserveRows=activeReserves.filter(r=>r.currency===currency);
+    const reserved=round(reserveRows.reduce((s,r)=>s+r.reservedAmount,0));
+    const reserveTarget=round(reserveRows.reduce((s,r)=>s+r.targetAmount,0));
+    const availableNow=round(cashNow-reserved);
     for(const horizon of horizons){
       const end=new Date(now.getTime()+horizon*86400000);
       const planned=store.forecastItems.filter(f=>f.currency===currency&&!["PAID","CANCELLED"].includes(f.status)&&new Date(f.dueDate)>=now&&new Date(f.dueDate)<=end);
@@ -33,7 +49,7 @@ export async function getProtectedCashForecast(){
   return rows;
 }
 
-export async function getLiquidityProtectionAlerts(){
-  const rows=await getProtectedCashForecast();
+export async function getLiquidityProtectionAlerts(filters:CompanyFundsFilterParams=emptyFilters){
+  const rows=await getProtectedCashForecast(filters);
   return rows.filter(r=>r.status!=="HEALTHY").map(r=>({id:`liquidity-${r.currency}-${r.horizon}`,severity:r.status==="CRITICAL"?"CRITICAL" as const:"WARNING" as const,title:r.status==="CRITICAL"?`Trésorerie protégée critique à ${r.horizon} jours`:`Réserve sous pression à ${r.horizon} jours`,detail:r.status==="CRITICAL"?`Le cash projeté ne couvre plus les réserves protégées. Disponible après réserves: ${r.protectedAvailable.toFixed(2)} ${r.currency}.`:`Le niveau projeté devient proche ou inférieur à l’objectif de sécurité. Déficit potentiel: ${r.reserveDeficit.toFixed(2)} ${r.currency}.`,currency:r.currency}));
 }
