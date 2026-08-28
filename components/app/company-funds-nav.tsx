@@ -101,8 +101,19 @@ export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
   }
 
   useEffect(()=>{
-    for(const item of items)router.prefetch(item.href);
-  },[router]);
+    const candidates=[
+      previous?.href,
+      next?.href,
+      ...favorites.slice(0,2),
+      ...recents.filter(href=>href!==current.href).slice(0,2),
+    ];
+    const prefetched=new Set<string>();
+    for(const href of candidates){
+      if(!href||href===current.href||prefetched.has(href))continue;
+      prefetched.add(href);
+      router.prefetch(href);
+    }
+  },[current.href,favorites,next?.href,previous?.href,recents,router]);
 
   useEffect(()=>{
     setNavigatingTo(null);
@@ -231,7 +242,7 @@ export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
             <nav aria-label="Navigation rapide Fonds de l’entreprise" className="flex min-w-max items-center gap-1 rounded-xl border border-line bg-surface/60 p-1">
               {items.map(item=>{
                 const active=isActive(pathname,item.href);const Icon=item.icon;const count=itemCount(item.href,workQueue);
-                return <Link key={item.href} href={item.href} data-company-funds-active={active?"true":undefined} aria-current={active?"page":undefined} title={item.label} onClick={event=>{if(!active&&event.button===0&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey)setNavigatingTo(item.href)}} className={cn("group inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition",active?"bg-ink text-white shadow-sm":"text-muted2 hover:bg-white hover:text-ink hover:shadow-sm")}><Icon className="h-3.5 w-3.5 shrink-0"/><span>{item.short}</span>{count>0?<span className={cn("inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold",active?"bg-white text-ink":"bg-red-100 text-red-700")}>{count>99?"99+":count}</span>:null}</Link>;
+                return <Link key={item.href} href={item.href} prefetch={false} data-company-funds-active={active?"true":undefined} aria-current={active?"page":undefined} title={item.label} onClick={event=>{if(!active&&event.button===0&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey)setNavigatingTo(item.href)}} className={cn("group inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition",active?"bg-ink text-white shadow-sm":"text-muted2 hover:bg-white hover:text-ink hover:shadow-sm")}><Icon className="h-3.5 w-3.5 shrink-0"/><span>{item.short}</span>{count>0?<span className={cn("inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold",active?"bg-white text-ink":"bg-red-100 text-red-700")}>{count>99?"99+":count}</span>:null}</Link>;
               })}
             </nav>
           </div>
