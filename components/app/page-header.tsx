@@ -17,12 +17,13 @@ export function PageHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-line pb-5">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        {subtitle ? <p className="mt-0.5 text-sm text-muted2">{subtitle}</p> : null}
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-electric">JUN Business Hub</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        {subtitle ? <p className="mt-1 max-w-3xl text-sm leading-6 text-muted2">{subtitle}</p> : null}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {children}
         {actions}
         {actionHref && actionLabel ? (
