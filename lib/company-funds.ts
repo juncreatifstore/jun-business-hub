@@ -121,6 +121,21 @@ export async function saveTreasuryStore(store: TreasuryStore) {
   return saved;
 }
 
+async function mutateTreasuryStore<T>(mutation:(store:TreasuryStore)=>T|Promise<T>):Promise<T>{
+  return prisma.$transaction(async tx=>{
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${STORE_KEY}))`;
+    const row=await tx.appSetting.findUnique({where:{key:STORE_KEY},select:{value:true}});
+    let store:TreasuryStore;
+    if(!row)store=emptyStore();
+    else{try{store=normalizeStore(JSON.parse(row.value));}catch{throw new Error("Treasury store is corrupted and cannot be updated safely.");}}
+    const result=await mutation(store);
+    store.updatedAt=new Date().toISOString();
+    const value=JSON.stringify(store);
+    await tx.appSetting.upsert({where:{key:STORE_KEY},create:{key:STORE_KEY,value},update:{value}});
+    return result;
+  },{isolationLevel:"Serializable"});
+}
+
 function pushSnapshot(store: TreasuryStore, account: TreasuryAccount, source: "MANUAL" | "PROVIDER", externalId: string | null, capturedAt: string) {
   const snapshot: TreasuryAccountSnapshot = { id: randomUUID(), accountId: account.id, balance: account.balance, source, externalId, capturedAt, createdAt: new Date().toISOString() };
   store.accountSnapshots.unshift(snapshot);
@@ -129,78 +144,72 @@ function pushSnapshot(store: TreasuryStore, account: TreasuryAccount, source: "M
 }
 
 export async function addTreasuryAccount(input: Omit<TreasuryAccount, "id" | "createdAt" | "updatedAt" | "lastSyncAt">) {
-  const store = await getTreasuryStore(); const now = new Date().toISOString();
-  const account: TreasuryAccount = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), balance: asMoney(input.balance), connectionKeyHash: input.connectionKeyHash || null, lastExternalSyncId: null, lastSyncAt: input.connectionMode === "MANUAL" ? now : null, createdAt: now, updatedAt: now };
-  store.accounts.unshift(account); if (account.connectionMode === "MANUAL") pushSnapshot(store, account, "MANUAL", null, now); await saveTreasuryStore(store); return account;
+  return mutateTreasuryStore(store=>{const now=new Date().toISOString();const account:TreasuryAccount={...input,id:randomUUID(),currency:input.currency.toUpperCase(),balance:asMoney(input.balance),connectionKeyHash:input.connectionKeyHash||null,lastExternalSyncId:null,lastSyncAt:input.connectionMode==="MANUAL"?now:null,createdAt:now,updatedAt:now};store.accounts.unshift(account);if(account.connectionMode==="MANUAL")pushSnapshot(store,account,"MANUAL",null,now);return account;});
 }
 export async function updateTreasuryAccountBalance(id: string, balance: number) {
-  const store = await getTreasuryStore(); const account = store.accounts.find(a => a.id === id); if (!account) throw new Error("Treasury account not found");
-  account.balance = asMoney(balance); account.lastSyncAt = new Date().toISOString(); account.updatedAt = account.lastSyncAt; pushSnapshot(store, account, "MANUAL", null, account.lastSyncAt); await saveTreasuryStore(store); return account;
+  return mutateTreasuryStore(store=>{const account=store.accounts.find(a=>a.id===id);if(!account)throw new Error("Treasury account not found");account.balance=asMoney(balance);account.lastSyncAt=new Date().toISOString();account.updatedAt=account.lastSyncAt;pushSnapshot(store,account,"MANUAL",null,account.lastSyncAt);return account;});
 }
 export async function setTreasuryAccountConnectionKey(id: string, apiKey: string) {
   if (apiKey.trim().length < 20) throw new Error("Connection key must contain at least 20 characters");
-  const store = await getTreasuryStore(); const account = store.accounts.find(a => a.id === id); if (!account) throw new Error("Treasury account not found");
-  account.connectionMode = "CONNECTED"; account.connectionKeyHash = sha256(apiKey.trim()); account.updatedAt = new Date().toISOString(); await saveTreasuryStore(store); return account;
+  return mutateTreasuryStore(store=>{const account=store.accounts.find(a=>a.id===id);if(!account)throw new Error("Treasury account not found");account.connectionMode="CONNECTED";account.connectionKeyHash=sha256(apiKey.trim());account.updatedAt=new Date().toISOString();return account;});
 }
 export async function addTreasurySource(input: Omit<TreasurySource, "id" | "createdAt">) {
-  const store = await getTreasuryStore(); const source: TreasurySource = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), amount: asMoney(input.amount), createdAt: new Date().toISOString() }; store.sources.unshift(source); await saveTreasuryStore(store); return source;
+  return mutateTreasuryStore(store=>{const source:TreasurySource={...input,id:randomUUID(),currency:input.currency.toUpperCase(),amount:asMoney(input.amount),createdAt:new Date().toISOString()};store.sources.unshift(source);return source;});
 }
 export async function addTreasuryPartner(input: Omit<TreasuryPartner, "id" | "createdAt" | "updatedAt">) {
-  const store = await getTreasuryStore(); const now = new Date().toISOString(); const partner: TreasuryPartner = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), capitalContributed: asMoney(input.capitalContributed), ownershipPercent: asMoney(input.ownershipPercent), profitSharePercent: asMoney(input.profitSharePercent), createdAt: now, updatedAt: now }; store.partners.unshift(partner); await saveTreasuryStore(store); return partner;
+  return mutateTreasuryStore(store=>{const now=new Date().toISOString();const partner:TreasuryPartner={...input,id:randomUUID(),currency:input.currency.toUpperCase(),capitalContributed:asMoney(input.capitalContributed),ownershipPercent:asMoney(input.ownershipPercent),profitSharePercent:asMoney(input.profitSharePercent),createdAt:now,updatedAt:now};store.partners.unshift(partner);return partner;});
 }
 export async function addTreasuryLoan(input: Omit<TreasuryLoan, "id" | "createdAt" | "updatedAt">) {
-  const store = await getTreasuryStore(); const now = new Date().toISOString(); const loan: TreasuryLoan = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), principal: asMoney(input.principal), outstandingBalance: asMoney(input.outstandingBalance), interestRate: asMoney(input.interestRate), createdAt: now, updatedAt: now }; store.loans.unshift(loan); await saveTreasuryStore(store); return loan;
+  return mutateTreasuryStore(store=>{const now=new Date().toISOString();const loan:TreasuryLoan={...input,id:randomUUID(),currency:input.currency.toUpperCase(),principal:asMoney(input.principal),outstandingBalance:asMoney(input.outstandingBalance),interestRate:asMoney(input.interestRate),createdAt:now,updatedAt:now};store.loans.unshift(loan);return loan;});
 }
 export async function addTreasuryInvestment(input: Omit<TreasuryInvestment, "id" | "createdAt" | "updatedAt">) {
-  const store = await getTreasuryStore(); const now = new Date().toISOString(); const investment: TreasuryInvestment = { ...input, id: randomUUID(), currency: input.currency.toUpperCase(), amount: asMoney(input.amount), expectedReturnPercent: asMoney(input.expectedReturnPercent), createdAt: now, updatedAt: now }; store.investments.unshift(investment); await saveTreasuryStore(store); return investment;
+  return mutateTreasuryStore(store=>{const now=new Date().toISOString();const investment:TreasuryInvestment={...input,id:randomUUID(),currency:input.currency.toUpperCase(),amount:asMoney(input.amount),expectedReturnPercent:asMoney(input.expectedReturnPercent),createdAt:now,updatedAt:now};store.investments.unshift(investment);return investment;});
 }
 export async function addTreasuryForecastItem(input: Omit<TreasuryForecastItem, "id" | "createdAt" | "updatedAt">) {
-  const store = await getTreasuryStore(); const due = new Date(input.dueDate); if (Number.isNaN(due.getTime())) throw new Error("Invalid forecast due date");
-  const now = new Date().toISOString(); const item: TreasuryForecastItem = { ...input, id: randomUUID(), label: input.label.trim().slice(0,160), amount: asMoney(input.amount), currency: input.currency.toUpperCase(), dueDate: due.toISOString(), category: input.category.trim().slice(0,80) || "OTHER", note: input.note.trim().slice(0,500), createdAt: now, updatedAt: now };
-  if (item.amount <= 0) throw new Error("Forecast amount must be greater than zero");
-  store.forecastItems.unshift(item); store.forecastItems = store.forecastItems.slice(0,5000); await saveTreasuryStore(store); return item;
+  const due=new Date(input.dueDate);if(Number.isNaN(due.getTime()))throw new Error("Invalid forecast due date");
+  return mutateTreasuryStore(store=>{const now=new Date().toISOString();const item:TreasuryForecastItem={...input,id:randomUUID(),label:input.label.trim().slice(0,160),amount:asMoney(input.amount),currency:input.currency.toUpperCase(),dueDate:due.toISOString(),category:input.category.trim().slice(0,80)||"OTHER",note:input.note.trim().slice(0,500),createdAt:now,updatedAt:now};if(item.amount<=0)throw new Error("Forecast amount must be greater than zero");store.forecastItems.unshift(item);store.forecastItems=store.forecastItems.slice(0,5000);return item;});
 }
 export async function updateTreasuryForecastStatus(id: string, status: TreasuryForecastStatus) {
-  const store = await getTreasuryStore(); const item = store.forecastItems.find(f => f.id === id); if (!item) throw new Error("Forecast item not found"); item.status = status; item.updatedAt = new Date().toISOString(); await saveTreasuryStore(store); return item;
+  return mutateTreasuryStore(store=>{const item=store.forecastItems.find(f=>f.id===id);if(!item)throw new Error("Forecast item not found");item.status=status;item.updatedAt=new Date().toISOString();return item;});
 }
 export async function addProjectIntegration(input: { code: string; name: string; country: string; currency: string; caseId: string | null; apiKey: string }) {
-  const store = await getTreasuryStore(); if (store.integrations.some(i => i.code.toLowerCase() === input.code.toLowerCase())) throw new Error("Project code already exists");
-  const now = new Date().toISOString(); const integration: ProjectIntegration = { id: randomUUID(), code: input.code.trim(), name: input.name.trim(), country: input.country.trim(), currency: input.currency.toUpperCase(), caseId: input.caseId, apiKeyHash: sha256(input.apiKey), enabled: true, lastSyncAt: null, lastExternalId: null, createdAt: now, updatedAt: now }; store.integrations.unshift(integration); await saveTreasuryStore(store); return integration;
+  return mutateTreasuryStore(store=>{if(store.integrations.some(i=>i.code.toLowerCase()===input.code.toLowerCase()))throw new Error("Project code already exists");const now=new Date().toISOString();const integration:ProjectIntegration={id:randomUUID(),code:input.code.trim(),name:input.name.trim(),country:input.country.trim(),currency:input.currency.toUpperCase(),caseId:input.caseId,apiKeyHash:sha256(input.apiKey),enabled:true,lastSyncAt:null,lastExternalId:null,createdAt:now,updatedAt:now};store.integrations.unshift(integration);return integration;});
 }
 
 export async function ingestProjectCashflow(input: { projectCode: string; apiKey: string; externalId: string; direction: TreasuryDirection; category: string; amount: number; currency: string; occurredAt: string; description: string; accountId?: string | null }) {
-  const store = await getTreasuryStore(); const integration = store.integrations.find(i => i.enabled && i.code === input.projectCode); if (!integration) throw new Error("Unknown project integration");
-  if (integration.apiKeyHash !== sha256(input.apiKey)) throw new Error("Invalid project API key");
-  if (!input.externalId.trim()) throw new Error("externalId is required");
-  const existing = store.projectCashflows.find(t => t.integrationId === integration.id && t.externalId === input.externalId); if (existing) return { transaction: existing, duplicate: true };
-  const amount = asMoney(input.amount); if (amount <= 0) throw new Error("amount must be greater than zero");
-  const currency = input.currency.toUpperCase(); if (currency !== integration.currency) throw new Error(`Currency mismatch: expected ${integration.currency}`);
-  const occurredAt = new Date(input.occurredAt); if (Number.isNaN(occurredAt.getTime())) throw new Error("Invalid occurredAt");
-  const tx: ProjectCashflow = { id: randomUUID(), integrationId: integration.id, externalId: input.externalId.trim(), direction: input.direction, category: input.category.trim().slice(0,100) || "OTHER", amount, currency, occurredAt: occurredAt.toISOString(), description: input.description.trim().slice(0,500), accountId: input.accountId || null, createdAt: new Date().toISOString() };
-  store.projectCashflows.unshift(tx); integration.lastSyncAt = new Date().toISOString(); integration.lastExternalId = tx.externalId; integration.updatedAt = integration.lastSyncAt;
-  if (tx.accountId) { const account = store.accounts.find(a => a.id === tx.accountId && a.currency === tx.currency); if (account) { account.balance = round(account.balance + (tx.direction === "IN" ? tx.amount : -tx.amount)); account.updatedAt = integration.lastSyncAt; } }
-  await saveTreasuryStore(store); return { transaction: tx, duplicate: false };
+  if(!input.externalId.trim())throw new Error("externalId is required");
+  const amount=asMoney(input.amount);if(amount<=0)throw new Error("amount must be greater than zero");
+  const occurredAt=new Date(input.occurredAt);if(Number.isNaN(occurredAt.getTime()))throw new Error("Invalid occurredAt");
+  return mutateTreasuryStore(store=>{
+    const integration=store.integrations.find(i=>i.enabled&&i.code===input.projectCode);if(!integration)throw new Error("Unknown project integration");
+    if(integration.apiKeyHash!==sha256(input.apiKey))throw new Error("Invalid project API key");
+    const externalId=input.externalId.trim();const existing=store.projectCashflows.find(t=>t.integrationId===integration.id&&t.externalId===externalId);if(existing)return{transaction:existing,duplicate:true};
+    const currency=input.currency.toUpperCase();if(currency!==integration.currency)throw new Error(`Currency mismatch: expected ${integration.currency}`);
+    const now=new Date().toISOString();const tx:ProjectCashflow={id:randomUUID(),integrationId:integration.id,externalId,direction:input.direction,category:input.category.trim().slice(0,100)||"OTHER",amount,currency,occurredAt:occurredAt.toISOString(),description:input.description.trim().slice(0,500),accountId:input.accountId||null,createdAt:now};
+    if(tx.accountId){const account=store.accounts.find(a=>a.id===tx.accountId);if(!account)throw new Error("Treasury account not found");if(account.currency!==tx.currency)throw new Error(`Account currency mismatch: expected ${account.currency}`);account.balance=round(account.balance+(tx.direction==="IN"?tx.amount:-tx.amount));account.updatedAt=now;}
+    store.projectCashflows.unshift(tx);integration.lastSyncAt=now;integration.lastExternalId=tx.externalId;integration.updatedAt=now;return{transaction:tx,duplicate:false};
+  });
 }
 
 export async function ingestTreasuryAccountSync(input: { accountId: string; apiKey: string; externalId: string; balance: number; currency: string; capturedAt?: string | null; note?: string }) {
-  const store = await getTreasuryStore(); const account = store.accounts.find(a => a.id === input.accountId && a.active); if (!account) throw new Error("Unknown treasury account");
-  if (account.connectionMode !== "CONNECTED" || !account.connectionKeyHash) throw new Error("Account API connection is not configured");
-  if (account.connectionKeyHash !== sha256(input.apiKey.trim())) throw new Error("Invalid account API key");
-  if (!input.externalId.trim()) throw new Error("externalId is required");
-  const duplicate = store.accountSnapshots.find(s => s.accountId === account.id && s.externalId === input.externalId.trim()); if (duplicate) return { snapshot: duplicate, duplicate: true, reconciliation: null };
-  const currency = input.currency.toUpperCase(); if (currency !== account.currency) throw new Error(`Currency mismatch: expected ${account.currency}`);
-  const reportedBalance = asMoney(input.balance); const expectedBalance = account.balance; const difference = round(reportedBalance - expectedBalance);
-  const captured = input.capturedAt ? new Date(input.capturedAt) : new Date(); if (Number.isNaN(captured.getTime())) throw new Error("Invalid capturedAt");
-  const previousSnapshot = store.accountSnapshots.find(s => s.accountId === account.id) || null;
-  const now = new Date().toISOString(); account.balance = reportedBalance; account.lastSyncAt = captured.toISOString(); account.lastExternalSyncId = input.externalId.trim(); account.updatedAt = now;
-  const snapshot = pushSnapshot(store, account, "PROVIDER", input.externalId.trim(), captured.toISOString());
-  const reconciliation: TreasuryReconciliation = { id: randomUUID(), accountId: account.id, expectedBalance, reportedBalance, difference, status: Math.abs(difference) < 0.01 ? "MATCHED" : "REVIEW", periodStart: previousSnapshot?.capturedAt || null, periodEnd: captured.toISOString(), note: String(input.note || "").slice(0,500), createdAt: now, resolvedAt: null };
-  store.reconciliations.unshift(reconciliation); store.reconciliations = store.reconciliations.slice(0, 5000); await saveTreasuryStore(store);
-  return { snapshot, duplicate: false, reconciliation };
+  if(!input.externalId.trim())throw new Error("externalId is required");
+  const captured=input.capturedAt?new Date(input.capturedAt):new Date();if(Number.isNaN(captured.getTime()))throw new Error("Invalid capturedAt");
+  const reportedBalance=asMoney(input.balance);const externalId=input.externalId.trim();
+  return mutateTreasuryStore(store=>{
+    const account=store.accounts.find(a=>a.id===input.accountId&&a.active);if(!account)throw new Error("Unknown treasury account");
+    if(account.connectionMode!=="CONNECTED"||!account.connectionKeyHash)throw new Error("Account API connection is not configured");
+    if(account.connectionKeyHash!==sha256(input.apiKey.trim()))throw new Error("Invalid account API key");
+    const duplicate=store.accountSnapshots.find(s=>s.accountId===account.id&&s.externalId===externalId);if(duplicate)return{snapshot:duplicate,duplicate:true,reconciliation:null};
+    const currency=input.currency.toUpperCase();if(currency!==account.currency)throw new Error(`Currency mismatch: expected ${account.currency}`);
+    const expectedBalance=account.balance;const difference=round(reportedBalance-expectedBalance);const previousSnapshot=store.accountSnapshots.find(s=>s.accountId===account.id)||null;const now=new Date().toISOString();
+    account.balance=reportedBalance;account.lastSyncAt=captured.toISOString();account.lastExternalSyncId=externalId;account.updatedAt=now;
+    const snapshot=pushSnapshot(store,account,"PROVIDER",externalId,captured.toISOString());
+    const reconciliation:TreasuryReconciliation={id:randomUUID(),accountId:account.id,expectedBalance,reportedBalance,difference,status:Math.abs(difference)<0.01?"MATCHED":"REVIEW",periodStart:previousSnapshot?.capturedAt||null,periodEnd:captured.toISOString(),note:String(input.note||"").slice(0,500),createdAt:now,resolvedAt:null};
+    store.reconciliations.unshift(reconciliation);store.reconciliations=store.reconciliations.slice(0,5000);return{snapshot,duplicate:false,reconciliation};
+  });
 }
 export async function resolveTreasuryReconciliation(id: string, note: string) {
-  const store = await getTreasuryStore(); const row = store.reconciliations.find(r => r.id === id); if (!row) throw new Error("Reconciliation not found");
-  row.status = "RESOLVED"; row.resolvedAt = new Date().toISOString(); row.note = [row.note, note.trim()].filter(Boolean).join(" · ").slice(0,500); await saveTreasuryStore(store); return row;
+  return mutateTreasuryStore(store=>{const row=store.reconciliations.find(r=>r.id===id);if(!row)throw new Error("Reconciliation not found");if(row.status==="RESOLVED")return row;row.status="RESOLVED";row.resolvedAt=new Date().toISOString();row.note=[row.note,note.trim()].filter(Boolean).join(" · ").slice(0,500);return row;});
 }
 
 export function treasuryByCurrency(store: TreasuryStore) {
