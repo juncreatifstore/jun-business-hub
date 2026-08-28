@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Mail, MessageCircle, Bell, Users, FolderKanban, CheckSquare, HardDrive,
@@ -63,8 +64,41 @@ const sections: { label: string | null; items: NavItem[] }[] = [
   },
 ];
 
+const companyFundsLabels:Record<string,string>={
+  "/app/company-funds":"Vue générale",
+  "/app/company-funds/executive":"Direction",
+  "/app/company-funds/consolidation":"Consolidation",
+  "/app/company-funds/reconciliation":"Réconciliation",
+  "/app/company-funds/monthly-close":"Clôture",
+  "/app/company-funds/transfers":"Transferts",
+  "/app/company-funds/reserves":"Réserves",
+  "/app/company-funds/authorizations":"Autorisations",
+  "/app/company-funds/execution-evidence":"Preuves",
+};
+const companyFundsAllowed=new Set(Object.keys(companyFundsLabels));
+const COMPANY_FUNDS_RECENTS_KEY="jun.companyFunds.recents";
+
 export function Sidebar({ open, onClose, role }: { open: boolean; onClose: () => void; role: string }) {
   const pathname = usePathname();
+  const [lastCompanyFundsHref,setLastCompanyFundsHref]=useState("/app/company-funds");
+
+  useEffect(()=>{
+    try{
+      const stored=JSON.parse(localStorage.getItem(COMPANY_FUNDS_RECENTS_KEY)||"[]");
+      if(Array.isArray(stored)){
+        const recent=stored.find((href):href is string=>typeof href==="string"&&companyFundsAllowed.has(href));
+        if(recent)setLastCompanyFundsHref(recent);
+      }
+    }catch{}
+  },[]);
+
+  useEffect(()=>{
+    const matched=Object.keys(companyFundsLabels).find(href=>href==="/app/company-funds"?pathname===href:pathname===href||pathname.startsWith(`${href}/`));
+    if(matched&&companyFundsAllowed.has(matched))setLastCompanyFundsHref(matched);
+  },[pathname]);
+
+  const insideCompanyFunds=pathname==="/app/company-funds"||pathname.startsWith("/app/company-funds/");
+
   return (
     <>
       {open ? <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} /> : null}
@@ -77,12 +111,20 @@ export function Sidebar({ open, onClose, role }: { open: boolean; onClose: () =>
             return <div key={i} className="mt-4 first:mt-0">
               {s.label ? <p className="px-2 pb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">{s.label}</p> : null}
               {items.map((item) => {
+                const isCompanyFundsRoot=item.href==="/app/company-funds";
                 const active = item.href === "/app"
                   ? pathname === "/app"
                   : item.sectionRoot
                     ? pathname === item.href || pathname.startsWith(`${item.href}/`)
                     : pathname === item.href || pathname.startsWith(`${item.href}/`);
-                return <Link key={item.href} href={item.href} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}><item.icon className="h-4 w-4" />{item.label}</Link>;
+                const effectiveHref=isCompanyFundsRoot&&!insideCompanyFunds?lastCompanyFundsHref:item.href;
+                return <Link key={item.href} href={effectiveHref} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}>
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{item.label}</span>
+                    {isCompanyFundsRoot&&!insideCompanyFunds&&lastCompanyFundsHref!=="/app/company-funds"?<span className="mt-0.5 block truncate text-[10px] text-white/35">Reprendre : {companyFundsLabels[lastCompanyFundsHref]||"dernière section"}</span>:null}
+                  </span>
+                </Link>;
               })}
             </div>;
           })}
