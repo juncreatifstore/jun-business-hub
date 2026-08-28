@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getFinancialAuthorization, type FinancialAuthorizationType } from "@/lib/company-funds-approvals";
 import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
 import { getTreasuryTransfer } from "@/lib/company-funds-transfers";
+import { invalidateCompanyFundsWorkQueue } from "@/lib/company-funds-work-queue-cache";
 
 const PREFIX="company.funds.execution-evidence.";
 export type FinancialExecutionEvidence={
@@ -32,6 +33,7 @@ export async function createFinancialExecutionEvidence(input:{authorizationId:st
   if(authorization.type==="INVESTMENT"){
     const investment=treasury.investments.find(i=>i.id===authorization.resourceId);if(investment&&investment.status==="PLANNED"){investment.status="ACTIVE";investment.updatedAt=now;await saveTreasuryStore(treasury)}
   }
+  invalidateCompanyFundsWorkQueue();
   return evidence;
 }
 export async function executionEvidenceComplete(type:FinancialAuthorizationType,resourceId:string){const rows=await listFinancialExecutionEvidence();return rows.some(e=>e.type===type&&e.resourceId===resourceId)}
