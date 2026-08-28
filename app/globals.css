@@ -8,18 +8,17 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-
 /* Brand tokens as HSL channels — overridable at runtime (Settings > Branding
    writes these on a <style> tag), so the palette can change without a rebuild. */
 :root {
-  --jun-night: 222 47% 11%;        /* deep night blue  #0e1729 */
-  --jun-night-soft: 221 39% 17%;   /* raised night     #1a2540 */
-  --jun-electric: 217 91% 60%;     /* electric blue    #3b82f6 */
-  --jun-gold: 42 62% 58%;          /* restrained gold  #d4af5a */
-  --jun-surface: 210 25% 98%;      /* near-white       #f8fafc */
-  --jun-line: 214 20% 90%;         /* hairline gray    #e2e6ec */
-  --jun-ink: 222 39% 14%;          /* text on light    */
-  --jun-muted: 218 12% 45%;        /* secondary text   */
+  --jun-night: 222 47% 11%;
+  --jun-night-soft: 221 39% 17%;
+  --jun-electric: 217 91% 60%;
+  --jun-gold: 42 62% 58%;
+  --jun-surface: 210 25% 98%;
+  --jun-line: 214 20% 90%;
+  --jun-ink: 222 39% 14%;
+  --jun-muted: 218 12% 45%;
 }
 
 /* Authenticated application theme. Public pages keep the light palette above. */
@@ -35,14 +34,44 @@
 
 .jun-app-dark input,
 .jun-app-dark textarea,
-.jun-app-dark select {
-  color: hsl(var(--jun-ink));
-}
-
+.jun-app-dark select { color: hsl(var(--jun-ink)); }
 .jun-app-dark input::placeholder,
-.jun-app-dark textarea::placeholder {
-  color: hsl(var(--jun-muted));
-}
+.jun-app-dark textarea::placeholder { color: hsl(var(--jun-muted)); }
+
+/* Compatibility bridge while older operational screens are progressively
+   migrated to the premium dashboard design. This prevents hard-coded light
+   Tailwind utilities from flashing white inside the authenticated dark shell. */
+.jun-app-dark .bg-white { background-color: #0e1624 !important; }
+.jun-app-dark .bg-white\/95 { background-color: rgb(14 22 36 / .95) !important; }
+.jun-app-dark .bg-blue-50,
+.jun-app-dark .bg-blue-50\/60 { background-color: rgb(59 130 246 / .08) !important; }
+.jun-app-dark .bg-emerald-50 { background-color: rgb(16 185 129 / .08) !important; }
+.jun-app-dark .bg-amber-50 { background-color: rgb(245 158 11 / .08) !important; }
+.jun-app-dark .bg-red-50 { background-color: rgb(244 63 94 / .08) !important; }
+.jun-app-dark .bg-violet-50 { background-color: rgb(139 92 246 / .08) !important; }
+.jun-app-dark .bg-cyan-50 { background-color: rgb(6 182 212 / .08) !important; }
+.jun-app-dark .bg-slate-100 { background-color: rgb(148 163 184 / .08) !important; }
+.jun-app-dark .border-blue-200 { border-color: rgb(96 165 250 / .22) !important; }
+.jun-app-dark .border-emerald-200 { border-color: rgb(52 211 153 / .22) !important; }
+.jun-app-dark .border-amber-200 { border-color: rgb(251 191 36 / .22) !important; }
+.jun-app-dark .border-red-200 { border-color: rgb(251 113 133 / .22) !important; }
+.jun-app-dark .border-violet-200 { border-color: rgb(167 139 250 / .22) !important; }
+.jun-app-dark .text-blue-900,
+.jun-app-dark .text-blue-800,
+.jun-app-dark .text-blue-700 { color: rgb(147 197 253) !important; }
+.jun-app-dark .text-emerald-900,
+.jun-app-dark .text-emerald-800,
+.jun-app-dark .text-emerald-700 { color: rgb(110 231 183) !important; }
+.jun-app-dark .text-amber-900,
+.jun-app-dark .text-amber-800,
+.jun-app-dark .text-amber-700 { color: rgb(252 211 77) !important; }
+.jun-app-dark .text-red-900,
+.jun-app-dark .text-red-800,
+.jun-app-dark .text-red-700,
+.jun-app-dark .text-red-600 { color: rgb(253 164 175) !important; }
+.jun-app-dark .text-violet-700 { color: rgb(196 181 253) !important; }
+.jun-app-dark .text-cyan-700 { color: rgb(103 232 249) !important; }
+.jun-app-dark .text-slate-700 { color: rgb(203 213 225) !important; }
 
 html { scroll-behavior: smooth; }
 body { @apply bg-surface text-ink antialiased; }
@@ -51,9 +80,7 @@ body { @apply bg-surface text-ink antialiased; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-/* Registry motif: document IDs and hashes always render in the utility mono face. */
 .registry-id { @apply font-mono text-[13px] tracking-tight; }
-
 .doc-prose h1 { @apply text-2xl font-semibold mt-6 mb-3; }
 .doc-prose h2 { @apply text-xl font-semibold mt-5 mb-2; }
 .doc-prose p  { @apply my-2 leading-relaxed; }
