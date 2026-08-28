@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { ensureFinancialAuthorization } from "@/lib/company-funds-approvals";
+import { recordCompanyFundsEntityHistory } from "@/lib/company-funds-entity-history";
 import {
   addProjectIntegration, addTreasuryAccount, addTreasuryForecastItem, addTreasuryInvestment, addTreasuryLoan,
   addTreasuryPartner, addTreasurySource, resolveTreasuryReconciliation, setTreasuryAccountConnectionKey,
@@ -60,11 +61,13 @@ export async function createTreasuryPartnerAction(form:FormData){
 }
 export async function createTreasuryLoanAction(form:FormData){
   const user=await superAdmin(); const principal=money(form,"principal"); const loan=await addTreasuryLoan({lender:text(form,"lender",140),borrower:text(form,"borrower",140),country:text(form,"country",80),currency:text(form,"currency",3).toUpperCase(),principal,outstandingBalance:form.get("outstandingBalance")?money(form,"outstandingBalance"):principal,interestRate:money(form,"interestRate"),startDate:text(form,"startDate",40),dueDate:text(form,"dueDate",40),paymentFrequency:text(form,"paymentFrequency",80),status:(text(form,"status")||"ACTIVE") as TreasuryLoanStatus,collateral:text(form,"collateral",300),guarantor:text(form,"guarantor",160),purpose:text(form,"purpose",300),note:text(form,"note",500)});
+  await recordCompanyFundsEntityHistory({entityType:"LOAN",entityId:loan.id,snapshot:{...loan},effectiveAt:loan.createdAt,reason:"CREATED"});
   await audit({userId:user.id,action:"COMPANY_FUNDS_LOAN_CREATE",resourceType:"TreasuryLoan",resourceId:loan.id,after:{lender:loan.lender,principal:loan.principal,currency:loan.currency}});refresh();
 }
 export async function createTreasuryInvestmentAction(form:FormData){
   const user=await superAdmin(); const amount=money(form,"amount"); const currency=text(form,"currency",3).toUpperCase();
   const investment=await addTreasuryInvestment({name:text(form,"name",140),country:text(form,"country",80),currency,amount,investedAt:text(form,"investedAt",40),projectIntegrationId:text(form,"projectIntegrationId")||null,expectedReturnPercent:money(form,"expectedReturnPercent"),status:"PLANNED",counterparty:text(form,"counterparty",160),note:text(form,"note",500)});
+  await recordCompanyFundsEntityHistory({entityType:"INVESTMENT",entityId:investment.id,snapshot:{...investment},effectiveAt:investment.createdAt,reason:"CREATED"});
   const authorization=await ensureFinancialAuthorization({type:"INVESTMENT",resourceId:investment.id,reference:`INV-${investment.id.slice(0,8).toUpperCase()}`,description:`Investissement ${investment.name}`,amount:investment.amount,currency:investment.currency,requestedById:user.id});
   await audit({userId:user.id,action:"COMPANY_FUNDS_INVESTMENT_CREATE",resourceType:"TreasuryInvestment",resourceId:investment.id,after:{name:investment.name,amount:investment.amount,currency:investment.currency,status:investment.status,authorizationId:authorization.id}});refresh();
 }
