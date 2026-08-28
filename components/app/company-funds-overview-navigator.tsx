@@ -18,15 +18,13 @@ function slugify(value:string){
 }
 
 function resolveSectionCard(heading:HTMLHeadingElement|null){
-  if(!heading)return null;
+  if(!heading||heading.dataset.slot!=="card-title")return null;
   const header=heading.parentElement;
   const card=header?.parentElement;
   if(!(header instanceof HTMLElement)||!(card instanceof HTMLElement))return null;
+  if(header.dataset.slot!=="card-header"||card.dataset.slot!=="card")return null;
   if(card.firstElementChild!==header)return null;
-  if(!header.classList.contains("border-b")||!header.classList.contains("border-line"))return null;
-  if(!header.classList.contains("px-5")||!header.classList.contains("py-3.5"))return null;
-  if(!card.classList.contains("rounded-xl")||!card.classList.contains("border")||!card.classList.contains("bg-white")||!card.classList.contains("shadow-sm"))return null;
-  const content=Array.from(card.children).find(child=>child!==header&&child instanceof HTMLElement&&child.classList.contains("p-5"));
+  const content=Array.from(card.children).find(child=>child instanceof HTMLElement&&child.dataset.slot==="card-content");
   return content?card:null;
 }
 
@@ -61,7 +59,7 @@ export function CompanyFundsOverviewNavigator(){
 
     const timer=window.setTimeout(()=>{
       const root=document.querySelector("main")??document.body;
-      const headings=Array.from(root.querySelectorAll<HTMLHeadingElement>("h3"))
+      const headings=Array.from(root.querySelectorAll<HTMLHeadingElement>("h3[data-slot='card-title']"))
         .filter(node=>Boolean(node.textContent?.trim())&&Boolean(resolveSectionCard(node)));
 
       const used=new Map<string,number>();
@@ -139,7 +137,7 @@ export function CompanyFundsOverviewNavigator(){
 
   useEffect(()=>{
     if(!isOverview||!sections.length)return;
-    const onHashChange=()=>{
+    const onHistoryNavigation=()=>{
       const id=decodeURIComponent(window.location.hash.replace(/^#/,""));
       if(!sections.some(section=>section.id===id))return;
       setActiveId(id);
@@ -148,8 +146,12 @@ export function CompanyFundsOverviewNavigator(){
       setCollapsed(previous=>previous.filter(item=>item!==id));
       window.setTimeout(()=>document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"}),0);
     };
-    window.addEventListener("hashchange",onHashChange);
-    return()=>window.removeEventListener("hashchange",onHashChange);
+    window.addEventListener("hashchange",onHistoryNavigation);
+    window.addEventListener("popstate",onHistoryNavigation);
+    return()=>{
+      window.removeEventListener("hashchange",onHistoryNavigation);
+      window.removeEventListener("popstate",onHistoryNavigation);
+    };
   },[focusId,isOverview,sections]);
 
   const activeLabel=useMemo(()=>sections.find(section=>section.id===activeId)?.label||"Sur cette page",[activeId,sections]);
