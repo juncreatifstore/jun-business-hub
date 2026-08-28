@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronUp, ListTree, PanelTopClose, PanelTopOpen } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, LayoutList, ListTree, PanelTopClose, PanelTopOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Section={id:string;label:string};
@@ -30,10 +30,11 @@ export function CompanyFundsOverviewNavigator(){
   const [activeId,setActiveId]=useState<string>("");
   const [open,setOpen]=useState(false);
   const [collapsed,setCollapsed]=useState<string[]>([]);
+  const [focusId,setFocusId]=useState<string|null>(null);
   const isOverview=pathname==="/app/company-funds";
 
   useEffect(()=>{
-    if(!isOverview){setSections([]);return;}
+    if(!isOverview){setSections([]);setFocusId(null);return;}
 
     const timer=window.setTimeout(()=>{
       const root=document.querySelector("main")??document.body;
@@ -69,15 +70,24 @@ export function CompanyFundsOverviewNavigator(){
     for(const section of sections){
       const card=getSectionCard(section.id);
       if(!card)continue;
+      card.style.display=focusId&&section.id!==focusId?"none":"";
       const children=Array.from(card.children) as HTMLElement[];
       children.slice(1).forEach(child=>{child.style.display=collapsedSet.has(section.id)?"none":""});
       card.dataset.companyFundsCollapsed=collapsedSet.has(section.id)?"true":"false";
+      card.dataset.companyFundsFocused=focusId===section.id?"true":"false";
     }
     try{localStorage.setItem(COLLAPSED_KEY,JSON.stringify(collapsed))}catch{}
-  },[collapsed,isOverview,sections]);
+
+    return()=>{
+      for(const section of sections){
+        const card=getSectionCard(section.id);
+        if(card)card.style.display="";
+      }
+    };
+  },[collapsed,focusId,isOverview,sections]);
 
   useEffect(()=>{
-    if(!isOverview||!sections.length)return;
+    if(!isOverview||!sections.length||focusId)return;
     const nodes=sections.map(section=>document.getElementById(section.id)).filter(Boolean) as HTMLElement[];
     if(!nodes.length)return;
 
@@ -90,9 +100,10 @@ export function CompanyFundsOverviewNavigator(){
 
     nodes.forEach(node=>observer.observe(node));
     return()=>observer.disconnect();
-  },[isOverview,sections]);
+  },[focusId,isOverview,sections]);
 
   const activeLabel=useMemo(()=>sections.find(section=>section.id===activeId)?.label||"Sur cette page",[activeId,sections]);
+  const focusLabel=useMemo(()=>sections.find(section=>section.id===focusId)?.label||"",[focusId,sections]);
   const activeCollapsed=collapsed.includes(activeId);
 
   function setOneCollapsed(id:string,value:boolean){
@@ -107,6 +118,7 @@ export function CompanyFundsOverviewNavigator(){
     if(!target)return;
     setActiveId(id);
     setOpen(false);
+    if(focusId)setFocusId(id);
     if(collapsed.includes(id))setOneCollapsed(id,false);
     window.setTimeout(()=>{
       target.scrollIntoView({behavior:"smooth",block:"start"});
@@ -116,6 +128,15 @@ export function CompanyFundsOverviewNavigator(){
 
   function collapseAll(){setCollapsed(sections.map(section=>section.id))}
   function expandAll(){setCollapsed([])}
+  function enterFocus(id=activeId){
+    if(!id)return;
+    setOneCollapsed(id,false);
+    setFocusId(id);
+    setActiveId(id);
+    setOpen(false);
+    window.setTimeout(()=>document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"}),0);
+  }
+  function exitFocus(){setFocusId(null)}
 
   if(!isOverview||sections.length<2)return null;
 
@@ -123,11 +144,13 @@ export function CompanyFundsOverviewNavigator(){
     <div className="flex items-center gap-2 px-3 py-2">
       <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-muted2"><ListTree className="h-4 w-4"/></div>
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted2">Sur cette page</div>
-        <div className="truncate text-sm font-semibold text-ink">{activeLabel}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted2">{focusId?"Mode focus":"Sur cette page"}</div>
+        <div className="truncate text-sm font-semibold text-ink">{focusId?focusLabel:activeLabel}</div>
       </div>
 
-      <button type="button" onClick={()=>setOneCollapsed(activeId,!activeCollapsed)} className="hidden h-8 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-xs font-medium text-muted2 transition hover:bg-surface hover:text-ink sm:inline-flex" title={activeCollapsed?"Développer cette section":"Réduire cette section"}>
+      {focusId?<button type="button" onClick={exitFocus} className="hidden h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 sm:inline-flex" title="Afficher toutes les sections"><LayoutList className="h-3.5 w-3.5"/>Tout afficher</button>:<button type="button" onClick={()=>enterFocus()} className="hidden h-8 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-xs font-medium text-muted2 transition hover:bg-surface hover:text-ink sm:inline-flex" title="Afficher uniquement cette section"><Eye className="h-3.5 w-3.5"/>Focus</button>}
+
+      <button type="button" onClick={()=>setOneCollapsed(activeId,!activeCollapsed)} className="hidden h-8 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-xs font-medium text-muted2 transition hover:bg-surface hover:text-ink lg:inline-flex" title={activeCollapsed?"Développer cette section":"Réduire cette section"}>
         {activeCollapsed?<PanelTopOpen className="h-3.5 w-3.5"/>:<PanelTopClose className="h-3.5 w-3.5"/>}
         {activeCollapsed?"Développer":"Réduire"}
       </button>
@@ -136,6 +159,8 @@ export function CompanyFundsOverviewNavigator(){
         {sections.length} sections <ChevronDown className={cn("h-3.5 w-3.5 transition-transform",open&&"rotate-180")}/>
       </button>
     </div>
+
+    {focusId?<div className="border-t border-emerald-100 bg-emerald-50/60 px-3 py-2 text-[11px] text-emerald-800 sm:hidden"><div className="flex items-center justify-between gap-3"><span>Seule la section « {focusLabel} » est affichée.</span><button type="button" onClick={exitFocus} className="shrink-0 rounded-lg border border-emerald-200 bg-white px-2 py-1 font-semibold">Tout afficher</button></div></div>:null}
 
     <div className="hidden overflow-x-auto border-t border-line px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block">
       <div className="flex min-w-max items-center gap-1">
@@ -149,6 +174,7 @@ export function CompanyFundsOverviewNavigator(){
           </div>;
         })}
         <span className="mx-1 h-5 w-px bg-line"/>
+        {focusId?<button type="button" onClick={exitFocus} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"><LayoutList className="h-3 w-3"/>Tout afficher</button>:<button type="button" onClick={()=>enterFocus()} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink"><Eye className="h-3 w-3"/>Mode focus</button>}
         <button type="button" onClick={collapseAll} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink"><PanelTopClose className="h-3 w-3"/>Tout réduire</button>
         <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink"><PanelTopOpen className="h-3 w-3"/>Tout développer</button>
       </div>
@@ -156,7 +182,7 @@ export function CompanyFundsOverviewNavigator(){
 
     {open?<div className="border-t border-line p-2 md:hidden">
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <button type="button" onClick={collapseAll} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><PanelTopClose className="h-3.5 w-3.5"/>Tout réduire</button>
+        {focusId?<button type="button" onClick={exitFocus} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-800"><LayoutList className="h-3.5 w-3.5"/>Tout afficher</button>:<button type="button" onClick={()=>enterFocus()} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><Eye className="h-3.5 w-3.5"/>Mode focus</button>}
         <button type="button" onClick={expandAll} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><PanelTopOpen className="h-3.5 w-3.5"/>Tout développer</button>
       </div>
       <div className="max-h-[42vh] overflow-y-auto rounded-lg bg-surface/50 p-1">{sections.map((section,index)=>{
@@ -168,6 +194,7 @@ export function CompanyFundsOverviewNavigator(){
           </button>
         </div>;
       })}</div>
+      <button type="button" onClick={collapseAll} className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><PanelTopClose className="h-3.5 w-3.5"/>Tout réduire</button>
     </div>:null}
   </div>;
 }
