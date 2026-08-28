@@ -1,5 +1,6 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { listFinancialAuthorizations } from "@/lib/company-funds-approvals";
 import { listFinancialExecutionEvidence } from "@/lib/company-funds-execution-evidence";
 import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
@@ -15,7 +16,7 @@ export type CompanyFundsWorkQueue = {
   reserves: number;
 };
 
-export async function getCompanyFundsWorkQueue(): Promise<CompanyFundsWorkQueue> {
+async function computeCompanyFundsWorkQueue(): Promise<CompanyFundsWorkQueue> {
   const [authorizations, evidence, transfers, bankTransactions, reserves] = await Promise.all([
     listFinancialAuthorizations(5000),
     listFinancialExecutionEvidence(5000),
@@ -45,4 +46,14 @@ export async function getCompanyFundsWorkQueue(): Promise<CompanyFundsWorkQueue>
     ...queue,
     total: queue.authorizations + queue.transfers + queue.reconciliation + queue.evidence + queue.reserves,
   };
+}
+
+const getCachedCompanyFundsWorkQueue = unstable_cache(
+  computeCompanyFundsWorkQueue,
+  ["company-funds-work-queue-v1"],
+  { revalidate: 10 },
+);
+
+export async function getCompanyFundsWorkQueue(): Promise<CompanyFundsWorkQueue> {
+  return getCachedCompanyFundsWorkQueue();
 }
