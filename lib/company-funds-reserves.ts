@@ -25,10 +25,20 @@ export async function createFinancialReserve(input:{name:string;kind:ReserveKind
 export async function updateFinancialReserveAmount(id:string,reservedAmount:number){const r=await getFinancialReserve(id);if(!r)throw new Error("Reserve not found");const amount=Math.max(0,round(reservedAmount));if(amount>r.targetAmount)throw new Error("Reserved amount cannot exceed target amount");r.reservedAmount=amount;r.updatedAt=new Date().toISOString();return save(r)}
 export async function setFinancialReserveActive(id:string,active:boolean){const r=await getFinancialReserve(id);if(!r)throw new Error("Reserve not found");r.active=active;r.updatedAt=new Date().toISOString();return save(r)}
 
-export async function getFinancialReserveDashboard(){
-  const [reserves,treasury]=await Promise.all([listFinancialReserves(),getTreasuryStore()]);const active=reserves.filter(r=>r.active);const currencies=[...new Set([...treasury.accounts.filter(a=>a.active).map(a=>a.currency),...active.map(r=>r.currency)])].sort();
-  const byCurrency=currencies.map(currency=>{const cash=round(treasury.accounts.filter(a=>a.active&&a.currency===currency).reduce((s,a)=>s+a.balance,0));const target=round(active.filter(r=>r.currency===currency).reduce((s,r)=>s+r.targetAmount,0));const reserved=round(active.filter(r=>r.currency===currency).reduce((s,r)=>s+r.reservedAmount,0));const available=round(cash-reserved);return{currency,cash,target,reserved,available,coveragePercent:target>0?Math.round((reserved/target)*1000)/10:100,shortfall:Math.max(0,round(target-reserved)),overReserved:reserved>cash}});
-  const accountUsage=treasury.accounts.filter(a=>a.active).map(account=>{const reserved=round(active.filter(r=>r.accountId===account.id).reduce((s,r)=>s+r.reservedAmount,0));return{accountId:account.id,name:account.name,country:account.country,currency:account.currency,balance:account.balance,reserved,available:round(account.balance-reserved),overReserved:reserved>account.balance}});
-  const countryMinimums=active.filter(r=>r.kind==="COUNTRY_MINIMUM").map(r=>{const cash=round(treasury.accounts.filter(a=>a.active&&a.currency===r.currency&&(!r.country||a.country===r.country)).reduce((s,a)=>s+a.balance,0));return{...r,cash,met:cash>=r.targetAmount,gap:Math.max(0,round(r.targetAmount-cash))}});
+export async function getFinancialReserveDashboard(filters?:{country?:string;currency?:string}){
+  const [allReserves,treasury]=await Promise.all([listFinancialReserves(),getTreasuryStore()]);
+  const country=String(filters?.country||"").trim();const currency=String(filters?.currency||"").trim().toUpperCase();
+  const accounts=treasury.accounts.filter(a=>a.active&&(!country||a.country===country)&&(!currency||a.currency===currency));
+  const accountIds=new Set(accounts.map(a=>a.id));
+  const reserves=allReserves.filter(r=>{
+    if(currency&&r.currency!==currency)return false;
+    if(!country)return true;
+    if(r.accountId)return accountIds.has(r.accountId);
+    return r.country===country;
+  });
+  const active=reserves.filter(r=>r.active);const currencies=[...new Set([...accounts.map(a=>a.currency),...active.map(r=>r.currency)])].sort();
+  const byCurrency=currencies.map(rowCurrency=>{const cash=round(accounts.filter(a=>a.currency===rowCurrency).reduce((s,a)=>s+a.balance,0));const target=round(active.filter(r=>r.currency===rowCurrency).reduce((s,r)=>s+r.targetAmount,0));const reserved=round(active.filter(r=>r.currency===rowCurrency).reduce((s,r)=>s+r.reservedAmount,0));const available=round(cash-reserved);return{currency:rowCurrency,cash,target,reserved,available,coveragePercent:target>0?Math.round((reserved/target)*1000)/10:100,shortfall:Math.max(0,round(target-reserved)),overReserved:reserved>cash}});
+  const accountUsage=accounts.map(account=>{const reserved=round(active.filter(r=>r.accountId===account.id).reduce((s,r)=>s+r.reservedAmount,0));return{accountId:account.id,name:account.name,country:account.country,currency:account.currency,balance:account.balance,reserved,available:round(account.balance-reserved),overReserved:reserved>account.balance}});
+  const countryMinimums=active.filter(r=>r.kind==="COUNTRY_MINIMUM").map(r=>{const cash=round(accounts.filter(a=>a.currency===r.currency&&(!r.country||a.country===r.country)).reduce((s,a)=>s+a.balance,0));return{...r,cash,met:cash>=r.targetAmount,gap:Math.max(0,round(r.targetAmount-cash))}});
   return{reserves,active,byCurrency,accountUsage,countryMinimums,totalActive:active.length,alerts:[...byCurrency.filter(r=>r.overReserved||r.shortfall>0).map(r=>({type:r.overReserved?"CRITICAL":"WATCH",message:r.overReserved?`Réserves ${r.currency} supérieures au cash disponible`:`Objectif de réserve ${r.currency} incomplet: manque ${r.shortfall.toFixed(2)}`})),...accountUsage.filter(a=>a.overReserved).map(a=>({type:"CRITICAL",message:`${a.name}: réserves affectées supérieures au solde du compte`})),...countryMinimums.filter(r=>!r.met).map(r=>({type:"WATCH",message:`Minimum de trésorerie ${r.country||"pays"} (${r.currency}) non atteint`}))]};
 }
