@@ -1,10 +1,11 @@
 import "server-only";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
+import { getTreasuryStore, type TreasuryStore } from "@/lib/company-funds";
 import { invalidateCompanyFundsWorkQueue } from "@/lib/company-funds-work-queue-cache";
 
 const PREFIX = "company.funds.transfer.";
+const TREASURY_STORE_KEY = "company.funds.store";
 
 export type TreasuryTransferStatus = "DRAFT"|"INITIATED"|"IN_TRANSIT"|"COMPLETED"|"CANCELLED";
 export type TreasuryTransfer = {
@@ -17,9 +18,36 @@ export type TreasuryTransfer = {
 
 function round(n:number){return Math.round((Number(n)+Number.EPSILON)*100)/100;}
 function parse(value:string):TreasuryTransfer|null{try{const v=JSON.parse(value) as TreasuryTransfer;return v?.id&&v?.reference?v:null;}catch{return null;}}
+function parseTreasuryStore(value:string):TreasuryStore{try{const v=JSON.parse(value) as TreasuryStore;if(!v||!Array.isArray(v.accounts))throw new Error("Invalid treasury store");return v}catch{throw new Error("Treasury store is unavailable")}}
+
 export async function listTreasuryTransfers(){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},orderBy:{updatedAt:"desc"},take:5000,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is TreasuryTransfer=>Boolean(v));}
 export async function getTreasuryTransfer(id:string){const row=await prisma.appSetting.findUnique({where:{key:`${PREFIX}${id}`},select:{value:true}});return row?parse(row.value):null;}
 async function save(t:TreasuryTransfer){await prisma.appSetting.upsert({where:{key:`${PREFIX}${t.id}`},create:{key:`${PREFIX}${t.id}`,value:JSON.stringify(t)},update:{value:JSON.stringify(t)}});invalidateCompanyFundsWorkQueue();return t;}
+
+async function mutatePostedTransfer(id:string,mutate:(transfer:TreasuryTransfer,store:TreasuryStore)=>TreasuryTransfer){
+  try{
+    const result=await prisma.$transaction(async tx=>{
+      const transferRow=await tx.appSetting.findUnique({where:{key:`${PREFIX}${id}`},select:{value:true}});
+      if(!transferRow)throw new Error("Transfer not found");
+      const transfer=parse(transferRow.value);
+      if(!transfer)throw new Error("Transfer data is invalid");
+      const storeRow=await tx.appSetting.findUnique({where:{key:TREASURY_STORE_KEY},select:{value:true}});
+      if(!storeRow)throw new Error("Treasury store is unavailable");
+      const store=parseTreasuryStore(storeRow.value);
+      const updated=mutate(transfer,store);
+      store.updatedAt=new Date().toISOString();
+      await tx.appSetting.update({where:{key:TREASURY_STORE_KEY},data:{value:JSON.stringify(store)}});
+      await tx.appSetting.update({where:{key:`${PREFIX}${id}`},data:{value:JSON.stringify(updated)}});
+      return updated;
+    },{isolationLevel:"Serializable"});
+    invalidateCompanyFundsWorkQueue();
+    return result;
+  }catch(error){
+    const code=typeof error==="object"&&error&&"code" in error?String((error as {code?:unknown}).code||""):"";
+    if(code==="P2034")throw new Error("Transfer state changed concurrently. Refresh before retrying; no duplicate posting was applied.");
+    throw error;
+  }
+}
 
 export async function createTreasuryTransfer(input:{fromAccountId:string;toAccountId:string;sentAmount:number;feeAmount:number;fxRate:number;externalReference:string;note:string;createdById:string}){
   if(input.fromAccountId===input.toAccountId)throw new Error("Source and destination accounts must be different");
@@ -28,9 +56,23 @@ export async function createTreasuryTransfer(input:{fromAccountId:string;toAccou
   const expected=round(sent*rate);const now=new Date().toISOString();const id=randomUUID();const t:TreasuryTransfer={id,reference:`TRF-${now.slice(0,10).replaceAll("-","")}-${id.slice(0,6).toUpperCase()}`,fromAccountId:from.id,toAccountId:to.id,fromCurrency:from.currency,toCurrency:to.currency,sentAmount:sent,feeAmount:fee,fxRate:rate,expectedReceivedAmount:expected,actualReceivedAmount:null,status:"DRAFT",initiatedAt:null,completedAt:null,externalReference:input.externalReference.trim().slice(0,180),note:input.note.trim().slice(0,800),createdById:input.createdById,createdAt:now,updatedAt:now};return save(t);
 }
 
-export async function initiateTreasuryTransfer(id:string){const t=await getTreasuryTransfer(id);if(!t)throw new Error("Transfer not found");if(t.status!=="DRAFT")throw new Error("Only draft transfers can be initiated");const store=await getTreasuryStore();const from=store.accounts.find(a=>a.id===t.fromAccountId);if(!from)throw new Error("Source account not found");const debit=round(t.sentAmount+t.feeAmount);if(from.balance+0.005<debit)throw new Error(`Insufficient balance: ${from.currency} ${from.balance.toFixed(2)} available`);from.balance=round(from.balance-debit);from.updatedAt=new Date().toISOString();await saveTreasuryStore(store);t.status="IN_TRANSIT";t.initiatedAt=new Date().toISOString();t.updatedAt=t.initiatedAt;return save(t);}
+export async function initiateTreasuryTransfer(id:string){
+  return mutatePostedTransfer(id,(t,store)=>{
+    if(t.status!=="DRAFT")throw new Error("Only draft transfers can be initiated");
+    const from=store.accounts.find(a=>a.id===t.fromAccountId&&a.active);if(!from)throw new Error("Source account not found or inactive");
+    const debit=round(t.sentAmount+t.feeAmount);if(from.balance+0.005<debit)throw new Error(`Insufficient balance: ${from.currency} ${from.balance.toFixed(2)} available`);
+    const now=new Date().toISOString();from.balance=round(from.balance-debit);from.updatedAt=now;t.status="IN_TRANSIT";t.initiatedAt=now;t.updatedAt=now;return t;
+  });
+}
 
-export async function completeTreasuryTransfer(id:string,actualReceivedAmount:number,externalReference?:string){const t=await getTreasuryTransfer(id);if(!t)throw new Error("Transfer not found");if(!["INITIATED","IN_TRANSIT"].includes(t.status))throw new Error("Transfer is not in transit");const received=round(actualReceivedAmount);if(received<=0)throw new Error("Actual received amount must be greater than zero");const store=await getTreasuryStore();const to=store.accounts.find(a=>a.id===t.toAccountId);if(!to)throw new Error("Destination account not found");to.balance=round(to.balance+received);to.updatedAt=new Date().toISOString();await saveTreasuryStore(store);t.actualReceivedAmount=received;t.status="COMPLETED";t.completedAt=new Date().toISOString();t.updatedAt=t.completedAt;if(externalReference?.trim())t.externalReference=externalReference.trim().slice(0,180);return save(t);}
+export async function completeTreasuryTransfer(id:string,actualReceivedAmount:number,externalReference?:string){
+  const received=round(actualReceivedAmount);if(received<=0)throw new Error("Actual received amount must be greater than zero");
+  return mutatePostedTransfer(id,(t,store)=>{
+    if(!["INITIATED","IN_TRANSIT"].includes(t.status))throw new Error("Transfer is not in transit");
+    const to=store.accounts.find(a=>a.id===t.toAccountId&&a.active);if(!to)throw new Error("Destination account not found or inactive");
+    const now=new Date().toISOString();to.balance=round(to.balance+received);to.updatedAt=now;t.actualReceivedAmount=received;t.status="COMPLETED";t.completedAt=now;t.updatedAt=now;if(externalReference?.trim())t.externalReference=externalReference.trim().slice(0,180);return t;
+  });
+}
 
 export async function cancelTreasuryTransfer(id:string){const t=await getTreasuryTransfer(id);if(!t)throw new Error("Transfer not found");if(t.status!=="DRAFT")throw new Error("Only draft transfers can be cancelled");t.status="CANCELLED";t.updatedAt=new Date().toISOString();return save(t);}
 
