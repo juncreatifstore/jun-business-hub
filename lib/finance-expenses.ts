@@ -60,6 +60,19 @@ export async function listFinanceExpenses(limit=500){
 }
 export async function getFinanceExpense(id:string){ const row=await prisma.appSetting.findUnique({where:{key:key(id)},select:{value:true}}); return row?parse(row.value):null; }
 export async function saveFinanceExpense(expense:FinanceExpense){ const value=JSON.stringify(expense); await prisma.appSetting.upsert({where:{key:key(expense.id)},create:{key:key(expense.id),value},update:{value}}); return expense; }
+export async function mutateFinanceExpense<T>(id:string,mutate:(current:FinanceExpense)=>{expense:FinanceExpense;result:T}|Promise<{expense:FinanceExpense;result:T}>):Promise<T>{
+  return prisma.$transaction(async tx=>{
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`finance-expense:${id}`}))`;
+    const row=await tx.appSetting.findUnique({where:{key:key(id)},select:{value:true}});
+    const current=row?parse(row.value):null;
+    if(!current)throw new Error("Expense not found");
+    const {expense,result}=await mutate(current);
+    if(expense.id!==id)throw new Error("Expense mutation cannot change the expense id");
+    expense.updatedAt=new Date().toISOString();
+    await tx.appSetting.update({where:{key:key(id)},data:{value:JSON.stringify(expense)}});
+    return result;
+  },{isolationLevel:"Serializable"});
+}
 export function expensePaidTotal(e:FinanceExpense){ return round(e.payments.reduce((s,p)=>s+Number(p.amount||0),0)); }
 export function expenseRemaining(e:FinanceExpense){ return Math.max(0,round(e.amount-expensePaidTotal(e))); }
 export function expenseEffectiveStatus(e:FinanceExpense): ExpenseStatus {
