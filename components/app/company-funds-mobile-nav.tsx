@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   ArrowRightLeft,
   CalendarCheck2,
   FileCheck2,
@@ -38,6 +39,7 @@ const items=[
   {href:"/app/company-funds/reserves",label:"Réserves financières",short:"Réserves",group:"Opérations",icon:PiggyBank},
   {href:"/app/company-funds/authorizations",label:"Autorisations financières",short:"Autorisations",group:"Sécurité",icon:Lock},
   {href:"/app/company-funds/execution-evidence",label:"Preuves d’exécution",short:"Preuves",group:"Sécurité",icon:FileCheck2},
+  {href:"/app/company-funds/timeline",label:"Timeline des opérations",short:"Timeline",group:"Sécurité",icon:Activity},
 ] as const;
 
 function active(pathname:string,href:string){
