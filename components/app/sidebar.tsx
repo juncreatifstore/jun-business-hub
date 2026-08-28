@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Mail, MessageCircle, Bell, Users, FolderKanban, CheckSquare, HardDrive,
   FileText, PenTool, Lock, CreditCard, ReceiptText, Undo2, BarChart3,
-  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark,
+  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark, BriefcaseBusiness,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean; sectionRoot?: boolean };
@@ -15,17 +15,17 @@ const sections: { label: string | null; items: NavItem[] }[] = [
   {
     label: "Communication",
     items: [
-      { href: "/app/mail", label: "Mail", icon: Mail },
       { href: "/app/whatsapp/inbox", label: "WhatsApp Inbox", icon: MessageCircle },
+      { href: "/app/mail", label: "Mail", icon: Mail },
       { href: "/app/notifications", label: "Notifications", icon: Bell },
     ],
   },
   {
-    label: "CRM",
+    label: "Gestion",
     items: [
       { href: "/app/clients", label: "Clients", icon: Users },
-      { href: "/app/cases", label: "Cases", icon: FolderKanban },
-      { href: "/app/tasks", label: "Tasks", icon: CheckSquare },
+      { href: "/app/cases", label: "Dossiers", icon: FolderKanban },
+      { href: "/app/tasks", label: "Tâches", icon: CheckSquare },
     ],
   },
   {
@@ -40,26 +40,26 @@ const sections: { label: string | null; items: NavItem[] }[] = [
   {
     label: "Finance",
     items: [
-      { href: "/app/finance/payments", label: "Payments", icon: CreditCard },
-      { href: "/app/finance/receipts", label: "Receipts", icon: ReceiptText },
-      { href: "/app/finance/refunds", label: "Refunds", icon: Undo2 },
-      { href: "/app/finance/reports", label: "Reports", icon: BarChart3 },
-      { href: "/app/company-funds", label: "Fonds de l’entreprise", icon: Landmark, superAdminOnly: true, sectionRoot: true },
+      { href: "/app/finance/payments", label: "Paiements", icon: CreditCard },
+      { href: "/app/finance/receipts", label: "Reçus", icon: ReceiptText },
+      { href: "/app/finance/refunds", label: "Remboursements", icon: Undo2 },
+      { href: "/app/finance/reports", label: "Rapports", icon: BarChart3 },
+      { href: "/app/company-funds", label: "Company Funds", icon: Landmark, superAdminOnly: true, sectionRoot: true },
     ],
   },
-  { label: "AI", items: [{ href: "/app/ai", label: "JUN AI", icon: Sparkles }] },
+  { label: "Intelligence", items: [{ href: "/app/ai", label: "JUN AI", icon: Sparkles }] },
   {
-    label: "Company",
+    label: "Entreprise",
     items: [
-      { href: "/app/team", label: "Team", icon: UsersRound },
-      { href: "/app/departments", label: "Departments", icon: Building2 },
+      { href: "/app/team", label: "Équipe", icon: UsersRound },
+      { href: "/app/departments", label: "Départements", icon: Building2 },
     ],
   },
   {
-    label: "System",
+    label: "Système",
     items: [
-      { href: "/app/audit", label: "Audit Logs", icon: ScrollText },
-      { href: "/app/settings", label: "Settings", icon: Settings },
+      { href: "/app/audit", label: "Journal d’audit", icon: ScrollText },
+      { href: "/app/settings", label: "Paramètres", icon: Settings },
     ],
   },
 ];
@@ -101,34 +101,70 @@ export function Sidebar({ open, onClose, role }: { open: boolean; onClose: () =>
 
   return (
     <>
-      {open ? <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} /> : null}
-      <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-night text-white transition-transform lg:static lg:translate-x-0",open ? "translate-x-0" : "-translate-x-full") }>
-        <div className="flex h-16 items-center justify-between px-5"><Link href="/app" className="font-display text-2xl">JUN</Link><button className="lg:hidden" onClick={onClose} aria-label="Close menu"><X className="h-5 w-5" /></button></div>
-        <nav className="flex-1 overflow-y-auto px-3 pb-6">
+      {open ? <div className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm lg:hidden" onClick={onClose} /> : null}
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-50 flex w-[262px] flex-col border-r border-white/[0.07] bg-[#08101d] text-white shadow-2xl shadow-black/20 transition-transform lg:static lg:translate-x-0",
+        open ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex h-[72px] items-center justify-between border-b border-white/[0.06] px-4">
+          <Link href="/app" className="group flex min-w-0 items-center gap-3" onClick={onClose}>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 text-lg font-bold shadow-lg shadow-blue-950/40">J</span>
+            <span className="min-w-0">
+              <span className="block truncate text-[15px] font-semibold tracking-tight text-white">JUN Business Hub</span>
+              <span className="block text-[10px] uppercase tracking-[0.18em] text-slate-500">Business OS</span>
+            </span>
+          </Link>
+          <button className="rounded-lg p-2 text-slate-400 hover:bg-white/[0.06] hover:text-white lg:hidden" onClick={onClose} aria-label="Fermer le menu"><X className="h-5 w-5" /></button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-4 [scrollbar-width:thin] [scrollbar-color:#243044_transparent]">
           {sections.map((s, i) => {
             const items = s.items.filter(item => !item.superAdminOnly || role === "SUPER_ADMIN");
             if (!items.length) return null;
-            return <div key={i} className="mt-4 first:mt-0">
-              {s.label ? <p className="px-2 pb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">{s.label}</p> : null}
-              {items.map((item) => {
-                const isCompanyFundsRoot=item.href==="/app/company-funds";
-                const active = item.href === "/app"
-                  ? pathname === "/app"
-                  : item.sectionRoot
-                    ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+            return <div key={i} className="mt-5 first:mt-0">
+              {s.label ? <p className="px-3 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-slate-600">{s.label}</p> : null}
+              <div className="space-y-1">
+                {items.map((item) => {
+                  const isCompanyFundsRoot=item.href==="/app/company-funds";
+                  const active = item.href === "/app"
+                    ? pathname === "/app"
                     : pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const effectiveHref=isCompanyFundsRoot&&!insideCompanyFunds?lastCompanyFundsHref:item.href;
-                return <Link key={item.href} href={effectiveHref} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}>
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{item.label}</span>
-                    {isCompanyFundsRoot&&!insideCompanyFunds&&lastCompanyFundsHref!=="/app/company-funds"?<span className="mt-0.5 block truncate text-[10px] text-white/35">Reprendre : {companyFundsLabels[lastCompanyFundsHref]||"dernière section"}</span>:null}
-                  </span>
-                </Link>;
-              })}
+                  const effectiveHref=isCompanyFundsRoot&&!insideCompanyFunds?lastCompanyFundsHref:item.href;
+                  return <Link
+                    key={item.href}
+                    href={effectiveHref}
+                    onClick={onClose}
+                    className={cn(
+                      "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all",
+                      active
+                        ? "bg-blue-500/15 text-blue-100 shadow-[inset_0_0_0_1px_rgba(59,130,246,.12)]"
+                        : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-100"
+                    )}
+                  >
+                    {active ? <span className="absolute left-0 h-5 w-0.5 rounded-r bg-blue-400" /> : null}
+                    <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition",active?"bg-blue-500/15 text-blue-400":"text-slate-500 group-hover:text-slate-300")}>
+                      <item.icon className="h-[17px] w-[17px]" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{item.label}</span>
+                      {isCompanyFundsRoot&&!insideCompanyFunds&&lastCompanyFundsHref!=="/app/company-funds"?<span className="mt-0.5 block truncate text-[9px] font-normal text-slate-600">Reprendre · {companyFundsLabels[lastCompanyFundsHref]||"dernière section"}</span>:null}
+                    </span>
+                  </Link>;
+                })}
+              </div>
             </div>;
           })}
         </nav>
+
+        <div className="border-t border-white/[0.06] p-3">
+          <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-300"><BriefcaseBusiness className="h-4 w-4" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-slate-200">JUN Créatif & Travel</span>
+              <span className="block truncate text-[10px] text-slate-500">Compte principal</span>
+            </span>
+          </div>
+        </div>
       </aside>
     </>
   );
