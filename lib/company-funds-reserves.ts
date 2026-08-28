@@ -15,28 +15,45 @@ export type FinancialReserve={
 function round(v:number){return Math.round((Number(v||0)+Number.EPSILON)*100)/100}
 function parse(value:string):FinancialReserve|null{try{const r=JSON.parse(value) as FinancialReserve;if(!r?.id||!r.name)return null;return{...r,country:r.country||null,currency:String(r.currency||"USD").toUpperCase(),accountId:r.accountId||null,targetAmount:Math.max(0,round(r.targetAmount)),reservedAmount:Math.max(0,round(r.reservedAmount)),active:r.active!==false,note:String(r.note||"")}}catch{return null}}
 function reserveSnapshot(r:FinancialReserve):Record<string,unknown>{return{...r}}
+function reserveKey(id:string){return`${PREFIX}${id}`}
 export async function listFinancialReserves(){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},orderBy:{updatedAt:"desc"},take:2000,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is FinancialReserve=>Boolean(v))}
-export async function getFinancialReserve(id:string){const row=await prisma.appSetting.findUnique({where:{key:`${PREFIX}${id}`},select:{value:true}});return row?parse(row.value):null}
-async function save(r:FinancialReserve,reason="STATE_CHANGE"){
-  await prisma.appSetting.upsert({where:{key:`${PREFIX}${r.id}`},create:{key:`${PREFIX}${r.id}`,value:JSON.stringify(r)},update:{value:JSON.stringify(r)}});
+export async function getFinancialReserve(id:string){const row=await prisma.appSetting.findUnique({where:{key:reserveKey(id)},select:{value:true}});return row?parse(row.value):null}
+
+async function createReserveRecord(r:FinancialReserve,reason:string){
+  await prisma.appSetting.create({data:{key:reserveKey(r.id),value:JSON.stringify(r)}});
   await recordCompanyFundsEntityHistory({entityType:"RESERVE",entityId:r.id,snapshot:reserveSnapshot(r),effectiveAt:r.updatedAt,reason});
   invalidateCompanyFundsWorkQueue();return r;
 }
-async function recordPrevious(r:FinancialReserve,reason:string){
-  await recordCompanyFundsEntityHistory({entityType:"RESERVE",entityId:r.id,snapshot:reserveSnapshot(r),effectiveAt:r.updatedAt||r.createdAt,reason});
+
+async function mutateReserve(id:string,reasonBefore:string,reasonAfter:string,mutate:(current:FinancialReserve)=>FinancialReserve){
+  const result=await prisma.$transaction(async tx=>{
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`financial-reserve:${id}`}))`;
+    const row=await tx.appSetting.findUnique({where:{key:reserveKey(id)},select:{value:true}});
+    const current=row?parse(row.value):null;if(!current)throw new Error("Reserve not found");
+    const before:{reserve:FinancialReserve}={reserve:{...current}};
+    const next=mutate({...current});
+    next.updatedAt=new Date().toISOString();
+    await tx.appSetting.update({where:{key:reserveKey(id)},data:{value:JSON.stringify(next)}});
+    return{before:before.reserve,next};
+  },{isolationLevel:"Serializable"});
+  await recordCompanyFundsEntityHistory({entityType:"RESERVE",entityId:id,snapshot:reserveSnapshot(result.before),effectiveAt:result.before.updatedAt||result.before.createdAt,reason:reasonBefore});
+  await recordCompanyFundsEntityHistory({entityType:"RESERVE",entityId:id,snapshot:reserveSnapshot(result.next),effectiveAt:result.next.updatedAt,reason:reasonAfter});
+  invalidateCompanyFundsWorkQueue();
+  return result.next;
 }
+
 export async function createFinancialReserve(input:{name:string;kind:ReserveKind;country?:string|null;currency:string;accountId?:string|null;targetAmount:number;reservedAmount:number;note?:string}){
   const treasury=await getTreasuryStore();const currency=input.currency.toUpperCase();const account=input.accountId?treasury.accounts.find(a=>a.id===input.accountId):null;
   if(input.accountId&&!account)throw new Error("Treasury account not found");if(account&&account.currency!==currency)throw new Error("Reserve currency must match treasury account currency");
   const target=Math.max(0,round(input.targetAmount));const reserved=Math.max(0,round(input.reservedAmount));if(!input.name.trim()||target<=0)throw new Error("Reserve name and target are required");if(reserved>target)throw new Error("Reserved amount cannot exceed target amount");
-  const now=new Date().toISOString();return save({id:randomUUID(),name:input.name.trim().slice(0,160),kind:input.kind,country:input.country?.trim().slice(0,100)||null,currency,accountId:input.accountId||null,targetAmount:target,reservedAmount:reserved,active:true,note:String(input.note||"").trim().slice(0,1000),createdAt:now,updatedAt:now},"CREATED")
+  const now=new Date().toISOString();return createReserveRecord({id:randomUUID(),name:input.name.trim().slice(0,160),kind:input.kind,country:input.country?.trim().slice(0,100)||null,currency,accountId:input.accountId||null,targetAmount:target,reservedAmount:reserved,active:true,note:String(input.note||"").trim().slice(0,1000),createdAt:now,updatedAt:now},"CREATED")
 }
 export async function updateFinancialReserveAmount(id:string,reservedAmount:number){
-  const r=await getFinancialReserve(id);if(!r)throw new Error("Reserve not found");const amount=Math.max(0,round(reservedAmount));if(amount>r.targetAmount)throw new Error("Reserved amount cannot exceed target amount");
-  await recordPrevious(r,"BASELINE_BEFORE_AMOUNT_CHANGE");r.reservedAmount=amount;r.updatedAt=new Date().toISOString();return save(r,"RESERVED_AMOUNT_UPDATED")
+  const amount=Math.max(0,round(reservedAmount));
+  return mutateReserve(id,"BASELINE_BEFORE_AMOUNT_CHANGE","RESERVED_AMOUNT_UPDATED",r=>{if(amount>r.targetAmount)throw new Error("Reserved amount cannot exceed target amount");r.reservedAmount=amount;return r})
 }
 export async function setFinancialReserveActive(id:string,active:boolean){
-  const r=await getFinancialReserve(id);if(!r)throw new Error("Reserve not found");await recordPrevious(r,"BASELINE_BEFORE_STATUS_CHANGE");r.active=active;r.updatedAt=new Date().toISOString();return save(r,active?"REACTIVATED":"SUSPENDED")
+  return mutateReserve(id,"BASELINE_BEFORE_STATUS_CHANGE",active?"REACTIVATED":"SUSPENDED",r=>{r.active=active;return r})
 }
 
 export async function getFinancialReserveDashboard(filters?:{country?:string;currency?:string}){
