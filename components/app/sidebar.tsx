@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Mail, MessageCircle, Bell, Users, FolderKanban, CheckSquare, HardDrive,
   FileText, PenTool, Lock, CreditCard, ReceiptText, Undo2, BarChart3,
-  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark, Gauge, RefreshCw, SearchCheck, ArrowRightLeft, PiggyBank, FileCheck2, CalendarCheck2,
+  Sparkles, UsersRound, Building2, ScrollText, Settings, X, Landmark,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean };
+type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean; sectionRoot?: boolean };
 const sections: { label: string | null; items: NavItem[] }[] = [
   { label: null, items: [{ href: "/app", label: "Dashboard", icon: LayoutDashboard }] },
   {
@@ -43,15 +43,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
       { href: "/app/finance/receipts", label: "Receipts", icon: ReceiptText },
       { href: "/app/finance/refunds", label: "Refunds", icon: Undo2 },
       { href: "/app/finance/reports", label: "Reports", icon: BarChart3 },
-      { href: "/app/company-funds", label: "Fonds de l’entreprise", icon: Landmark, superAdminOnly: true },
-      { href: "/app/company-funds/consolidation", label: "Consolidation Finance", icon: RefreshCw, superAdminOnly: true },
-      { href: "/app/company-funds/reconciliation", label: "Réconciliation transactions", icon: SearchCheck, superAdminOnly: true },
-      { href: "/app/company-funds/transfers", label: "Transferts internes", icon: ArrowRightLeft, superAdminOnly: true },
-      { href: "/app/company-funds/reserves", label: "Réserves financières", icon: PiggyBank, superAdminOnly: true },
-      { href: "/app/company-funds/authorizations", label: "Autorisations financières", icon: Lock, superAdminOnly: true },
-      { href: "/app/company-funds/execution-evidence", label: "Preuves exécution", icon: FileCheck2, superAdminOnly: true },
-      { href: "/app/company-funds/monthly-close", label: "Clôture mensuelle", icon: CalendarCheck2, superAdminOnly: true },
-      { href: "/app/company-funds/executive", label: "Direction financière", icon: Gauge, superAdminOnly: true },
+      { href: "/app/company-funds", label: "Fonds de l’entreprise", icon: Landmark, superAdminOnly: true, sectionRoot: true },
     ],
   },
   { label: "AI", items: [{ href: "/app/ai", label: "JUN AI", icon: Sparkles }] },
@@ -85,8 +77,11 @@ export function Sidebar({ open, onClose, role }: { open: boolean; onClose: () =>
             return <div key={i} className="mt-4 first:mt-0">
               {s.label ? <p className="px-2 pb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">{s.label}</p> : null}
               {items.map((item) => {
-                const exactOnly=item.href==="/app"||item.href==="/app/company-funds";
-                const active=exactOnly?pathname===item.href:pathname===item.href||pathname.startsWith(`${item.href}/`);
+                const active = item.href === "/app"
+                  ? pathname === "/app"
+                  : item.sectionRoot
+                    ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return <Link key={item.href} href={item.href} onClick={onClose} className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition",active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white")}><item.icon className="h-4 w-4" />{item.label}</Link>;
               })}
             </div>;
