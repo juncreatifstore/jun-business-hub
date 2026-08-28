@@ -5,6 +5,7 @@ import { getFinancialAuthorization, type FinancialAuthorizationType } from "@/li
 import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
 import { getTreasuryTransfer } from "@/lib/company-funds-transfers";
 import { invalidateCompanyFundsWorkQueue } from "@/lib/company-funds-work-queue-cache";
+import { recordCompanyFundsEntityHistory } from "@/lib/company-funds-entity-history";
 
 const PREFIX="company.funds.execution-evidence.";
 export type FinancialExecutionEvidence={
@@ -31,7 +32,12 @@ export async function createFinancialExecutionEvidence(input:{authorizationId:st
   const now=new Date().toISOString();const evidence:FinancialExecutionEvidence={id:randomUUID(),authorizationId:authorization.id,type:authorization.type,resourceId:authorization.resourceId,reference:authorization.reference,treasuryAccountId:input.treasuryAccountId||null,transactionReference:txRef,proofFileId:proof.id,note:String(input.note||"").trim().slice(0,1000),executedById:input.executedById,executedAt:executedAt.toISOString(),createdAt:now};
   await prisma.appSetting.create({data:{key:`${PREFIX}${evidence.id}`,value:JSON.stringify(evidence)}});
   if(authorization.type==="INVESTMENT"){
-    const investment=treasury.investments.find(i=>i.id===authorization.resourceId);if(investment&&investment.status==="PLANNED"){investment.status="ACTIVE";investment.updatedAt=now;await saveTreasuryStore(treasury)}
+    const investment=treasury.investments.find(i=>i.id===authorization.resourceId);
+    if(investment&&investment.status==="PLANNED"){
+      await recordCompanyFundsEntityHistory({entityType:"INVESTMENT",entityId:investment.id,snapshot:{...investment},effectiveAt:investment.updatedAt||investment.createdAt,reason:"BASELINE_BEFORE_ACTIVATION"});
+      investment.status="ACTIVE";investment.updatedAt=now;await saveTreasuryStore(treasury);
+      await recordCompanyFundsEntityHistory({entityType:"INVESTMENT",entityId:investment.id,snapshot:{...investment},effectiveAt:now,reason:"ACTIVATED_BY_EXECUTION_EVIDENCE"});
+    }
   }
   invalidateCompanyFundsWorkQueue();
   return evidence;
