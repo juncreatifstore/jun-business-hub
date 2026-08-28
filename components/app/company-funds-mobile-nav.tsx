@@ -60,7 +60,7 @@ export function CompanyFundsMobileNav({workQueue}:{workQueue:WorkQueue}){
   const [query,setQuery]=useState("");
   const closeButtonRef=useRef<HTMLButtonElement|null>(null);
   const primary=[items[0],items[1],items[5],items[7]];
-  const primaryHrefs=new Set(primary.map(item=>item.href));
+  const primaryHrefs=new Set<string>(primary.map(item=>item.href));
   const currentItem=items.find(item=>active(pathname,item.href));
   const moreActive=Boolean(currentItem&&!primaryHrefs.has(currentItem.href));
 
