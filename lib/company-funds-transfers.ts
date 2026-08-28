@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getTreasuryStore, saveTreasuryStore } from "@/lib/company-funds";
+import { invalidateCompanyFundsWorkQueue } from "@/lib/company-funds-work-queue-cache";
 
 const PREFIX = "company.funds.transfer.";
 
@@ -18,7 +19,7 @@ function round(n:number){return Math.round((Number(n)+Number.EPSILON)*100)/100;}
 function parse(value:string):TreasuryTransfer|null{try{const v=JSON.parse(value) as TreasuryTransfer;return v?.id&&v?.reference?v:null;}catch{return null;}}
 export async function listTreasuryTransfers(){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:PREFIX}},orderBy:{updatedAt:"desc"},take:5000,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is TreasuryTransfer=>Boolean(v));}
 export async function getTreasuryTransfer(id:string){const row=await prisma.appSetting.findUnique({where:{key:`${PREFIX}${id}`},select:{value:true}});return row?parse(row.value):null;}
-async function save(t:TreasuryTransfer){await prisma.appSetting.upsert({where:{key:`${PREFIX}${t.id}`},create:{key:`${PREFIX}${t.id}`,value:JSON.stringify(t)},update:{value:JSON.stringify(t)}});return t;}
+async function save(t:TreasuryTransfer){await prisma.appSetting.upsert({where:{key:`${PREFIX}${t.id}`},create:{key:`${PREFIX}${t.id}`,value:JSON.stringify(t)},update:{value:JSON.stringify(t)}});invalidateCompanyFundsWorkQueue();return t;}
 
 export async function createTreasuryTransfer(input:{fromAccountId:string;toAccountId:string;sentAmount:number;feeAmount:number;fxRate:number;externalReference:string;note:string;createdById:string}){
   if(input.fromAccountId===input.toAccountId)throw new Error("Source and destination accounts must be different");
