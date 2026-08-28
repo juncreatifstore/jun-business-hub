@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getFinancialReserveDashboard } from "@/lib/company-funds-reserves";
 import { getTreasuryTransfer } from "@/lib/company-funds-transfers";
+import { invalidateCompanyFundsWorkQueue } from "@/lib/company-funds-work-queue-cache";
 
 const REQUEST_PREFIX="company.funds.authorization.";
 const POLICY_KEY="company.funds.authorization.policy";
@@ -22,10 +23,10 @@ const DEFAULT_POLICY:FinancialAuthorizationPolicy={singleApprovalThreshold:1000,
 function round(v:number){return Math.round((Number(v||0)+Number.EPSILON)*100)/100}
 function parse(value:string):FinancialAuthorization|null{try{const v=JSON.parse(value) as FinancialAuthorization;return v?.id&&v?.resourceId?{...v,amount:round(v.amount),decisions:Array.isArray(v.decisions)?v.decisions:[]}:null}catch{return null}}
 export async function getFinancialAuthorizationPolicy(){const row=await prisma.appSetting.findUnique({where:{key:POLICY_KEY},select:{value:true}});if(!row)return DEFAULT_POLICY;try{const p=JSON.parse(row.value) as Partial<FinancialAuthorizationPolicy>;return{singleApprovalThreshold:Math.max(0,Number(p.singleApprovalThreshold??DEFAULT_POLICY.singleApprovalThreshold)),dualApprovalThreshold:Math.max(0,Number(p.dualApprovalThreshold??DEFAULT_POLICY.dualApprovalThreshold)),reserveOverrideAlwaysDual:p.reserveOverrideAlwaysDual!==false}}catch{return DEFAULT_POLICY}}
-export async function saveFinancialAuthorizationPolicy(policy:FinancialAuthorizationPolicy){const value=JSON.stringify(policy);await prisma.appSetting.upsert({where:{key:POLICY_KEY},create:{key:POLICY_KEY,value},update:{value}});return policy}
+export async function saveFinancialAuthorizationPolicy(policy:FinancialAuthorizationPolicy){const value=JSON.stringify(policy);await prisma.appSetting.upsert({where:{key:POLICY_KEY},create:{key:POLICY_KEY,value},update:{value}});invalidateCompanyFundsWorkQueue();return policy}
 export async function listFinancialAuthorizations(limit=1000){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:REQUEST_PREFIX}},orderBy:{updatedAt:"desc"},take:limit,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is FinancialAuthorization=>Boolean(v))}
 export async function getFinancialAuthorization(id:string){const row=await prisma.appSetting.findUnique({where:{key:`${REQUEST_PREFIX}${id}`},select:{value:true}});return row?parse(row.value):null}
-async function save(a:FinancialAuthorization){await prisma.appSetting.upsert({where:{key:`${REQUEST_PREFIX}${a.id}`},create:{key:`${REQUEST_PREFIX}${a.id}`,value:JSON.stringify(a)},update:{value:JSON.stringify(a)}});return a}
+async function save(a:FinancialAuthorization){await prisma.appSetting.upsert({where:{key:`${REQUEST_PREFIX}${a.id}`},create:{key:`${REQUEST_PREFIX}${a.id}`,value:JSON.stringify(a)},update:{value:JSON.stringify(a)}});invalidateCompanyFundsWorkQueue();return a}
 
 export async function findLatestAuthorizationForResource(type:FinancialAuthorizationType,resourceId:string){const all=await listFinancialAuthorizations();return all.find(a=>a.type===type&&a.resourceId===resourceId)||null}
 export async function findAuthorizationForResource(type:FinancialAuthorizationType,resourceId:string){const all=await listFinancialAuthorizations();return all.find(a=>a.type===type&&a.resourceId===resourceId&&["PENDING","APPROVED"].includes(a.status))||null}
