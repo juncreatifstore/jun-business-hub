@@ -5,13 +5,14 @@ import { getTreasuryStore } from "@/lib/company-funds";
 import { listFinancialReserves } from "@/lib/company-funds-reserves";
 import { buildCompanyFinanceEntries } from "@/lib/company-funds-finance-sync";
 import { assertFinancialMonthReadyToClose } from "@/lib/company-funds-monthly-close-validation";
+import { listCompanyFundsEntityHistory, type CompanyFundsEntityHistoryRow, type CompanyFundsHistoricalEntityType } from "@/lib/company-funds-entity-history";
 
 const PREFIX = "company.funds.month-close.";
 const REVISION_PREFIX = "company.funds.month-close-revision.";
 
 export type MonthCloseStatus = "CLOSED" | "REOPENED";
 export type MonthlyCloseAccountBalanceSource = "SNAPSHOT_MANUAL" | "SNAPSHOT_PROVIDER" | "ACCOUNT_LAST_KNOWN";
-export type MonthlyCloseEntityStateSource = "ENTITY_LAST_KNOWN";
+export type MonthlyCloseEntityStateSource = "ENTITY_LAST_KNOWN" | "ENTITY_HISTORY";
 
 export type MonthlyCloseSnapshot = {
   accounts: Array<{
@@ -254,7 +255,16 @@ function historicalAccountRows(treasury: Awaited<ReturnType<typeof getTreasurySt
   return rows;
 }
 
-function historicalReserveRows(reserves: Awaited<ReturnType<typeof listFinancialReserves>>, end: Date): MonthlyCloseSnapshot["reserves"] {
+function latestHistory(history:CompanyFundsEntityHistoryRow[],entityType:CompanyFundsHistoricalEntityType,entityId:string,end:Date){
+  const endTime=end.getTime();
+  return history
+    .filter(row=>row.entityType===entityType&&row.entityId===entityId)
+    .map(row=>({row,time:validTime(row.effectiveAt)}))
+    .filter((item):item is {row:CompanyFundsEntityHistoryRow;time:number}=>item.time!==null&&item.time<endTime)
+    .sort((a,b)=>b.time-a.time)[0]?.row||null;
+}
+
+function historicalReserveRows(reserves: Awaited<ReturnType<typeof listFinancialReserves>>, history:CompanyFundsEntityHistoryRow[], end: Date): MonthlyCloseSnapshot["reserves"] {
   const endTime = end.getTime();
   const rows: MonthlyCloseSnapshot["reserves"] = [];
   const missing: string[] = [];
@@ -262,32 +272,28 @@ function historicalReserveRows(reserves: Awaited<ReturnType<typeof listFinancial
   for (const reserve of reserves) {
     const createdAt = validTime(reserve.createdAt);
     if (createdAt !== null && createdAt >= endTime) continue;
-    const updatedAt = validTime(reserve.updatedAt);
-    if (updatedAt === null || updatedAt >= endTime) {
-      missing.push(`${reserve.name} (${reserve.currency})`);
+    const historical=latestHistory(history,"RESERVE",reserve.id,end);
+    if(historical){
+      const state=historical.snapshot as Partial<typeof reserve>;
+      if(state.active===false)continue;
+      rows.push({
+        id:reserve.id,name:String(state.name||reserve.name),kind:String(state.kind||reserve.kind),country:(state.country??reserve.country) as string|null,
+        currency:String(state.currency||reserve.currency).toUpperCase(),targetAmount:round(Number(state.targetAmount??reserve.targetAmount)),reservedAmount:round(Number(state.reservedAmount??reserve.reservedAmount)),
+        stateAsOf:historical.effectiveAt,stateSource:"ENTITY_HISTORY",
+      });
       continue;
     }
+    const updatedAt = validTime(reserve.updatedAt);
+    if (updatedAt === null || updatedAt >= endTime) { missing.push(`${reserve.name} (${reserve.currency})`); continue; }
     if (!reserve.active) continue;
-    rows.push({
-      id: reserve.id,
-      name: reserve.name,
-      kind: reserve.kind,
-      country: reserve.country,
-      currency: reserve.currency,
-      targetAmount: round(reserve.targetAmount),
-      reservedAmount: round(reserve.reservedAmount),
-      stateAsOf: reserve.updatedAt,
-      stateSource: "ENTITY_LAST_KNOWN",
-    });
+    rows.push({id:reserve.id,name:reserve.name,kind:reserve.kind,country:reserve.country,currency:reserve.currency,targetAmount:round(reserve.targetAmount),reservedAmount:round(reserve.reservedAmount),stateAsOf:reserve.updatedAt,stateSource:"ENTITY_LAST_KNOWN"});
   }
 
-  if (missing.length) {
-    throw new Error(`Clôture impossible: l’état historique des réserves avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
-  }
+  if (missing.length) throw new Error(`Clôture impossible: l’état historique des réserves avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
   return rows;
 }
 
-function historicalLoanRows(treasury: Awaited<ReturnType<typeof getTreasuryStore>>, end: Date): MonthlyCloseSnapshot["loans"] {
+function historicalLoanRows(treasury: Awaited<ReturnType<typeof getTreasuryStore>>, history:CompanyFundsEntityHistoryRow[], end: Date): MonthlyCloseSnapshot["loans"] {
   const endTime = end.getTime();
   const rows: MonthlyCloseSnapshot["loans"] = [];
   const missing: string[] = [];
@@ -295,32 +301,26 @@ function historicalLoanRows(treasury: Awaited<ReturnType<typeof getTreasuryStore
   for (const loan of treasury.loans) {
     const createdAt = validTime(loan.createdAt);
     if (createdAt !== null && createdAt >= endTime) continue;
-    const updatedAt = validTime(loan.updatedAt);
-    if (updatedAt === null || updatedAt >= endTime) {
-      missing.push(`${loan.lender} (${loan.currency})`);
+    const historical=latestHistory(history,"LOAN",loan.id,end);
+    if(historical){
+      const state=historical.snapshot as Partial<typeof loan>;
+      rows.push({
+        id:loan.id,lender:String(state.lender||loan.lender),currency:String(state.currency||loan.currency).toUpperCase(),principal:round(Number(state.principal??loan.principal)),
+        outstandingBalance:round(Number(state.outstandingBalance??loan.outstandingBalance)),interestRate:Number(state.interestRate??loan.interestRate),dueDate:String(state.dueDate??loan.dueDate),status:String(state.status??loan.status),
+        stateAsOf:historical.effectiveAt,stateSource:"ENTITY_HISTORY",
+      });
       continue;
     }
-    rows.push({
-      id: loan.id,
-      lender: loan.lender,
-      currency: loan.currency,
-      principal: round(loan.principal),
-      outstandingBalance: round(loan.outstandingBalance),
-      interestRate: loan.interestRate,
-      dueDate: loan.dueDate,
-      status: loan.status,
-      stateAsOf: loan.updatedAt,
-      stateSource: "ENTITY_LAST_KNOWN",
-    });
+    const updatedAt = validTime(loan.updatedAt);
+    if (updatedAt === null || updatedAt >= endTime) { missing.push(`${loan.lender} (${loan.currency})`); continue; }
+    rows.push({id:loan.id,lender:loan.lender,currency:loan.currency,principal:round(loan.principal),outstandingBalance:round(loan.outstandingBalance),interestRate:loan.interestRate,dueDate:loan.dueDate,status:loan.status,stateAsOf:loan.updatedAt,stateSource:"ENTITY_LAST_KNOWN"});
   }
 
-  if (missing.length) {
-    throw new Error(`Clôture impossible: l’état historique des prêts avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
-  }
+  if (missing.length) throw new Error(`Clôture impossible: l’état historique des prêts avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
   return rows;
 }
 
-function historicalInvestmentRows(treasury: Awaited<ReturnType<typeof getTreasuryStore>>, end: Date): MonthlyCloseSnapshot["investments"] {
+function historicalInvestmentRows(treasury: Awaited<ReturnType<typeof getTreasuryStore>>, history:CompanyFundsEntityHistoryRow[], end: Date): MonthlyCloseSnapshot["investments"] {
   const endTime = end.getTime();
   const rows: MonthlyCloseSnapshot["investments"] = [];
   const missing: string[] = [];
@@ -328,35 +328,31 @@ function historicalInvestmentRows(treasury: Awaited<ReturnType<typeof getTreasur
   for (const investment of treasury.investments) {
     const createdAt = validTime(investment.createdAt);
     if (createdAt !== null && createdAt >= endTime) continue;
-    const updatedAt = validTime(investment.updatedAt);
-    if (updatedAt === null || updatedAt >= endTime) {
-      missing.push(`${investment.name} (${investment.currency})`);
+    const historical=latestHistory(history,"INVESTMENT",investment.id,end);
+    if(historical){
+      const state=historical.snapshot as Partial<typeof investment>;
+      rows.push({
+        id:investment.id,name:String(state.name||investment.name),country:String(state.country??investment.country),currency:String(state.currency||investment.currency).toUpperCase(),
+        amount:round(Number(state.amount??investment.amount)),status:String(state.status??investment.status),stateAsOf:historical.effectiveAt,stateSource:"ENTITY_HISTORY",
+      });
       continue;
     }
-    rows.push({
-      id: investment.id,
-      name: investment.name,
-      country: investment.country,
-      currency: investment.currency,
-      amount: round(investment.amount),
-      status: investment.status,
-      stateAsOf: investment.updatedAt,
-      stateSource: "ENTITY_LAST_KNOWN",
-    });
+    const updatedAt = validTime(investment.updatedAt);
+    if (updatedAt === null || updatedAt >= endTime) { missing.push(`${investment.name} (${investment.currency})`); continue; }
+    rows.push({id:investment.id,name:investment.name,country:investment.country,currency:investment.currency,amount:round(investment.amount),status:investment.status,stateAsOf:investment.updatedAt,stateSource:"ENTITY_LAST_KNOWN"});
   }
 
-  if (missing.length) {
-    throw new Error(`Clôture impossible: l’état historique des investissements avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
-  }
+  if (missing.length) throw new Error(`Clôture impossible: l’état historique des investissements avant la fin de période ne peut pas être reconstruit pour ${missing.join(", ")}. Une modification postérieure existe sans historique de version.`);
   return rows;
 }
 
 async function buildSnapshot(period: string): Promise<MonthlyCloseSnapshot> {
-  const [{ start, end }, treasury, reserves, entries] = await Promise.all([
+  const [{ start, end }, treasury, reserves, entries, entityHistory] = await Promise.all([
     Promise.resolve(periodBounds(period)),
     getTreasuryStore(),
     listFinancialReserves(),
     buildCompanyFinanceEntries(),
+    listCompanyFundsEntityHistory(),
   ]);
 
   const monthEntries = entries.filter((entry) => {
@@ -375,9 +371,9 @@ async function buildSnapshot(period: string): Promise<MonthlyCloseSnapshot> {
 
   return {
     accounts: historicalAccountRows(treasury, end),
-    reserves: historicalReserveRows(reserves, end),
-    loans: historicalLoanRows(treasury, end),
-    investments: historicalInvestmentRows(treasury, end),
+    reserves: historicalReserveRows(reserves, entityHistory, end),
+    loans: historicalLoanRows(treasury, entityHistory, end),
+    investments: historicalInvestmentRows(treasury, entityHistory, end),
     financeByCurrency,
   };
 }
