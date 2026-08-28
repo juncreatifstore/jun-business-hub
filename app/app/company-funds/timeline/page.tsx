@@ -19,9 +19,12 @@ type TimelineEvent={
   reference:string;
   amount?:number;
   currency?:string;
+  country?:string;
   status?:string;
   href:string;
 };
+
+type Params={q?:string;kind?:string;country?:string;currency?:string;period?:string};
 
 function validDate(value:string|null|undefined){
   if(!value)return null;
@@ -45,7 +48,11 @@ function iconFor(kind:TimelineEvent["kind"]){
   return SearchCheck;
 }
 
-export default async function CompanyFundsTimelinePage({searchParams}:{searchParams?:{q?:string;kind?:string}}){
+function validPeriod(value:string|undefined){
+  return ["30","90","365"].includes(String(value||""))?Number(value):0;
+}
+
+export default async function CompanyFundsTimelinePage({searchParams}:{searchParams?:Params}){
   const user=await requireUser();
   if(user.role!=="SUPER_ADMIN")redirect("/app/forbidden");
 
@@ -58,154 +65,88 @@ export default async function CompanyFundsTimelinePage({searchParams}:{searchPar
 
   const accountMap=new Map(store.accounts.map(account=>[account.id,account]));
   const integrationMap=new Map(store.integrations.map(integration=>[integration.id,integration]));
+  const authorizationMap=new Map(authorizations.map(item=>[item.id,item]));
   const events:TimelineEvent[]=[];
 
   for(const authorization of authorizations){
-    events.push({
-      id:`authorization-${authorization.id}`,
-      at:authorization.createdAt,
-      kind:"AUTHORIZATION",
-      title:`Autorisation ${authorization.type.toLowerCase()}`,
-      detail:authorization.description||authorization.reason,
-      reference:authorization.reference||authorization.id,
-      amount:authorization.amount,
-      currency:authorization.currency,
-      status:authorization.status,
-      href:"/app/company-funds/authorizations",
-    });
+    events.push({id:`authorization-${authorization.id}`,at:authorization.createdAt,kind:"AUTHORIZATION",title:`Autorisation ${authorization.type.toLowerCase()}`,detail:authorization.description||authorization.reason,reference:authorization.reference||authorization.id,amount:authorization.amount,currency:authorization.currency,status:authorization.status,href:"/app/company-funds/authorizations"});
     for(const decision of authorization.decisions){
-      events.push({
-        id:`decision-${authorization.id}-${decision.userId}-${decision.decidedAt}`,
-        at:decision.decidedAt,
-        kind:"APPROVAL",
-        title:decision.decision==="APPROVE"?"Approbation enregistrée":"Rejet enregistré",
-        detail:decision.note||`Décision sur ${authorization.description}`,
-        reference:authorization.reference||authorization.id,
-        amount:authorization.amount,
-        currency:authorization.currency,
-        status:decision.decision==="APPROVE"?"APPROVED":"REJECTED",
-        href:"/app/company-funds/authorizations",
-      });
+      events.push({id:`decision-${authorization.id}-${decision.userId}-${decision.decidedAt}`,at:decision.decidedAt,kind:"APPROVAL",title:decision.decision==="APPROVE"?"Approbation enregistrée":"Rejet enregistré",detail:decision.note||`Décision sur ${authorization.description}`,reference:authorization.reference||authorization.id,amount:authorization.amount,currency:authorization.currency,status:decision.decision==="APPROVE"?"APPROVED":"REJECTED",href:"/app/company-funds/authorizations"});
     }
   }
 
   for(const item of evidence){
-    events.push({
-      id:`evidence-${item.id}`,
-      at:item.executedAt||item.createdAt,
-      kind:"EVIDENCE",
-      title:`Preuve d’exécution ${item.type.toLowerCase()}`,
-      detail:item.transactionReference?`Référence transaction : ${item.transactionReference}`:"Preuve d’exécution enregistrée",
-      reference:item.reference||item.id,
-      status:"COMPLETED",
-      href:"/app/company-funds/execution-evidence",
-    });
+    const authorization=authorizationMap.get(item.authorizationId);
+    const account=item.treasuryAccountId?accountMap.get(item.treasuryAccountId):undefined;
+    events.push({id:`evidence-${item.id}`,at:item.executedAt||item.createdAt,kind:"EVIDENCE",title:`Preuve d’exécution ${item.type.toLowerCase()}`,detail:item.transactionReference?`Référence transaction : ${item.transactionReference}`:"Preuve d’exécution enregistrée",reference:item.reference||item.id,amount:authorization?.amount,currency:authorization?.currency,country:account?.country,status:"COMPLETED",href:"/app/company-funds/execution-evidence"});
   }
 
   for(const transfer of transfers){
     const from=accountMap.get(transfer.fromAccountId);
     const to=accountMap.get(transfer.toAccountId);
-    events.push({
-      id:`transfer-created-${transfer.id}`,
-      at:transfer.createdAt,
-      kind:"TRANSFER",
-      title:"Transfert interne créé",
-      detail:`${from?.name||transfer.fromAccountId} → ${to?.name||transfer.toAccountId}`,
-      reference:transfer.reference,
-      amount:transfer.sentAmount+transfer.feeAmount,
-      currency:transfer.fromCurrency,
-      status:"DRAFT",
-      href:"/app/company-funds/transfers",
-    });
+    const transferCountry=from?.country||to?.country;
+    events.push({id:`transfer-created-${transfer.id}`,at:transfer.createdAt,kind:"TRANSFER",title:"Transfert interne créé",detail:`${from?.name||transfer.fromAccountId} → ${to?.name||transfer.toAccountId}`,reference:transfer.reference,amount:transfer.sentAmount+transfer.feeAmount,currency:transfer.fromCurrency,country:transferCountry,status:"DRAFT",href:"/app/company-funds/transfers"});
     const initiated=validDate(transfer.initiatedAt);
-    if(initiated)events.push({
-      id:`transfer-initiated-${transfer.id}`,
-      at:initiated,
-      kind:"TRANSFER",
-      title:"Transfert envoyé",
-      detail:`${formatMoney(transfer.sentAmount,transfer.fromCurrency)} vers ${to?.name||"compte destination"}`,
-      reference:transfer.reference,
-      amount:transfer.sentAmount,
-      currency:transfer.fromCurrency,
-      status:"IN_TRANSIT",
-      href:"/app/company-funds/transfers",
-    });
+    if(initiated)events.push({id:`transfer-initiated-${transfer.id}`,at:initiated,kind:"TRANSFER",title:"Transfert envoyé",detail:`${formatMoney(transfer.sentAmount,transfer.fromCurrency)} vers ${to?.name||"compte destination"}`,reference:transfer.reference,amount:transfer.sentAmount,currency:transfer.fromCurrency,country:from?.country||transferCountry,status:"IN_TRANSIT",href:"/app/company-funds/transfers"});
     const completed=validDate(transfer.completedAt);
-    if(completed)events.push({
-      id:`transfer-completed-${transfer.id}`,
-      at:completed,
-      kind:"TRANSFER",
-      title:"Transfert reçu",
-      detail:`Montant reçu : ${formatMoney(transfer.actualReceivedAmount||0,transfer.toCurrency)}`,
-      reference:transfer.reference,
-      amount:transfer.actualReceivedAmount||0,
-      currency:transfer.toCurrency,
-      status:"COMPLETED",
-      href:"/app/company-funds/transfers",
-    });
+    if(completed)events.push({id:`transfer-completed-${transfer.id}`,at:completed,kind:"TRANSFER",title:"Transfert reçu",detail:`Montant reçu : ${formatMoney(transfer.actualReceivedAmount||0,transfer.toCurrency)}`,reference:transfer.reference,amount:transfer.actualReceivedAmount||0,currency:transfer.toCurrency,country:to?.country||transferCountry,status:"COMPLETED",href:"/app/company-funds/transfers"});
   }
 
   for(const flow of store.projectCashflows.slice(0,5000)){
     const integration=integrationMap.get(flow.integrationId);
-    events.push({
-      id:`project-${flow.id}`,
-      at:flow.occurredAt,
-      kind:"PROJECT",
-      title:flow.direction==="IN"?"Entrée projet synchronisée":"Sortie projet synchronisée",
-      detail:`${integration?.name||"Projet"} · ${flow.category}${flow.description?` · ${flow.description}`:""}`,
-      reference:flow.externalId,
-      amount:flow.amount,
-      currency:flow.currency,
-      status:flow.direction,
-      href:"/app/company-funds/consolidation",
-    });
+    events.push({id:`project-${flow.id}`,at:flow.occurredAt,kind:"PROJECT",title:flow.direction==="IN"?"Entrée projet synchronisée":"Sortie projet synchronisée",detail:`${integration?.name||"Projet"} · ${flow.category}${flow.description?` · ${flow.description}`:""}`,reference:flow.externalId,amount:flow.amount,currency:flow.currency,country:integration?.country,status:flow.direction,href:"/app/company-funds/consolidation"});
   }
 
   for(const reconciliation of store.reconciliations.slice(0,3000)){
     const account=accountMap.get(reconciliation.accountId);
-    events.push({
-      id:`reconciliation-${reconciliation.id}`,
-      at:reconciliation.resolvedAt||reconciliation.createdAt,
-      kind:"RECONCILIATION",
-      title:reconciliation.status==="MATCHED"?"Compte rapproché":reconciliation.status==="RESOLVED"?"Écart résolu":"Écart de solde détecté",
-      detail:`${account?.name||"Compte"} · écart ${formatMoney(reconciliation.difference,account?.currency||"USD")}`,
-      reference:reconciliation.id,
-      amount:Math.abs(reconciliation.difference),
-      currency:account?.currency,
-      status:reconciliation.status,
-      href:"/app/company-funds/reconciliation",
-    });
+    events.push({id:`reconciliation-${reconciliation.id}`,at:reconciliation.resolvedAt||reconciliation.createdAt,kind:"RECONCILIATION",title:reconciliation.status==="MATCHED"?"Compte rapproché":reconciliation.status==="RESOLVED"?"Écart résolu":"Écart de solde détecté",detail:`${account?.name||"Compte"} · écart ${formatMoney(reconciliation.difference,account?.currency||"USD")}`,reference:reconciliation.id,amount:Math.abs(reconciliation.difference),currency:account?.currency,country:account?.country,status:reconciliation.status,href:"/app/company-funds/reconciliation"});
   }
 
   const q=String(searchParams?.q||"").trim().toLowerCase();
   const kind=String(searchParams?.kind||"").trim().toUpperCase();
+  const country=String(searchParams?.country||"").trim();
+  const currency=String(searchParams?.currency||"").trim().toUpperCase();
+  const periodDays=validPeriod(searchParams?.period);
+  const cutoff=periodDays?Date.now()-periodDays*24*60*60*1000:0;
   const kinds=new Set<TimelineEvent["kind"]>(["AUTHORIZATION","APPROVAL","EVIDENCE","TRANSFER","PROJECT","RECONCILIATION"]);
   const selectedKind=kinds.has(kind as TimelineEvent["kind"])?kind as TimelineEvent["kind"]:"";
   const filtered=events
     .filter(event=>!selectedKind||event.kind===selectedKind)
-    .filter(event=>!q||`${event.title} ${event.detail} ${event.reference} ${event.currency||""} ${event.status||""}`.toLowerCase().includes(q))
+    .filter(event=>!country||event.country===country)
+    .filter(event=>!currency||event.currency===currency)
+    .filter(event=>!cutoff||new Date(event.at).getTime()>=cutoff)
+    .filter(event=>!q||`${event.title} ${event.detail} ${event.reference} ${event.country||""} ${event.currency||""} ${event.status||""}`.toLowerCase().includes(q))
     .sort((a,b)=>new Date(b.at).getTime()-new Date(a.at).getTime())
     .slice(0,500);
 
+  const resetParams=new URLSearchParams();
+  if(country)resetParams.set("country",country);
+  if(currency)resetParams.set("currency",currency);
+  if(periodDays)resetParams.set("period",String(periodDays));
+  const resetHref=`/app/company-funds/timeline${resetParams.toString()?`?${resetParams.toString()}`:""}`;
+
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="text-xs uppercase tracking-[0.18em] text-muted2">Super Admin · Traçabilité</p><h1 className="mt-1 text-3xl font-semibold">Timeline des opérations</h1><p className="mt-1 max-w-3xl text-sm text-muted2">Chronologie consolidée des autorisations, approbations, preuves, transferts, flux projets et rapprochements. Chaque événement renvoie vers son module d’origine.</p></div>
+      <div><p className="text-xs uppercase tracking-[0.18em] text-muted2">Super Admin · Traçabilité</p><h1 className="mt-1 text-3xl font-semibold">Timeline des opérations</h1><p className="mt-1 max-w-3xl text-sm text-muted2">Chronologie consolidée des autorisations, approbations, preuves, transferts, flux projets et rapprochements. Les filtres globaux Pays / Devise / Période sont appliqués réellement à cette chronologie.</p></div>
       <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"><CheckCircle2 className="mr-1 inline h-4 w-4"/>LECTURE CONSOLIDÉE</div>
     </div>
 
     <form className="grid gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm md:grid-cols-[1fr_220px_auto]">
+      {country?<input type="hidden" name="country" value={country}/>:null}{currency?<input type="hidden" name="currency" value={currency}/>:null}{periodDays?<input type="hidden" name="period" value={String(periodDays)}/>:null}
       <label className="text-xs font-medium text-muted2">Recherche<input name="q" defaultValue={searchParams?.q||""} placeholder="Référence, projet, compte, statut…" className="mt-1 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink outline-none focus:border-electric"/></label>
       <label className="text-xs font-medium text-muted2">Type<select name="kind" defaultValue={selectedKind} className="mt-1 h-10 w-full rounded-lg border border-line px-3 text-sm text-ink"><option value="">Tous les événements</option><option value="AUTHORIZATION">Autorisations</option><option value="APPROVAL">Décisions</option><option value="EVIDENCE">Preuves</option><option value="TRANSFER">Transferts</option><option value="PROJECT">Flux projets</option><option value="RECONCILIATION">Rapprochements</option></select></label>
-      <div className="flex items-end gap-2"><button className="h-10 rounded-lg bg-ink px-4 text-sm font-semibold text-white">Filtrer</button>{(q||selectedKind)?<Link href="/app/company-funds/timeline" className="inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-medium text-muted2 hover:bg-surface">Réinitialiser</Link>:null}</div>
+      <div className="flex items-end gap-2"><button className="h-10 rounded-lg bg-ink px-4 text-sm font-semibold text-white">Filtrer</button>{(q||selectedKind)?<Link href={resetHref} className="inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-medium text-muted2 hover:bg-surface">Réinitialiser recherche</Link>:null}</div>
     </form>
+
+    {(country||currency||periodDays)?<div className="flex flex-wrap gap-2 text-[11px] text-muted2"><span className="font-semibold text-ink">Filtres actifs :</span>{country?<span className="rounded-full bg-surface px-2 py-1">Pays · {country}</span>:null}{currency?<span className="rounded-full bg-surface px-2 py-1">Devise · {currency}</span>:null}{periodDays?<span className="rounded-full bg-surface px-2 py-1">Période · {periodDays} jours</span>:null}</div>:null}
 
     <div className="rounded-2xl border border-line bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-line px-5 py-4"><div><h2 className="font-semibold text-ink">Événements financiers</h2><p className="mt-0.5 text-xs text-muted2">{filtered.length} événement(s) affiché(s), maximum 500.</p></div><Landmark className="h-5 w-5 text-muted2"/></div>
       {filtered.length?<div className="divide-y divide-line">{filtered.map(event=>{const Icon=iconFor(event.kind);return <div key={event.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[44px_1fr_auto] sm:px-5">
         <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-surface text-muted2"><Icon className="h-4 w-4"/></div>
-        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{event.title}</span>{event.status?<span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(event.status)}`}>{event.status}</span>:null}</div><p className="mt-1 text-sm text-muted2">{event.detail}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted2"><span>{new Date(event.at).toLocaleString("fr-FR")}</span><span>Réf. {event.reference}</span>{event.amount!=null&&event.currency?<span className="font-semibold text-ink">{formatMoney(event.amount,event.currency)}</span>:null}</div></div>
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{event.title}</span>{event.status?<span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(event.status)}`}>{event.status}</span>:null}</div><p className="mt-1 text-sm text-muted2">{event.detail}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted2"><span>{new Date(event.at).toLocaleString("fr-FR")}</span><span>Réf. {event.reference}</span>{event.country?<span>{event.country}</span>:null}{event.amount!=null&&event.currency?<span className="font-semibold text-ink">{formatMoney(event.amount,event.currency)}</span>:null}</div></div>
         <div className="flex items-center sm:justify-end"><Link href={event.href} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-xs font-semibold text-muted2 transition hover:bg-surface hover:text-ink">Ouvrir <ArrowRight className="h-3.5 w-3.5"/></Link></div>
-      </div>})}</div>:<div className="px-5 py-12 text-center text-sm text-muted2">Aucun événement ne correspond aux filtres.</div>}
+      </div>})}</div>:<div className="px-5 py-12 text-center text-sm text-muted2">Aucun événement ne correspond aux filtres actifs.</div>}
     </div>
   </div>;
 }
