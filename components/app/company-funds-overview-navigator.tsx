@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronUp, Eye, LayoutList, ListTree, PanelTopClose, PanelTopOpen } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Eye, LayoutList, ListTree, PanelTopClose, PanelTopOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Section={id:string;label:string};
@@ -31,6 +31,7 @@ export function CompanyFundsOverviewNavigator(){
   const [open,setOpen]=useState(false);
   const [collapsed,setCollapsed]=useState<string[]>([]);
   const [focusId,setFocusId]=useState<string|null>(null);
+  const [copied,setCopied]=useState(false);
   const isOverview=pathname==="/app/company-funds";
 
   useEffect(()=>{
@@ -54,11 +55,23 @@ export function CompanyFundsOverviewNavigator(){
         next.push({id,label});
       }
       setSections(next);
-      setActiveId(next[0]?.id||"");
+
+      let savedCollapsed:string[]=[];
       try{
         const saved=JSON.parse(localStorage.getItem(COLLAPSED_KEY)||"[]");
-        if(Array.isArray(saved))setCollapsed(saved.filter((id):id is string=>typeof id==="string"&&next.some(section=>section.id===id)));
-      }catch{setCollapsed([])}
+        if(Array.isArray(saved))savedCollapsed=saved.filter((id):id is string=>typeof id==="string"&&next.some(section=>section.id===id));
+      }catch{}
+
+      const hash=decodeURIComponent(window.location.hash.replace(/^#/,""));
+      const hashSection=next.find(section=>section.id===hash);
+      if(hashSection){
+        savedCollapsed=savedCollapsed.filter(id=>id!==hashSection.id);
+        setActiveId(hashSection.id);
+        window.setTimeout(()=>document.getElementById(hashSection.id)?.scrollIntoView({behavior:"auto",block:"start"}),20);
+      }else{
+        setActiveId(next[0]?.id||"");
+      }
+      setCollapsed(savedCollapsed);
     },0);
 
     return()=>window.clearTimeout(timer);
@@ -102,6 +115,21 @@ export function CompanyFundsOverviewNavigator(){
     return()=>observer.disconnect();
   },[focusId,isOverview,sections]);
 
+  useEffect(()=>{
+    if(!isOverview||!sections.length)return;
+    const onHashChange=()=>{
+      const id=decodeURIComponent(window.location.hash.replace(/^#/,""));
+      if(!sections.some(section=>section.id===id))return;
+      setActiveId(id);
+      setOpen(false);
+      if(focusId)setFocusId(id);
+      setCollapsed(previous=>previous.filter(item=>item!==id));
+      window.setTimeout(()=>document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"}),0);
+    };
+    window.addEventListener("hashchange",onHashChange);
+    return()=>window.removeEventListener("hashchange",onHashChange);
+  },[focusId,isOverview,sections]);
+
   const activeLabel=useMemo(()=>sections.find(section=>section.id===activeId)?.label||"Sur cette page",[activeId,sections]);
   const focusLabel=useMemo(()=>sections.find(section=>section.id===focusId)?.label||"",[focusId,sections]);
   const activeCollapsed=collapsed.includes(activeId);
@@ -122,8 +150,20 @@ export function CompanyFundsOverviewNavigator(){
     if(collapsed.includes(id))setOneCollapsed(id,false);
     window.setTimeout(()=>{
       target.scrollIntoView({behavior:"smooth",block:"start"});
-      history.replaceState(null,"",`#${id}`);
+      history.pushState(null,"",`${window.location.pathname}${window.location.search}#${encodeURIComponent(id)}`);
     },0);
+  }
+
+  async function copyActiveLink(){
+    if(!activeId)return;
+    const url=`${window.location.origin}${window.location.pathname}${window.location.search}#${encodeURIComponent(activeId)}`;
+    try{
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(()=>setCopied(false),1600);
+    }catch{
+      window.prompt("Copier le lien de cette section",url);
+    }
   }
 
   function collapseAll(){setCollapsed(sections.map(section=>section.id))}
@@ -147,6 +187,10 @@ export function CompanyFundsOverviewNavigator(){
         <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted2">{focusId?"Mode focus":"Sur cette page"}</div>
         <div className="truncate text-sm font-semibold text-ink">{focusId?focusLabel:activeLabel}</div>
       </div>
+
+      <button type="button" onClick={copyActiveLink} className="hidden h-8 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-xs font-medium text-muted2 transition hover:bg-surface hover:text-ink md:inline-flex" title="Copier le lien direct vers cette section">
+        {copied?<Check className="h-3.5 w-3.5 text-emerald-600"/>:<Copy className="h-3.5 w-3.5"/>}{copied?"Copié":"Lien"}
+      </button>
 
       {focusId?<button type="button" onClick={exitFocus} className="hidden h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-800 transition hover:bg-emerald-100 sm:inline-flex" title="Afficher toutes les sections"><LayoutList className="h-3.5 w-3.5"/>Tout afficher</button>:<button type="button" onClick={()=>enterFocus()} className="hidden h-8 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-xs font-medium text-muted2 transition hover:bg-surface hover:text-ink sm:inline-flex" title="Afficher uniquement cette section"><Eye className="h-3.5 w-3.5"/>Focus</button>}
 
@@ -175,6 +219,7 @@ export function CompanyFundsOverviewNavigator(){
         })}
         <span className="mx-1 h-5 w-px bg-line"/>
         {focusId?<button type="button" onClick={exitFocus} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"><LayoutList className="h-3 w-3"/>Tout afficher</button>:<button type="button" onClick={()=>enterFocus()} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink"><Eye className="h-3 w-3"/>Mode focus</button>}
+        <button type="button" onClick={copyActiveLink} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink">{copied?<Check className="h-3 w-3 text-emerald-600"/>:<Copy className="h-3 w-3"/>}{copied?"Lien copié":"Copier le lien"}</button>
         <button type="button" onClick={collapseAll} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink"><PanelTopClose className="h-3 w-3"/>Tout réduire</button>
         <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink"><PanelTopOpen className="h-3 w-3"/>Tout développer</button>
       </div>
@@ -183,7 +228,7 @@ export function CompanyFundsOverviewNavigator(){
     {open?<div className="border-t border-line p-2 md:hidden">
       <div className="mb-2 grid grid-cols-2 gap-2">
         {focusId?<button type="button" onClick={exitFocus} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-800"><LayoutList className="h-3.5 w-3.5"/>Tout afficher</button>:<button type="button" onClick={()=>enterFocus()} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><Eye className="h-3.5 w-3.5"/>Mode focus</button>}
-        <button type="button" onClick={expandAll} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><PanelTopOpen className="h-3.5 w-3.5"/>Tout développer</button>
+        <button type="button" onClick={copyActiveLink} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2">{copied?<Check className="h-3.5 w-3.5 text-emerald-600"/>:<Copy className="h-3.5 w-3.5"/>}{copied?"Lien copié":"Copier le lien"}</button>
       </div>
       <div className="max-h-[42vh] overflow-y-auto rounded-lg bg-surface/50 p-1">{sections.map((section,index)=>{
         const isCollapsed=collapsed.includes(section.id);
@@ -194,7 +239,10 @@ export function CompanyFundsOverviewNavigator(){
           </button>
         </div>;
       })}</div>
-      <button type="button" onClick={collapseAll} className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><PanelTopClose className="h-3.5 w-3.5"/>Tout réduire</button>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button type="button" onClick={collapseAll} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><PanelTopClose className="h-3.5 w-3.5"/>Tout réduire</button>
+        <button type="button" onClick={expandAll} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-line bg-white text-xs font-medium text-muted2"><PanelTopOpen className="h-3.5 w-3.5"/>Tout développer</button>
+      </div>
     </div>:null}
   </div>;
 }
