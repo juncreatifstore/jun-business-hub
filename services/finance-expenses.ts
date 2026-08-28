@@ -33,6 +33,7 @@ export async function createExpense(formData:FormData){
 export async function transitionExpense(id:string,status:ExpenseStatus,formData?:FormData){
   const user=await assertPermission(status==="SUBMITTED"?"EXPENSE_CREATE":"EXPENSE_APPROVE"); const e=await getFinanceExpense(id); if(!e) throw new Error("Expense not found");
   if(e.clientId&&!['CANCELLED','REJECTED'].includes(status)){ const block=await getClientBlock(e.clientId); if(block?.blocked) throw new Error(`Client blocked: ${block.reason}`); }
+  if(e.status===status)return;
   if(!canExpenseTransition(e.status,status)) throw new Error(`Invalid transition ${e.status} -> ${status}`);
   if(status==="CANCELLED"&&expensePaidTotal(e)>0) throw new Error("A partially paid expense cannot be cancelled");
   const next:FinanceExpense={...e,status,approvedById:status==="APPROVED"?user.id:e.approvedById,decisionNote:text(formData?.get("decisionNote")||null,3000)||e.decisionNote,updatedAt:new Date().toISOString()};
@@ -40,23 +41,59 @@ export async function transitionExpense(id:string,status:ExpenseStatus,formData?
 }
 
 export async function recordExpensePayment(id:string,formData:FormData){
-  const user=await assertPermission("EXPENSE_APPROVE"); const e=await getFinanceExpense(id); if(!e) throw new Error("Expense not found");
+  const user=await assertPermission("EXPENSE_APPROVE");
+  const e=await getFinanceExpense(id); if(!e) throw new Error("Expense not found");
+  const amount=money(formData.get("amount"));
+  const method=text(formData.get("method"),80);
+  const transactionRef=text(formData.get("transactionRef"),180);
+  const proofFileId=text(formData.get("proofFileId"),80);
+
+  // The external transaction reference is the idempotency key for an expense
+  // payout. Resolve an exact retry before status, remaining-balance,
+  // authorization or month-close checks. This makes a POST retry harmless even
+  // after the expense became PAID or the period was subsequently closed.
+  if(transactionRef){
+    const existing=e.payments.find(p=>p.transactionRef===transactionRef);
+    if(existing){
+      if(Number.isFinite(amount)&&Math.abs(existing.amount-amount)>=0.005) throw new Error(`Transaction reference ${transactionRef} is already recorded with a different amount.`);
+      revalidatePath(`/app/finance/expenses/${id}`);
+      return;
+    }
+  }
+
   if(e.clientId){ const block=await getClientBlock(e.clientId); if(block?.blocked) throw new Error(`Client blocked: ${block.reason}`); }
   if(!["APPROVED","PARTIALLY_PAID"].includes(e.status)) throw new Error("Expense must be approved before payment");
-  const amount=money(formData.get("amount")); const remaining=expenseRemaining(e); const method=text(formData.get("method"),80); const transactionRef=text(formData.get("transactionRef"),180); const proofFileId=text(formData.get("proofFileId"),80);
-  if(!Number.isFinite(amount)||amount<=0||amount>remaining) throw new Error("Payment amount exceeds remaining balance"); if(!method||!transactionRef||!proofFileId) throw new Error("Method, transaction reference and execution proof are required");
+  const remaining=expenseRemaining(e);
+  if(!Number.isFinite(amount)||amount<=0||amount>remaining) throw new Error("Payment amount exceeds remaining balance");
+  if(!method||!transactionRef||!proofFileId) throw new Error("Method, transaction reference and execution proof are required");
   const f=await prisma.file.findUnique({where:{id:proofFileId},select:{id:true}}); if(!f) throw new Error("Proof file not found");
-  const paidBefore=expensePaidTotal(e);const authorizationResourceId=`${e.id}:${paidBefore.toFixed(2)}:${amount.toFixed(2)}`;
+
+  const paidBefore=expensePaidTotal(e); const authorizationResourceId=`${e.id}:${paidBefore.toFixed(2)}:${amount.toFixed(2)}`;
   const authorization=await ensureFinancialAuthorization({type:"EXPENSE",resourceId:authorizationResourceId,reference:e.expenseNumber,description:`Paiement dépense · ${e.vendorName} · ${e.description}`,amount,currency:e.currency,requestedById:user.id});
   if(authorization.status!=="APPROVED"){
     await audit({userId:user.id,action:"EXPENSE_PAYMENT_AUTHORIZATION_REQUIRED",resourceType:"Expense",resourceId:e.id,after:{authorizationId:authorization.id,amount,currency:e.currency,requiredApprovals:authorization.requiredApprovals,reserveImpact:authorization.reserveImpact}});
     revalidatePath("/app/company-funds/authorizations");
     throw new Error(`Autorisation financière requise avant paiement (${authorization.reference}).`);
   }
-  const paidAt=new Date();await assertFinancialPeriodOpen(paidAt);const paidAtIso=paidAt.toISOString();
+
+  const paidAt=new Date(); await assertFinancialPeriodOpen(paidAt); const paidAtIso=paidAt.toISOString();
   await createFinancialExecutionEvidence({authorizationId:authorization.id,transactionReference:transactionRef,proofFileId,note:`${method} · ${text(formData.get("note"),1000)}`,executedById:user.id,executedAt:paidAtIso});
-  const payment={id:randomUUID(),amount,paidAt:paidAtIso,method,transactionRef,proofFileId,note:text(formData.get("note"),2000),recordedById:user.id}; const payments=[...e.payments,payment]; const total=Math.round(payments.reduce((s,p)=>s+p.amount,0)*100)/100; const status:ExpenseStatus=total>=e.amount?"PAID":"PARTIALLY_PAID";
-  const next:FinanceExpense={...e,payments,status,updatedAt:new Date().toISOString()}; await saveFinanceExpense(next);
-  await ensureUniversalFinancialReceipt({sourceType:"EXPENSE",sourceId:payment.id,clientId:e.clientId,amount,currency:e.currency,direction:"DEBIT",title:"Expense payment receipt",description:`${e.expenseNumber} · ${e.vendorName} · ${e.description}`,status:"PAID",method,transactionReference:transactionRef,issuedById:user.id});
-  await audit({userId:user.id,action:"EXPENSE_PAYMENT_RECORDED",resourceType:"Expense",resourceId:id,after:{paymentId:payment.id,amount,currency:e.currency,method,transactionRef,proofFileId,status,authorizationId:authorization.id}}); await logActivity({userId:user.id,type:"FINANCE_EXPENSE_PAID",message:`Recorded ${e.currency} ${amount.toFixed(2)} on ${e.expenseNumber}`,clientId:e.clientId||undefined,caseId:e.caseId||undefined}); revalidatePath(`/app/finance/expenses/${id}`); revalidatePath("/app/finance/expenses"); revalidatePath("/app/finance"); revalidatePath("/app/company-funds/authorizations"); revalidatePath("/app/company-funds/execution-evidence");
+
+  // Re-read after authorization/evidence work. If another request recorded the
+  // same external transaction meanwhile, stop before appending a second debit.
+  const latest=await getFinanceExpense(id); if(!latest) throw new Error("Expense not found");
+  const raced=latest.payments.find(p=>p.transactionRef===transactionRef);
+  if(raced){
+    if(Math.abs(raced.amount-amount)>=0.005) throw new Error(`Transaction reference ${transactionRef} is already recorded with a different amount.`);
+    return;
+  }
+  const latestRemaining=expenseRemaining(latest); if(amount>latestRemaining+0.005) throw new Error("Expense balance changed while payment was being recorded. Refresh and retry.");
+
+  const payment={id:randomUUID(),amount,paidAt:paidAtIso,method,transactionRef,proofFileId,note:text(formData.get("note"),2000),recordedById:user.id};
+  const payments=[...latest.payments,payment]; const total=Math.round(payments.reduce((s,p)=>s+p.amount,0)*100)/100; const status:ExpenseStatus=total>=latest.amount?"PAID":"PARTIALLY_PAID";
+  const next:FinanceExpense={...latest,payments,status,updatedAt:new Date().toISOString()}; await saveFinanceExpense(next);
+  await ensureUniversalFinancialReceipt({sourceType:"EXPENSE",sourceId:payment.id,clientId:latest.clientId,amount,currency:latest.currency,direction:"DEBIT",title:"Expense payment receipt",description:`${latest.expenseNumber} · ${latest.vendorName} · ${latest.description}`,status:"PAID",method,transactionReference:transactionRef,issuedById:user.id});
+  await audit({userId:user.id,action:"EXPENSE_PAYMENT_RECORDED",resourceType:"Expense",resourceId:id,after:{paymentId:payment.id,amount,currency:latest.currency,method,transactionRef,proofFileId,status,authorizationId:authorization.id}});
+  await logActivity({userId:user.id,type:"FINANCE_EXPENSE_PAID",message:`Recorded ${latest.currency} ${amount.toFixed(2)} on ${latest.expenseNumber}`,clientId:latest.clientId||undefined,caseId:latest.caseId||undefined});
+  revalidatePath(`/app/finance/expenses/${id}`); revalidatePath("/app/finance/expenses"); revalidatePath("/app/finance"); revalidatePath("/app/company-funds/authorizations"); revalidatePath("/app/company-funds/execution-evidence");
 }
