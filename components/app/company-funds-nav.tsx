@@ -74,12 +74,14 @@ export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
   const pathname=usePathname();
   const router=useRouter();
   const [isPending,startTransition]=useTransition();
+  const [isQueueRefreshing,startQueueRefresh]=useTransition();
   const [paletteOpen,setPaletteOpen]=useState(false);
   const [query,setQuery]=useState("");
   const [paletteIndex,setPaletteIndex]=useState(0);
   const [favorites,setFavorites]=useState<ItemHref[]>([]);
   const [recents,setRecents]=useState<ItemHref[]>([]);
   const [navigatingTo,setNavigatingTo]=useState<string|null>(null);
+  const [lastQueueRefreshAt,setLastQueueRefreshAt]=useState<Date|null>(null);
 
   const currentIndex=Math.max(0,items.findIndex(item=>isActive(pathname,item.href)));
   const current=items[currentIndex]||items[0];
@@ -93,6 +95,11 @@ export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
     startTransition(()=>router.push(href));
   }
 
+  function refreshQueue(){
+    if(isQueueRefreshing)return;
+    startQueueRefresh(()=>router.refresh());
+  }
+
   useEffect(()=>{
     for(const item of items)router.prefetch(item.href);
   },[router]);
@@ -102,6 +109,25 @@ export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
     const active=document.querySelector<HTMLElement>("[data-company-funds-active='true']");
     active?.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});
   },[pathname]);
+
+  useEffect(()=>{
+    setLastQueueRefreshAt(new Date());
+  },[workQueue.total,workQueue.authorizations,workQueue.transfers,workQueue.reconciliation,workQueue.evidence,workQueue.reserves]);
+
+  useEffect(()=>{
+    const refreshWhenVisible=()=>{
+      if(document.visibilityState!=="visible")return;
+      startQueueRefresh(()=>router.refresh());
+    };
+    const interval=window.setInterval(refreshWhenVisible,30000);
+    window.addEventListener("focus",refreshWhenVisible);
+    document.addEventListener("visibilitychange",refreshWhenVisible);
+    return()=>{
+      window.clearInterval(interval);
+      window.removeEventListener("focus",refreshWhenVisible);
+      document.removeEventListener("visibilitychange",refreshWhenVisible);
+    };
+  },[router]);
 
   useEffect(()=>{
     try{
@@ -167,6 +193,7 @@ export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
   ].filter(item=>item.count>0);
 
   const busy=isPending||Boolean(navigatingTo);
+  const queueRefreshLabel=lastQueueRefreshAt?lastQueueRefreshAt.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}):null;
 
   return (
     <>
@@ -223,6 +250,7 @@ export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
         <div className="mt-3 flex items-center gap-2 overflow-x-auto border-t border-line pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className={cn("inline-flex h-8 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold",workQueue.total>0?"bg-amber-50 text-amber-900":"bg-emerald-50 text-emerald-800")}>{workQueue.total>0?<AlertTriangle className="h-3.5 w-3.5"/>:<CheckCircle2 className="h-3.5 w-3.5"/>}{workQueue.total>0?`${workQueue.total} à traiter`:"Tout est à jour"}</div>
           {quickItems.map(item=><button type="button" key={item.href} onClick={()=>go(item.href)} className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-line bg-white px-3 text-xs font-medium text-ink transition hover:border-ink/25 hover:bg-surface"><span>{item.label}</span><span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">{item.count}</span></button>)}
+          <button type="button" onClick={refreshQueue} disabled={isQueueRefreshing} className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-[11px] font-medium text-muted2 transition hover:bg-surface hover:text-ink disabled:opacity-50" title="Actualiser les compteurs financiers" aria-label="Actualiser les compteurs financiers"><RefreshCw className={cn("h-3.5 w-3.5",isQueueRefreshing&&"animate-spin")}/><span>{isQueueRefreshing?"Actualisation…":"Actualiser"}</span>{queueRefreshLabel?<span className="hidden text-[10px] text-muted2/70 sm:inline">· {queueRefreshLabel}</span>:null}</button>
         </div>
       </div>
 
