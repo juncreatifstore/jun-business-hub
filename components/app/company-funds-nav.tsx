@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   ArrowRightLeft,
@@ -17,6 +18,15 @@ import {
   SearchCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type WorkQueue={
+  total:number;
+  authorizations:number;
+  transfers:number;
+  reconciliation:number;
+  evidence:number;
+  reserves:number;
+};
 
 const items = [
   { href: "/app/company-funds", label: "Vue générale", short: "Vue générale", icon: Landmark, group: "Pilotage" },
@@ -35,13 +45,30 @@ function isActive(pathname:string,href:string){
   return pathname===href || pathname.startsWith(`${href}/`);
 }
 
-export function CompanyFundsNav(){
+function itemCount(href:string,queue:WorkQueue){
+  if(href.endsWith("/reconciliation")) return queue.reconciliation;
+  if(href.endsWith("/transfers")) return queue.transfers;
+  if(href.endsWith("/reserves")) return queue.reserves;
+  if(href.endsWith("/authorizations")) return queue.authorizations;
+  if(href.endsWith("/execution-evidence")) return queue.evidence;
+  return 0;
+}
+
+export function CompanyFundsNav({workQueue}:{workQueue:WorkQueue}){
   const pathname=usePathname();
   const router=useRouter();
   const currentIndex=Math.max(0,items.findIndex(item=>isActive(pathname,item.href)));
   const current=items[currentIndex]||items[0];
   const previous=currentIndex>0?items[currentIndex-1]:null;
   const next=currentIndex<items.length-1?items[currentIndex+1]:null;
+
+  const quickItems=[
+    {href:"/app/company-funds/authorizations",label:"Autorisations",count:workQueue.authorizations},
+    {href:"/app/company-funds/reconciliation",label:"À rapprocher",count:workQueue.reconciliation},
+    {href:"/app/company-funds/transfers",label:"En transit",count:workQueue.transfers},
+    {href:"/app/company-funds/execution-evidence",label:"Preuves manquantes",count:workQueue.evidence},
+    {href:"/app/company-funds/reserves",label:"Alertes réserves",count:workQueue.reserves},
+  ].filter(item=>item.count>0);
 
   return (
     <div className="sticky top-0 z-30 -mx-4 border-b border-line bg-white/95 px-4 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] backdrop-blur md:-mx-6 md:px-6">
@@ -95,7 +122,7 @@ export function CompanyFundsNav(){
         <div className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:max-w-[68%]">
           <nav aria-label="Navigation rapide Fonds de l’entreprise" className="flex min-w-max items-center gap-1 rounded-xl border border-line bg-surface/60 p-1">
             {items.map(item=>{
-              const active=isActive(pathname,item.href);const Icon=item.icon;
+              const active=isActive(pathname,item.href);const Icon=item.icon;const count=itemCount(item.href,workQueue);
               return (
                 <Link
                   key={item.href}
@@ -111,6 +138,7 @@ export function CompanyFundsNav(){
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0"/>
                   <span>{item.short}</span>
+                  {count>0?<span className={cn("inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold",active?"bg-white text-ink":"bg-red-100 text-red-700")}>{count>99?"99+":count}</span>:null}
                 </Link>
               );
             })}
@@ -118,12 +146,20 @@ export function CompanyFundsNav(){
         </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[10px] text-muted2">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted2">
         <span>{currentIndex+1} / {items.length}</span>
         <div className="flex items-center gap-3">
           {previous?<span className="hidden sm:inline">← {previous.short}</span>:null}
           {next?<span>{next.short} →</span>:null}
         </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 overflow-x-auto border-t border-line pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className={cn("inline-flex h-8 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold",workQueue.total>0?"bg-amber-50 text-amber-900":"bg-emerald-50 text-emerald-800")}>
+          <AlertTriangle className="h-3.5 w-3.5"/>
+          {workQueue.total>0?`${workQueue.total} à traiter`:"Tout est à jour"}
+        </div>
+        {quickItems.map(item=><Link key={item.href} href={item.href} className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-line bg-white px-3 text-xs font-medium text-ink transition hover:border-ink/25 hover:bg-surface"><span>{item.label}</span><span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">{item.count}</span></Link>)}
       </div>
     </div>
   );
