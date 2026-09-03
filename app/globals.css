@@ -37,6 +37,16 @@
 .jun-app-dark select { color: hsl(var(--jun-ink)); }
 .jun-app-dark input::placeholder,
 .jun-app-dark textarea::placeholder { color: hsl(var(--jun-muted)); }
+.jun-app-dark input[type="file"]::file-selector-button {
+  margin-right: .75rem;
+  border: 1px solid rgb(255 255 255 / .08);
+  border-radius: .65rem;
+  background: rgb(255 255 255 / .04);
+  color: rgb(226 232 240);
+  padding: .45rem .7rem;
+  cursor: pointer;
+}
+.jun-app-dark input[type="file"]::file-selector-button:hover { background: rgb(255 255 255 / .07); }
 
 /* Compatibility bridge while older operational screens are progressively
    migrated to the premium dashboard design. This prevents hard-coded light
@@ -53,7 +63,8 @@
 .jun-app-dark .bg-slate-100 { background-color: rgb(148 163 184 / .08) !important; }
 .jun-app-dark .border-blue-200 { border-color: rgb(96 165 250 / .22) !important; }
 .jun-app-dark .border-emerald-200 { border-color: rgb(52 211 153 / .22) !important; }
-.jun-app-dark .border-amber-200 { border-color: rgb(251 191 36 / .22) !important; }
+.jun-app-dark .border-amber-200,
+.jun-app-dark .border-amber-300\/40 { border-color: rgb(251 191 36 / .22) !important; }
 .jun-app-dark .border-red-200 { border-color: rgb(251 113 133 / .22) !important; }
 .jun-app-dark .border-violet-200 { border-color: rgb(167 139 250 / .22) !important; }
 .jun-app-dark .text-blue-900,
@@ -61,10 +72,12 @@
 .jun-app-dark .text-blue-700 { color: rgb(147 197 253) !important; }
 .jun-app-dark .text-emerald-900,
 .jun-app-dark .text-emerald-800,
-.jun-app-dark .text-emerald-700 { color: rgb(110 231 183) !important; }
+.jun-app-dark .text-emerald-700,
+.jun-app-dark .text-emerald-600 { color: rgb(110 231 183) !important; }
 .jun-app-dark .text-amber-900,
 .jun-app-dark .text-amber-800,
-.jun-app-dark .text-amber-700 { color: rgb(252 211 77) !important; }
+.jun-app-dark .text-amber-700,
+.jun-app-dark .text-amber-600 { color: rgb(252 211 77) !important; }
 .jun-app-dark .text-red-900,
 .jun-app-dark .text-red-800,
 .jun-app-dark .text-red-700,
@@ -72,6 +85,15 @@
 .jun-app-dark .text-violet-700 { color: rgb(196 181 253) !important; }
 .jun-app-dark .text-cyan-700 { color: rgb(103 232 249) !important; }
 .jun-app-dark .text-slate-700 { color: rgb(203 213 225) !important; }
+
+/* Premium workspace polish shared by Drive, Company Funds and legacy admin panels. */
+.jun-app-dark .shadow-sm { box-shadow: 0 16px 40px rgb(0 0 0 / .12); }
+.jun-app-dark .border-line { border-color: rgb(255 255 255 / .075); }
+.jun-app-dark table tbody tr { transition: background-color .16s ease, border-color .16s ease; }
+.jun-app-dark table tbody tr:hover { background-color: rgb(255 255 255 / .025); }
+.jun-app-dark code { border-radius: .4rem; background: rgb(255 255 255 / .05); padding: .1rem .32rem; color: rgb(147 197 253); }
+.jun-app-dark ::selection { background: rgb(59 130 246 / .35); color: white; }
+.jun-app-dark * { scrollbar-color: rgb(71 85 105) transparent; scrollbar-width: thin; }
 
 html { scroll-behavior: smooth; }
 body { @apply bg-surface text-ink antialiased; }
