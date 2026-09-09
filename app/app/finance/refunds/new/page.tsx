@@ -16,8 +16,8 @@ export default async function NewRefundPage({ searchParams }: { searchParams: { 
     const committed = p.refunds.filter((r) => !["REJECTED", "CANCELLED"].includes(r.status)).reduce((sum, r) => sum + Number(r.amount), 0);
     return { id: p.id, reference: p.reference, amount: Number(p.amount), available: Math.max(0, Math.round((Number(p.amount) - committed) * 100) / 100), currency: p.currency, clientId: p.clientId };
   });
-  return <div>
-    <PageHeader title="New refund request" subtitle="Create a controlled refund request linked to the original payment whenever possible." />
+  return <div className="min-w-0">
+    <PageHeader eyebrow="Finance · Remboursements" title="Nouvelle demande de remboursement" subtitle="Créez une demande contrôlée et rattachez-la au paiement original chaque fois que cela est nécessaire pour le rapprochement financier." />
     <RefundForm clients={clients} cases={cases} payments={refundables} defaultClientId={searchParams.clientId} defaultCaseId={searchParams.caseId} />
   </div>;
 }
