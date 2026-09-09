@@ -24,6 +24,25 @@ function otpDigest(requestId: string, email: string, code: string) {
   return sha256(`${pepper}|${requestId}|${email.toLowerCase()}|${code}`);
 }
 
+function auditObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+async function hasActiveBounce(requestId: string, email: string, otpSentAt?: string | null) {
+  const logs = await prisma.auditLog.findMany({
+    where: { resourceType: "SignatureRequest", resourceId: requestId, action: "JUN_NATIVE_OTP_BOUNCED" },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+  const normalized = email.toLowerCase();
+  const lastSentMs = otpSentAt ? new Date(otpSentAt).getTime() : 0;
+  return logs.some((log) => {
+    const after = auditObject(log.after);
+    const bouncedEmail = String(after.recipientEmail ?? after.signer ?? "").trim().toLowerCase();
+    return bouncedEmail === normalized && (!lastSentMs || log.createdAt.getTime() >= lastSentMs);
+  });
+}
+
 function requestExpiry(metaExpiresAt: string | undefined, sentAt: Date | null) {
   if (metaExpiresAt) {
     const parsed = new Date(metaExpiresAt);
@@ -51,6 +70,10 @@ export async function sendNativeVerificationCode(token: string): Promise<void> {
 
   const expiresAt = requestExpiry(meta.expiresAt, request.sentAt);
   if (expiresAt.getTime() <= Date.now()) redirect(`/sign/${encodeURIComponent(token)}?error=request_expired`);
+
+  if (await hasActiveBounce(request.id, recipient.email, recipient.otpSentAt)) {
+    redirect(`/sign/${encodeURIComponent(token)}?error=otp_email_bounced`);
+  }
 
   const nowMs = Date.now();
   const lockUntil = recipient.otpLockedUntil ? new Date(recipient.otpLockedUntil).getTime() : 0;
