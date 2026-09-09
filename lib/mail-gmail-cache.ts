@@ -4,14 +4,15 @@ import { getGmailSystemLabelStats } from "@/lib/google/gmail";
 import { getGmailThreadIdsForQuery } from "@/lib/mail-thread-reader";
 
 const PREFIX="mail.gmail.cache.";
-const DEFAULT_LIMIT=20;
+const DEFAULT_LIMIT=100;
+const MAX_LIMIT=250;
 export type GmailCategory="PRIMARY"|"PROMOTIONS"|"SOCIAL"|"UPDATES"|"NONE";
 export type GmailMailboxCache={accountId:string;updatedAt:string;labelStats:Record<string,{messagesTotal:number;messagesUnread:number;threadsTotal:number;threadsUnread:number}>;categoryByThreadId:Record<string,GmailCategory>};
 function key(accountId:string){return `${PREFIX}${accountId}`;}
 export async function getGmailMailboxCache(accountId:string):Promise<GmailMailboxCache|null>{const row=await prisma.appSetting.findUnique({where:{key:key(accountId)},select:{value:true}});if(!row)return null;try{return JSON.parse(row.value) as GmailMailboxCache}catch{return null}}
 export async function getGmailMailboxCacheMap(accountIds:string[]){if(!accountIds.length)return new Map<string,GmailMailboxCache>();const rows=await prisma.appSetting.findMany({where:{key:{in:accountIds.map(key)}},select:{key:true,value:true}});const out=new Map<string,GmailMailboxCache>();for(const row of rows){try{const v=JSON.parse(row.value) as GmailMailboxCache;if(v?.accountId)out.set(v.accountId,v)}catch{}}return out;}
 export async function refreshGmailMailboxCache(accountId:string,max=DEFAULT_LIMIT){
- const limit=Math.max(1,Math.min(max,DEFAULT_LIMIT));
+ const limit=Math.max(1,Math.min(max,MAX_LIMIT));
  const [labelStats,primary,promotions,social,updates,threads]=await Promise.all([
   getGmailSystemLabelStats(accountId),
   getGmailThreadIdsForQuery(accountId,"in:inbox category:primary",limit),
