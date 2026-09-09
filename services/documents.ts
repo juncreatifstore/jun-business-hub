@@ -64,6 +64,88 @@ export async function saveDocumentVersion(documentId: string, formData: FormData
   redirect(`/app/documents/${documentId}?toast=${encodeURIComponent(`Version ${nextVersion} saved`)}`);
 }
 
+export async function refreshDocumentFromLatestData(documentId: string) {
+  const user = await assertPermission("DOCUMENT_EDIT");
+  const doc = await prisma.document.findUnique({
+    where: { id: documentId },
+    include: { versions: { orderBy: { version: "desc" }, take: 1 }, client: true, case: true },
+  });
+  if (!doc || !doc.versions[0]) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Document or current version not found")}`);
+  if (!doc.clientId || !doc.client) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("This document is not linked to a client, so there is no client data to refresh")}`);
+  if (!['DRAFT', 'FINAL'].includes(doc.status)) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Only DRAFT or FINAL documents can be refreshed from latest data")}`);
+  if (!process.env.OPENAI_API_KEY) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("JUN AI is not configured, so the document cannot be rebuilt from the latest client data")}`);
+
+  const latest = doc.versions[0];
+  const previousStatus = doc.status;
+  const currentExcerpt = htmlToText(latest.content).replace(/\s+/g, " ").trim().slice(0, 1050);
+  const instruction = [
+    `Update and rebuild the existing ${doc.type.replaceAll("_", " ")} titled “${doc.title}” using ALL latest authoritative client financial data now recorded in JUN.`,
+    "Preserve the original business purpose, decision and overall structure, but replace any outdated statement that says no payment or no refund exists when the system now contains those records.",
+    "Recalculate every total and remaining balance from the supplied current data. Never keep an old amount just because it appears in the previous draft.",
+    "Do not add a company representative signature block. Company authenticity is established by the QR code, online verification page and integrity hash.",
+    "If client acceptance is applicable, include a CLIENT acceptance/signature section stating that by signing or accepting, the client confirms having read the document and recognizes the listed information, transactions, amounts and details as exact.",
+    "Include an authenticity clause stating that the electronic document is officially issued by JUN CREATIF AND TRAVEL LLC, is verifiable online, and is intended to retain its evidentiary/legal effect subject to applicable law.",
+    currentExcerpt ? `Previous document excerpt for continuity only: ${currentExcerpt}` : "",
+  ].filter(Boolean).join(" ").slice(0, 1990);
+
+  const formData = new FormData();
+  formData.set("instruction", instruction);
+  formData.set("clientId", doc.clientId);
+  if (doc.caseId) formData.set("caseId", doc.caseId);
+
+  const { generateDocumentDraft } = await import("@/services/ai");
+  const generated = await generateDocumentDraft(formData);
+  if (!generated.content || generated.error) {
+    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent(generated.error || "JUN AI could not refresh this document")}`);
+  }
+
+  const content = sanitizeDocumentHtml(generated.content.slice(0, 500_000));
+  const financialIssues = checkRefundAgreementArithmetic(htmlToText(content));
+  if (financialIssues.length) {
+    const issue = financialIssues[0];
+    await audit({ userId: user.id, action: "DOCUMENT_REFRESH_FINANCIAL_CHECK_FAILED", resourceType: "Document", resourceId: documentId, after: { version: latest.version, code: issue.code, message: issue.message } });
+    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent(`${issue.message} The refreshed version was not saved.`)}`);
+  }
+
+  const nextVersion = latest.version + 1;
+  const changeNote = previousStatus === "FINAL"
+    ? `AI revision from FINAL v${latest.version} using latest recorded client data`
+    : `Updated from latest recorded client data (from v${latest.version})`;
+
+  await prisma.$transaction([
+    prisma.documentVersion.create({
+      data: {
+        documentId,
+        version: nextVersion,
+        content,
+        authorId: user.id,
+        changeNote: changeNote.slice(0, 300),
+        hash: sha256(content),
+        status: "DRAFT",
+      },
+    }),
+    prisma.document.update({ where: { id: documentId }, data: { status: "DRAFT" } }),
+  ]);
+
+  await audit({
+    userId: user.id,
+    action: "DOCUMENT_REFRESH_FROM_LATEST_DATA",
+    resourceType: "Document",
+    resourceId: documentId,
+    before: { status: previousStatus, version: latest.version, hash: latest.hash },
+    after: { status: "DRAFT", version: nextVersion, source: "LATEST_CLIENT_FINANCIAL_DATA" },
+  });
+  await logActivity({
+    type: "DOCUMENT_UPDATED",
+    message: `Document ${doc.documentId} refreshed from latest client data as version ${nextVersion}`,
+    userId: user.id,
+    clientId: doc.clientId,
+    caseId: doc.caseId,
+  });
+  revalidatePath(`/app/documents/${documentId}`);
+  redirect(`/app/documents/${documentId}?toast=${encodeURIComponent(`Version ${nextVersion} created from the latest recorded client data. Review it before finalizing.`)}`);
+}
+
 export async function createDocumentRevision(documentId: string, formData: FormData) {
   const user = await assertPermission("DOCUMENT_EDIT");
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 300);
