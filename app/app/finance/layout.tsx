@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, BookOpen, BrainCircuit, CreditCard, Gauge, Landmark, ReceiptText, Send, Undo2, WalletCards, CircleDollarSign, Scale, Target, FileText } from "lucide-react";
+import { BarChart3, BookOpen, BrainCircuit, CreditCard, Gauge, Landmark, ReceiptText, Send, Undo2, WalletCards, CircleDollarSign, Scale, Target, FileText, History } from "lucide-react";
 import { FinanceWhatsAppAction } from "@/components/app/finance-whatsapp-action";
 
 const links = [
@@ -10,6 +10,7 @@ const links = [
   { href: "/app/finance/budgeting", label: "Budgeting", icon: Target },
   { href: "/app/finance/invoices", label: "Invoices", icon: FileText },
   { href: "/app/finance/payments", label: "Payments", icon: CreditCard },
+  { href: "/app/finance/historical-backfill", label: "Historical Backfill", icon: History },
   { href: "/app/finance/expenses", label: "Expenses", icon: CircleDollarSign },
   { href: "/app/finance/online-payments", label: "Online Payments", icon: WalletCards },
   { href: "/app/finance/accounts", label: "Accounts", icon: Landmark },
