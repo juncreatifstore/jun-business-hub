@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 
 function Submit() {
   const { pending } = useFormStatus();
-  return <Button variant="primary" disabled={pending}>{pending ? "Submitting…" : "Create refund request"}</Button>;
+  return <Button variant="primary" disabled={pending} className="w-full sm:w-auto">{pending ? "Création…" : "Créer la demande"}</Button>;
 }
 
 export function RefundForm({ clients, cases, payments, defaultClientId, defaultCaseId }: {
@@ -25,27 +25,19 @@ export function RefundForm({ clients, cases, payments, defaultClientId, defaultC
   const clientCases = cases.filter((c) => c.clientId === clientId);
   const selectedPayment = useMemo(() => payments.find((p) => p.id === paymentId) ?? null, [paymentId, payments]);
 
-  return <form action={action} className="grid max-w-3xl gap-5 sm:grid-cols-2">
-    <div className="sm:col-span-2">
-      <Field label="Client"><Select name="clientId" value={clientId} onChange={(e) => { setClientId(e.target.value); setPaymentId(""); }} required><option value="" disabled>Select a client…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.lastName}, {c.firstName} — {c.internalId}</option>)}</Select></Field>
+  return <form action={action} className="grid w-full min-w-0 max-w-3xl gap-4 sm:grid-cols-2 sm:gap-5">
+    <div className="min-w-0 sm:col-span-2">
+      <Field label="Client"><Select name="clientId" value={clientId} onChange={(e) => { setClientId(e.target.value); setPaymentId(""); }} required><option value="" disabled>Sélectionner un client…</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.lastName}, {c.firstName} — {c.internalId}</option>)}</Select></Field>
       {err("clientId") && <p className="mt-1 text-xs text-red-600">{err("clientId")}</p>}
     </div>
-    <Field label="Refund source" hint="Choose a specific payment only when the refund must be reconciled to that payment">
-      <Select name="paymentId" value={paymentId} onChange={(e) => setPaymentId(e.target.value)}>
-        <option value="">Global client balance — no payment link required</option>
-        {clientPayments.map((p) => <option key={p.id} value={p.id}>{p.reference} — {p.currency} {p.available.toFixed(2)} refundable</option>)}
-      </Select>
-    </Field>
-    <Field label="Case (optional)"><Select name="caseId" defaultValue={defaultCaseId ?? ""}><option value="">No case</option>{clientCases.map((c) => <option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}</Select></Field>
-    <div>
-      <Field label="Refund amount" hint={selectedPayment ? `Maximum currently available on this payment: ${selectedPayment.currency} ${selectedPayment.available.toFixed(2)}` : "Validated against the client global available balance"}><Input name="amount" type="number" step="0.01" min="0.01" max={selectedPayment?.available} required /></Field>
-      {err("amount") && <p className="mt-1 text-xs text-red-600">{err("amount")}</p>}
-    </div>
-    <Field label="Currency" hint={selectedPayment ? "Locked to original payment" : "Currency of the global client balance being refunded"}><Input name="currency" value={selectedPayment?.currency ?? undefined} defaultValue={selectedPayment ? undefined : "USD"} readOnly={Boolean(selectedPayment)} maxLength={3} required /></Field>
-    <Field label="Installments" hint="Up to 24 scheduled payouts"><Input name="installments" type="number" min={1} max={24} defaultValue={1} required /></Field>
-    <Field label="First due date" hint="Following installments are scheduled monthly"><Input name="firstDueDate" type="date" /></Field>
-    <div className="sm:col-span-2"><Field label="Reason" hint="Explain what is being refunded and why"><Textarea name="reason" rows={4} required /></Field>{err("reason") && <p className="mt-1 text-xs text-red-600">{err("reason")}</p>}</div>
-    {state.message ? <p className="text-sm text-red-600 sm:col-span-2">{state.message}</p> : null}
+    <div className="min-w-0"><Field label="Source du remboursement" hint="Choisissez un paiement précis seulement si le remboursement doit être rapproché de ce paiement."><Select name="paymentId" value={paymentId} onChange={(e) => setPaymentId(e.target.value)}><option value="">Solde global du client — aucun paiement lié</option>{clientPayments.map((p) => <option key={p.id} value={p.id}>{p.reference} — {p.currency} {p.available.toFixed(2)} disponible</option>)}</Select></Field></div>
+    <div className="min-w-0"><Field label="Dossier (optionnel)"><Select name="caseId" defaultValue={defaultCaseId ?? ""}><option value="">Aucun dossier</option>{clientCases.map((c) => <option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}</Select></Field></div>
+    <div className="min-w-0"><Field label="Montant du remboursement" hint={selectedPayment ? `Maximum disponible sur ce paiement : ${selectedPayment.currency} ${selectedPayment.available.toFixed(2)}` : "Validé contre le solde global disponible du client"}><Input name="amount" type="number" inputMode="decimal" step="0.01" min="0.01" max={selectedPayment?.available} required /></Field>{err("amount") && <p className="mt-1 text-xs text-red-600">{err("amount")}</p>}</div>
+    <div className="min-w-0"><Field label="Devise" hint={selectedPayment ? "Verrouillée sur la devise du paiement original" : "Devise du solde global remboursé"}><Input name="currency" value={selectedPayment?.currency ?? undefined} defaultValue={selectedPayment ? undefined : "USD"} readOnly={Boolean(selectedPayment)} maxLength={3} required /></Field></div>
+    <div className="min-w-0"><Field label="Versements" hint="Jusqu’à 24 décaissements programmés"><Input name="installments" type="number" inputMode="numeric" min={1} max={24} defaultValue={1} required /></Field></div>
+    <div className="min-w-0"><Field label="Première échéance" hint="Les versements suivants sont programmés mensuellement"><Input name="firstDueDate" type="date" /></Field></div>
+    <div className="min-w-0 sm:col-span-2"><Field label="Motif" hint="Expliquez ce qui est remboursé et pourquoi"><Textarea name="reason" rows={4} required /></Field>{err("reason") && <p className="mt-1 text-xs text-red-600">{err("reason")}</p>}</div>
+    {state.message ? <p className="break-words text-sm text-red-600 sm:col-span-2">{state.message}</p> : null}
     <div className="sm:col-span-2"><Submit /></div>
   </form>;
 }
