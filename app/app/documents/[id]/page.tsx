@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, GitCompareArrows, RotateCcw, ShieldCheck, PanelsTopLeft, Scissors, Printer, Copy, Archive } from "lucide-react";
+import { ArrowLeft, GitCompareArrows, RotateCcw, ShieldCheck, PanelsTopLeft, Scissors, Printer, Copy, Archive, MessageCircle } from "lucide-react";
 import { notFound } from "next/navigation";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +12,7 @@ import { DocumentRefreshControl } from "@/components/app/document-refresh-contro
 import { createDocumentRevision, duplicateDocument, archiveDocument, saveDocumentVersion } from "@/services/documents";
 import { restoreDocumentVersion } from "@/services/document-versions";
 import { createSignatureRequest } from "@/services/signatures";
+import { sendClientSignatureViaWhatsApp } from "@/services/signature-whatsapp";
 import { formatDateTime } from "@/lib/utils";
 import { shortHash } from "@/lib/hash";
 
@@ -42,6 +43,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
   const canEditDraft = can(user, "DOCUMENT_EDIT") && doc.status === "DRAFT";
   const canCreateRevision = can(user, "DOCUMENT_EDIT") && doc.status === "FINAL";
   const canRefreshFromData = can(user, "DOCUMENT_EDIT") && Boolean(doc.client) && ["DRAFT", "FINAL"].includes(doc.status);
+  const canRequestSignature = doc.status === "FINAL" && can(user, "DOCUMENT_SIGN");
 
   return (
     <div>
@@ -60,11 +62,14 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
           <a href={`/api/documents/${doc.id}/pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Open PDF</Button></a>
           {canRefreshFromData ? <DocumentRefreshControl documentId={doc.id} variant="outline" showResult={true} /> : null}
           {canEditDraft ? <Link href={`/app/documents/${doc.id}/finalize`}><Button variant="gold">Review & finalize</Button></Link> : null}
-          {doc.status === "FINAL" && can(user, "DOCUMENT_SIGN") ? <form action={createSignatureRequest.bind(null, doc.id)}><Button variant="primary">Send for signature</Button></form> : null}
+          {canRequestSignature ? <form action={sendClientSignatureViaWhatsApp.bind(null, doc.id)}><Button type="submit" className="bg-emerald-600 text-white hover:bg-emerald-700"><MessageCircle className="h-4 w-4" />Signature via WhatsApp</Button></form> : null}
+          {canRequestSignature ? <form action={createSignatureRequest.bind(null, doc.id)}><Button variant="primary">Other signature method</Button></form> : null}
         </div>
       </div>
 
       {canRefreshFromData ? <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><p className="font-semibold">Update from newly recorded data</p><p className="mt-1">Use <strong>Update from latest data</strong> after recording old payments, refunds or other corrected client information. The button now shows its progress and reports any server/AI error directly. On success, JUN creates a new DRAFT version from the latest authoritative data and preserves earlier versions for audit.</p></div> : null}
+
+      {canRequestSignature ? <div className="mb-5 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="flex items-center gap-2 font-semibold"><MessageCircle className="h-4 w-4" />Client signature by WhatsApp</p><p className="mt-1">The WhatsApp option creates a <strong>client-only</strong> JUN Secure Sign request and sends a revocable signing link to the client&apos;s saved WhatsApp number. The company representative is not added as a signer. The client&apos;s email is used only for the security verification code before the document is displayed for signature.</p></div> : null}
 
       {doc.status === "FINAL" ? <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_420px]"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" />Final document sealed</p><p className="mt-1">The official PDF and its SHA-256 hash are frozen. Direct editing is disabled.</p></div>{canCreateRevision ? <form action={createDocumentRevision.bind(null, doc.id)} className="rounded-xl border border-line bg-white p-4"><p className="text-sm font-semibold">Create a new revision</p><p className="mt-1 text-xs text-muted2">Creates a new DRAFT from the current FINAL version while preserving the sealed PDF.</p><div className="mt-3 flex gap-2"><Input name="reason" required maxLength={300} placeholder="Reason for revision" /><Button type="submit" variant="outline">Create revision</Button></div></form> : null}</div> : null}
 
@@ -85,6 +90,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
             <CardHeader><CardTitle>Document tools</CardTitle></CardHeader>
             <CardContent className="grid gap-2">
               {canRefreshFromData ? <DocumentRefreshControl documentId={doc.id} variant="gold" fullWidth={true} showResult={true} /> : null}
+              {canRequestSignature ? <form action={sendClientSignatureViaWhatsApp.bind(null, doc.id)}><Button className="w-full justify-start bg-emerald-600 text-white hover:bg-emerald-700" type="submit"><MessageCircle className="mr-2 h-4 w-4" />Send client signature via WhatsApp</Button></form> : null}
               <Link href={`/app/documents/${doc.id}/pages`}><Button className="w-full justify-start" variant="outline"><PanelsTopLeft className="mr-2 h-4 w-4" />Manage pages</Button></Link>
               {can(user, "DOCUMENT_CREATE") ? <Link href={`/app/documents/${doc.id}/split`}><Button className="w-full justify-start" variant="outline"><Scissors className="mr-2 h-4 w-4" />Split document</Button></Link> : null}
               <Link href={`/app/documents/${doc.id}/versions`}><Button className="w-full justify-start" variant="outline"><GitCompareArrows className="mr-2 h-4 w-4" />Versions & compare</Button></Link>
