@@ -86,6 +86,22 @@
 .jun-app-dark .text-cyan-700 { color: rgb(103 232 249) !important; }
 .jun-app-dark .text-slate-700 { color: rgb(203 213 225) !important; }
 
+/* Documents are intentionally rendered as white paper even inside the dark
+   authenticated workspace. Keep editor/preview text and table rules readable. */
+.jun-app-dark .doc-prose {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  color-scheme: light;
+  caret-color: #0f172a;
+}
+.jun-app-dark .doc-prose :where(h1, h2, h3, h4, p, li, blockquote, pre, td, th) {
+  color: #0f172a;
+}
+.jun-app-dark .doc-prose a { color: #1d4ed8 !important; }
+.jun-app-dark .doc-prose code { background: #f1f5f9; color: #0f172a; }
+.jun-app-dark .doc-prose td,
+.jun-app-dark .doc-prose th { border-color: #e2e8f0 !important; }
+
 /* Premium workspace polish shared by Drive, Company Funds and legacy admin panels. */
 .jun-app-dark .shadow-sm { box-shadow: 0 16px 40px rgb(0 0 0 / .12); }
 .jun-app-dark .border-line { border-color: rgb(255 255 255 / .075); }
