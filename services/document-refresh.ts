@@ -99,6 +99,14 @@ export async function refreshDocumentFromLatestDataAction(
       return { status: "error", message: generated.error || "JUN AI returned no updated document content." };
     }
 
+    const generatedText = htmlToText(generated.content);
+    if (/generated offline|\[BODY\s*[—-]\s*complete this draft\]|OPENAI_API_KEY is not configured/i.test(generatedText)) {
+      return {
+        status: "error",
+        message: "The AI provider did not return a real refreshed document. The existing version was left unchanged. Try again after checking the AI connection.",
+      };
+    }
+
     const content = sanitizeDocumentHtml(generated.content.slice(0, 500_000));
     if (htmlToText(content).trim().length < 80) {
       return { status: "error", message: "The generated update was unexpectedly empty. The current document was left unchanged." };
