@@ -12,6 +12,7 @@ import { mockSignRecipient } from "@/services/signatures";
 import { voidTrackedSignatureRequest } from "@/services/signature-actions";
 import { sendPreparedSignatureRequest } from "@/services/signature-center";
 import { activateJunNativeSigning, sendJunNativeReminder } from "@/services/native-signatures";
+import { verifySignerInternally } from "@/services/native-signature-otp";
 import { cancelNativeSignatureRequest, extendSignatureExpiration, regenerateSignerLink, replacePendingSigner, resendSigningInvitation } from "@/services/signature-management";
 import { nativeSigningExpiry, nativeSigningUrl } from "@/lib/native-signature";
 import { signatureRecipients, signatureRequestMeta } from "@/lib/signature-recipients";
@@ -103,9 +104,9 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
               return <section key={`${s.email}-${index}`} className={isCurrent ? "bg-emerald-500/[0.025] p-5" : "p-5"}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.045] text-xs font-semibold text-slate-300">{s.order}</span><p className="font-semibold">{s.name}</p>{s.role ? <span className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1 text-[10px] uppercase tracking-wide text-muted2">{s.role.replaceAll("_", " ")}</span> : null}{isCurrent ? <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Signataire actuel</span> : null}</div>
+                    <div className="flex flex-wrap items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.045] text-xs font-semibold text-slate-300">{s.order}</span><p className="font-semibold">{s.name}</p>{s.role ? <span className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1 text-[10px] uppercase tracking-wide text-muted2">{s.role.replaceAll("_", " ")}</span> : null}{isCurrent ? <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Signataire actuel</span> : null}{s.verifiedAt ? <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Email vérifié</span> : null}</div>
                     <p className="mt-2 text-sm text-muted2">{s.email} · lien v{s.linkVersion ?? 1}</p>
-                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted2">{s.invitationSentAt ? <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />Invitation {formatDateTime(new Date(s.invitationSentAt))}</span> : null}{s.viewedAt ? <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />Consulté {formatDateTime(new Date(s.viewedAt))}</span> : null}{s.reminderSentAt ? <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />Rappel {formatDateTime(new Date(s.reminderSentAt))}</span> : null}</div>
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted2">{s.invitationSentAt ? <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />Invitation {formatDateTime(new Date(s.invitationSentAt))}</span> : null}{s.viewedAt ? <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />Consulté {formatDateTime(new Date(s.viewedAt))}</span> : null}{s.otpSentAt ? <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />OTP {formatDateTime(new Date(s.otpSentAt))}</span> : null}{s.verifiedAt ? <span className="inline-flex items-center gap-1 text-emerald-400"><ShieldCheck className="h-3.5 w-3.5" />Vérifié {formatDateTime(new Date(s.verifiedAt))}</span> : null}{s.reminderSentAt ? <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />Rappel {formatDateTime(new Date(s.reminderSentAt))}</span> : null}</div>
                   </div>
                   <div className="shrink-0">{s.signedAt ? <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-400"><CheckCircle2 className="h-4 w-4" />Signé {formatDateTime(new Date(s.signedAt))}</span> : s.declinedAt ? <span className="inline-flex items-center gap-2 text-sm font-medium text-red-400"><XCircle className="h-4 w-4" />Refusé</span> : canSign && open && allowMockSign ? <form action={mockSignRecipient.bind(null, request.id, index)}><Button variant="gold" size="sm">Mock sign</Button></form> : <StatusBadge status={request.status === "READY_FOR_SIGNATURE" ? "READY" : isCurrent ? "WAITING_CLIENT" : "PENDING"} />}</div>
                 </div>
@@ -116,6 +117,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
 
                 {nativeActive && !s.signedAt && !s.declinedAt && canSign ? <div className="mt-4 rounded-xl border border-white/[0.07] bg-black/[0.08] p-3">
                   <div className="flex flex-wrap items-center gap-2">{signingLink ? <><CopySigningLink url={signingLink} /><Link href={signingLink} target="_blank"><Button size="sm" variant="secondary"><ExternalLink className="mr-1 h-3.5 w-3.5" />Ouvrir</Button></Link></> : null}{isCurrent ? <form action={resendSigningInvitation.bind(null, request.id, s.email)}><Button size="sm" variant="secondary"><Mail className="mr-1 h-3.5 w-3.5" />Renvoyer</Button></form> : null}{isCurrent ? <form action={sendJunNativeReminder.bind(null, request.id, s.email)}><Button size="sm" variant="gold"><Mail className="mr-1 h-3.5 w-3.5" />Rappel</Button></form> : null}{isCurrent ? <form action={regenerateSignerLink.bind(null, request.id, s.email)}><Button size="sm" variant="secondary"><RefreshCw className="mr-1 h-3.5 w-3.5" />Révoquer + nouveau lien</Button></form> : null}</div>
+                  {isCurrent && !s.verifiedAt ? <details className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3"><summary className="cursor-pointer text-xs font-semibold text-amber-300"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" />Vérification interne</summary><p className="mt-2 text-xs text-muted2">Utilisez uniquement après avoir contrôlé l’identité du client par un autre moyen fiable. Cette action contourne le code OTP et est enregistrée dans l’audit.</p><form action={verifySignerInternally.bind(null, request.id, s.order)} className="mt-3"><textarea name="reason" required minLength={5} maxLength={500} rows={2} className="w-full rounded-lg border border-amber-500/20 bg-white px-3 py-2 text-sm text-night" placeholder="Ex. Identité confirmée lors d’un appel vidéo avec pièce d’identité"/><Button type="submit" size="sm" variant="gold" className="mt-2"><ShieldCheck className="mr-1 h-3.5 w-3.5" />Confirmer l’identité en interne</Button></form></details> : null}
                   <details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-electric"><UserPen className="mr-1 inline h-3.5 w-3.5" />Modifier / remplacer le signataire</summary><form action={replacePendingSigner.bind(null, request.id, s.order)} className="mt-3 grid gap-2 sm:grid-cols-3"><input name="name" defaultValue={s.name} required className="h-10 rounded-lg border border-line bg-white px-3 text-sm text-night" placeholder="Nom"/><input name="email" type="email" defaultValue={s.email} required className="h-10 rounded-lg border border-line bg-white px-3 text-sm text-night" placeholder="Email"/><input name="role" defaultValue={s.role ?? ""} className="h-10 rounded-lg border border-line bg-white px-3 text-sm text-night" placeholder="Rôle"/><div className="sm:col-span-3"><Button size="sm" variant="secondary" type="submit">Enregistrer</Button></div></form></details>
                 </div> : null}
               </section>;
@@ -125,11 +127,11 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
 
         <Card><CardHeader><div><CardTitle>Chronologie</CardTitle><p className="mt-1 text-xs text-muted2">Étapes importantes de la demande de signature.</p></div></CardHeader><CardContent><div className="space-y-0 border-l border-white/[0.08] pl-5">{timelineRows(request, recipients, expiresAt).map((row, index) => <div key={`${row.label}-${index}`} className="relative pb-5 last:pb-0"><span className="absolute -left-[25px] top-1.5 h-2 w-2 rounded-full bg-blue-400 ring-4 ring-[#101827]"/><p className="text-sm font-medium">{row.label}</p><p className="mt-0.5 text-xs text-muted2">{row.value}</p></div>)}</div></CardContent></Card>
 
-        {managementHistory.length ? <Card><CardHeader><CardTitle>Historique de gestion</CardTitle></CardHeader><CardContent className="divide-y divide-line p-0">{managementHistory.map((log) => <div key={log.id} className="px-5 py-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{log.action.replaceAll("JUN_NATIVE_", "").replaceAll("_", " ")}</span><span className="text-xs text-muted2">{formatDateTime(log.createdAt)}</span></div><p className="mt-1 text-xs text-muted2">{log.user ? `${log.user.firstName} ${log.user.lastName}` : "Système / signataire"}</p></div>)}</CardContent></Card> : null}
+        {managementHistory.length ? <Card><CardHeader><div><CardTitle>Historique de gestion</CardTitle><p className="mt-1 text-xs text-muted2">Les événements OTP indiquent l’expéditeur, le destinataire, le résultat et les tentatives.</p></div></CardHeader><CardContent className="divide-y divide-line p-0">{managementHistory.map((log) => {const details = auditDetails(log.after);return <div key={log.id} className="px-5 py-4 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><span className={`font-semibold ${historyTone(log.action)}`}>{historyLabel(log.action)}</span><span className="text-xs text-muted2">{formatDateTime(log.createdAt)}</span></div><p className="mt-1 text-xs text-muted2">{log.user ? `${log.user.firstName} ${log.user.lastName}` : "Système / signataire"}</p>{details.length ? <div className="mt-3 grid gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-xs sm:grid-cols-2">{details.map((item) => <div key={item.label} className="min-w-0"><span className="text-muted2">{item.label}</span><p className="mt-0.5 break-words font-medium text-slate-200">{item.value}</p></div>)}</div> : null}</div>})}</CardContent></Card> : null}
       </div>
 
       <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
-        <Card><CardHeader><CardTitle>Contrôle de la demande</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><Info label="Statut" value={<StatusBadge status={request.status}/>} /><Info label="Provider" value={request.provider}/><Info label="Signataires" value={`${signedCount}/${recipients.length} signés`}/><Info label="Champs" value={String(recipients.reduce((n, r) => n + (r.fields?.length ?? 0), 0))}/><Info label="Créée" value={formatDate(request.createdAt)}/><Info label="Créée par" value={`${request.createdBy.firstName} ${request.createdBy.lastName}`}/>{expiresAt ? <Info label="Expiration" value={formatDateTime(expiresAt)}/> : null}{meta.whatsappDeliveryStatus ? <Info label="WhatsApp" value={meta.whatsappDeliveryStatus}/> : null}{meta.whatsappDeliveryMode ? <Info label="Canal WhatsApp" value={meta.whatsappDeliveryMode === "APPROVED_TEMPLATE" ? "Template approuvé" : "Texte libre"}/> : null}{meta.whatsappDeliveryUpdatedAt ? <Info label="MAJ WhatsApp" value={formatDateTime(new Date(meta.whatsappDeliveryUpdatedAt))}/> : null}{meta.whatsappFailureReason ? <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-300"><strong>Échec WhatsApp</strong><p className="mt-1 text-red-200/80">{meta.whatsappFailureReason}</p></div> : null}{request.signedPdfHash ? <div className="border-t border-line pt-3"><p className="text-xs text-muted2">Empreinte PDF signé</p><p className="registry-id mt-1 break-all text-[10px]">{request.signedPdfHash}</p></div> : null}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Contrôle de la demande</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><Info label="Statut" value={<StatusBadge status={request.status}/>} /><Info label="Provider" value={request.provider}/><Info label="Signataires" value={`${signedCount}/${recipients.length} signés`}/><Info label="Champs" value={String(recipients.reduce((n, r) => n + (r.fields?.length ?? 0), 0))}/><Info label="Créée" value={formatDate(request.createdAt)}/><Info label="Créée par" value={`${request.createdBy.firstName} ${request.createdBy.lastName}`}/>{expiresAt ? <Info label="Expiration" value={formatDateTime(expiresAt)}/> : null}{meta.whatsappDeliveryStatus ? <Info label="WhatsApp" value={meta.whatsappDeliveryStatus}/> : null}{meta.whatsappDeliveryMode ? <Info label="Canal WhatsApp" value={meta.whatsappDeliveryMode === "APPROVED_TEMPLATE" || meta.whatsappDeliveryMode === "APPROVED_TEMPLATE_DOCUMENT" ? "Template approuvé" : "Texte libre"}/> : null}{meta.whatsappDeliveryUpdatedAt ? <Info label="MAJ WhatsApp" value={formatDateTime(new Date(meta.whatsappDeliveryUpdatedAt))}/> : null}{meta.whatsappFailureReason ? <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-300"><strong>Échec WhatsApp</strong><p className="mt-1 text-red-200/80">{meta.whatsappFailureReason}</p></div> : null}{request.signedPdfHash ? <div className="border-t border-line pt-3"><p className="text-xs text-muted2">Empreinte PDF signé</p><p className="registry-id mt-1 break-all text-[10px]">{request.signedPdfHash}</p></div> : null}</CardContent></Card>
 
         <Card><CardHeader><CardTitle>Document officiel</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><Link href={`/app/documents/${request.documentId}`} className="registry-id font-medium hover:text-electric">{request.document.documentId}</Link><p className="text-muted2">{request.document.title}</p>{request.document.client ? <Link href={`/app/clients/${request.document.clientId}/dashboard`} className="block text-sm hover:text-electric">{request.document.client.firstName} {request.document.client.lastName}</Link> : null}<Link href={`/verify/${request.document.documentId}`} className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300"><ShieldCheck className="h-3.5 w-3.5"/>Vérification publique</Link></CardContent></Card>
 
@@ -150,10 +152,49 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
   return <div className="flex items-center justify-between gap-4"><span className="text-muted2">{label}</span><span className="text-right font-medium">{value}</span></div>;
 }
 
+function historyLabel(action: string) {
+  const labels: Record<string, string> = {
+    JUN_NATIVE_OTP_SENT: "OTP ENVOYÉ",
+    JUN_NATIVE_OTP_FAILED: "OTP INCORRECT",
+    JUN_NATIVE_OTP_LOCKED: "OTP VERROUILLÉ",
+    JUN_NATIVE_OTP_DELIVERY_FAILED: "ÉCHEC ENVOI OTP",
+    JUN_NATIVE_SIGNER_EMAIL_VERIFIED: "EMAIL VÉRIFIÉ",
+    JUN_NATIVE_SIGNER_VERIFIED_INTERNAL: "VÉRIFICATION INTERNE",
+  };
+  return labels[action] ?? action.replaceAll("JUN_NATIVE_", "").replaceAll("_", " ");
+}
+
+function historyTone(action: string) {
+  if (action.includes("FAILED") || action.includes("LOCKED") || action.includes("DELIVERY_FAILED")) return "text-red-300";
+  if (action.includes("VERIFIED") || action.includes("OTP_SENT")) return "text-emerald-300";
+  return "text-slate-200";
+}
+
+function auditDetails(value: unknown): Array<{ label: string; value: string }> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const data = value as Record<string, unknown>;
+  const rows: Array<{ label: string; value: string }> = [];
+  const add = (label: string, key: string) => { const v = data[key]; if (v !== undefined && v !== null && String(v).trim()) rows.push({ label, value: String(v) }); };
+  add("Expéditeur", "fromEmail");
+  add("Destinataire", "recipientEmail");
+  add("Statut Gmail", "providerStatus");
+  add("Méthode", "verificationMethod");
+  add("Tentatives", "attempts");
+  add("Tentatives restantes", "attemptsRemaining");
+  add("Motif", "reason");
+  add("Vérifié par", "verifiedBy");
+  add("Erreur", "error");
+  if (data.expiresAt) rows.push({ label: "Expiration OTP", value: formatDateTime(new Date(String(data.expiresAt))) });
+  if (data.verifiedAt) rows.push({ label: "Vérifié le", value: formatDateTime(new Date(String(data.verifiedAt))) });
+  return rows;
+}
+
 function timelineRows(request: any, recipients: ReturnType<typeof signatureRecipients>, expiresAt: Date | null) {
   const rows: Array<{ label: string; value: string }> = [{ label: "Demande créée", value: formatDateTime(request.createdAt) }];
   if (request.sentAt) rows.push({ label: "Demande activée / envoyée", value: formatDateTime(request.sentAt) });
   for (const s of recipients) if (s.invitationSentAt) rows.push({ label: `Invitation envoyée à ${s.name}`, value: formatDateTime(new Date(s.invitationSentAt)) });
+  for (const s of recipients) if (s.otpSentAt) rows.push({ label: `OTP envoyé à ${s.name}`, value: formatDateTime(new Date(s.otpSentAt)) });
+  for (const s of recipients) if (s.verifiedAt) rows.push({ label: `Identité vérifiée · ${s.name}`, value: formatDateTime(new Date(s.verifiedAt)) });
   for (const s of recipients) if (s.viewedAt) rows.push({ label: `Document consulté par ${s.name}`, value: formatDateTime(new Date(s.viewedAt)) });
   for (const s of recipients) if (s.signedAt) rows.push({ label: `Signé par ${s.name}`, value: formatDateTime(new Date(s.signedAt)) });
   for (const s of recipients) if (s.declinedAt) rows.push({ label: `Refusé par ${s.name}`, value: formatDateTime(new Date(s.declinedAt)) });
