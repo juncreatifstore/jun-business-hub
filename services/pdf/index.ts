@@ -36,7 +36,7 @@ const DEFAULT_COMPANY = {
   formationDate: "",
   bankDetails: "",
   footerLabel: "",
-  watermarkOpacity: 0.055,
+  watermarkOpacity: 0.045,
   sealSize: 72,
   showLogo: true,
   showSeal: true,
@@ -107,7 +107,7 @@ async function loadOfficialCompany(): Promise<OfficialCompany & { logoKey: strin
       formationDate: s["company.formation_date"] || "",
       bankDetails: s["company.bank_details"] || "",
       footerLabel: s["document.footer_label"] || "",
-      watermarkOpacity: Number.isFinite(opacity) ? Math.min(0.12, Math.max(0.02, opacity)) : DEFAULT_COMPANY.watermarkOpacity,
+      watermarkOpacity: Number.isFinite(opacity) ? Math.min(0.08, Math.max(0.018, opacity)) : DEFAULT_COMPANY.watermarkOpacity,
       sealSize: Number.isFinite(sealSize) ? Math.min(120, Math.max(40, sealSize)) : DEFAULT_COMPANY.sealSize,
       showLogo: settingEnabled(s["document.show_logo"], true),
       showSeal: settingEnabled(s["document.show_seal"], true),
@@ -186,29 +186,35 @@ async function embedStoredImage(pdf: PDFDocument, key: string, fallbackUrl?: str
 }
 
 function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont, opacity: number) {
-  const cols = 3;
-  const rows = 5;
-  const left = PAGE.margin + 22;
-  const right = PAGE.w - PAGE.margin - 22;
-  const bottom = 90;
-  const top = PAGE.h - 120;
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const cx = left + (right - left) * (col / (cols - 1));
-      const cy = bottom + (top - bottom) * (row / (rows - 1));
-      if (logo) {
-        const scale = Math.min(78 / logo.width, 42 / logo.height);
-        const w = logo.width * scale;
-        const h = logo.height * scale;
-        page.drawImage(logo, { x: cx - w / 2, y: cy - h / 2, width: w, height: h, opacity });
-      } else {
-        const text = "JUN";
-        const size = 15;
-        const w = bold.widthOfTextAtSize(text, size);
-        page.drawText(text, { x: cx - w / 2, y: cy, size, font: bold, color: GRAY, opacity: Math.min(opacity, 0.05) });
-      }
-    }
+  if (logo) {
+    // One single watermark per sheet. Keep the original aspect ratio so the logo is never distorted.
+    const maxWidth = PAGE.w - 54;
+    const maxHeight = PAGE.h - 170;
+    const scale = Math.min(maxWidth / logo.width, maxHeight / logo.height);
+    const w = logo.width * scale;
+    const h = logo.height * scale;
+    page.drawImage(logo, {
+      x: (PAGE.w - w) / 2,
+      y: (PAGE.h - h) / 2 - 8,
+      width: w,
+      height: h,
+      opacity: Math.min(opacity, 0.055),
+    });
+    return;
   }
+
+  const text = "JUN CREATIF AND TRAVEL LLC";
+  const size = 42;
+  const w = bold.widthOfTextAtSize(text, size);
+  page.drawText(text, {
+    x: (PAGE.w - w) / 2,
+    y: PAGE.h / 2,
+    size,
+    font: bold,
+    color: GRAY,
+    opacity: Math.min(opacity, 0.035),
+    rotate: degrees(45),
+  });
 }
 
 function drawSeal(page: PDFPage, seal: PDFImage | null, max: number) {
@@ -406,6 +412,27 @@ function renderTextPage(ctx: Ctx, html: string, options: { skipLeadingTitle?: st
   }
 }
 
+function renderDocumentAuthenticityNotice(ctx: Ctx, signatureStatus?: string | null) {
+  const width = PAGE.w - 2 * PAGE.margin;
+  if (ctx.y < PAGE.margin + 125) newPage(ctx);
+  ctx.y -= 8;
+  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y }, end: { x: PAGE.w - PAGE.margin, y: ctx.y }, thickness: 0.6, color: GOLD });
+  ctx.y -= 14;
+  drawLines(ctx, ["AUTHENTICITE, VALEUR PROBANTE ET ACCEPTATION"], { size: 8.5, bold: true, color: NIGHT, lead: 10.5, gap: 2 });
+
+  const legal = "Ce document electronique est emis comme document officiel de JUN CREATIF AND TRAVEL LLC. Son authenticite, sa version et son integrite sont verifiables en ligne au moyen du QR code et de la page de verification. Il est destine a conserver sa valeur probante et a produire les effets juridiques applicables, sous reserve de la legislation competente.";
+  drawLines(ctx, wrap(legal, ctx.font, 7.5, width), { size: 7.5, color: GRAY, lead: 9.4, gap: 2 });
+
+  const companySignature = "La signature manuscrite du responsable de l'entreprise n'est pas requise pour authentifier ce document: l'identification du document, le QR code, la verification en ligne et les empreintes d'integrite assurent son controle d'authenticite.";
+  drawLines(ctx, wrap(companySignature, ctx.font, 7.5, width), { size: 7.5, color: GRAY, lead: 9.4, gap: 2 });
+
+  const signed = Boolean(signatureStatus && /SIGNED|COMPLETED|COMPLETE/i.test(signatureStatus));
+  const acceptance = signed
+    ? "Le statut de signature enregistre confirme l'acceptation du client. Par cette acceptation, le client reconnait avoir lu le document et confirme l'exactitude des informations, transactions, montants et details qu'il contient."
+    : "Lorsque la signature ou l'acceptation electronique du client est apposee, elle confirme que le client a lu le document et reconnait l'exactitude des informations, transactions, montants et details qu'il accepte.";
+  drawLines(ctx, wrap(acceptance, ctx.font, 7.5, width), { size: 7.5, color: GRAY, lead: 9.4, gap: 1 });
+}
+
 export async function renderDocumentPdf(input: { documentId: string; title: string; type: string; status: string; html: string; clientName?: string | null; caseNumber?: string | null; signatureStatus?: string | null }): Promise<Uint8Array> {
   const company = await loadOfficialCompany();
   const normalizedHtml = normalizeDocumentHtmlInput(replaceCompanyTokens(input.html, company));
@@ -429,6 +456,7 @@ export async function renderDocumentPdf(input: { documentId: string; title: stri
     else newPage(ctx, logical.rotation);
     renderTextPage(ctx, logical.html, { skipLeadingTitle: i === 0 ? input.title : undefined });
   }
+  renderDocumentAuthenticityNotice(ctx, input.signatureStatus);
   return finish();
 }
 
