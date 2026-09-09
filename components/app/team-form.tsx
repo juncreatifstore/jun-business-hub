@@ -1,4 +1,5 @@
 "use client";
+
 import { useFormState, useFormStatus } from "react-dom";
 import { Input, Select, Field } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ const ROLES = ["SUPER_ADMIN", "DIRECTOR", "ADMIN", "MANAGER", "FINANCE", "TRAVEL
 
 function Submit() {
   const { pending } = useFormStatus();
-  return <Button variant="primary" disabled={pending}>{pending ? "Creating…" : "Create member"}</Button>;
+  return <Button variant="primary" disabled={pending} className="w-full sm:w-auto">{pending ? "Création…" : "Créer le membre"}</Button>;
 }
 
 export function TeamForm({
@@ -25,44 +26,44 @@ export function TeamForm({
   const roles = allowSuperAdmin ? ROLES : ROLES.filter((r) => r !== "SUPER_ADMIN");
 
   return (
-    <form action={formAction} className="grid gap-5 sm:grid-cols-2">
-      <div>
-        <Field label="First name"><Input name="firstName" required /></Field>
-        {err("firstName") && <p className="mt-1 text-xs text-red-500">{err("firstName")}</p>}
+    <form action={formAction} className="grid w-full max-w-3xl min-w-0 gap-4 sm:gap-5 sm:grid-cols-2">
+      <div className="min-w-0">
+        <Field label="Prénom"><Input name="firstName" required autoComplete="given-name" className="min-w-0" /></Field>
+        {err("firstName") ? <p className="mt-1 break-words text-xs text-red-400">{err("firstName")}</p> : null}
       </div>
-      <div>
-        <Field label="Last name"><Input name="lastName" required /></Field>
-        {err("lastName") && <p className="mt-1 text-xs text-red-500">{err("lastName")}</p>}
+      <div className="min-w-0">
+        <Field label="Nom"><Input name="lastName" required autoComplete="family-name" className="min-w-0" /></Field>
+        {err("lastName") ? <p className="mt-1 break-words text-xs text-red-400">{err("lastName")}</p> : null}
       </div>
-      <div>
-        <Field label="Email"><Input name="email" type="email" required /></Field>
-        {err("email") && <p className="mt-1 text-xs text-red-500">{err("email")}</p>}
+      <div className="min-w-0">
+        <Field label="Email"><Input name="email" type="email" required autoComplete="email" inputMode="email" className="min-w-0" /></Field>
+        {err("email") ? <p className="mt-1 break-words text-xs text-red-400">{err("email")}</p> : null}
       </div>
-      <div>
-        <Field label="Phone (optional)"><Input name="phone" /></Field>
+      <div className="min-w-0">
+        <Field label="Téléphone (facultatif)"><Input name="phone" type="tel" inputMode="tel" autoComplete="tel" className="min-w-0" /></Field>
       </div>
-      <div>
-        <Field label="Role">
-          <Select name="role" defaultValue="VIEWER">
+      <div className="min-w-0">
+        <Field label="Rôle">
+          <Select name="role" defaultValue="VIEWER" className="min-w-0">
             {roles.map((r) => <option key={r} value={r}>{r.replaceAll("_", " ")}</option>)}
           </Select>
         </Field>
-        {err("role") && <p className="mt-1 text-xs text-red-500">{err("role")}</p>}
+        {err("role") ? <p className="mt-1 break-words text-xs text-red-400">{err("role")}</p> : null}
       </div>
-      <div>
-        <Field label="Department (optional)">
-          <Select name="departmentId" defaultValue="">
-            <option value="">— None —</option>
+      <div className="min-w-0">
+        <Field label="Département (facultatif)">
+          <Select name="departmentId" defaultValue="" className="min-w-0">
+            <option value="">— Aucun —</option>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
           </Select>
         </Field>
-        {err("departmentId") && <p className="mt-1 text-xs text-red-500">{err("departmentId")}</p>}
+        {err("departmentId") ? <p className="mt-1 break-words text-xs text-red-400">{err("departmentId")}</p> : null}
       </div>
-      <div className="sm:col-span-2">
-        <Field label="Temporary password" hint="Minimum 10 characters. Ask the member to change it after first login.">
-          <Input name="password" type="password" required minLength={10} />
+      <div className="min-w-0 sm:col-span-2">
+        <Field label="Mot de passe temporaire" hint="Minimum 10 caractères. Demandez au membre de le modifier après sa première connexion.">
+          <Input name="password" type="password" required minLength={10} autoComplete="new-password" className="min-w-0" />
         </Field>
-        {err("password") && <p className="mt-1 text-xs text-red-500">{err("password")}</p>}
+        {err("password") ? <p className="mt-1 break-words text-xs text-red-400">{err("password")}</p> : null}
       </div>
       <div className="sm:col-span-2"><Submit /></div>
     </form>
