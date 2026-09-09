@@ -12,7 +12,6 @@ export default async function HistoricalBackfillPage({ searchParams }: { searchP
 
   const [clients, cases] = await Promise.all([
     prisma.client.findMany({
-      where: { status: { not: "ARCHIVED" } },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       select: { id: true, firstName: true, lastName: true, internalId: true },
     }),
@@ -29,7 +28,7 @@ export default async function HistoricalBackfillPage({ searchParams }: { searchP
       subtitle="Enter old payments and refunds that happened before they were recorded in JUN — all in one audited batch."
     />
     <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-      Use this page only for late historical entry. Payments entered here become <strong>CONFIRMED</strong> immediately and refunds that were already completed become <strong>PAID</strong> immediately, using the original transaction dates. This makes the client financial history available to statements and JUN AI document drafting.
+      Use this page only for late historical entry. Payments entered here become <strong>CONFIRMED</strong> immediately and refunds that were already completed become <strong>PAID</strong> immediately, using the original transaction dates. This also works for inactive or archived clients because the action records past history rather than creating a new commercial transaction. The data becomes available to statements and JUN AI document drafting.
     </div>
     <HistoricalFinancialBackfillForm clients={clients} cases={cases} batchId={randomUUID()} defaultClientId={searchParams.clientId} />
   </div>;
