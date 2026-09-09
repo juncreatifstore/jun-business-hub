@@ -111,12 +111,29 @@ export function sanitizeDocumentHtml(dirty: string): string {
   });
 }
 
-/** Plain-text extraction (for AI context minimization, previews, PDF fallback). */
+/**
+ * Plain-text extraction for AI context, previews and PDF rendering.
+ * Preserve semantic block boundaries before stripping HTML so headings,
+ * paragraphs and list items never collapse into one continuous sentence.
+ */
 export function htmlToText(html: string): string {
   const normalized = normalizeDocumentHtmlInput(html);
-  return sanitizeHtml(normalized, { allowedTags: [], allowedAttributes: {} })
-    .replace(/\s+\n/g, "\n")
+  const safeHtml = sanitizeDocumentHtml(normalized);
+
+  const structured = safeHtml
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<hr\b[^>]*\/?>/gi, "\n")
+    .replace(/<li\b[^>]*>/gi, "• ")
+    .replace(/<\/li\s*>/gi, "\n")
+    .replace(/<\/(?:td|th)\s*>/gi, " | ")
+    .replace(/<\/(?:h[1-6]|p|div|blockquote|pre|ul|ol|table|thead|tbody|tr)\s*>/gi, "\n");
+
+  return sanitizeHtml(structured, { allowedTags: [], allowedAttributes: {} })
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
     .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .replace(/^\s*html\s*$/gim, "")
     .trim();
 }
