@@ -15,6 +15,24 @@ import { revalidatePath } from "next/cache";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ALLOWED_ROLES = new Set(["CLIENT", "AGENCY", "WITNESS", "GUARANTOR", "PARTNER", "OTHER"]);
+const CLIENT_SIGNATURE_REQUIRED_TYPES = new Set(["CONTRACT", "AGREEMENT", "REFUND_AGREEMENT"]);
+
+function clientSignaturePolicyError(
+  documentType: string,
+  client: { email: string | null } | null,
+  recipients: SignatureRecipient[],
+): string | null {
+  if (!CLIENT_SIGNATURE_REQUIRED_TYPES.has(documentType)) return null;
+  const clientSigner = recipients.find((recipient) => recipient.role === "CLIENT");
+  if (!clientSigner) return "This agreement requires the client as a signer. Add a signer with role CLIENT.";
+  if (client?.email && clientSigner.email.toLowerCase() !== client.email.toLowerCase()) {
+    return `The CLIENT signer must use the client's saved email address (${client.email}).`;
+  }
+  if (!(clientSigner.fields ?? []).some((field) => field.type === "SIGNATURE")) {
+    return "The CLIENT signer must have a signature field.";
+  }
+  return null;
+}
 
 async function finalPdfBytes(documentId: string): Promise<Uint8Array> {
   const doc = await prisma.document.findUnique({
@@ -149,6 +167,9 @@ export async function createSignatureCenterRequest(formData: FormData): Promise<
   if (!doc) redirect("/app/signatures/new?toast_error=Document not found");
   if (doc.status !== "FINAL") redirect("/app/signatures/new?toast_error=Only finalized documents can be prepared for signature");
 
+  const policyError = clientSignaturePolicyError(doc.type, doc.client, recipients);
+  if (policyError) redirect(`/app/signatures/new?toast_error=${encodeURIComponent(policyError)}`);
+
   const duplicate = await prisma.signatureRequest.findFirst({
     where: { documentId: doc.id, status: { in: ["READY_FOR_SIGNATURE", "SENT", "VIEWED", "PARTIALLY_SIGNED"] } },
     select: { id: true },
@@ -200,6 +221,7 @@ export async function createSignatureCenterRequest(formData: FormData): Promise<
       fieldCount,
       roles,
       messageIncluded: Boolean(message),
+      clientSignatureRequired: CLIENT_SIGNATURE_REQUIRED_TYPES.has(doc.type),
     },
   });
   await logActivity({
@@ -218,7 +240,7 @@ export async function sendPreparedSignatureRequest(requestId: string): Promise<v
   const user = await assertPermission("DOCUMENT_SIGN");
   const request = await prisma.signatureRequest.findUnique({
     where: { id: requestId },
-    include: { document: true },
+    include: { document: { include: { client: true } } },
   });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
   if (request.status !== "READY_FOR_SIGNATURE") redirect(`/app/signatures/${request.id}?toast_error=Only prepared requests can be sent`);
@@ -230,6 +252,8 @@ export async function sendPreparedSignatureRequest(requestId: string): Promise<v
   const recipients = signatureRecipients(request.recipients);
   const message = signatureRequestMeta(request.recipients).message ?? "";
   if (!recipients.length) redirect(`/app/signatures/${request.id}?toast_error=No signers are configured`);
+  const policyError = clientSignaturePolicyError(request.document.type, request.document.client, recipients);
+  if (policyError) redirect(`/app/signatures/${request.id}?toast_error=${encodeURIComponent(policyError)}`);
 
   try {
     const envelope = await dispatchToDocuSign({ document: request.document, recipients, message });
@@ -247,7 +271,7 @@ export async function sendPreparedSignatureRequest(requestId: string): Promise<v
       action: "SIGNATURE_PREPARED_REQUEST_SENT",
       resourceType: "SignatureRequest",
       resourceId: request.id,
-      after: { provider: "DOCUSIGN", signerCount: recipients.length },
+      after: { provider: "DOCUSIGN", signerCount: recipients.length, clientSignatureRequired: CLIENT_SIGNATURE_REQUIRED_TYPES.has(request.document.type) },
     });
   } catch (e) {
     redirect(`/app/signatures/${request.id}?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "DocuSign send failed")}`);
