@@ -19,19 +19,23 @@ export default async function NewExpensePage({searchParams}:{searchParams:{clien
   const selectedCase=cases.find(c=>c.id===requestedCaseId);
   const defaultClientId=clients.some(c=>c.id===requestedClientId)?requestedClientId:(selectedCase?.clientId||"");
   const defaultCaseId=selectedCase&&(!defaultClientId||selectedCase.clientId===defaultClientId)?selectedCase.id:"";
-  return <div className="max-w-4xl"><PageHeader title="New expense" subtitle="Register a vendor bill or company expense before approval and payment."/>
-    <Card><CardContent className="p-5"><form action={createExpense} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Vendor / payee"><Input name="vendorName" required maxLength={200}/></Field>
-      <Field label="Vendor country"><Input name="vendorCountry" maxLength={120}/></Field>
-      <Field label="Category"><Select name="category" defaultValue="OTHER">{EXPENSE_CATEGORIES.map(c=><option key={c} value={c}>{c.replaceAll("_"," ")}</option>)}</Select></Field>
-      <Field label="Invoice number"><Input name="invoiceNumber" maxLength={120}/></Field>
-      <Field label="Amount"><Input name="amount" type="number" min="0.01" step="0.01" required/></Field>
-      <Field label="Currency"><Input name="currency" defaultValue="USD" maxLength={3} required/></Field>
-      <Field label="Due date"><Input name="dueDate" type="date"/></Field>
-      <Field label="Invoice / proof file ID" hint="Optional JUN Drive file ID"><Input name="invoiceFileId"/></Field>
-      <Field label="Client (optional)"><Select name="clientId" defaultValue={defaultClientId}><option value="">No client</option>{clients.map(c=><option key={c.id} value={c.id}>{c.lastName}, {c.firstName} — {c.internalId}</option>)}</Select></Field>
-      <Field label="Case (optional)"><Select name="caseId" defaultValue={defaultCaseId}><option value="">No case</option>{cases.filter(c=>!defaultClientId||c.clientId===defaultClientId).map(c=><option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}</Select></Field>
-      <div className="sm:col-span-2"><Field label="Description / business purpose"><Textarea name="description" rows={5} required/></Field></div>
-      <div className="sm:col-span-2"><Button variant="primary" type="submit">Create draft expense</Button></div>
-    </form></CardContent></Card></div>;
+  return <div className="mx-auto w-full max-w-4xl space-y-4 sm:space-y-5">
+    <PageHeader title="Nouvelle dépense" subtitle="Enregistrer une facture fournisseur ou une dépense d’entreprise avant approbation et paiement."/>
+    <Card><CardContent className="p-4 sm:p-5">
+      <form action={createExpense} className="grid gap-4 sm:grid-cols-2">
+        <Field label="Fournisseur / bénéficiaire"><Input name="vendorName" required maxLength={200} autoComplete="organization" /></Field>
+        <Field label="Pays du fournisseur"><Input name="vendorCountry" maxLength={120} autoComplete="country-name" /></Field>
+        <Field label="Catégorie"><Select name="category" defaultValue="OTHER">{EXPENSE_CATEGORIES.map(c=><option key={c} value={c}>{c.replaceAll("_"," ")}</option>)}</Select></Field>
+        <Field label="Numéro de facture"><Input name="invoiceNumber" maxLength={120}/></Field>
+        <Field label="Montant"><Input name="amount" type="number" inputMode="decimal" min="0.01" step="0.01" required/></Field>
+        <Field label="Devise"><Input name="currency" defaultValue="USD" maxLength={3} required className="uppercase" /></Field>
+        <Field label="Date d’échéance"><Input name="dueDate" type="date"/></Field>
+        <Field label="ID du justificatif" hint="ID de fichier JUN Drive facultatif"><Input name="invoiceFileId"/></Field>
+        <Field label="Client (facultatif)"><Select name="clientId" defaultValue={defaultClientId}><option value="">Aucun client</option>{clients.map(c=><option key={c.id} value={c.id}>{c.lastName}, {c.firstName} — {c.internalId}</option>)}</Select></Field>
+        <Field label="Dossier (facultatif)"><Select name="caseId" defaultValue={defaultCaseId}><option value="">Aucun dossier</option>{cases.filter(c=>!defaultClientId||c.clientId===defaultClientId).map(c=><option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}</Select></Field>
+        <div className="sm:col-span-2"><Field label="Description / objectif de la dépense"><Textarea name="description" rows={5} required/></Field></div>
+        <div className="sm:col-span-2"><Button variant="primary" type="submit" className="w-full sm:w-auto">Créer la dépense brouillon</Button></div>
+      </form>
+    </CardContent></Card>
+  </div>;
 }
