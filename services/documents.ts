@@ -5,7 +5,8 @@ import { audit, logActivity } from "@/lib/audit";
 import { documentSchema, emptyToNull } from "@/lib/validation";
 import { nextNumber, DOC_PREFIX } from "@/lib/sequence";
 import { sha256 } from "@/lib/hash";
-import { sanitizeDocumentHtml } from "@/lib/sanitize";
+import { htmlToText, sanitizeDocumentHtml } from "@/lib/sanitize";
+import { checkRefundAgreementArithmetic } from "@/lib/document-financial-integrity";
 import { isDocumentFrozen } from "@/lib/portal";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -97,6 +98,26 @@ export async function finalizeDocument(documentId: string, formData?: FormData) 
   if (latest.version !== expectedVersion || contentHash !== expectedHash) {
     await audit({ userId: user.id, action: "DOCUMENT_FINALIZE_STALE_PREVIEW", resourceType: "Document", resourceId: documentId, after: { expectedVersion, actualVersion: latest.version, expectedHash, actualHash: contentHash } });
     redirect(`/app/documents/${documentId}/finalize?error=${encodeURIComponent("The document changed after this preview was opened. Review the latest version before finalizing.")}`);
+  }
+
+  const financialIssues = checkRefundAgreementArithmetic(htmlToText(latest.content));
+  if (financialIssues.length) {
+    const issue = financialIssues[0];
+    await audit({
+      userId: user.id,
+      action: "DOCUMENT_FINALIZE_FINANCIAL_CHECK_FAILED",
+      resourceType: "Document",
+      resourceId: documentId,
+      after: {
+        version: latest.version,
+        code: issue.code,
+        totalDeposited: issue.totalDeposited,
+        refundsReceived: issue.refundsReceived,
+        expectedRemaining: issue.expectedRemaining,
+        statedRemaining: issue.statedRemaining,
+      },
+    });
+    redirect(`/app/documents/${documentId}/finalize?error=${encodeURIComponent(`${issue.message} Correct the draft before sealing it.`)}`);
   }
 
   let finalPdfKey: string;
