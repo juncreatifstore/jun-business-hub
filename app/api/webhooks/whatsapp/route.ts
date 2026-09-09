@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWhatsAppWebhookVerifyToken } from "@/lib/whatsapp";
 import { recordIncomingWhatsAppMessage } from "@/lib/whatsapp-inbox";
+import { signatureRecipients, signatureRecipientsPayload, signatureRequestMeta } from "@/lib/signature-recipients";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -9,50 +10,18 @@ export async function GET(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("hub.mode");
   const token = request.nextUrl.searchParams.get("hub.verify_token");
   const challenge = request.nextUrl.searchParams.get("hub.challenge");
-
   const envToken = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
   const dbToken = await getWhatsAppWebhookVerifyToken();
   const expected = envToken || dbToken;
   const tokenMatches = Boolean(token && expected && token === expected);
-
-  const diagnostic = {
-    mode,
-    tokenPresent: Boolean(token),
-    challengePresent: Boolean(challenge),
-    envTokenConfigured: Boolean(envToken),
-    dbTokenConfigured: Boolean(dbToken),
-    expectedTokenConfigured: Boolean(expected),
-    tokenMatches,
-    host: request.headers.get("host"),
-    userAgent: request.headers.get("user-agent"),
-  };
+  const diagnostic = { mode, tokenPresent: Boolean(token), challengePresent: Boolean(challenge), envTokenConfigured: Boolean(envToken), dbTokenConfigured: Boolean(dbToken), expectedTokenConfigured: Boolean(expected), tokenMatches, host: request.headers.get("host"), userAgent: request.headers.get("user-agent") };
 
   if (mode === "subscribe" && tokenMatches && challenge) {
     console.warn("[WhatsApp webhook verify] SUCCESS", diagnostic);
-    return new NextResponse(challenge, {
-      status: 200,
-      headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" },
-    });
+    return new NextResponse(challenge, { status: 200, headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" } });
   }
-
-  // Use error level temporarily so the diagnostic is visible even when Vercel log filters hide info logs.
   console.error("[WhatsApp webhook verify] FAILED", diagnostic);
-  return NextResponse.json(
-    {
-      ok: false,
-      error: "Webhook verification failed",
-      diagnostic: {
-        mode,
-        tokenPresent: Boolean(token),
-        challengePresent: Boolean(challenge),
-        envTokenConfigured: Boolean(envToken),
-        dbTokenConfigured: Boolean(dbToken),
-        expectedTokenConfigured: Boolean(expected),
-        tokenMatches,
-      },
-    },
-    { status: 403, headers: { "Cache-Control": "no-store" } },
-  );
+  return NextResponse.json({ ok: false, error: "Webhook verification failed", diagnostic: { mode, tokenPresent: Boolean(token), challengePresent: Boolean(challenge), envTokenConfigured: Boolean(envToken), dbTokenConfigured: Boolean(dbToken), expectedTokenConfigured: Boolean(expected), tokenMatches } }, { status: 403, headers: { "Cache-Control": "no-store" } });
 }
 
 type MetaStatus = {
@@ -75,13 +44,30 @@ function statusLabel(status: string) {
 function failureDetails(status: MetaStatus) {
   const err = status.errors?.[0];
   if (!err) return "Meta did not provide a failure reason.";
-  const parts = [
-    err.code != null ? `code ${err.code}` : "",
-    err.title || "",
-    err.message || "",
-    err.error_data?.details || "",
-  ].filter(Boolean);
-  return parts.join(" · ").slice(0, 1500);
+  return [err.code != null ? `code ${err.code}` : "", err.title || "", err.message || "", err.error_data?.details || ""].filter(Boolean).join(" · ").slice(0, 1500);
+}
+
+async function syncSignatureDelivery(signatureRequestId: string, messageId: string, status: MetaStatus) {
+  const request = await prisma.signatureRequest.findUnique({ where: { id: signatureRequestId }, select: { id: true, recipients: true } });
+  if (!request) return;
+  const meta = signatureRequestMeta(request.recipients);
+  if (meta.whatsappMessageId && meta.whatsappMessageId !== messageId) return;
+  const recipients = signatureRecipients(request.recipients);
+  const label = statusLabel(String(status.status || ""));
+  if (!["SENT", "DELIVERED", "READ", "FAILED"].includes(label)) return;
+  const reason = label === "FAILED" ? failureDetails(status) : undefined;
+  await prisma.signatureRequest.update({
+    where: { id: request.id },
+    data: {
+      recipients: signatureRecipientsPayload(recipients, {
+        ...meta,
+        whatsappMessageId: messageId,
+        whatsappDeliveryStatus: label as "SENT" | "DELIVERED" | "READ" | "FAILED",
+        whatsappDeliveryUpdatedAt: new Date().toISOString(),
+        whatsappFailureReason: reason,
+      }) as never,
+    },
+  });
 }
 
 async function recordStatus(status: MetaStatus) {
@@ -89,23 +75,23 @@ async function recordStatus(status: MetaStatus) {
   const state = String(status.status || "").trim().toLowerCase();
   if (!messageId || !state) return;
 
-  const origin = await prisma.activity.findFirst({
+  const origins = await prisma.activity.findMany({
     where: { message: { contains: messageId } },
     orderBy: { createdAt: "desc" },
+    take: 12,
     select: { clientId: true, caseId: true, resourceType: true, resourceId: true },
   });
+  const signatureOrigin = origins.find((item) => item.resourceType === "SignatureRequest" && item.resourceId);
+  const origin = signatureOrigin ?? origins[0];
+
+  if (signatureOrigin?.resourceId) {
+    await syncSignatureDelivery(signatureOrigin.resourceId, messageId, status).catch((error) => console.error("[WhatsApp signature delivery sync]", error));
+  }
 
   const label = statusLabel(state);
   const recipient = status.recipient_id ? ` to ${status.recipient_id}` : "";
   const reason = state === "failed" ? ` · ${failureDetails(status)}` : "";
-
-  const duplicate = await prisma.activity.findFirst({
-    where: {
-      type: `WHATSAPP_${label}`,
-      message: { contains: messageId },
-    },
-    select: { id: true },
-  });
+  const duplicate = await prisma.activity.findFirst({ where: { type: `WHATSAPP_${label}`, message: { contains: messageId } }, select: { id: true } });
   if (duplicate) return;
 
   await prisma.activity.create({
@@ -121,17 +107,8 @@ async function recordStatus(status: MetaStatus) {
 }
 
 async function recordWebhookHeartbeat(input: { messages: number; statuses: number; entries: number }) {
-  const value = JSON.stringify({
-    receivedAt: new Date().toISOString(),
-    messages: input.messages,
-    statuses: input.statuses,
-    entries: input.entries,
-  });
-  await prisma.appSetting.upsert({
-    where: { key: "whatsapp.webhook.last_event" },
-    create: { key: "whatsapp.webhook.last_event", value },
-    update: { value },
-  });
+  const value = JSON.stringify({ receivedAt: new Date().toISOString(), messages: input.messages, statuses: input.statuses, entries: input.entries });
+  await prisma.appSetting.upsert({ where: { key: "whatsapp.webhook.last_event" }, create: { key: "whatsapp.webhook.last_event", value }, update: { value } });
 }
 
 export async function POST(request: NextRequest) {
@@ -147,11 +124,7 @@ export async function POST(request: NextRequest) {
         const value = change?.value || {};
         const statuses: MetaStatus[] = Array.isArray(value?.statuses) ? value.statuses : [];
         statusCount += statuses.length;
-        for (const status of statuses) {
-          await recordStatus(status).catch((error) => {
-            console.error("[WhatsApp webhook status]", error);
-          });
-        }
+        for (const status of statuses) await recordStatus(status).catch((error) => console.error("[WhatsApp webhook status]", error));
 
         const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
         const contactNames = new Map<string, string>();
@@ -165,20 +138,12 @@ export async function POST(request: NextRequest) {
         messageCount += messages.length;
         for (const message of messages) {
           const from = String(message?.from || "").replace(/[^0-9]/g, "");
-          await recordIncomingWhatsAppMessage({
-            message,
-            contactName: contactNames.get(from),
-          }).catch((error) => {
-            console.error("[WhatsApp webhook inbound]", error);
-          });
+          await recordIncomingWhatsAppMessage({ message, contactName: contactNames.get(from) }).catch((error) => console.error("[WhatsApp webhook inbound]", error));
         }
       }
     }
 
-    await recordWebhookHeartbeat({ messages: messageCount, statuses: statusCount, entries: entries.length }).catch((error) => {
-      console.error("[WhatsApp webhook heartbeat]", error);
-    });
-
+    await recordWebhookHeartbeat({ messages: messageCount, statuses: statusCount, entries: entries.length }).catch((error) => console.error("[WhatsApp webhook heartbeat]", error));
     console.info("[WhatsApp webhook] processed", { entries: entries.length, messages: messageCount, statuses: statusCount });
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error) {
