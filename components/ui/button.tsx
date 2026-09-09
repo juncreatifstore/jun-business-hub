@@ -3,17 +3,17 @@ import { cn } from "@/lib/utils";
 import { forwardRef } from "react";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric/60 focus-visible:ring-offset-2 focus-visible:ring-offset-night disabled:pointer-events-none disabled:opacity-50 active:translate-y-px",
   {
     variants: {
       variant: {
-        default: "bg-night text-white hover:bg-night-soft",
-        primary: "bg-electric text-white hover:brightness-110",
-        outline: "border border-line bg-white hover:bg-surface",
-        ghost: "hover:bg-night/5",
-        danger: "bg-red-600 text-white hover:bg-red-700",
-        gold: "bg-gold/15 text-night border border-gold/40 hover:bg-gold/25",
-        secondary: "border border-line bg-surface hover:bg-night/5",
+        default: "bg-night text-white shadow-sm hover:bg-night-soft",
+        primary: "bg-electric text-white shadow-md shadow-blue-950/20 hover:brightness-110",
+        outline: "border border-line bg-white hover:border-white/15 hover:bg-surface",
+        ghost: "hover:bg-white/[0.05]",
+        danger: "bg-red-600 text-white shadow-sm shadow-red-950/20 hover:bg-red-500",
+        gold: "border border-gold/40 bg-gold/15 text-gold hover:bg-gold/25",
+        secondary: "border border-line bg-surface hover:bg-white/[0.05]",
       },
       size: {
         default: "h-9 px-4",
