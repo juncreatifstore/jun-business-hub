@@ -1,46 +1,49 @@
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
-  // shared status vocabulary across modules
-  OPEN: "bg-electric/10 text-electric",
-  IN_PROGRESS: "bg-amber-100 text-amber-800",
-  WAITING_CLIENT: "bg-purple-100 text-purple-800",
-  WAITING_INTERNAL: "bg-purple-100 text-purple-800",
-  WAITING: "bg-purple-100 text-purple-800",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
-  DONE: "bg-emerald-100 text-emerald-800",
-  CANCELLED: "bg-gray-100 text-gray-600",
-  ARCHIVED: "bg-gray-100 text-gray-600",
-  TODO: "bg-electric/10 text-electric",
-  PENDING: "bg-amber-100 text-amber-800",
-  CONFIRMED: "bg-emerald-100 text-emerald-800",
-  REJECTED: "bg-red-100 text-red-700",
-  REFUNDED: "bg-gray-100 text-gray-600",
-  PARTIALLY_REFUNDED: "bg-amber-100 text-amber-800",
-  REQUESTED: "bg-electric/10 text-electric",
-  UNDER_REVIEW: "bg-amber-100 text-amber-800",
-  APPROVED: "bg-emerald-100 text-emerald-800",
-  PARTIALLY_PAID: "bg-amber-100 text-amber-800",
-  PAID: "bg-emerald-100 text-emerald-800",
-  DRAFT: "bg-gray-100 text-gray-700",
-  FINAL: "bg-night text-white",
-  SIGNED: "bg-emerald-100 text-emerald-800",
-  VOIDED: "bg-red-100 text-red-700",
-  ACTIVE: "bg-emerald-100 text-emerald-800",
-  LEAD: "bg-electric/10 text-electric",
-  INACTIVE: "bg-gray-100 text-gray-600",
-  LOW: "bg-gray-100 text-gray-600",
-  MEDIUM: "bg-electric/10 text-electric",
-  HIGH: "bg-amber-100 text-amber-800",
-  URGENT: "bg-red-100 text-red-700",
-  PROPOSED: "bg-electric/10 text-electric",
-  EXECUTED: "bg-emerald-100 text-emerald-800",
-  FAILED: "bg-red-100 text-red-700",
+  OPEN: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  IN_PROGRESS: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
+  WAITING_CLIENT: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
+  WAITING_INTERNAL: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
+  WAITING: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
+  COMPLETED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  DONE: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  CANCELLED: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
+  ARCHIVED: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
+  TODO: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  PENDING: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
+  CONFIRMED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  REJECTED: "border border-red-500/20 bg-red-500/10 text-red-600",
+  REFUNDED: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
+  PARTIALLY_REFUNDED: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
+  REQUESTED: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  UNDER_REVIEW: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
+  APPROVED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  PARTIALLY_PAID: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
+  PAID: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  DRAFT: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
+  FINAL: "border border-blue-400/20 bg-blue-500/15 text-blue-300",
+  SIGNED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  VOIDED: "border border-red-500/20 bg-red-500/10 text-red-600",
+  ACTIVE: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  LEAD: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  INACTIVE: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
+  LOW: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
+  MEDIUM: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  HIGH: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
+  URGENT: "border border-red-500/20 bg-red-500/10 text-red-600",
+  PROPOSED: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  EXECUTED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+  FAILED: "border border-red-500/20 bg-red-500/10 text-red-600",
+  READY_FOR_SIGNATURE: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  SENT: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
+  VIEWED: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
+  PARTIALLY_SIGNED: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
 };
 
 export function Badge({ className, children, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium", className)} {...props}>
+    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em]", className)} {...props}>
       {children}
     </span>
   );
@@ -48,7 +51,7 @@ export function Badge({ className, children, ...props }: React.HTMLAttributes<HT
 
 export function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge className={STATUS_STYLES[status] ?? "bg-gray-100 text-gray-700"}>
+    <Badge className={STATUS_STYLES[status] ?? "border border-slate-500/15 bg-slate-500/10 text-slate-500"}>
       {status.replaceAll("_", " ")}
     </Badge>
   );
