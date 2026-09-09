@@ -3,15 +3,17 @@ import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/app/page-header";
 import { Table, THead, TH, TR, TD } from "@/components/ui/table";
-import { StatusBadge } from "@/components/ui/badge";
+import { StatusBadge, Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ListCount, Pagination, RecordCard, RecordField } from "@/components/ui/record-list";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { signatureRecipients, signatureRequestMeta } from "@/lib/signature-recipients";
 import { AlertTriangle, CheckCircle2, Clock3, Eye, FileSignature, MailCheck, PenLine, Search, Send, ShieldCheck, XCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+const PAGE_SIZE=25;
 
 const FILTERS = [
   { key: "READY_FOR_SIGNATURE", label: "Préparées", icon: FileSignature },
@@ -25,7 +27,7 @@ const FILTERS = [
 ] as const;
 
 type DashboardFilter = typeof FILTERS[number]["key"];
-type SearchParams = { status?: string; q?: string; attention?: string; expiring?: string };
+type SearchParams = { status?: string; q?: string; attention?: string; expiring?: string; page?: string };
 
 function expiryFor(request: { recipients: unknown; sentAt: Date | null }) {
   const meta = signatureRequestMeta(request.recipients);
@@ -46,15 +48,15 @@ function attentionReason(request: { status: string; recipients: unknown; sentAt:
   return null;
 }
 function queryHref(params: SearchParams, patch: Partial<SearchParams>) {
-  const merged = { ...params, ...patch }; const sp = new URLSearchParams();
-  if (merged.status) sp.set("status", merged.status); if (merged.q) sp.set("q", merged.q); if (merged.attention) sp.set("attention", merged.attention); if (merged.expiring) sp.set("expiring", merged.expiring);
+  const merged:SearchParams = { ...params, ...patch }; if(!Object.prototype.hasOwnProperty.call(patch,"page")) merged.page=undefined; const sp = new URLSearchParams();
+  if (merged.status) sp.set("status", merged.status); if (merged.q) sp.set("q", merged.q); if (merged.attention) sp.set("attention", merged.attention); if (merged.expiring) sp.set("expiring", merged.expiring); if(merged.page&&merged.page!=="1")sp.set("page",merged.page);
   const qs = sp.toString(); return `/app/signatures${qs ? `?${qs}` : ""}`;
 }
 
 export default async function SignaturesPage({ searchParams }: { searchParams?: SearchParams }) {
   await requirePermission("DOCUMENT_READ");
   const params = searchParams ?? {}; const status = FILTERS.some((f) => f.key === params.status) ? params.status as DashboardFilter : undefined;
-  const query = (params.q ?? "").trim().toLowerCase(); const attentionOnly = params.attention === "1"; const expiringOnly = params.expiring === "1"; const now = new Date();
+  const query = (params.q ?? "").trim().toLowerCase(); const attentionOnly = params.attention === "1"; const expiringOnly = params.expiring === "1"; const requestedPage=Math.max(1,Number.parseInt(params.page??"1",10)||1); const now = new Date();
   const requests = await prisma.signatureRequest.findMany({ orderBy: { createdAt: "desc" }, take: 500, include: { document: { include: { client: true } }, createdBy: true } });
   const enriched = requests.map((request) => {
     const recipients = signatureRecipients(request.recipients).sort((a, b) => a.order - b.order); const signed = recipients.filter((r) => r.signedAt).length;
@@ -70,6 +72,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
     if (status && (status === "VERIFIED" ? !item.verified : item.request.status !== status)) return false; if (attentionOnly && !item.attention) return false; if (expiringOnly && !item.expiringSoon) return false; if (!query) return true;
     const client = item.request.document.client; const haystack = [item.request.document.documentId,item.request.document.title,client?.firstName,client?.lastName,client?.email,client?.internalId,...item.recipients.flatMap((r) => [r.name, r.email, r.role ?? ""])].filter(Boolean).join(" ").toLowerCase(); return haystack.includes(query);
   });
+  const total=filtered.length; const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE)); const page=Math.min(requestedPage,totalPages); const pageItems=filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE); const paginationParams={status, q:params.q||undefined, attention:attentionOnly?"1":undefined, expiring:expiringOnly?"1":undefined};
 
   return <div>
     <PageHeader title="Signatures électroniques" subtitle="Suivez la préparation, la vérification d’identité, l’envoi, la signature et les exceptions JUN Secure Sign." actions={<Link href="/app/signatures/new"><Button variant="primary">Nouvelle demande</Button></Link>} />
@@ -81,7 +84,13 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
     </div>
     <div className="mb-5 flex flex-wrap gap-2"><Link href={queryHref(params,{status:undefined})}><Button size="sm" variant={!status?"primary":"secondary"}>Toutes <span className="ml-1 opacity-70">{enriched.length}</span></Button></Link>{FILTERS.map((filter)=><Link key={filter.key} href={queryHref(params,{status:status===filter.key?undefined:filter.key})}><Button size="sm" variant={status===filter.key?"primary":"secondary"}><filter.icon className="mr-1.5 h-3.5 w-3.5" />{filter.label}<span className="ml-1 opacity-70">{statusCounts[filter.key]??0}</span></Button></Link>)}</div>
     <form method="get" action="/app/signatures" className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">{status?<input type="hidden" name="status" value={status}/>:null}{attentionOnly?<input type="hidden" name="attention" value="1"/>:null}{expiringOnly?<input type="hidden" name="expiring" value="1"/>:null}<div className="relative min-w-[260px] flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2"/><input name="q" defaultValue={params.q??""} placeholder="Client, document, email du signataire…" className="h-10 w-full rounded-xl border border-line bg-white/[0.025] pl-9 pr-3 text-sm outline-none focus:border-electric focus:ring-2 focus:ring-electric/20"/></div><Button type="submit" variant="secondary">Rechercher</Button>{(query||status||attentionOnly||expiringOnly)?<Link href="/app/signatures"><Button type="button" variant="ghost">Réinitialiser</Button></Link>:null}</form>
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted2"><p>{filtered.length} demande{filtered.length===1?"":"s"} affichée{filtered.length===1?"":"s"}</p>{(attentionOnly||expiringOnly)?<p>{attentionOnly?"À traiter":""}{attentionOnly&&expiringOnly?" · ":""}{expiringOnly?"Expire sous 3 jours":""}</p>:null}</div>
-    {filtered.length===0?(requests.length===0?<EmptyState icon={PenLine} title="Aucune demande de signature" description="Créez la première demande depuis un document finalisé." actionHref="/app/signatures/new" actionLabel="Nouvelle demande"/>:<EmptyState icon={Search} title="Aucun résultat" description="Essayez un autre statut, client, identifiant de document ou email."/>):<Table><THead><tr><TH>Document / client</TH><TH>Progression</TH><TH>Statut</TH><TH>Expiration</TH><TH>Attention</TH><TH>Créée</TH></tr></THead><tbody>{filtered.map(({request,recipients,signed,verified,expiresAt,attention})=>{const client=request.document.client;const current=recipients.find((r)=>!r.signedAt&&!r.declinedAt);return <TR key={request.id}><TD><Link href={`/app/signatures/${request.id}`} className="registry-id font-medium hover:text-electric">{request.document.documentId}</Link><div className="max-w-[320px] truncate text-xs text-muted2">{request.document.title}</div>{client?<div className="mt-1 text-xs">{client.firstName} {client.lastName}{client.email?<span className="text-muted2"> · {client.email}</span>:null}</div>:<div className="mt-1 text-xs text-muted2">Aucun client lié</div>}</TD><TD><div className="text-sm font-medium">{signed}/{recipients.length} signé(s)</div><div className="mt-0.5 text-xs text-muted2">{verified?<span className="mr-2 inline-flex items-center gap-1 text-emerald-400"><MailCheck className="h-3 w-3"/>Vérifiée</span>:null}{current?`Actuel : ${current.name} · ${current.email}`:signed===recipients.length&&recipients.length>0?"Tous les signataires ont terminé":"—"}</div></TD><TD><StatusBadge status={request.status}/></TD><TD className="text-muted2">{expiresAt?<><div>{formatDate(expiresAt)}</div><div className="text-xs">{formatDateTime(expiresAt)}</div></>:"—"}</TD><TD>{attention?<span className="inline-flex max-w-[230px] items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.08] px-2 py-1 text-xs text-amber-300"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>{attention}</span>:<span className="text-xs text-muted2">—</span>}</TD><TD className="text-muted2"><div>{formatDate(request.createdAt)}</div><div className="text-xs">{request.createdBy.firstName} {request.createdBy.lastName}</div></TD></TR>})}</tbody></Table>}
+    {pageItems.length===0?(requests.length===0?<EmptyState icon={PenLine} title="Aucune demande de signature" description="Créez la première demande depuis un document finalisé." actionHref="/app/signatures/new" actionLabel="Nouvelle demande"/>:<EmptyState icon={Search} title="Aucun résultat" description="Essayez un autre statut, client, identifiant de document ou email."/>):<>
+      <div className="mb-3"><ListCount shown={pageItems.length} total={total} label="demande" /></div>
+      <div className="hidden md:block"><Table><THead><tr><TH>Document / client</TH><TH>Progression</TH><TH>Statut</TH><TH>Expiration</TH><TH>Attention</TH><TH>Créée</TH></tr></THead><tbody>{pageItems.map(({request,recipients,signed,verified,expiresAt,attention})=>{const client=request.document.client;const current=recipients.find((r)=>!r.signedAt&&!r.declinedAt);return <TR key={request.id}><TD><Link href={`/app/signatures/${request.id}`} className="registry-id font-medium hover:text-electric">{request.document.documentId}</Link><div className="max-w-[320px] truncate text-xs text-muted2">{request.document.title}</div>{client?<div className="mt-1 text-xs">{client.firstName} {client.lastName}{client.email?<span className="text-muted2"> · {client.email}</span>:null}</div>:<div className="mt-1 text-xs text-muted2">Aucun client lié</div>}</TD><TD><div className="text-sm font-medium">{signed}/{recipients.length} signé(s)</div><div className="mt-0.5 text-xs text-muted2">{verified?<span className="mr-2 inline-flex items-center gap-1 text-emerald-400"><MailCheck className="h-3 w-3"/>Vérifiée</span>:null}{current?`Actuel : ${current.name} · ${current.email}`:signed===recipients.length&&recipients.length>0?"Tous les signataires ont terminé":"—"}</div></TD><TD><StatusBadge status={request.status}/></TD><TD className="text-muted2">{expiresAt?<><div>{formatDate(expiresAt)}</div><div className="text-xs">{formatDateTime(expiresAt)}</div></>:"—"}</TD><TD>{attention?<span className="inline-flex max-w-[230px] items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.08] px-2 py-1 text-xs text-amber-300"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>{attention}</span>:<span className="text-xs text-muted2">—</span>}</TD><TD className="text-muted2"><div>{formatDate(request.createdAt)}</div><div className="text-xs">{request.createdBy.firstName} {request.createdBy.lastName}</div></TD></TR>})}</tbody></Table></div>
+      <div className="grid gap-3 md:hidden">{pageItems.map(({request,recipients,signed,verified,expiresAt,attention})=>{const client=request.document.client;const current=recipients.find((r)=>!r.signedAt&&!r.declinedAt);return <RecordCard key={request.id} href={`/app/signatures/${request.id}`} title={request.document.title} subtitle={<span className="registry-id">{request.document.documentId}</span>} badges={<><StatusBadge status={request.status}/>{verified?<Badge className="border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">IDENTITÉ VÉRIFIÉE</Badge>:null}</>} footer={`Créée ${formatDate(request.createdAt)} · ${request.createdBy.firstName} ${request.createdBy.lastName}`}>
+        <RecordField label="Client" value={client?`${client.firstName} ${client.lastName}`:"—"}/><RecordField label="Progression" value={`${signed}/${recipients.length} signé(s)`}/><RecordField label="Signataire actuel" value={current?current.name:(signed===recipients.length&&recipients.length>0?"Terminé":"—")}/><RecordField label="Expiration" value={expiresAt?formatDate(expiresAt):"—"}/>{attention?<RecordField label="Attention" value={attention} valueClassName="text-amber-300"/>:null}
+      </RecordCard>})}</div>
+      <Pagination basePath="/app/signatures" page={page} totalPages={totalPages} params={paginationParams}/>
+    </>}
   </div>;
 }
