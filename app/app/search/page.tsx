@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatMoney } from "@/lib/utils";
 import { Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +17,8 @@ export default async function SearchPage({ searchParams }: { searchParams: { q?:
   if (!q) {
     return (
       <div>
-        <PageHeader title="Search" subtitle="Search across clients, cases, documents, payments and refunds." />
-        <EmptyState icon={Search} title="Type a query" description="Use the search bar in the header — names, case numbers, document ids, payment references…" />
+        <PageHeader title="Recherche globale" subtitle="Recherchez dans les clients, dossiers, documents, paiements, remboursements et signatures." />
+        <EmptyState icon={Search} title="Entrez une recherche" description="Utilisez ⌘ K / Ctrl K depuis n’importe quelle page : nom, numéro de dossier, ID document, référence de paiement…" />
       </div>
     );
   }
@@ -50,97 +50,83 @@ export default async function SearchPage({ searchParams }: { searchParams: { q?:
 
   return (
     <div>
-      <PageHeader title={`Search — “${q}”`} subtitle={`${total} result${total === 1 ? "" : "s"} across the hub (limited to what your role can read).`} />
+      <PageHeader title={`Recherche — « ${q} »`} subtitle={`${total} résultat${total === 1 ? "" : "s"} dans JUN Business Hub, selon vos permissions.`} />
 
       {total === 0 ? (
-        <EmptyState icon={Search} title="No results" description="Try a shorter query — a last name, a CASE- number, a PAY- reference or a JUN- document id." />
+        <EmptyState icon={Search} title="Aucun résultat" description="Essayez une recherche plus courte : nom de famille, numéro de dossier, référence PAY ou identifiant JUN." />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-5 lg:grid-cols-2">
           {clients.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>Clients ({clients.length})</CardTitle></CardHeader>
-              <CardContent className="divide-y divide-white/5">
-                {clients.map((c) => (
-                  <Link key={c.id} href={`/app/clients/${c.id}`} className="flex items-center justify-between py-2 hover:text-electric">
-                    <span>{c.firstName} {c.lastName}<span className="ml-2 registry-id text-xs text-muted2">{c.internalId}</span></span>
-                    <StatusBadge status={c.status} />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+            <ResultCard title={`Clients (${clients.length})`}>
+              {clients.map((c) => (
+                <Link key={c.id} href={`/app/clients/${c.id}/dashboard`} className="flex items-center justify-between gap-3 py-3 transition hover:text-electric">
+                  <span className="min-w-0"><span className="block truncate font-medium">{c.firstName} {c.lastName}</span><span className="registry-id mt-0.5 block text-xs text-muted2">{c.internalId}</span></span>
+                  <StatusBadge status={c.status} />
+                </Link>
+              ))}
+            </ResultCard>
           ) : null}
 
           {cases.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>Cases ({cases.length})</CardTitle></CardHeader>
-              <CardContent className="divide-y divide-white/5">
-                {cases.map((c) => (
-                  <Link key={c.id} href={`/app/cases/${c.id}`} className="flex items-center justify-between py-2 hover:text-electric">
-                    <span><span className="registry-id text-xs">{c.caseNumber}</span> · {c.title}<span className="ml-2 text-xs text-muted2">{c.client.firstName} {c.client.lastName}</span></span>
-                    <StatusBadge status={c.status} />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+            <ResultCard title={`Dossiers (${cases.length})`}>
+              {cases.map((c) => (
+                <Link key={c.id} href={`/app/cases/${c.id}/dashboard`} className="flex items-center justify-between gap-3 py-3 transition hover:text-electric">
+                  <span className="min-w-0"><span className="registry-id block text-xs">{c.caseNumber}</span><span className="mt-0.5 block truncate font-medium">{c.title}</span><span className="block truncate text-xs text-muted2">{c.client.firstName} {c.client.lastName}</span></span>
+                  <StatusBadge status={c.status} />
+                </Link>
+              ))}
+            </ResultCard>
           ) : null}
 
           {documents.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>Documents ({documents.length})</CardTitle></CardHeader>
-              <CardContent className="divide-y divide-white/5">
-                {documents.map((d) => (
-                  <Link key={d.id} href={`/app/documents/${d.id}`} className="flex items-center justify-between py-2 hover:text-electric">
-                    <span><span className="registry-id text-xs">{d.documentId}</span> · {d.title}</span>
-                    <StatusBadge status={d.status} />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+            <ResultCard title={`Documents (${documents.length})`}>
+              {documents.map((d) => (
+                <Link key={d.id} href={`/app/documents/${d.id}`} className="flex items-center justify-between gap-3 py-3 transition hover:text-electric">
+                  <span className="min-w-0"><span className="registry-id block text-xs">{d.documentId}</span><span className="mt-0.5 block truncate font-medium">{d.title}</span></span>
+                  <StatusBadge status={d.status} />
+                </Link>
+              ))}
+            </ResultCard>
           ) : null}
 
           {payments.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>Payments ({payments.length})</CardTitle></CardHeader>
-              <CardContent className="divide-y divide-white/5">
-                {payments.map((p) => (
-                  <Link key={p.id} href={`/app/finance/payments/${p.id}`} className="flex items-center justify-between py-2 hover:text-electric">
-                    <span><span className="registry-id text-xs">{p.reference}</span> · {formatMoney(Number(p.amount), p.currency)}<span className="ml-2 text-xs text-muted2">{p.client.firstName} {p.client.lastName}</span></span>
-                    <StatusBadge status={p.status} />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+            <ResultCard title={`Paiements (${payments.length})`}>
+              {payments.map((p) => (
+                <Link key={p.id} href={`/app/finance/payments/${p.id}`} className="flex items-center justify-between gap-3 py-3 transition hover:text-electric">
+                  <span className="min-w-0"><span className="registry-id block text-xs">{p.reference}</span><span className="mt-0.5 block truncate font-medium">{formatMoney(Number(p.amount), p.currency)}</span><span className="block truncate text-xs text-muted2">{p.client.firstName} {p.client.lastName}</span></span>
+                  <StatusBadge status={p.status} />
+                </Link>
+              ))}
+            </ResultCard>
           ) : null}
 
           {refunds.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>Refunds ({refunds.length})</CardTitle></CardHeader>
-              <CardContent className="divide-y divide-white/5">
-                {refunds.map((r) => (
-                  <Link key={r.id} href={`/app/finance/refunds/${r.id}`} className="flex items-center justify-between py-2 hover:text-electric">
-                    <span><span className="registry-id text-xs">{r.refundNumber}</span> · {formatMoney(Number(r.amount), r.currency)}<span className="ml-2 text-xs text-muted2">{r.client.firstName} {r.client.lastName}</span></span>
-                    <StatusBadge status={r.status} />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+            <ResultCard title={`Remboursements (${refunds.length})`}>
+              {refunds.map((r) => (
+                <Link key={r.id} href={`/app/finance/refunds/${r.id}`} className="flex items-center justify-between gap-3 py-3 transition hover:text-electric">
+                  <span className="min-w-0"><span className="registry-id block text-xs">{r.refundNumber}</span><span className="mt-0.5 block truncate font-medium">{formatMoney(Number(r.amount), r.currency)}</span><span className="block truncate text-xs text-muted2">{r.client.firstName} {r.client.lastName}</span></span>
+                  <StatusBadge status={r.status} />
+                </Link>
+              ))}
+            </ResultCard>
           ) : null}
 
           {signatures.length > 0 ? (
-            <Card>
-              <CardHeader><CardTitle>Signatures ({signatures.length})</CardTitle></CardHeader>
-              <CardContent className="divide-y divide-white/5">
-                {signatures.map((s) => (
-                  <Link key={s.id} href={`/app/signatures/${s.id}`} className="flex items-center justify-between py-2 hover:text-electric">
-                    <span><span className="registry-id text-xs">{s.document.documentId}</span> · {s.document.title}</span>
-                    <StatusBadge status={s.status} />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+            <ResultCard title={`Signatures (${signatures.length})`}>
+              {signatures.map((s) => (
+                <Link key={s.id} href={`/app/signatures/${s.id}`} className="flex items-center justify-between gap-3 py-3 transition hover:text-electric">
+                  <span className="min-w-0"><span className="registry-id block text-xs">{s.document.documentId}</span><span className="mt-0.5 block truncate font-medium">{s.document.title}</span></span>
+                  <StatusBadge status={s.status} />
+                </Link>
+              ))}
+            </ResultCard>
           ) : null}
         </div>
       )}
     </div>
   );
+}
+
+function ResultCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return <Card><CardHeader><CardTitle>{title}</CardTitle></CardHeader><CardContent className="divide-y divide-white/[0.055]">{children}</CardContent></Card>;
 }
