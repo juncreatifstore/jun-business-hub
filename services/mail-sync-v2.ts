@@ -17,7 +17,8 @@ async function syncOne(accountId:string){
  await refreshGmailMailboxCache(accountId,CACHE_LIMIT);
  return {created,limitPerFolder:SYNC_LIMIT_PER_FOLDER,cacheLimit:CACHE_LIMIT};
 }
-function refresh(){revalidatePath("/app/mail");revalidatePath("/app/mail/intelligence");revalidatePath("/app/mail/operations");revalidatePath("/app/mail/security");}
+function refresh(){revalidatePath("/app/mail");revalidatePath("/app/mail/intelligence");revalidatePath("/app/mail/operations");revalidatePath("/app/mail/security");revalidatePath("/app/settings/email");}
+function isGoogleReconnectError(error:unknown){const message=error instanceof Error?error.message:String(error??"");return /invalid_grant|expired or revoked|token refresh failed/i.test(message);}
 
 export async function syncMailboxV2(accountId:string):Promise<void>{
  const user=await assertPermission("EMAIL_READ");
@@ -29,8 +30,10 @@ export async function syncMailboxV2(accountId:string):Promise<void>{
   redirect(`/app/mail?mailbox=${encodeURIComponent(accountId)}&folder=INBOX&category=PRIMARY&toast=${encodeURIComponent(`Synchronisation Gmail terminée — Inbox, Envoyés, Brouillons et Important actualisés`)}`);
  }catch(e){
   if(e&&typeof e==="object"&&"digest" in e)throw e;
-  await recordMailReliabilityEvent({type:"SYNC_ERROR",accountId,userId:user.id,message:e instanceof Error?e.message:"Gmail sync failed"});refresh();
-  redirect(`/app/mail?mailbox=${encodeURIComponent(accountId)}&toast_error=${encodeURIComponent(e instanceof Error?e.message:"La synchronisation Gmail a échoué")}`);
+  const message=e instanceof Error?e.message:"Gmail sync failed";
+  await recordMailReliabilityEvent({type:"SYNC_ERROR",accountId,userId:user.id,message});refresh();
+  if(isGoogleReconnectError(e))redirect(`/app/settings/email?gmail_reconnect=1&accountId=${encodeURIComponent(accountId)}&toast_error=${encodeURIComponent("La connexion Gmail a expiré ou a été révoquée. Reconnectez cette boîte pour reprendre la synchronisation.")}`);
+  redirect(`/app/mail?mailbox=${encodeURIComponent(accountId)}&toast_error=${encodeURIComponent(message||"La synchronisation Gmail a échoué")}`);
  }
 }
 
@@ -40,12 +43,13 @@ export async function syncAllMailboxesV2():Promise<void>{
  const ids=await getAccessibleMailboxIds(user,true);
  const accounts=ids.length?await prisma.mailAccount.findMany({where:{id:{in:ids}},select:{id:true,email:true}}):[];
  if(!accounts.length)redirect("/app/mail?toast_error=Aucune boîte Gmail connectée accessible");
- let created=0;const failures:string[]=[];
+ let created=0;const failures:string[]=[];let reconnectAccountId:string|null=null;
  for(const account of accounts){
   try{const r=await syncOne(account.id);created+=r.created;}
-  catch(e){failures.push(account.email);await recordMailReliabilityEvent({type:"SYNC_ERROR",accountId:account.id,userId:user.id,message:e instanceof Error?e.message:"Gmail sync failed"});}
+  catch(e){failures.push(account.email);if(!reconnectAccountId&&isGoogleReconnectError(e))reconnectAccountId=account.id;await recordMailReliabilityEvent({type:"SYNC_ERROR",accountId:account.id,userId:user.id,message:e instanceof Error?e.message:"Gmail sync failed"});}
  }
  await audit({userId:user.id,action:"GMAIL_SYNC_ALL",resourceType:"MailAccount",resourceId:null,after:{created,failures,limitPerFolder:SYNC_LIMIT_PER_FOLDER,cacheLimit:CACHE_LIMIT,scope:"INBOX_SENT_DRAFTS_IMPORTANT"}});refresh();
+ if(reconnectAccountId)redirect(`/app/settings/email?gmail_reconnect=1&accountId=${encodeURIComponent(reconnectAccountId)}&toast_error=${encodeURIComponent("Une boîte Gmail doit être reconnectée avant de pouvoir se synchroniser.")}`);
  if(failures.length)redirect(`/app/mail?mailbox=ALL&folder=INBOX&category=PRIMARY&toast_error=${encodeURIComponent(`Synchronisation terminée avec erreur pour : ${failures.join(", ")}`)}`);
  redirect(`/app/mail?mailbox=ALL&folder=INBOX&category=PRIMARY&toast=${encodeURIComponent(`Toutes les boîtes Gmail ont été synchronisées`)}`);
 }
