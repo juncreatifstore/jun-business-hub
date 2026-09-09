@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { storage } from "@/lib/storage";
-import { sendWhatsAppText } from "@/lib/whatsapp";
+import { getWhatsAppConfig, sendWhatsAppGeneralTemplate, sendWhatsAppText } from "@/lib/whatsapp";
 import { recordOutgoingWhatsAppMessage } from "@/lib/whatsapp-inbox";
 import { isClientCommunicationBanned } from "@/lib/client-communication-policy";
 import { nativeSigningExpiry, nativeSigningUrl } from "@/lib/native-signature";
@@ -51,8 +51,6 @@ async function defaultClientFields(documentId: string, finalPdfKey: string | nul
   const bytes = await officialPdf(documentId, finalPdfKey);
   const pdf = await PDFDocument.load(bytes);
   const page = Math.max(1, pdf.getPageCount());
-  // Coordinates use the existing JUN native-signature top-origin convention.
-  // Keep the fields in the lower part of the final page, above the official footer.
   return [
     { type: "SIGNATURE" as const, page, x: 72, y: 675, width: 180, height: 50 },
     { type: "NAME" as const, page, x: 72, y: 730, width: 180, height: 26 },
@@ -72,6 +70,36 @@ async function voidLegacyMockRequest(requestId: string, recipients: SignatureRec
       }) as never,
     },
   });
+}
+
+async function deliverSignatureMessage(input: {
+  to: string;
+  clientName: string;
+  documentTitle: string;
+  documentReference: string;
+  signingUrl: string;
+  freeTextMessage: string;
+}) {
+  const config = await getWhatsAppConfig();
+
+  // Business-initiated free-text messages fail outside Meta's 24-hour customer-service window
+  // with error 131047. Prefer the approved JUN notification template whenever it is configured.
+  // The secure URL is intentionally carried in the document_reference parameter so WhatsApp
+  // delivers the clickable link even when the customer has not replied recently.
+  if (config.defaultTemplate) {
+    const result = await sendWhatsAppGeneralTemplate({
+      to: input.to,
+      templateName: config.defaultTemplate,
+      languageCode: config.languageCode,
+      clientName: input.clientName,
+      documentLabel: `Signature électronique · ${input.documentTitle}`,
+      documentReference: `${input.documentReference} · ${input.signingUrl}`,
+    });
+    return { result, mode: "APPROVED_TEMPLATE" as const, template: config.defaultTemplate };
+  }
+
+  const result = await sendWhatsAppText(input.to, input.freeTextMessage);
+  return { result, mode: "FREE_TEXT" as const, template: null };
 }
 
 /**
@@ -120,8 +148,6 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
     const existingRecipients = signatureRecipients(request.recipients);
     const existingMeta = signatureRequestMeta(request.recipients);
 
-    // Old MOCK requests created by the previous quick-sign flow never reached a
-    // real external signature provider. Replace them safely with the new client-only flow.
     if (request.provider === "MOCK") {
       await voidLegacyMockRequest(request.id, existingRecipients, existingMeta);
       await audit({
@@ -196,8 +222,6 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
     ? new Date(meta.expiresAt)
     : nativeSigningExpiry(now);
 
-  // READY requests from the Signature Center can be switched to JUN_NATIVE here,
-  // but only after the client-only checks above have passed.
   await prisma.signatureRequest.update({
     where: { id: request.id },
     data: {
@@ -229,8 +253,15 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
   ].join("\n");
 
   try {
-    const result = await sendWhatsAppText(to, message);
-    const messageId = result.messages?.[0]?.id ?? null;
+    const delivery = await deliverSignatureMessage({
+      to,
+      clientName,
+      documentTitle: doc.title,
+      documentReference: doc.documentId,
+      signingUrl,
+      freeTextMessage: message,
+    });
+    const messageId = delivery.result.messages?.[0]?.id ?? null;
     recipients[recipientIndex] = { ...recipient, invitationSentAt: now.toISOString() };
     await prisma.signatureRequest.update({
       where: { id: request.id },
@@ -238,13 +269,18 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
         provider: "JUN_NATIVE",
         status: request.status === "READY_FOR_SIGNATURE" ? "SENT" : request.status,
         sentAt: request.sentAt ?? now,
-        recipients: signatureRecipientsPayload(recipients, { ...meta, expiresAt: expiresAt.toISOString() }) as never,
+        recipients: signatureRecipientsPayload(recipients, {
+          ...meta,
+          expiresAt: expiresAt.toISOString(),
+          whatsappDeliveryMode: delivery.mode,
+          whatsappMessageId: messageId,
+        } as never) as never,
       },
     });
 
     await audit({
       userId: user.id,
-      action: reminder ? "SIGNATURE_WHATSAPP_REMINDER_SENT" : "SIGNATURE_WHATSAPP_SENT",
+      action: reminder ? "SIGNATURE_WHATSAPP_REMINDER_ACCEPTED" : "SIGNATURE_WHATSAPP_ACCEPTED",
       resourceType: "SignatureRequest",
       resourceId: request.id,
       after: {
@@ -254,13 +290,15 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
         messageId,
         provider: "JUN_NATIVE",
         signerRole: "CLIENT",
+        deliveryMode: delivery.mode,
+        template: delivery.template,
         expiresAt: expiresAt.toISOString(),
       },
     });
     await logActivity({
       userId: user.id,
       type: "SIGNATURE_REQUESTED",
-      message: `Client signature link for ${doc.documentId} sent by WhatsApp${messageId ? ` · ${messageId}` : ""}`,
+      message: `Client signature invitation for ${doc.documentId} accepted by Meta via ${delivery.mode}${messageId ? ` · ${messageId}` : ""}`,
       clientId: doc.client.id,
       caseId: doc.caseId,
       resourceType: "SignatureRequest",
@@ -270,7 +308,7 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
       phone: to,
       messageId,
       type: "text",
-      text: `Demande de signature · ${doc.title} (${doc.documentId})`,
+      text: `Demande de signature · ${doc.title} (${doc.documentId}) · ${signingUrl}`,
       clientId: doc.client.id,
       caseId: doc.caseId,
       userId: user.id,
@@ -298,5 +336,5 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
   revalidatePath(`/app/signatures/${request.id}`);
   revalidatePath("/app/signatures");
   revalidatePath("/app/whatsapp/inbox");
-  redirect(documentPath(doc.id, `Lien sécurisé de signature envoyé à ${clientName} par WhatsApp.`));
+  redirect(documentPath(doc.id, `Invitation de signature acceptée par Meta pour ${clientName}. JUN suivra ensuite le statut Delivered / Read / Failed.`));
 }
