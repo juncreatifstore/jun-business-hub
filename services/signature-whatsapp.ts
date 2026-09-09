@@ -7,7 +7,12 @@ import { prisma } from "@/lib/prisma";
 import { assertPermission } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
 import { storage } from "@/lib/storage";
-import { getWhatsAppConfig, sendWhatsAppGeneralTemplate, sendWhatsAppText } from "@/lib/whatsapp";
+import {
+  getWhatsAppConfig,
+  sendWhatsAppDocumentTemplate,
+  sendWhatsAppText,
+  uploadWhatsAppMedia,
+} from "@/lib/whatsapp";
 import { recordOutgoingWhatsAppMessage } from "@/lib/whatsapp-inbox";
 import { isClientCommunicationBanned } from "@/lib/client-communication-policy";
 import { nativeSigningExpiry, nativeSigningUrl } from "@/lib/native-signature";
@@ -79,21 +84,31 @@ async function deliverSignatureMessage(input: {
   documentReference: string;
   signingUrl: string;
   freeTextMessage: string;
+  pdfData: Buffer;
+  pdfFilename: string;
 }) {
   const config = await getWhatsAppConfig();
   if (config.defaultTemplate) {
-    const result = await sendWhatsAppGeneralTemplate({
+    const mediaId = await uploadWhatsAppMedia(input.pdfData, "application/pdf", input.pdfFilename);
+    const result = await sendWhatsAppDocumentTemplate({
       to: input.to,
       templateName: config.defaultTemplate,
       languageCode: config.languageCode,
+      mediaId,
+      filename: input.pdfFilename,
       clientName: input.clientName,
       documentLabel: `Signature électronique · ${input.documentTitle}`,
       reference: `${input.documentReference} · ${input.signingUrl}`,
     });
-    return { result, mode: "APPROVED_TEMPLATE" as const, template: config.defaultTemplate };
+    return {
+      result,
+      mode: "APPROVED_TEMPLATE_DOCUMENT" as const,
+      template: config.defaultTemplate,
+      mediaId,
+    };
   }
   const result = await sendWhatsAppText(input.to, input.freeTextMessage);
-  return { result, mode: "FREE_TEXT" as const, template: null };
+  return { result, mode: "FREE_TEXT" as const, template: null, mediaId: null };
 }
 
 export async function sendClientSignatureViaWhatsApp(documentId: string): Promise<void> {
@@ -188,7 +203,18 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
   ].join("\n");
 
   try {
-    const delivery = await deliverSignatureMessage({ to, clientName, documentTitle: doc.title, documentReference: doc.documentId, signingUrl, freeTextMessage: message });
+    const pdfData = Buffer.from(await officialPdf(doc.id, doc.finalPdfKey));
+    const pdfFilename = `${doc.documentId}.pdf`;
+    const delivery = await deliverSignatureMessage({
+      to,
+      clientName,
+      documentTitle: doc.title,
+      documentReference: doc.documentId,
+      signingUrl,
+      freeTextMessage: message,
+      pdfData,
+      pdfFilename,
+    });
     const messageId = delivery.result.messages?.[0]?.id ?? null;
     recipients[recipientIndex] = { ...recipient, invitationSentAt: now.toISOString() };
     await prisma.signatureRequest.update({
@@ -209,9 +235,9 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
       },
     });
 
-    await audit({ userId: user.id, action: reminder ? "SIGNATURE_WHATSAPP_REMINDER_ACCEPTED" : "SIGNATURE_WHATSAPP_ACCEPTED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: doc.documentId, clientId: doc.client.id, to, messageId, provider: "JUN_NATIVE", signerRole: "CLIENT", deliveryMode: delivery.mode, template: delivery.template, expiresAt: expiresAt.toISOString() } });
+    await audit({ userId: user.id, action: reminder ? "SIGNATURE_WHATSAPP_REMINDER_ACCEPTED" : "SIGNATURE_WHATSAPP_ACCEPTED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: doc.documentId, clientId: doc.client.id, to, messageId, provider: "JUN_NATIVE", signerRole: "CLIENT", deliveryMode: delivery.mode, template: delivery.template, mediaId: delivery.mediaId, expiresAt: expiresAt.toISOString() } });
     await logActivity({ userId: user.id, type: "SIGNATURE_REQUESTED", message: `Client signature invitation for ${doc.documentId} accepted by Meta via ${delivery.mode}${messageId ? ` · ${messageId}` : ""}`, clientId: doc.client.id, caseId: doc.caseId, resourceType: "SignatureRequest", resourceId: request.id });
-    await recordOutgoingWhatsAppMessage({ phone: to, messageId, type: "text", text: `Demande de signature · ${doc.title} (${doc.documentId}) · ${signingUrl}`, clientId: doc.client.id, caseId: doc.caseId, userId: user.id }).catch(() => undefined);
+    await recordOutgoingWhatsAppMessage({ phone: to, messageId, type: "document", text: `Demande de signature · ${doc.title} (${doc.documentId}) · ${signingUrl}`, clientId: doc.client.id, caseId: doc.caseId, userId: user.id }).catch(() => undefined);
   } catch (error) {
     if (newlyCreated) await prisma.signatureRequest.delete({ where: { id: request.id } }).catch(() => undefined);
     else if (request.status === "READY_FOR_SIGNATURE") await prisma.signatureRequest.update({ where: { id: request.id }, data: { status: "READY_FOR_SIGNATURE", sentAt: request.sentAt } }).catch(() => undefined);
