@@ -5,7 +5,7 @@ import { signatureRecipients, signatureRequestMeta } from "@/lib/signature-recip
 import { markNativeSignatureViewed } from "@/services/native-signatures";
 import { completeVerifiedJunNativeSignature, declineVerifiedJunNativeSignature, sendNativeVerificationCode, verifyNativeVerificationCode } from "@/services/native-signature-otp";
 import { NativeSignatureInput } from "@/components/signatures/native-signature-input";
-import { CheckCircle2, Download, ExternalLink, FileSignature, LockKeyhole, MailCheck, ShieldCheck, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileSignature, LockKeyhole, MailCheck, ShieldCheck, XCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,7 @@ function errorMessage(code?: string) {
   if (code === "invalid_or_expired_link") return "This signing link is invalid or has expired.";
   if (code === "verification_required") return "Verify your email before signing or declining this document.";
   if (code === "verification_email_unavailable") return "JUN could not send the verification email. Please contact JUN before signing.";
+  if (code === "otp_email_bounced") return "The verification email could not be delivered to this address. Please contact JUN to correct your signer email before requesting another code.";
   if (code === "otp_wait") return "A verification code was just sent. Wait one minute before requesting another code.";
   if (code === "otp_rate_limited") return "Too many verification codes were requested. Try again in about one hour or contact JUN.";
   if (code === "otp_send_first") return "Request a verification code first.";
@@ -79,10 +80,11 @@ export default async function NativeSignPage({ params, searchParams }: { params:
 
   const firstUnsigned = recipients.find((r) => !r.signedAt);
   const isTurn = !signer.signedAt && !signer.declinedAt && firstUnsigned?.email.toLowerCase() === signer.email.toLowerCase();
+  const bounced = searchParams?.error === "otp_email_bounced";
   const error = errorMessage(searchParams?.error);
   const pdfUrl = `/api/sign/${encodeURIComponent(token)}/pdf`;
   const signedPdfUrl = `/api/sign/${encodeURIComponent(token)}/signed-pdf`;
-  const otpWasSent = Boolean(searchParams?.otp) || Boolean(signer.otpSentAt);
+  const otpWasSent = !bounced && (Boolean(searchParams?.otp) || Boolean(signer.otpSentAt));
 
   return (
     <main className="min-h-screen bg-surface px-4 py-8 text-night sm:px-6 lg:px-8">
@@ -104,8 +106,8 @@ export default async function NativeSignPage({ params, searchParams }: { params:
             <h1 className="mt-4 text-center text-2xl font-semibold">Verify your email</h1>
             <p className="mt-2 text-center text-sm text-muted2">Before JUN displays the document or accepts a signature, confirm that you control the signer email.</p>
             <div className="mt-5 rounded-xl border border-line bg-surface p-4 text-center"><p className="text-xs uppercase tracking-wider text-muted2">Signer</p><p className="mt-1 font-medium">{signer.name}</p><p className="text-sm text-muted2">{maskedEmail(signer.email)}</p></div>
-            {error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-            {otpWasSent ? <><form action={verifyNativeVerificationCode.bind(null, token)} className="mt-5"><label htmlFor="otp" className="block text-sm font-medium">6-digit verification code</label><input id="otp" name="otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" placeholder="000000" className="mt-2 h-14 w-full rounded-lg border border-line px-3 text-center text-2xl tracking-[0.35em] outline-none focus:border-electric focus:ring-2 focus:ring-electric/20" /><button type="submit" className="mt-3 h-11 w-full rounded-lg bg-night px-4 text-sm font-medium text-white hover:bg-night-soft"><MailCheck className="mr-2 inline h-4 w-4" />Verify & continue</button></form><form action={sendNativeVerificationCode.bind(null, token)} className="mt-3"><button type="submit" className="h-10 w-full rounded-lg border border-line text-sm font-medium hover:bg-surface">Send a new code</button></form><p className="mt-3 text-center text-xs text-muted2">Code expires after 10 minutes · 5 attempts maximum · 3 codes per hour.</p></> : <form action={sendNativeVerificationCode.bind(null, token)} className="mt-5"><button type="submit" className="h-11 w-full rounded-lg bg-night px-4 text-sm font-medium text-white hover:bg-night-soft">Send verification code</button><p className="mt-3 text-center text-xs text-muted2">JUN will send a one-time code to {maskedEmail(signer.email)}.</p></form>}
+            {error ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{bounced ? <div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0"/><div><p className="font-semibold">Verification email not delivered</p><p className="mt-1">{error}</p></div></div> : error}</div> : null}
+            {bounced ? <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">Do not request another code yet.</p><p className="mt-1">JUN must correct the signer email and issue a new secure signing link first.</p></div> : otpWasSent ? <><form action={verifyNativeVerificationCode.bind(null, token)} className="mt-5"><label htmlFor="otp" className="block text-sm font-medium">6-digit verification code</label><input id="otp" name="otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoComplete="one-time-code" placeholder="000000" className="mt-2 h-14 w-full rounded-lg border border-line px-3 text-center text-2xl tracking-[0.35em] outline-none focus:border-electric focus:ring-2 focus:ring-electric/20" /><button type="submit" className="mt-3 h-11 w-full rounded-lg bg-night px-4 text-sm font-medium text-white hover:bg-night-soft"><MailCheck className="mr-2 inline h-4 w-4" />Verify & continue</button></form><form action={sendNativeVerificationCode.bind(null, token)} className="mt-3"><button type="submit" className="h-10 w-full rounded-lg border border-line text-sm font-medium hover:bg-surface">Send a new code</button></form><p className="mt-3 text-center text-xs text-muted2">Code expires after 10 minutes · 5 attempts maximum · 3 codes per hour.</p></> : <form action={sendNativeVerificationCode.bind(null, token)} className="mt-5"><button type="submit" className="h-11 w-full rounded-lg bg-night px-4 text-sm font-medium text-white hover:bg-night-soft">Send verification code</button><p className="mt-3 text-center text-xs text-muted2">JUN will send a one-time code to {maskedEmail(signer.email)}.</p></form>}
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
