@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { getMailThreadState, saveMailThreadState } from "@/lib/mail-thread-state";
 import { isClientCommunicationBanned } from "@/lib/client-communication-policy";
+import { detectSignatureEmailBounce } from "@/lib/signature-email-bounce";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
@@ -54,7 +55,7 @@ const FOLDER_QUERY:Record<string,string>={INBOX:"in:inbox",SENT:"in:sent",DRAFTS
 async function syncStateFromLabels(threadId:string,labelIds:string[]|undefined){const labels=new Set(labelIds??[]),current=await getMailThreadState(threadId);const next={...current,isRead:!labels.has("UNREAD"),starred:labels.has("STARRED"),trashed:labels.has("TRASH"),archived:!labels.has("INBOX")&&!labels.has("TRASH")&&!labels.has("SPAM")&&!labels.has("SENT")&&!labels.has("DRAFT"),updatedAt:new Date().toISOString(),updatedById:null};if(current.starred!==next.starred||current.trashed!==next.trashed||current.archived!==next.archived||current.isRead!==next.isRead)await saveMailThreadState(next);}
 
 export async function syncFolder(accountId:string,folder:"INBOX"|"SENT"|"DRAFTS"|"IMPORTANT",max=250):Promise<number>{
-  const {token}=await accessTokenFor(accountId);let created=0,seen=0,pageToken:string|undefined;const processedThreads=new Set<string>();
+  const {token,email:accountEmail}=await accessTokenFor(accountId);let created=0,seen=0,pageToken:string|undefined;const processedThreads=new Set<string>();
   while(seen<max){
     const pageSize=Math.min(100,max-seen);const path=`/messages?maxResults=${pageSize}&q=${encodeURIComponent(FOLDER_QUERY[folder])}${pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:""}`;
     const list=await gmail<{messages?:{id:string;threadId:string}[];nextPageToken?:string}>(token,path);const refs=list.messages??[];if(!refs.length)break;
@@ -64,12 +65,16 @@ export async function syncFolder(accountId:string,folder:"INBOX"|"SENT"|"DRAFTS"
       const subject=header(m,"Subject")||"(no subject)",from=header(m,"From"),to=header(m,"To"),body=decodeBody(m).slice(0,20_000),snippet=m.snippet?.slice(0,500)||body.slice(0,500)||null;
       const emails=`${from} ${to}`.match(/[\w.+-]+@[\w.-]+\.\w+/g)??[];
       const client=emails.length?await prisma.client.findFirst({where:{email:{in:emails.map(e=>e.toLowerCase())}},select:{id:true}}):null;
+      const when=m.internalDate?new Date(Number(m.internalDate)):new Date();
+      if(folder==="INBOX"){
+        await detectSignatureEmailBounce({accountId,accountEmail,gmailMessageId:m.id,subject,from,body,snippet,receivedAt:when}).catch(()=>null);
+      }
       if(folder==="INBOX"&&client&&await isClientCommunicationBanned(client.id)){
         await gmail(token,`/threads/${m.threadId}/modify`,{method:"POST",body:JSON.stringify({addLabelIds:["TRASH"],removeLabelIds:["INBOX","UNREAD"]})}).catch(()=>null);
         await prisma.activity.create({data:{clientId:client.id,type:"CLIENT_COMMUNICATION_BLOCKED_INBOUND",message:`Inbound email auto-trashed · ${subject}`,resourceType:"Client",resourceId:client.id}}).catch(()=>null);
         continue;
       }
-      const existing=await prisma.mailThread.findFirst({where:{gmailThreadId:m.threadId,mailAccountId:accountId},select:{id:true}});const when=m.internalDate?new Date(Number(m.internalDate)):new Date();
+      const existing=await prisma.mailThread.findFirst({where:{gmailThreadId:m.threadId,mailAccountId:accountId},select:{id:true}});
       const thread=existing?await prisma.mailThread.update({where:{id:existing.id},data:{subject,snippet,fromEmail:from.slice(0,300)||null,toEmails:emails,lastMessageAt:when,...(client?{clientId:client.id}:{}),...(folder==="IMPORTANT"?{requiresAttention:true}:{}),...(folder==="DRAFTS"?{aiDraft:body||m.snippet||""}:{})}}):await prisma.mailThread.create({data:{gmailThreadId:m.threadId,mailAccountId:accountId,clientId:client?.id??null,subject,snippet,fromEmail:from.slice(0,300)||null,toEmails:emails,lastMessageAt:when,requiresAttention:folder==="IMPORTANT",aiDraft:folder==="DRAFTS"?body||m.snippet||"":null}});
       await syncStateFromLabels(thread.id,m.labelIds);if(!existing)created++;
     }
