@@ -20,6 +20,20 @@ function errorMessage(error: unknown) {
   return "Unknown server error while updating the document.";
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`AI update timed out after ${Math.round(ms / 1000)} seconds.`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Refresh an existing document from the latest authoritative client data.
  * Unlike the previous redirect-only action, this action always returns a visible
@@ -83,7 +97,7 @@ export async function refreshDocumentFromLatestDataAction(
 
     let generated;
     try {
-      generated = await generateDocumentDraft(input);
+      generated = await withTimeout(generateDocumentDraft(input), 35_000);
     } catch (error) {
       await audit({
         userId: user.id,
@@ -125,8 +139,6 @@ export async function refreshDocumentFromLatestDataAction(
       return { status: "error", message: `${issue.message} The new version was NOT saved.` };
     }
 
-    // Re-read the latest version immediately before writing, so two clicks cannot
-    // silently create the same version number from a stale page.
     const current = await prisma.documentVersion.findFirst({
       where: { documentId },
       orderBy: { version: "desc" },
