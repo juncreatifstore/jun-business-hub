@@ -14,8 +14,8 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: {
     getFinancePaymentAccounts({ enabledOnly: true }),
   ]);
   return (
-    <div>
-      <PageHeader title="Record payment" subtitle="A payment stays Pending until a finance approver confirms it." />
+    <div className="min-w-0">
+      <PageHeader eyebrow="Finance · Paiements" title="Enregistrer un paiement" subtitle="Le paiement reste En attente jusqu’à sa confirmation par un responsable Finance." />
       <PaymentForm clients={clients} cases={cases} paymentAccounts={paymentAccounts} defaultClientId={searchParams.clientId} defaultCaseId={searchParams.caseId} />
     </div>
   );
