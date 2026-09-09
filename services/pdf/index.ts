@@ -252,7 +252,16 @@ function drawLines(ctx: Ctx, lines: string[], opts: { size?: number; bold?: bool
   ctx.y -= opts.gap ?? 0;
 }
 
-async function buildBase(meta: { title: string; reference: string; verifyPath: string; statusLine: string; extraHeader?: string[] }): Promise<{ ctx: Ctx; finish: () => Promise<Uint8Array> }> {
+type PdfBaseMeta = {
+  title: string;
+  reference: string;
+  verifyPath: string;
+  statusLine: string;
+  extraHeader?: string[];
+  includeCompanySignature?: boolean;
+};
+
+async function buildBase(meta: PdfBaseMeta): Promise<{ ctx: Ctx; finish: () => Promise<Uint8Array> }> {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -271,7 +280,7 @@ async function buildBase(meta: { title: string; reference: string; verifyPath: s
 
   const decoratePage = (p: PDFPage) => drawWatermark(p, company.showLogo ? assets.logo : null, bold, company.watermarkOpacity);
   const footer = (p: PDFPage, n: number) => {
-    if (company.showSignature) drawSignature(p, assets.signature);
+    if (meta.includeCompanySignature !== false && company.showSignature) drawSignature(p, assets.signature);
     if (company.showSeal) drawSeal(p, assets.seal, company.sealSize);
     p.drawLine({ start: { x: PAGE.margin, y: 43 }, end: { x: PAGE.w - PAGE.margin, y: 43 }, thickness: 0.45, color: LIGHT });
     const taxSuffix = company.showTaxId && company.taxId ? ` · EIN/Tax ID ${company.taxId}` : "";
@@ -409,6 +418,7 @@ export async function renderDocumentPdf(input: { documentId: string; title: stri
       ...(input.clientName ? [`Client: ${input.clientName}`] : []),
       ...(input.caseNumber ? [`Case: ${input.caseNumber}`] : []),
     ],
+    includeCompanySignature: false,
   });
 
   const logicalPages = parseDocumentPages(normalizedHtml).filter((p) => cleanBodyText(p.html).length > 0);
