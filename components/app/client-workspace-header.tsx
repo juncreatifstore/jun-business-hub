@@ -19,7 +19,6 @@ import {
   ShieldAlert,
   UserRound,
   WalletCards,
-  X,
 } from "lucide-react";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -43,7 +42,8 @@ type ClientWorkspaceHeaderProps = {
   blocked?: boolean;
   hasDebt?: boolean;
   canUpdate?: boolean;
-  transactionsAllowed?: boolean;
+  newServicesAllowed?: boolean;
+  paymentsAllowed?: boolean;
 };
 
 const tabs = [
@@ -74,7 +74,8 @@ export function ClientWorkspaceHeader({
   blocked = false,
   hasDebt = false,
   canUpdate = false,
-  transactionsAllowed = true,
+  newServicesAllowed = true,
+  paymentsAllowed = true,
 }: ClientWorkspaceHeaderProps) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -120,14 +121,12 @@ export function ClientWorkspaceHeader({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            {transactionsAllowed ? (
-              <>
-                <Link href={`/app/cases/new?clientId=${client.id}`} className={buttonVariants({ variant: "primary" }) + " rounded-xl shadow-lg shadow-blue-950/25"}>Nouveau dossier</Link>
-                <Link href={`/app/finance/payments/new?clientId=${client.id}`} className={buttonVariants({ variant: "outline" }) + " rounded-xl"}><WalletCards className="h-4 w-4" /> Paiement</Link>
-              </>
+            {newServicesAllowed ? (
+              <Link href={`/app/cases/new?clientId=${client.id}`} className={buttonVariants({ variant: "primary" }) + " rounded-xl shadow-lg shadow-blue-950/25"}>Nouveau dossier</Link>
             ) : (
-              <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/15 bg-amber-500/[0.07] px-3 text-xs font-medium text-amber-300"><ShieldAlert className="h-4 w-4" /> Nouvelles transactions bloquées</span>
+              <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/15 bg-amber-500/[0.07] px-3 text-xs font-medium text-amber-300"><ShieldAlert className="h-4 w-4" /> Services bloqués</span>
             )}
+            {paymentsAllowed ? <Link href={`/app/finance/payments/new?clientId=${client.id}`} className={buttonVariants({ variant: "outline" }) + " rounded-xl"}><WalletCards className="h-4 w-4" /> Paiement</Link> : null}
 
             <div className="relative">
               <button type="button" onClick={() => setMoreOpen((value) => !value)} className={cn(buttonVariants({ variant: "outline" }), "h-10 rounded-xl px-3")} aria-expanded={moreOpen} aria-label="Plus d’actions">
