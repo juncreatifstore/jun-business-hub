@@ -2,6 +2,8 @@
 import { prisma } from "@/lib/prisma";
 import { assertPermission, can, type CurrentUser } from "@/lib/auth";
 import { audit, logActivity } from "@/lib/audit";
+import { htmlToText } from "@/lib/sanitize";
+import { checkRefundAgreementArithmetic } from "@/lib/document-financial-integrity";
 import { revalidatePath } from "next/cache";
 
 const BLOCKED_TOPICS = [
@@ -25,7 +27,7 @@ async function openaiChat(messages: { role: string; content: string }[]): Promis
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages, temperature: 0.25 }),
+      body: JSON.stringify({ model: "gpt-4o-mini", messages, temperature: 0.15 }),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -209,13 +211,13 @@ export async function generateDocumentDraft(formData: FormData): Promise<{ conte
     if (client) {
       const company = Object.fromEntries(companyRows.map((r) => [r.key, r.value]));
       context += `Client: ${client.firstName} ${client.lastName} (${client.internalId}), email ${client.email ?? "n/a"}, country ${client.country ?? "n/a"}.\n`;
-      context += `Authorized company representative: ${company["company.legal_representative"] || "not configured"}. Title: ${company["company.representative_title"] || "not configured"}.\n`;
+      context += `Authorized company representative: ${company["company.legal_representative"] || "not configured"}. Title: ${company["company.representative_title"] || "not configured"}. This is identity context only; do not create a company-representative signature block.\n`;
 
       if (can(user, "PAYMENT_READ") && client.payments.length) {
         const totals = new Map<string, number>();
         for (const p of client.payments) totals.set(p.currency, (totals.get(p.currency) || 0) + Number(p.amount));
         context += `Historical confirmed client payments (include every one of these in any final-account/termination document):\n${client.payments.map((p) => `- ${p.reference} | ${p.currency} ${Number(p.amount).toFixed(2)} | received ${((p.paidAt || p.createdAt) as Date).toISOString().slice(0, 10)} | current status ${p.status}`).join("\n")}\n`;
-        context += `Total historical confirmed payments by currency: ${[...totals.entries()].map(([currency, amount]) => `${currency} ${amount.toFixed(2)}`).join("; ")}.\n`;
+        context += `Total historical confirmed payments by currency: ${[...totals.entries()].map(([currency, amount]) => `${currency} ${amount.toFixed(2)}`).join("; ")}. These totals are computer-calculated authoritative facts; copy them exactly and do not recompute them differently.\n`;
       } else if (can(user, "PAYMENT_READ")) {
         context += "Historical confirmed client payments: none found.\n";
       }
@@ -248,19 +250,47 @@ export async function generateDocumentDraft(formData: FormData): Promise<{ conte
     if (c) context += `Case: ${c.caseNumber} — ${c.title} (${c.status}).\n`;
   }
 
-  const ai = await openaiChat([
-    {
-      role: "system",
-      content: "You draft formal professional business documents for JUN CREATIF AND TRAVEL LLC as clean HTML using only h1, h2, p, ul, li and table elements; no scripts or inline styles. Use the exact factual financial data supplied in context and never omit a supplied payment or refund when the document concerns account closure, relationship termination, refunds, or a final notice. Never invent transactions, dates, amounts, legal citations, signatures, or facts. Use the supplied Document date and never output [DATE]. Drafts are unsigned, but end formal notices with a professional signature block identifying JUN CREATIF AND TRAVEL LLC and the configured authorized representative/title when available; if representative data is not configured, use clear lines for Name, Title, Signature and Date rather than writing 'Signature: [SIGNATURE]'. If the instruction concerns termination of the commercial relationship, structure the document with clear sections: purpose/decision, financial history, refunds already completed, remaining refund obligation, final account settlement, effects of termination, finality of decision, records/statement, and signature block. Explicitly state that any remaining approved amount will be paid through the refund workflow; after all refunds and obligations are settled the client will receive a final statement showing a zero balance (0.00). State that the company's decision to terminate the commercial relationship is final and not subject to appeal or internal reconsideration, while preserving any rights that cannot legally be waived. State that no new commercial service or transaction will be accepted after final termination. Be explicit, formal, neutral and detailed; do not use vague promises such as 'as soon as possible' when the system only shows a pending workflow. Never state that a pending refund has already been paid.",
-    },
+  const draftingRules = "You draft formal professional business documents for JUN CREATIF AND TRAVEL LLC as clean HTML using only h1, h2, p, ul, li and table elements; no scripts or inline styles. Use the exact factual financial data supplied in context and never omit a supplied payment or refund when the document concerns account closure, relationship termination, refunds, or a final notice. FINANCIAL ARITHMETIC IS A HARD CONSTRAINT: every total, subtotal, converted amount, refund sum and remaining balance must be mathematically verified before output. Never guess a balance. For a remaining refund, use the equation total deposited minus refunds already received equals remaining due. Example: USD 2,913 - (USD 150 + USD 1,000 + USD 1,000) = USD 763, never USD 1,763. Never invent transactions, dates, amounts, legal citations, signatures, or facts. Use the supplied Document date and never output [DATE]. Drafts are unsigned. Do NOT add a handwritten or blank signature block for JUN CREATIF AND TRAVEL LLC or its representative: company authenticity is established by the document's online verification page, QR code and integrity hash. For contracts, agreements and refund agreements that require acceptance, include a CLIENT signature section with client name, signature line and date line. If the instruction concerns termination of the commercial relationship, structure the document with clear sections: purpose/decision, financial history, refunds already completed, remaining refund obligation, final account settlement, effects of termination, finality of decision, records/statement, and client acceptance/signature when applicable. Explicitly state that any remaining approved amount will be paid through the refund workflow; after all refunds and obligations are settled the client will receive a final statement showing a zero balance (0.00). State that the company's decision to terminate the commercial relationship is final and not subject to appeal or internal reconsideration, while preserving any rights that cannot legally be waived. State that no new commercial service or transaction will be accepted after final termination. Be explicit, formal, neutral and detailed; do not use vague promises such as 'as soon as possible' when the system only shows a pending workflow. Never state that a pending refund has already been paid.";
+
+  let ai = await openaiChat([
+    { role: "system", content: draftingRules },
     { role: "user", content: `${context}\nInstruction: ${instruction}\nReturn only the HTML body of the draft.` },
   ]);
+
+  if (ai) {
+    let financialIssues = checkRefundAgreementArithmetic(htmlToText(ai));
+    if (financialIssues.length) {
+      const issue = financialIssues[0];
+      const corrected = await openaiChat([
+        {
+          role: "system",
+          content: `${draftingRules} You are correcting an already drafted HTML document. Preserve its wording and facts as much as possible, but correct every arithmetic inconsistency identified by the deterministic verifier. Return only corrected HTML.`,
+        },
+        {
+          role: "user",
+          content: `Deterministic financial verifier error: ${issue.message}\n\nDraft HTML:\n${ai}`,
+        },
+      ]);
+      if (corrected) ai = corrected;
+      financialIssues = checkRefundAgreementArithmetic(htmlToText(ai));
+      if (financialIssues.length) {
+        await audit({
+          userId: user.id,
+          action: "AI_DOCUMENT_FINANCIAL_CHECK_FAILED",
+          resourceType: "AIDocumentDraft",
+          resourceId: clientId || caseId || user.id,
+          after: { code: financialIssues[0].code, message: financialIssues[0].message },
+        }).catch(() => undefined);
+        return { error: `${financialIssues[0].message} JUN AI refused to insert a financially inconsistent draft. Please regenerate or correct the source figures.` };
+      }
+    }
+  }
 
   await logActivity({ type: "AI_DRAFT", message: "AI document draft generated", userId: user.id, clientId: clientId || null, caseId: caseId || null });
 
   if (ai) return { content: ai };
   return {
-    content: `<h1>Draft</h1><p><em>Generated offline (no OPENAI_API_KEY configured). Edit freely.</em></p><p>Document date: ${isoDate}</p><p>Instruction: ${instruction.replace(/</g, "&lt;")}</p>${context ? `<p>Context: ${context.replace(/</g, "&lt;")}</p>` : ""}<p>[BODY — complete this draft]</p><h2>For JUN CREATIF AND TRAVEL LLC</h2><p>Name: ____________________</p><p>Title: ____________________</p><p>Signature: ____________________</p><p>Date: ${isoDate}</p>`,
+    content: `<h1>Draft</h1><p><em>Generated offline (no OPENAI_API_KEY configured). Edit freely.</em></p><p>Document date: ${isoDate}</p><p>Instruction: ${instruction.replace(/</g, "&lt;")}</p>${context ? `<p>Context: ${context.replace(/</g, "&lt;")}</p>` : ""}<p>[BODY — complete this draft]</p><h2>Client acceptance and signature</h2><p>Client name: ____________________</p><p>Client signature: ____________________</p><p>Date: ${isoDate}</p>`,
   };
 }
 
