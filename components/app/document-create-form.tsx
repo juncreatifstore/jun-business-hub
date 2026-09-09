@@ -20,7 +20,7 @@ function normalizeVariables(value: unknown): TemplateVariable[] {
 
 function Submit() {
   const { pending } = useFormStatus();
-  return <Button variant="primary" disabled={pending}>{pending ? "Creating…" : "Create document"}</Button>;
+  return <Button variant="primary" disabled={pending} className="w-full sm:w-auto">{pending ? "Création…" : "Créer le document"}</Button>;
 }
 
 export function DocumentCreateForm({ clients, cases, templates, defaultClientId, defaultCaseId, defaultType, defaultTemplateId }: {
@@ -80,38 +80,38 @@ export function DocumentCreateForm({ clients, cases, templates, defaultClientId,
   }
 
   return (
-    <div className="grid max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <form action={action} className="space-y-6">
-        <section className="rounded-xl border border-line bg-white p-5">
-          <p className="text-sm font-semibold">1. Choose a starting point</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={chooseBlank} className={`rounded-xl border p-4 text-left transition ${source === "BLANK" ? "border-electric bg-electric/5" : "border-line hover:bg-surface"}`}><FilePlus2 className="h-5 w-5 text-electric" /><p className="mt-2 font-medium">Blank document</p><p className="mt-1 text-xs text-muted2">Start empty and write freely or use JUN AI.</p></button>
-            <div className={`rounded-xl border p-4 ${source === "TEMPLATE" ? "border-electric bg-electric/5" : "border-line"}`}><div className="flex items-center gap-2"><LayoutTemplate className="h-5 w-5 text-electric" /><p className="font-medium">JUN template</p></div><Select className="mt-3" value={templateId} onChange={(e) => e.target.value ? chooseTemplate(e.target.value) : chooseBlank()}><option value="">Select a template…</option>{templates.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.language} · {t.type.replaceAll("_", " ")}</option>)}</Select><p className="mt-2 text-xs text-muted2">{templates.length ? "Only active templates are shown." : "No active templates yet. Open Template Library to create one."}</p></div>
+    <div className="grid w-full min-w-0 max-w-6xl gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <form action={action} className="min-w-0 space-y-4 sm:space-y-6">
+        <section className="min-w-0 rounded-2xl border border-line bg-white p-4 sm:p-5">
+          <p className="text-sm font-semibold">1. Choisir un point de départ</p>
+          <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+            <button type="button" onClick={chooseBlank} className={`min-w-0 rounded-xl border p-4 text-left transition ${source === "BLANK" ? "border-electric bg-electric/5" : "border-line hover:bg-surface"}`}><FilePlus2 className="h-5 w-5 text-electric" /><p className="mt-2 font-medium">Document vierge</p><p className="mt-1 text-xs text-muted2">Commencer vide puis rédiger librement ou utiliser JUN AI.</p></button>
+            <div className={`min-w-0 rounded-xl border p-4 ${source === "TEMPLATE" ? "border-electric bg-electric/5" : "border-line"}`}><div className="flex items-center gap-2"><LayoutTemplate className="h-5 w-5 shrink-0 text-electric" /><p className="font-medium">Modèle JUN</p></div><Select className="mt-3 min-w-0" value={templateId} onChange={(e) => e.target.value ? chooseTemplate(e.target.value) : chooseBlank()}><option value="">Sélectionner un modèle…</option>{templates.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.language} · {t.type.replaceAll("_", " ")}</option>)}</Select><p className="mt-2 text-xs text-muted2">{templates.length ? "Seuls les modèles actifs sont affichés." : "Aucun modèle actif. Ouvrez la bibliothèque de modèles pour en créer un."}</p></div>
           </div>
         </section>
 
-        <section className="grid gap-5 rounded-xl border border-line bg-white p-5 sm:grid-cols-2">
-          <div className="sm:col-span-2"><Field label="Title"><Input name="title" required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Document title" /></Field>{err("title") && <p className="mt-1 text-xs text-red-600">{err("title")}</p>}</div>
-          <Field label="Type"><Select name="type" value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((t) => <option key={t} value={t}>{t.replaceAll("_"," ")}</option>)}</Select></Field>
-          <Field label="Language"><Select name="language" value={language} onChange={(e) => setLanguage(e.target.value as typeof language)}>{LANGUAGES.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</Select></Field>
-          <Field label="Client (optional)"><Select name="clientId" value={clientId} onChange={(e) => changeClient(e.target.value)}><option value="">No client</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.lastName}, {c.firstName} — {c.internalId}</option>)}</Select></Field>
-          <Field label="Case (optional)" hint={clientId ? "Only cases belonging to the selected client are shown." : "Select a client to narrow the case list."}><Select name="caseId" value={caseId} onChange={(e) => setCaseId(e.target.value)}><option value="">No case</option>{availableCases.map((c) => <option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}</Select></Field>
+        <section className="grid min-w-0 gap-4 rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 sm:gap-5 sm:p-5">
+          <div className="min-w-0 sm:col-span-2"><Field label="Titre"><Input name="title" required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titre du document" /></Field>{err("title") && <p className="mt-1 text-xs text-red-600">{err("title")}</p>}</div>
+          <div className="min-w-0"><Field label="Type"><Select name="type" value={type} onChange={(e) => setType(e.target.value)}>{TYPES.map((t) => <option key={t} value={t}>{t.replaceAll("_"," ")}</option>)}</Select></Field></div>
+          <div className="min-w-0"><Field label="Langue"><Select name="language" value={language} onChange={(e) => setLanguage(e.target.value as typeof language)}>{LANGUAGES.map(([code,label]) => <option key={code} value={code}>{label}</option>)}</Select></Field></div>
+          <div className="min-w-0"><Field label="Client (optionnel)"><Select name="clientId" value={clientId} onChange={(e) => changeClient(e.target.value)}><option value="">Aucun client</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.lastName}, {c.firstName} — {c.internalId}</option>)}</Select></Field></div>
+          <div className="min-w-0"><Field label="Dossier (optionnel)" hint={clientId ? "Seuls les dossiers du client sélectionné sont affichés." : "Sélectionnez un client pour réduire la liste."}><Select name="caseId" value={caseId} onChange={(e) => setCaseId(e.target.value)}><option value="">Aucun dossier</option>{availableCases.map((c) => <option key={c.id} value={c.id}>{c.caseNumber} — {c.title}</option>)}</Select></Field></div>
           <input type="hidden" name="templateId" value={templateId} />
           <input type="hidden" name="content" value={content} />
 
-          {selectedTemplate && inputVariables.length > 0 ? <div className="sm:col-span-2 rounded-xl border border-electric/20 bg-electric/5 p-4"><p className="text-sm font-semibold">Template variables</p><p className="mt-1 text-xs text-muted2">Client/date/case variables are filled automatically. Complete the remaining values below.</p><div className="mt-4 grid gap-4 sm:grid-cols-2">{inputVariables.map((v) => <Field key={v.key} label={v.label || v.key || "Variable"}><Input name={`var:${v.key}`} defaultValue={v.defaultValue ?? (v.key === "currency" ? "USD" : "")} required={Boolean(v.required)} placeholder={v.key === "amount" ? "e.g. 4500" : v.key === "currency" ? "USD" : "Enter value"} /></Field>)}</div></div> : null}
+          {selectedTemplate && inputVariables.length > 0 ? <div className="min-w-0 rounded-xl border border-electric/20 bg-electric/5 p-4 sm:col-span-2"><p className="text-sm font-semibold">Variables du modèle</p><p className="mt-1 text-xs text-muted2">Client, date et dossier sont remplis automatiquement. Complétez les autres valeurs.</p><div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-2">{inputVariables.map((v) => <div key={v.key} className="min-w-0"><Field label={v.label || v.key || "Variable"}><Input name={`var:${v.key}`} defaultValue={v.defaultValue ?? (v.key === "currency" ? "USD" : "")} required={Boolean(v.required)} placeholder={v.key === "amount" ? "ex. 4500" : v.key === "currency" ? "USD" : "Saisir une valeur"} /></Field></div>)}</div></div> : null}
 
-          <div className="sm:col-span-2"><Field label="Initial content (HTML)" hint={selectedTemplate ? `Loaded from template: ${selectedTemplate.name}. Variables are resolved when the document is created.` : "Leave empty to start with a blank page."}><Textarea rows={14} value={content} onChange={(e) => setContent(e.target.value)} className="font-mono text-xs" /></Field></div>
-          {state.message ? <p className="text-sm text-red-600 sm:col-span-2">{state.message}</p> : null}
-          <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><Submit /><a href="/app/documents" className="inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface">Cancel</a></div>
+          <div className="min-w-0 sm:col-span-2"><Field label="Contenu initial (HTML)" hint={selectedTemplate ? `Chargé depuis le modèle : ${selectedTemplate.name}. Les variables sont résolues lors de la création.` : "Laissez vide pour commencer avec une page blanche."}><Textarea rows={10} value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[240px] max-w-full resize-y overflow-x-auto font-mono text-xs sm:min-h-[330px]" /></Field></div>
+          {state.message ? <p className="break-words text-sm text-red-600 sm:col-span-2">{state.message}</p> : null}
+          <div className="grid gap-2 sm:col-span-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3"><Submit /><a href="/app/documents" className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-line px-4 text-sm font-medium hover:bg-surface sm:w-auto">Annuler</a></div>
         </section>
       </form>
 
-      <aside className="h-fit rounded-xl border border-electric/30 bg-electric/5 p-5 lg:sticky lg:top-6">
-        <p className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-electric" /> Write with JUN AI</p><p className="mt-1 text-xs text-muted2">JUN AI uses the selected language, document type, client and case context. It only drafts — it never finalizes or signs.</p>
-        <Textarea className="mt-3" rows={6} placeholder='e.g. "Prepare a professional travel service agreement with payment terms and cancellation conditions."' value={instruction} onChange={(e) => setInstruction(e.target.value)} /><Button type="button" variant="primary" className="mt-3 w-full" onClick={writeWithAI} disabled={pendingAI || !instruction.trim()}>{pendingAI ? "Drafting…" : "Generate draft"}</Button>{aiError ? <p className="mt-2 text-xs text-red-600">{aiError}</p> : null}
-        <div className="mt-5 rounded-lg border border-line bg-white/70 p-3 text-xs text-muted2"><p><strong>Language:</strong> {LANGUAGES.find(([code]) => code === language)?.[1]}</p><p className="mt-1"><strong>Type:</strong> {type.replaceAll("_", " ")}</p><p className="mt-1"><strong>Source:</strong> {selectedTemplate ? selectedTemplate.name : "Blank / AI draft"}</p>{selectedTemplate ? <p className="mt-1"><strong>Variables:</strong> {normalizeVariables(selectedTemplate.variables).length}</p> : null}</div>
-        <a href="/app/documents/templates" className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-lg border border-line bg-white text-sm font-medium hover:bg-surface">Open Template Library</a>
+      <aside className="min-w-0 h-fit rounded-2xl border border-electric/30 bg-electric/5 p-4 sm:p-5 lg:sticky lg:top-6">
+        <p className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 shrink-0 text-electric" />Rédiger avec JUN AI</p><p className="mt-1 text-xs text-muted2">JUN AI utilise la langue, le type de document, le client et le dossier sélectionnés. Il prépare uniquement un brouillon : il ne finalise ni ne signe.</p>
+        <Textarea className="mt-3 min-h-[130px]" rows={5} placeholder='Ex. « Préparer un accord professionnel de service de voyage avec conditions de paiement et d’annulation. »' value={instruction} onChange={(e) => setInstruction(e.target.value)} /><Button type="button" variant="primary" className="mt-3 w-full" onClick={writeWithAI} disabled={pendingAI || !instruction.trim()}>{pendingAI ? "Rédaction…" : "Générer le brouillon"}</Button>{aiError ? <p className="mt-2 break-words text-xs text-red-600">{aiError}</p> : null}
+        <div className="mt-5 min-w-0 rounded-xl border border-line bg-white/70 p-3 text-xs text-muted2"><p className="break-words"><strong>Langue :</strong> {LANGUAGES.find(([code]) => code === language)?.[1]}</p><p className="mt-1 break-words"><strong>Type :</strong> {type.replaceAll("_", " ")}</p><p className="mt-1 break-words"><strong>Source :</strong> {selectedTemplate ? selectedTemplate.name : "Document vierge / Brouillon IA"}</p>{selectedTemplate ? <p className="mt-1"><strong>Variables :</strong> {normalizeVariables(selectedTemplate.variables).length}</p> : null}</div>
+        <a href="/app/documents/templates" className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-line bg-white px-3 text-center text-sm font-medium hover:bg-surface">Ouvrir la bibliothèque de modèles</a>
       </aside>
     </div>
   );
