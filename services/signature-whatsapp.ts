@@ -113,7 +113,7 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
   }
 
   const clientName = `${doc.client.firstName} ${doc.client.lastName}`.trim();
-  let request = doc.signatures[0] ?? null;
+  let request: (typeof doc.signatures)[number] | null = doc.signatures.length > 0 ? doc.signatures[0] : null;
   let newlyCreated = false;
 
   if (request) {
