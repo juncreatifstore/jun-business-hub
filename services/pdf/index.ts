@@ -338,26 +338,61 @@ function cleanBodyText(html: string): string {
     .trim();
 }
 
+function normalizedComparableText(value: string): string {
+  return value
+    .replace(/\s+/g, " ")
+    .replace(/[.:;\-–—]+$/g, "")
+    .trim()
+    .toUpperCase();
+}
+
 function isHeadingLine(block: string): boolean {
   const text = block.trim();
   if (!text || text.length > 90 || text.split(/\s+/).length > 12) return false;
   if (/^\[[^\]]+\]$/.test(text)) return false;
+  if (/^[^:]{1,44}\s*:\s*\S/.test(text)) return false;
   if (/^(Date|Dat|From|To|Ant|Ak|Objet|Objè|Reference|Référence|Client|Case|Dossier)\s*:/i.test(text)) return false;
   return /^[A-ZÀ-ÖØ-Þ0-9]/.test(text) && !/[.!?]$/.test(text);
 }
 
-function renderTextPage(ctx: Ctx, html: string) {
+function renderTextPage(ctx: Ctx, html: string, options: { skipLeadingTitle?: string } = {}) {
   const text = cleanBodyText(html);
   if (!text) return;
+
   const width = PAGE.w - 2 * PAGE.margin;
   const blocks = text.split(/\n+/).map((x) => x.trim()).filter(Boolean);
-  for (const block of blocks) {
-    const heading = isHeadingLine(block);
+
+  if (
+    options.skipLeadingTitle &&
+    blocks.length > 0 &&
+    normalizedComparableText(blocks[0]) === normalizedComparableText(options.skipLeadingTitle)
+  ) {
+    blocks.shift();
+  }
+
+  for (let index = 0; index < blocks.length; index++) {
+    const block = blocks[index];
+    const bulletMatch = block.match(/^[•▪◦\-–—]\s+(.*)$/);
+    const printable = bulletMatch ? `• ${bulletMatch[1]}` : block;
+    const indent = bulletMatch ? 10 : 0;
+    const heading = !bulletMatch && isHeadingLine(printable);
+
     if (heading) {
       if (ctx.y < PAGE.margin + 92) newPage(ctx);
-      drawLines(ctx, wrap(block, ctx.bold, 10.5, width), { size: 10.5, bold: true, lead: 13.2, gap: 2.5 });
+      if (index > 0) ctx.y -= 1.5;
+      drawLines(ctx, wrap(printable, ctx.bold, 10.6, width), {
+        size: 10.6,
+        bold: true,
+        lead: 13.6,
+        gap: 3.2,
+      });
     } else {
-      drawLines(ctx, wrap(block, ctx.font, 9.35, width), { size: 9.35, lead: 12.1, gap: 2.2 });
+      drawLines(ctx, wrap(printable, ctx.font, 9.4, width - indent), {
+        size: 9.4,
+        lead: 12.6,
+        gap: bulletMatch ? 1.8 : 3.0,
+        indent,
+      });
     }
   }
 }
@@ -382,7 +417,7 @@ export async function renderDocumentPdf(input: { documentId: string; title: stri
     const logical = pages[i];
     if (i === 0) { ctx.rotation = logical.rotation; applyRotation(ctx.page, logical.rotation); }
     else newPage(ctx, logical.rotation);
-    renderTextPage(ctx, logical.html);
+    renderTextPage(ctx, logical.html, { skipLeadingTitle: i === 0 ? input.title : undefined });
   }
   return finish();
 }
