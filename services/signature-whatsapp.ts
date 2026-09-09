@@ -88,7 +88,7 @@ async function deliverSignatureMessage(input: {
       languageCode: config.languageCode,
       clientName: input.clientName,
       documentLabel: `Signature électronique · ${input.documentTitle}`,
-      documentReference: `${input.documentReference} · ${input.signingUrl}`,
+      reference: `${input.documentReference} · ${input.signingUrl}`,
     });
     return { result, mode: "APPROVED_TEMPLATE" as const, template: config.defaultTemplate };
   }
