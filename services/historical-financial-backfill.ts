@@ -102,7 +102,7 @@ function parsePayments(rows: PaymentRow[]): { rows?: ParsedPayment[]; error?: st
   const out: ParsedPayment[] = [];
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
-    const hasAny = [row.date, row.amount, row.currency, row.transactionRef, row.purpose, row.notes].some((value) => String(value ?? "").trim());
+    const hasAny = [row.date, row.amount, row.transactionRef, row.purpose, row.notes].some((value) => String(value ?? "").trim());
     if (!hasAny) continue;
     const date = parseHistoricalDate(row.date);
     const amount = parseMoney(row.amount);
@@ -130,7 +130,7 @@ function parseRefunds(rows: RefundRow[]): { rows?: ParsedRefund[]; error?: strin
   const out: ParsedRefund[] = [];
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
-    const hasAny = [row.date, row.amount, row.currency, row.transactionRef, row.reason, row.notes].some((value) => String(value ?? "").trim());
+    const hasAny = [row.date, row.amount, row.transactionRef, row.reason, row.notes].some((value) => String(value ?? "").trim());
     if (!hasAny) continue;
     const date = parseHistoricalDate(row.date);
     const amount = parseMoney(row.amount);
