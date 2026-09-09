@@ -3,7 +3,8 @@ import { CheckCircle2, Clock3, FileSignature, Mail, ShieldCheck, UserRound } fro
 import { StatusBadge, Badge } from "@/components/ui/badge";
 
 export function SignatureWorkspaceHeader({
-  documentId,
+  documentDbId,
+  registryId,
   title,
   status,
   provider,
@@ -14,7 +15,8 @@ export function SignatureWorkspaceHeader({
   expiresAt,
   actions,
 }: {
-  documentId: string;
+  documentDbId: string;
+  registryId: string;
   title: string;
   status: string;
   provider: string;
@@ -43,7 +45,7 @@ export function SignatureWorkspaceHeader({
                 <Badge className="border border-white/[0.07] bg-white/[0.03] text-slate-400">{provider}</Badge>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-                <Link href={`/app/documents/${documentId}`} className="registry-id text-slate-300 hover:text-blue-300">{documentId}</Link>
+                <Link href={`/app/documents/${documentDbId}`} className="registry-id text-slate-300 hover:text-blue-300">{registryId}</Link>
                 {client ? <Link href={`/app/clients/${client.id}/dashboard`} className="inline-flex items-center gap-1.5 hover:text-blue-300"><UserRound className="h-3.5 w-3.5" />{client.name}</Link> : null}
                 {expiresAt ? <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" />Expire {expiresAt}</span> : null}
               </div>
