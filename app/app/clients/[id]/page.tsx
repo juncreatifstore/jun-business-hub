@@ -1,86 +1,180 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getClientFinancialAccount } from "@/lib/client-financial-account";
-import { StatusBadge, Badge } from "@/components/ui/badge";
+import { getClientBlock } from "@/lib/client-transaction-block";
+import { archiveClient } from "@/services/clients";
+import { ClientWorkspaceHeader } from "@/components/app/client-workspace-header";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, THead, TH, TR, TD } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/input";
-import { formatDate, formatDateTime, formatMoney, cn } from "@/lib/utils";
-import { addClientNote, archiveClient } from "@/services/clients";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
+import {
+  CircleDollarSign,
+  FileText,
+  FolderKanban,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+  ShieldCheck,
+  UserRound,
+  WalletCards,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-const TABS = ["overview", "account", "cases", "documents", "contracts", "payments", "refunds", "emails", "notes", "activity"] as const;
-type Tab = (typeof TABS)[number];
 
 function moneyList(rows: Array<{ currency: string; value: number }>) {
   if (!rows.length) return formatMoney(0, "USD");
   return rows.map((r) => formatMoney(r.value, r.currency)).join(" · ");
 }
 
-export default async function ClientDetailPage({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string } }) {
+const legacyTabRoute: Record<string, string> = {
+  account: "account",
+  cases: "services",
+  documents: "documents",
+  contracts: "documents",
+  payments: "finance",
+  refunds: "finance",
+  emails: "whatsapp",
+  notes: "history",
+  activity: "history",
+};
+
+export default async function ClientProfilePage({ params, searchParams }: { params: { id: string }; searchParams?: { tab?: string } }) {
   const user = await requirePermission("CLIENT_READ");
-  const tab: Tab = (TABS as readonly string[]).includes(searchParams.tab ?? "") ? searchParams.tab as Tab : "overview";
-  const [client, account] = await Promise.all([
+  const legacyTab = searchParams?.tab;
+  if (legacyTab && legacyTab !== "overview" && legacyTabRoute[legacyTab]) redirect(`/app/clients/${params.id}/${legacyTabRoute[legacyTab]}`);
+
+  const [client, account, block] = await Promise.all([
     prisma.client.findUnique({
       where: { id: params.id },
       include: {
-        owner: true, tags: true,
-        cases: { orderBy: { createdAt: "desc" }, include: { owner: true } },
-        documents: { orderBy: { updatedAt: "desc" } },
-        payments: { orderBy: { paidAt: "desc" } },
-        refunds: { orderBy: { createdAt: "desc" } },
-        files: { orderBy: { createdAt: "desc" }, where: { isVault: false } },
-        mailThreads: { orderBy: { updatedAt: "desc" } },
-        clientNotes: { orderBy: { createdAt: "desc" }, include: { author: true } },
-        activities: { orderBy: { createdAt: "desc" }, take: 30, include: { user: true } },
+        owner: true,
+        tags: true,
+        clientNotes: { orderBy: { createdAt: "desc" }, take: 5, include: { author: true } },
+        _count: { select: { cases: true, documents: true, payments: true, refunds: true, files: true, mailThreads: true } },
       },
     }),
     getClientFinancialAccount(params.id),
+    getClientBlock(params.id),
   ]);
   if (!client) notFound();
 
-  const contracts = client.documents.filter((d) => ["CONTRACT", "AGREEMENT", "REFUND_AGREEMENT"].includes(d.type));
-  const balanceText = moneyList(account.balances.map((b) => ({ currency: b.currency, value: b.available })));
-  const fundsText = moneyList(account.balances.map((b) => ({ currency: b.currency, value: b.confirmedFunds })));
-  const refundsText = moneyList(account.balances.filter((b) => b.activeRefunds).map((b) => ({ currency: b.currency, value: b.activeRefunds })));
-  const commissionsText = moneyList(account.balances.filter((b) => b.commissions).map((b) => ({ currency: b.currency, value: b.commissions })));
-  const noteAction = addClientNote.bind(null, client.id);
+  const blocked = Boolean(block?.blocked);
+  const archived = client.status === "ARCHIVED";
+  const available = moneyList(account.balances.map((b) => ({ currency: b.currency, value: b.available })));
+  const confirmed = moneyList(account.balances.map((b) => ({ currency: b.currency, value: b.confirmedFunds })));
+  const activeRefunds = moneyList(account.balances.filter((b) => b.activeRefunds > 0).map((b) => ({ currency: b.currency, value: b.activeRefunds })));
+  const commissions = moneyList(account.balances.filter((b) => b.commissions > 0).map((b) => ({ currency: b.currency, value: b.commissions })));
   const archiveAction = archiveClient.bind(null, client.id);
 
-  return <div>
-    <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
-      <div><div className="flex items-center gap-3"><h1 className="text-xl font-semibold">{client.firstName} {client.lastName}</h1><StatusBadge status={client.status} />{account.profile.isPartner ? <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700">PARTNER</Badge> : null}</div><p className="registry-id mt-1 text-muted2">{client.internalId} · since {formatDate(client.createdAt)}</p><div className="mt-2 flex flex-wrap gap-1">{client.tags.map((t) => <Badge key={t.id} className="border border-line bg-surface text-muted2">{t.tag}</Badge>)}</div></div>
-      <div className="flex flex-wrap gap-2"><Link href={`/app/clients/${client.id}/statement`}><Button variant="outline">Statement</Button></Link><Link href={`/app/clients/${client.id}/account`}><Button variant="outline">Financial account</Button></Link>{can(user,"CLIENT_UPDATE")?<Link href={`/app/clients/${client.id}/edit`}><Button variant="outline">Edit</Button></Link>:null}{can(user,"CLIENT_ARCHIVE")&&client.status!=="ARCHIVED"?<form action={archiveAction}><Button variant="ghost" className="text-red-600">Archive</Button></form>:null}</div>
+  return (
+    <div className="space-y-5">
+      <ClientWorkspaceHeader
+        client={client}
+        tags={client.tags}
+        isPartner={account.profile.isPartner}
+        blocked={blocked}
+        canUpdate={can(user, "CLIENT_UPDATE")}
+        newServicesAllowed={!blocked && !archived}
+        paymentsAllowed={!archived}
+      />
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Profil</p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-100">Fiche complète du client</h2>
+          <p className="mt-1 text-sm text-slate-500">Identité, coordonnées, préférences, responsable et état général du compte.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/app/clients/${client.id}/relationship`}><Button variant="outline">Relation client</Button></Link>
+          {can(user, "CLIENT_UPDATE") ? <Link href={`/app/clients/${client.id}/edit`}><Button variant="primary">Modifier le profil</Button></Link> : null}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric icon={WalletCards} label="Solde disponible" value={available} hint="Après engagements actifs" tone="blue" />
+        <Metric icon={CircleDollarSign} label="Fonds confirmés" value={confirmed} hint="Montants confirmés dans JUN" tone="green" />
+        <Metric icon={ShieldCheck} label="Remboursements actifs" value={activeRefunds} hint={`${client._count.refunds} remboursement(s) enregistré(s)`} tone="amber" />
+        <Metric icon={CircleDollarSign} label="Commissions" value={commissions} hint={account.profile.isPartner ? "Compte partenaire actif" : "Compte client standard"} tone="violet" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
+        <Card className="bg-[#0e1624]">
+          <CardHeader><div><CardTitle>Identité & coordonnées</CardTitle><p className="mt-1 text-xs text-slate-500">Données principales enregistrées dans le dossier.</p></div></CardHeader>
+          <CardContent className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+            <Info icon={UserRound} label="Nom complet" value={`${client.firstName} ${client.lastName}`} />
+            <Info icon={UserRound} label="Responsable JUN" value={client.owner ? `${client.owner.firstName} ${client.owner.lastName}` : "Non assigné"} />
+            <Info icon={Mail} label="Email" value={client.email || "—"} />
+            <Info icon={Phone} label="Téléphone" value={client.phone || "—"} />
+            <Info icon={MessageCircle} label="WhatsApp" value={client.whatsapp || "—"} />
+            <Info icon={MapPin} label="Pays" value={client.country || "—"} />
+            <Info icon={UserRound} label="Nationalité" value={client.nationality || "—"} />
+            <Info icon={UserRound} label="Date de naissance" value={client.birthDate ? formatDate(client.birthDate) : "—"} />
+            <div className="sm:col-span-2 rounded-xl border border-white/[0.055] bg-white/[0.018] p-3.5"><div className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5"/>Adresse</div><div className="mt-1.5 whitespace-pre-wrap font-medium text-slate-200">{client.address || "—"}</div></div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[#0e1624]">
+          <CardHeader><div><CardTitle>Configuration du compte</CardTitle><p className="mt-1 text-xs text-slate-500">Préférences et classification interne.</p></div></CardHeader>
+          <CardContent className="space-y-4">
+            <Setting label="Langue du relevé" value={account.profile.preferredLanguage || "—"} />
+            <Setting label="Type de compte" value={account.profile.isPartner ? "Partenaire" : "Client standard"} />
+            <Setting label="Statut commercial" value={blocked ? "Relation terminée" : archived ? "Archivé" : "Actif / autorisé"} />
+            <div className="border-t border-white/[0.055] pt-4"><div className="text-xs text-slate-500">Tags</div><div className="mt-2 flex flex-wrap gap-1.5">{client.tags.length ? client.tags.map((tag) => <Badge key={tag.id} className="border border-white/[0.06] bg-white/[0.025] text-slate-500">{tag.tag}</Badge>) : <span className="text-sm text-slate-600">Aucun tag</span>}</div></div>
+            {client.notes ? <div className="rounded-xl border border-white/[0.055] bg-white/[0.018] p-3.5"><div className="text-xs text-slate-500">Notes générales du profil</div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{client.notes}</p></div> : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="bg-[#0e1624]">
+          <CardHeader><div><CardTitle>Registre du client</CardTitle><p className="mt-1 text-xs text-slate-500">Volume des éléments reliés à cette fiche.</p></div></CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <Count href={`/app/clients/${client.id}/services`} icon={FolderKanban} label="Dossiers" value={client._count.cases} />
+            <Count href={`/app/clients/${client.id}/documents`} icon={FileText} label="Documents" value={client._count.documents} />
+            <Count href={`/app/clients/${client.id}/documents`} icon={FileText} label="Fichiers Drive" value={client._count.files} />
+            <Count href={`/app/clients/${client.id}/finance`} icon={WalletCards} label="Paiements" value={client._count.payments} />
+            <Count href={`/app/clients/${client.id}/finance`} icon={ShieldCheck} label="Remboursements" value={client._count.refunds} />
+            <Count href={`/app/clients/${client.id}/whatsapp`} icon={MessageCircle} label="Conversations mail" value={client._count.mailThreads} />
+          </CardContent>
+        </Card>
+
+        <Card className="bg-[#0e1624]">
+          <CardHeader><div><CardTitle>Dernières notes internes</CardTitle><p className="mt-1 text-xs text-slate-500">Les notes complètes restent disponibles dans Historique.</p></div><Link href={`/app/clients/${client.id}/history`} className="text-xs font-medium text-blue-400 hover:text-blue-300">Historique</Link></CardHeader>
+          <CardContent className="p-0">
+            {client.clientNotes.length ? <div className="divide-y divide-white/[0.055]">{client.clientNotes.map((note) => <div key={note.id} className="px-5 py-3.5"><p className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-slate-300">{note.body}</p><p className="mt-1.5 text-[10px] text-slate-600">{note.author.firstName} {note.author.lastName} · {formatDateTime(note.createdAt)}</p></div>)}</div> : <p className="p-6 text-center text-sm text-slate-500">Aucune note interne.</p>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {can(user, "CLIENT_ARCHIVE") && !archived ? (
+        <Card className="border-red-400/10 bg-red-500/[0.035]">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+            <div><p className="text-sm font-medium text-red-200">Archivage du client</p><p className="mt-1 text-xs text-red-300/55">L’archivage conserve l’historique complet mais retire le client des opérations actives.</p></div>
+            <form action={archiveAction}><Button variant="danger">Archiver le client</Button></form>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
+  );
+}
 
-    <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      {[{label:"Available balance",value:balanceText},{label:"Confirmed funds",value:fundsText},{label:"Refunds / withdrawals",value:refundsText},{label:"Commissions",value:commissionsText},{label:"Cases",value:String(client.cases.length)},{label:"Contracts",value:String(contracts.length)}].map((m)=><Card key={m.label}><CardContent className="p-4"><p className="text-xs text-muted2">{m.label}</p><p className="mt-1 break-words text-xl font-semibold">{m.value}</p></CardContent></Card>)}
-    </div>
+function Metric({ icon: Icon, label, value, hint, tone }: { icon: typeof WalletCards; label: string; value: string; hint: string; tone: "blue" | "green" | "amber" | "violet" }) {
+  const tones = { blue: "bg-blue-500/10 text-blue-400", green: "bg-emerald-500/10 text-emerald-400", amber: "bg-amber-500/10 text-amber-400", violet: "bg-violet-500/10 text-violet-400" };
+  return <Card className="bg-[#0e1624]"><CardContent className="p-4"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-4 w-4"/></span><div className="mt-3 text-xs text-slate-500">{label}</div><div className="mt-1 break-words text-lg font-semibold text-slate-100">{value}</div><div className="mt-1 text-[11px] text-slate-600">{hint}</div></CardContent></Card>;
+}
 
-    <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line">{TABS.map((t)=><Link key={t} href={`/app/clients/${client.id}?tab=${t}`} className={cn("whitespace-nowrap border-b-2 px-3 py-2 text-sm capitalize",tab===t?"border-electric font-medium text-electric":"border-transparent text-muted2 hover:text-ink")}>{t}</Link>)}</div>
+function Info({ icon: Icon, label, value }: { icon: typeof UserRound; label: string; value: string }) {
+  return <div><div className="flex items-center gap-1.5 text-xs text-slate-500"><Icon className="h-3.5 w-3.5"/>{label}</div><div className="mt-1.5 break-words font-medium text-slate-200">{value}</div></div>;
+}
 
-    {tab==="overview"?<div className="grid gap-4 lg:grid-cols-2"><Card><CardHeader><CardTitle>Contact & identity</CardTitle></CardHeader><CardContent><dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">{[["Email",client.email],["Phone",client.phone],["WhatsApp",client.whatsapp],["Country",client.country],["Nationality",client.nationality],["Birth date",client.birthDate?formatDate(client.birthDate):null],["Address",client.address],["Owner",client.owner?`${client.owner.firstName} ${client.owner.lastName}`:null],["Statement language",account.profile.preferredLanguage],["Partner",account.profile.isPartner?"Yes":"No"]].map(([k,v])=><div key={String(k)}><dt className="text-xs text-muted2">{k}</dt><dd className="mt-0.5">{v??"—"}</dd></div>)}</dl>{client.notes?<div className="mt-4 rounded-lg bg-surface p-3 text-sm"><p className="text-xs text-muted2">Notes</p><p className="mt-1 whitespace-pre-wrap">{client.notes}</p></div>:null}</CardContent></Card><Card><CardHeader><CardTitle>Timeline</CardTitle></CardHeader><CardContent className="p-0">{client.activities.length===0?<p className="p-5 text-sm text-muted2">No activity recorded yet for this client.</p>:<ul className="divide-y divide-line">{client.activities.slice(0,10).map((a)=><li key={a.id} className="px-5 py-3"><p className="text-sm">{a.message}</p><p className="text-xs text-muted2">{a.user?`${a.user.firstName} ${a.user.lastName} · `:""}{formatDateTime(a.createdAt)}</p></li>)}</ul>}</CardContent></Card></div>:null}
+function Setting({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.05] bg-white/[0.015] px-3.5 py-3"><span className="text-xs text-slate-500">{label}</span><strong className="text-sm font-medium text-slate-200">{value}</strong></div>;
+}
 
-    {tab==="account"?<div className="space-y-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{account.balances.map((b)=><Card key={b.currency}><CardHeader><CardTitle>{b.currency}</CardTitle></CardHeader><CardContent className="space-y-2 text-sm"><div className="text-2xl font-semibold">{formatMoney(b.available,b.currency)}</div><div className="flex justify-between"><span className="text-muted2">Confirmed funds</span><strong>{formatMoney(b.confirmedFunds,b.currency)}</strong></div><div className="flex justify-between"><span className="text-muted2">Commissions</span><strong>+{formatMoney(b.commissions,b.currency)}</strong></div><div className="flex justify-between"><span className="text-muted2">Active refunds</span><strong>-{formatMoney(b.activeRefunds,b.currency)}</strong></div><div className="flex justify-between"><span className="text-muted2">Actually paid out</span><strong>{formatMoney(b.refundsPaid,b.currency)}</strong></div></CardContent></Card>)}</div><Card><CardHeader><CardTitle>Financial account</CardTitle></CardHeader><CardContent className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm">{account.profile.isPartner?"Partner account enabled":"Standard client account"} · Statement language {account.profile.preferredLanguage}</p><p className="mt-1 text-xs text-muted2">Refunds can debit the global account balance without being tied to one specific payment.</p></div><div className="flex gap-2"><Link href={`/app/clients/${client.id}/account`}><Button variant="primary">Manage account</Button></Link><Link href={`/app/clients/${client.id}/statement`}><Button variant="outline">Generate statement</Button></Link></div></CardContent></Card></div>:null}
-
-    {tab==="cases"?(client.cases.length===0?<p className="text-sm text-muted2">No cases for this client. <Link className="text-electric hover:underline" href={`/app/cases/new?clientId=${client.id}`}>Open the first case</Link>.</p>:<Table><THead><tr><TH>Case</TH><TH>Title</TH><TH>Status</TH><TH>Priority</TH><TH>Owner</TH><TH>Due</TH></tr></THead><tbody>{client.cases.map((c)=><TR key={c.id}><TD><Link href={`/app/cases/${c.id}`} className="registry-id hover:text-electric">{c.caseNumber}</Link></TD><TD><Link href={`/app/cases/${c.id}`} className="font-medium hover:text-electric">{c.title}</Link></TD><TD><StatusBadge status={c.status}/></TD><TD><StatusBadge status={c.priority}/></TD><TD className="text-muted2">{c.owner?`${c.owner.firstName} ${c.owner.lastName}`:"—"}</TD><TD className="text-muted2">{formatDate(c.dueDate)}</TD></TR>)}</tbody></Table>):null}
-
-    {tab==="documents"?(client.files.length===0&&client.documents.length===0?<p className="text-sm text-muted2">No documents or files linked to this client yet.</p>:<div className="space-y-6">{client.documents.length?<Table><THead><tr><TH>Registry ID</TH><TH>Title</TH><TH>Type</TH><TH>Status</TH><TH>Updated</TH></tr></THead><tbody>{client.documents.map((d)=><TR key={d.id}><TD><span className="registry-id">{d.documentId}</span></TD><TD><Link href={`/app/documents/${d.id}`} className="font-medium hover:text-electric">{d.title}</Link></TD><TD className="text-muted2">{d.type.replaceAll("_"," ")}</TD><TD><StatusBadge status={d.status}/></TD><TD className="text-muted2">{formatDate(d.updatedAt)}</TD></TR>)}</tbody></Table>:null}{client.files.length?<Table><THead><tr><TH>File</TH><TH>Category</TH><TH>Size</TH><TH>Uploaded</TH></tr></THead><tbody>{client.files.map((f)=><TR key={f.id}><TD><Link href={`/api/files/${f.id}`} className="font-medium hover:text-electric">{f.name}</Link></TD><TD className="text-muted2">{f.category.replaceAll("_"," ")}</TD><TD className="text-muted2">{(f.sizeBytes/1024).toFixed(0)} KB</TD><TD className="text-muted2">{formatDate(f.createdAt)}</TD></TR>)}</tbody></Table>:null}</div>):null}
-
-    {tab==="contracts"?(contracts.length===0?<p className="text-sm text-muted2">No contracts yet.</p>:<Table><THead><tr><TH>Registry ID</TH><TH>Title</TH><TH>Status</TH><TH>Updated</TH></tr></THead><tbody>{contracts.map((d)=><TR key={d.id}><TD><span className="registry-id">{d.documentId}</span></TD><TD><Link href={`/app/documents/${d.id}`} className="font-medium hover:text-electric">{d.title}</Link></TD><TD><StatusBadge status={d.status}/></TD><TD className="text-muted2">{formatDate(d.updatedAt)}</TD></TR>)}</tbody></Table>):null}
-
-    {tab==="payments"?(client.payments.length===0?<p className="text-sm text-muted2">No payments recorded.</p>:<Table><THead><tr><TH>Reference</TH><TH>Amount</TH><TH>Method</TH><TH>Status</TH><TH>Date</TH></tr></THead><tbody>{client.payments.map((p)=><TR key={p.id}><TD><Link href={`/app/finance/payments/${p.id}`} className="registry-id hover:text-electric">{p.reference}</Link></TD><TD className="font-medium">{formatMoney(Number(p.amount),p.currency)}</TD><TD className="text-muted2">{p.method.replaceAll("_"," ")}</TD><TD><StatusBadge status={p.status}/></TD><TD className="text-muted2">{formatDate(p.paidAt)}</TD></TR>)}</tbody></Table>):null}
-
-    {tab==="refunds"?(client.refunds.length===0?<p className="text-sm text-muted2">No refunds for this client.</p>:<Table><THead><tr><TH>Reference</TH><TH>Amount</TH><TH>Reason</TH><TH>Status</TH><TH>Linked payment</TH><TH>Created</TH></tr></THead><tbody>{client.refunds.map((r)=><TR key={r.id}><TD><Link href={`/app/finance/refunds/${r.id}`} className="registry-id hover:text-electric">{r.refundNumber}</Link></TD><TD className="font-medium">-{formatMoney(Number(r.amount),r.currency)}</TD><TD className="max-w-xs truncate text-muted2">{r.reason}</TD><TD><StatusBadge status={r.status}/></TD><TD className="text-muted2">{r.paymentId?"Linked":"Global balance"}</TD><TD className="text-muted2">{formatDate(r.createdAt)}</TD></TR>)}</tbody></Table>):null}
-
-    {tab==="emails"?(client.mailThreads.length===0?<p className="text-sm text-muted2">No email threads linked to this client.</p>:<ul className="space-y-2">{client.mailThreads.map((t)=><li key={t.id}><Card><CardContent className="p-4"><div className="flex items-center justify-between gap-3"><Link href={`/app/mail?thread=${t.id}`} className="font-medium hover:text-electric">{t.subject??"(No subject)"}</Link>{t.requiresAttention?<StatusBadge status="ATTENTION"/>:null}</div>{t.snippet?<p className="mt-1 line-clamp-2 text-sm text-muted2">{t.snippet}</p>:null}</CardContent></Card></li>)}</ul>):null}
-
-    {tab==="notes"?<div className="max-w-2xl space-y-4">{can(user,"CLIENT_UPDATE")?<form action={noteAction} className="space-y-2"><Textarea name="body" placeholder="Add a note visible to the team…" rows={3} required maxLength={5000}/><Button variant="primary" size="sm">Add note</Button></form>:null}{client.clientNotes.length===0?<p className="text-sm text-muted2">No notes yet.</p>:<ul className="space-y-3">{client.clientNotes.map((n)=><li key={n.id} className="rounded-xl border border-line bg-white p-4"><p className="whitespace-pre-wrap text-sm">{n.body}</p><p className="mt-2 text-xs text-muted2">{n.author.firstName} {n.author.lastName} · {formatDateTime(n.createdAt)}</p></li>)}</ul>}</div>:null}
-
-    {tab==="activity"?(client.activities.length===0?<p className="text-sm text-muted2">Nothing recorded yet.</p>:<ul className="max-w-2xl divide-y divide-line rounded-xl border border-line bg-white">{client.activities.map((a)=><li key={a.id} className="px-5 py-3"><p className="text-sm">{a.message}</p><p className="text-xs text-muted2">{a.user?`${a.user.firstName} ${a.user.lastName} · `:""}{formatDateTime(a.createdAt)}</p></li>)}</ul>):null}
-  </div>;
+function Count({ href, icon: Icon, label, value }: { href: string; icon: typeof FileText; label: string; value: number }) {
+  return <Link href={href} className="group rounded-xl border border-white/[0.055] bg-white/[0.015] p-3 transition hover:border-blue-400/20 hover:bg-blue-500/[0.04]"><Icon className="h-4 w-4 text-slate-600 transition group-hover:text-blue-400"/><div className="mt-3 text-xl font-semibold text-slate-100">{value}</div><div className="mt-0.5 text-[11px] text-slate-600">{label}</div></Link>;
 }
