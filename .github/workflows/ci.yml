@@ -81,3 +81,56 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      NEXT_PUBLIC_APP_URL: https://www.juncreatif.org
+      AUTH_SECRET: ci-only-secret-not-for-production-0123456789
+      STORAGE_DRIVER: LOCAL
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      # Fails if prisma/schema.prisma and prisma/migrations/ disagree — the exact
+      # situation that previously required a "consolidate_production_drift" migration.
+      - name: Schema / migrations drift check
+        run: npm run db:check-drift
+
+      - name: Seed dev fixtures
+        run: npm run db:seed
+
+      - name: Integration tests
+        run: npm run test:integration

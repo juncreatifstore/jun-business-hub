@@ -16,7 +16,9 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm test"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:check-drift": "prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url \"$DIRECT_URL\" --exit-code"
   },
   "prisma": {
     "seed": "node prisma/seed.mjs"
