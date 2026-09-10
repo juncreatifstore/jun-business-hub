@@ -5,11 +5,11 @@ import { PageHeader } from "@/components/app/page-header";
 import { Table, THead, TH, TR, TD } from "@/components/ui/table";
 import { StatusBadge, Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input, Select } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { ListCount, Pagination, RecordCard, RecordField } from "@/components/ui/record-list";
+import { Select } from "@/components/ui/input";
+import { FilterBar } from "@/components/ui/filter-bar";
+import { ListCount, Pagination, RecordList, RecordCard, RecordField } from "@/components/ui/record-list";
 import { formatDate } from "@/lib/utils";
-import { Search, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -76,11 +76,12 @@ export default async function ClientsPage({ searchParams }: { searchParams: Para
         actionLabel="Nouveau client"
       />
 
-      <form className="mb-4 grid gap-2 rounded-2xl border border-line bg-night-soft/45 p-3 shadow-sm md:grid-cols-[minmax(240px,1fr)_170px_190px_auto]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted2" />
-          <Input name="q" placeholder="Nom, email, téléphone, ID…" defaultValue={q} className="pl-9" />
-        </div>
+      <FilterBar
+        searchValue={q}
+        placeholder="Nom, email, téléphone, ID…"
+        activeCount={(status ? 1 : 0) + (sort !== "RECENT" ? 1 : 0)}
+        resetHref="/app/clients"
+      >
         <Select name="status" defaultValue={status ?? "ALL"}>
           <option value="ALL">Tous les statuts actifs</option>
           <option value="LEAD">Lead</option>
@@ -94,17 +95,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Para
           <option value="NAME_DESC">Nom Z → A</option>
           <option value="STATUS">Par statut</option>
         </Select>
-        <div className="flex gap-2">
-          <Button variant="outline">Appliquer</Button>
-          {q || status || sort !== "RECENT" ? (
-            <Link href="/app/clients">
-              <Button type="button" variant="ghost">
-                Réinitialiser
-              </Button>
-            </Link>
-          ) : null}
-        </div>
-      </form>
+      </FilterBar>
 
       {clients.length === 0 ? (
         <EmptyState
@@ -178,7 +169,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Para
             </Table>
           </div>
 
-          <div className="grid gap-3 md:hidden">
+          <RecordList className="md:hidden">
             {clients.map((c) => (
               <RecordCard
                 key={c.id}
@@ -186,31 +177,21 @@ export default async function ClientsPage({ searchParams }: { searchParams: Para
                 title={`${c.firstName} ${c.lastName}`}
                 subtitle={<span className="registry-id">{c.internalId}</span>}
                 leading={
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-sm font-bold text-accent">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full tint-accent text-sm font-semibold text-accent">
                     {initials(c.firstName, c.lastName)}
                   </span>
                 }
-                badges={
-                  <>
-                    <StatusBadge status={c.status} />
-                    {c.tags.slice(0, 2).map((t) => (
-                      <Badge key={t.id} className="border border-line bg-ink/[0.03] text-ink-3">
-                        {t.tag}
-                      </Badge>
-                    ))}
-                  </>
-                }
-                footer={`Client depuis ${formatDate(c.createdAt)}`}
+                badges={<StatusBadge status={c.status} />}
               >
-                <RecordField label="Contact" value={c.email ?? c.phone ?? "—"} />
                 <RecordField label="Dossiers" value={c._count.cases} />
+                <RecordField label="Contact" value={c.email ?? c.phone ?? "—"} />
                 <RecordField
                   label="Responsable"
                   value={c.owner ? `${c.owner.firstName} ${c.owner.lastName}` : "Non assigné"}
                 />
               </RecordCard>
             ))}
-          </div>
+          </RecordList>
 
           <Pagination basePath="/app/clients" page={page} totalPages={totalPages} params={paginationParams} />
         </>

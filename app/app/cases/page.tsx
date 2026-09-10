@@ -3,13 +3,14 @@ import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/app/page-header";
 import { Table, THead, TH, TR, TD } from "@/components/ui/table";
-import { StatusBadge, Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Input, Select } from "@/components/ui/input";
+import { Select } from "@/components/ui/input";
+import { FilterBar } from "@/components/ui/filter-bar";
 import { Button } from "@/components/ui/button";
-import { ListCount, Pagination, RecordCard, RecordField } from "@/components/ui/record-list";
+import { ListCount, Pagination, RecordList, RecordCard, RecordField } from "@/components/ui/record-list";
 import { formatDate } from "@/lib/utils";
-import { FolderKanban, Search } from "lucide-react";
+import { FolderKanban } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -92,11 +93,13 @@ export default async function CasesPage({ searchParams }: { searchParams: Params
         ) : (
           <span />
         )}
-        <form className="grid flex-1 gap-2 rounded-2xl border border-line bg-night-soft/45 p-3 shadow-sm md:grid-cols-[minmax(240px,1fr)_190px_180px_auto] lg:max-w-4xl">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted2" />
-            <Input name="q" placeholder="Numéro, titre, client…" defaultValue={q} className="pl-9" />
-          </div>
+        <FilterBar
+          searchValue={q}
+          placeholder="Numéro, titre, client…"
+          activeCount={(status ? 1 : 0) + (sort !== "RECENT" ? 1 : 0)}
+          resetHref="/app/cases"
+          className="mb-0 flex-1 lg:max-w-4xl"
+        >
           <Select name="status" defaultValue={status ?? "ALL"}>
             <option value="ALL">Tous les statuts</option>
             {STATUSES.map((s) => (
@@ -111,17 +114,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Params
             <option value="PRIORITY">Priorité</option>
             <option value="CLIENT">Client A → Z</option>
           </Select>
-          <div className="flex gap-2">
-            <Button variant="outline">Appliquer</Button>
-            {q || status || sort !== "RECENT" ? (
-              <Link href="/app/cases">
-                <Button type="button" variant="ghost">
-                  Réinitialiser
-                </Button>
-              </Link>
-            ) : null}
-          </div>
-        </form>
+        </FilterBar>
       </div>
       {cases.length === 0 ? (
         <EmptyState
@@ -190,22 +183,19 @@ export default async function CasesPage({ searchParams }: { searchParams: Params
               </tbody>
             </Table>
           </div>
-          <div className="grid gap-3 md:hidden">
+          <RecordList className="md:hidden">
             {cases.map((c) => (
               <RecordCard
                 key={c.id}
                 href={`/app/cases/${c.id}/dashboard`}
                 title={c.title}
                 subtitle={<span className="registry-id">{c.caseNumber}</span>}
-                badges={
-                  <>
-                    <StatusBadge status={c.status} />
-                    <StatusBadge status={c.priority} />
-                    <Badge className="border border-line bg-ink/[0.03] text-ink-3">{c.type}</Badge>
-                  </>
-                }
-                footer={c.dueDate ? `Échéance ${formatDate(c.dueDate)}` : "Aucune échéance définie"}
+                badges={<StatusBadge status={c.status} />}
+                footer={c.dueDate ? `Échéance ${formatDate(c.dueDate)}` : undefined}
               >
+                {c.priority !== "MEDIUM" && c.priority !== "LOW" ? (
+                  <RecordField label="Priorité" value={c.priority} valueClassName="text-warning" />
+                ) : null}
                 <RecordField label="Client" value={`${c.client.firstName} ${c.client.lastName}`} />
                 <RecordField
                   label="Responsable"
@@ -213,7 +203,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Params
                 />
               </RecordCard>
             ))}
-          </div>
+          </RecordList>
           <Pagination basePath="/app/cases" page={page} totalPages={totalPages} params={paginationParams} />
         </>
       )}

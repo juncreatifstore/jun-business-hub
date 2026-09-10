@@ -119,7 +119,7 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
         </div>
       ) : null}
 
-      <form className="mb-4 grid gap-2 rounded-2xl border border-line bg-night-soft/45 p-3 shadow-sm md:grid-cols-[minmax(240px,1fr)_200px_auto]">
+      <form className="mb-4 grid gap-2 rounded-2xl border border-line bg-surface-1 p-3 shadow-sm md:grid-cols-[minmax(240px,1fr)_200px_auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted2" />
           <Input
@@ -336,7 +336,7 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
 }
 function Metric({ icon: Icon, label, value }: { icon: typeof SearchCheck; label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-line bg-night-soft/45 p-4 shadow-sm">
+    <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
       <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-electric/10 text-electric">
         <Icon className="h-4 w-4" />
       </span>

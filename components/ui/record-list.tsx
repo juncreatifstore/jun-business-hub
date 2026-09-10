@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function ListCount({ shown, total, label }: { shown: number; total: number; label: string }) {
@@ -59,7 +59,7 @@ export function Pagination({
           tabIndex={page <= 1 ? -1 : undefined}
           href={page <= 1 ? "#" : hrefWith(basePath, params, page - 1)}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-ink/[0.025] text-ink-3 transition hover:bg-ink/[0.055] hover:text-ink",
+            "flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-1 text-ink-3 transition hover:bg-surface-2 hover:text-ink",
             page <= 1 && "pointer-events-none opacity-35",
           )}
         >
@@ -73,10 +73,10 @@ export function Pagination({
             <Link
               href={hrefWith(basePath, params, p)}
               className={cn(
-                "flex h-9 min-w-9 items-center justify-center rounded-xl border px-2 text-xs font-medium transition",
+                "flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-xs font-medium transition tabular-nums",
                 p === page
-                  ? "border-blue-400/30 bg-blue-500/12 text-accent"
-                  : "border-line bg-ink/[0.025] text-ink-3 hover:bg-ink/[0.055] hover:text-ink",
+                  ? "border-ink bg-ink text-canvas"
+                  : "border-line bg-surface-1 text-ink-3 hover:bg-surface-2 hover:text-ink",
               )}
             >
               {p}
@@ -88,7 +88,7 @@ export function Pagination({
           tabIndex={page >= totalPages ? -1 : undefined}
           href={page >= totalPages ? "#" : hrefWith(basePath, params, page + 1)}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-ink/[0.025] text-ink-3 transition hover:bg-ink/[0.055] hover:text-ink",
+            "flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface-1 text-ink-3 transition hover:bg-surface-2 hover:text-ink",
             page >= totalPages && "pointer-events-none opacity-35",
           )}
         >
@@ -99,6 +99,24 @@ export function Pagination({
   );
 }
 
+/** Edge-to-edge container for mobile rows. Use instead of `grid gap-3`. */
+export function RecordList({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "-mx-4 divide-y divide-line border-y border-line bg-surface-1 sm:-mx-6 md:mx-0 md:rounded-xl md:border",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One list row (mobile). Reads top-to-bottom: title, subtitle, then a compact
+ * meta line built from RecordField children. A chevron signals the row is a link.
+ */
 export function RecordCard({
   href,
   title,
@@ -118,37 +136,32 @@ export function RecordCard({
   footer?: React.ReactNode;
   className?: string;
 }) {
-  const card = (
-    <article
-      className={cn(
-        "rounded-2xl border border-line bg-surface-1 p-4 shadow-card transition",
-        href && "hover:border-blue-400/20 hover:bg-surface-1",
-        className,
-      )}
-    >
-      <div className="flex items-start gap-3">
-        {leading ? <div className="shrink-0">{leading}</div> : null}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-ink">{title}</div>
-              {subtitle ? <div className="mt-1 text-xs text-ink-3">{subtitle}</div> : null}
-            </div>
-            {href ? <MoreHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-ink-2" /> : null}
+  const body = (
+    <>
+      {leading ? <div className="shrink-0 self-center">{leading}</div> : null}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-semibold text-ink">{title}</div>
+            {subtitle ? <div className="mt-0.5 truncate text-xs text-ink-3">{subtitle}</div> : null}
           </div>
-          {badges ? <div className="mt-2 flex flex-wrap gap-1.5">{badges}</div> : null}
+          {badges ? <div className="flex shrink-0 flex-wrap justify-end gap-1">{badges}</div> : null}
         </div>
+        {children ? (
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-ink-2">{children}</div>
+        ) : null}
+        {footer ? <div className="mt-1 text-xs text-ink-3">{footer}</div> : null}
       </div>
-      {children ? <div className="mt-4 grid gap-2 border-t border-line pt-3 text-xs">{children}</div> : null}
-      {footer ? <div className="mt-3 border-t border-line pt-3 text-xs text-ink-3">{footer}</div> : null}
-    </article>
+      {href ? <ChevronRight className="h-4 w-4 shrink-0 self-center text-ink-3" /> : null}
+    </>
   );
+  const cls = cn("flex items-start gap-3 bg-surface-1 px-4 py-3", href && "active:bg-surface-2", className);
   return href ? (
-    <Link href={href} className="block">
-      {card}
+    <Link href={href} className={cls}>
+      {body}
     </Link>
   ) : (
-    card
+    <article className={cls}>{body}</article>
   );
 }
 
@@ -162,9 +175,9 @@ export function RecordField({
   valueClassName?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-ink-2">{label}</span>
-      <span className={cn("max-w-[68%] text-right font-medium text-ink-2", valueClassName)}>{value}</span>
-    </div>
+    <span className="inline-flex max-w-full items-baseline gap-1">
+      <span className="text-ink-3">{label}</span>
+      <span className={cn("truncate font-medium text-ink-2", valueClassName)}>{value}</span>
+    </span>
   );
 }

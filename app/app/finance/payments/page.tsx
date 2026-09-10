@@ -148,7 +148,7 @@ export default async function PaymentsPage({
         />
         <Metric icon={CreditCard} label="Résultats" value={String(total)} hint="Selon les filtres actuels" />
       </div>
-      <form className="mb-4 grid gap-2 rounded-2xl border border-line bg-night-soft/45 p-3 shadow-sm md:grid-cols-[minmax(220px,1fr)_160px_175px_105px_165px_auto]">
+      <form className="mb-4 grid gap-2 rounded-2xl border border-line bg-surface-1 p-3 shadow-sm md:grid-cols-[minmax(220px,1fr)_160px_175px_105px_165px_auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted2" />
           <Input
@@ -381,7 +381,7 @@ function Metric({
   hint: string;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-night-soft/45 p-4 shadow-sm">
+    <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
       <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-electric/10 text-electric">
         <Icon className="h-4 w-4" />
       </span>

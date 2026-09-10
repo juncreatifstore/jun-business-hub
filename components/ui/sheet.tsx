@@ -14,11 +14,14 @@ export function Sheet({
   title,
   children,
   className,
+  keepMounted = false,
 }: {
   trigger: React.ReactNode;
   title?: string;
   children: React.ReactNode;
   className?: string;
+  /** Keep the content in the DOM while closed (e.g. form fields that must submit). */
+  keepMounted?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -47,8 +50,8 @@ export function Sheet({
       >
         {trigger}
       </button>
-      {open ? (
-        <div className="fixed inset-0 z-[70]" role="presentation">
+      {open || keepMounted ? (
+        <div className={cn("fixed inset-0 z-[70]", !open && "hidden")} role="presentation">
           <div className="absolute inset-0 bg-night/50" onClick={() => setOpen(false)} />
           <div
             id={id}
