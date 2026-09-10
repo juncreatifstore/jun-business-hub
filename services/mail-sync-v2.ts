@@ -12,6 +12,7 @@ import {
 } from "@/lib/mail-security";
 import { syncFolder } from "@/lib/google/gmail";
 import { refreshGmailMailboxCache } from "@/lib/mail-gmail-cache";
+import { warmMailConversationCache } from "@/lib/mail-thread-cache";
 
 const INBOX_SYNC_LIMIT = 15;
 const SECONDARY_SYNC_LIMIT = 5;
@@ -178,4 +179,31 @@ export async function syncAllMailboxesV2(): Promise<void> {
   redirect(
     `/app/mail?mailbox=ALL&folder=INBOX&category=PRIMARY&toast=${encodeURIComponent("Toutes les boîtes Gmail ont été synchronisées")}`,
   );
+}
+
+/**
+ * Unattended sync for the cron: no user, no redirect. Returns per-mailbox
+ * results so the cron response is useful in the Vercel logs.
+ */
+export async function syncAllMailboxesUnattended() {
+  const accounts = await prisma.mailAccount.findMany({
+    where: { OR: [{ accessTokenEnc: { not: null } }, { refreshTokenEnc: { not: null } }] },
+    select: { id: true, email: true },
+  });
+  const results: { email: string; ok: boolean; created?: number; warmed?: number; error?: string }[] = [];
+  for (const acc of accounts) {
+    try {
+      const r = await syncOne(acc.id);
+      const w = await warmMailConversationCache(acc.id);
+      results.push({ email: acc.email, ok: true, created: r.created, warmed: w.warmed });
+    } catch (e) {
+      const msg = messageOf(e);
+      await recordMailReliabilityEvent({ type: "SYNC_ERROR", accountId: acc.id, message: msg }).catch(
+        () => {},
+      );
+      results.push({ email: acc.email, ok: false, error: msg });
+    }
+  }
+  refresh();
+  return results;
 }

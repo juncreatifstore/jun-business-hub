@@ -5,6 +5,7 @@ import { requireUser, can } from "@/lib/auth";
 import { getAccessibleMailboxIds } from "@/lib/mail-security";
 import { getMailThreadStateMap, isSnoozed } from "@/lib/mail-thread-state";
 import { getMailConversation } from "@/lib/mail-thread-reader";
+import { getCachedMailConversation } from "@/lib/mail-thread-cache";
 import { getGmailMailboxCacheMap } from "@/lib/mail-gmail-cache";
 import { syncMailboxV2, syncAllMailboxesV2 } from "@/services/mail-sync-v2";
 import {
@@ -80,6 +81,13 @@ function shortDate(d: Date | null) {
     return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
 }
+function relativeFr(iso: string) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  if (m < 1) return "à l’instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  return h < 48 ? `il y a ${h} h` : `il y a ${Math.floor(h / 24)} j`;
+}
 function initial(raw: string | null) {
   return senderLabel(raw).charAt(0).toUpperCase();
 }
@@ -117,7 +125,8 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
     : "PRIMARY";
   const scopedIds = mailbox === "ALL" ? accountIds : [mailbox];
   const q = (searchParams.q || "").trim().toLowerCase();
-  const [recent, cacheMap] = await Promise.all([
+  const threadQuery = searchParams.thread && accountIds.length ? searchParams.thread : null;
+  const [recent, cacheMap, activeThread] = await Promise.all([
     scopedIds.length
       ? prisma.mailThread.findMany({
           where: { mailAccountId: { in: scopedIds } },
@@ -127,8 +136,22 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
         })
       : Promise.resolve([]),
     getGmailMailboxCacheMap(scopedIds),
+    threadQuery
+      ? prisma.mailThread.findFirst({
+          where: { id: threadQuery, mailAccountId: { in: accountIds } },
+          include: { account: true },
+        })
+      : Promise.resolve(null),
   ]);
-  const stateMap = await getMailThreadStateMap(recent.map((t) => t.id));
+  const stateIds = recent.map((t) => t.id);
+  if (activeThread && !stateIds.includes(activeThread.id)) stateIds.push(activeThread.id);
+  const [stateMap, conversationResult] = await Promise.all([
+    getMailThreadStateMap(stateIds),
+    activeThread && !activeThread.aiDraft
+      ? getCachedMailConversation(activeThread).catch(() => ({ messages: [], source: "gmail" as const }))
+      : Promise.resolve({ messages: [], source: "cache" as const }),
+  ]);
+  const conversation = conversationResult.messages;
   const sent = (t: (typeof recent)[number]) =>
     Boolean(t.fromEmail?.toLowerCase().includes(t.account.email.toLowerCase()) && !t.aiDraft);
   const visible = (t: (typeof recent)[number]) => {
@@ -162,22 +185,12 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
         0),
     0,
   );
-  const activeThread =
-    searchParams.thread && accountIds.length
-      ? await prisma.mailThread.findFirst({
-          where: { id: searchParams.thread, mailAccountId: { in: accountIds } },
-          include: { account: true },
-        })
-      : null;
-  const activeState = activeThread
-    ? (stateMap.get(activeThread.id) ??
-      (await getMailThreadStateMap([activeThread.id])).get(activeThread.id) ??
-      null)
-    : null;
-  const conversation =
-    activeThread && !activeThread.aiDraft
-      ? await getMailConversation(activeThread.mailAccountId, activeThread.gmailThreadId).catch(() => [])
-      : [];
+  const activeState = activeThread ? (stateMap.get(activeThread.id) ?? null) : null;
+  const syncedAt = scopedIds
+    .map((id) => cacheMap.get(id)?.updatedAt)
+    .filter(Boolean)
+    .sort()
+    .pop() as string | undefined;
   const mailboxLabel =
     mailbox === "ALL" ? "Toutes les boîtes" : (accounts.find((a) => a.id === mailbox)?.email ?? "Mail");
   const qp = (extra: Record<string, string | undefined>) => {
@@ -462,7 +475,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
         <div className="bg-surface-1">{rows}</div>
         {threads.length ? (
           <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-xs text-ink-3">
-            <span>{LIMIT} conversations max.</span>
+            <span>{syncedAt ? `Synchronisé ${relativeFr(syncedAt)}` : `${LIMIT} conversations max.`}</span>
             {syncForm}
           </div>
         ) : null}
@@ -555,6 +568,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
           ) : null}
           <div className="border-b border-line px-4 py-2 text-xs text-ink-3">
             {LIMIT} conversations les plus récentes · {mailboxLabel}
+            {syncedAt ? ` · synchronisé ${relativeFr(syncedAt)}` : ""}
           </div>
           <div>{rows}</div>
         </section>

@@ -597,6 +597,8 @@ model MailThread {
   updatedAt     DateTime @updatedAt
   account       MailAccount @relation(fields: [mailAccountId], references: [id])
   client        Client?     @relation(fields: [clientId], references: [id])
+
+  @@index([mailAccountId, lastMessageAt(sort: Desc)])
 }
 
 model Notification {
