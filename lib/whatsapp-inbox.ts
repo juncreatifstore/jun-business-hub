@@ -1,6 +1,9 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { storage } from "@/lib/storage";
+import { fetchWhatsAppMedia } from "@/lib/whatsapp";
+import { logger } from "@/lib/logger";
 import { isClientCommunicationBanned } from "@/lib/client-communication-policy";
 
 export type WhatsAppInboxPayload = {
@@ -61,6 +64,27 @@ function incomingText(message: any) {
   if (type === "contacts") return "Fiche contact";
   if (type === "unsupported") return "Message non transmis par WhatsApp";
   return `${type.replaceAll("_", " ")} reçu`;
+}
+
+/** Copy an inbound media object into our storage (idempotent). */
+export async function archiveWhatsAppMedia(mediaId: string, timeoutMs = 8_000) {
+  const key = `whatsapp/media/${mediaId}`;
+  const store = storage();
+  try {
+    await store.download(key);
+    return "cached" as const;
+  } catch {}
+  try {
+    const fetched = await Promise.race([
+      fetchWhatsAppMedia(mediaId),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), timeoutMs)),
+    ]);
+    await store.upload(key, fetched.bytes, fetched.mimeType);
+    return "archived" as const;
+  } catch (err) {
+    logger.warn("whatsapp.media_archive_failed", { mediaId, err });
+    return "failed" as const;
+  }
 }
 
 function incomingMedia(message: any) {
@@ -219,9 +243,12 @@ export async function recordIncomingWhatsAppMessage(input: { message: any; conta
       data: recipients.map((userId) => ({
         userId,
         type: "WHATSAPP_INBOUND",
-        title: `New WhatsApp message · ${sender}`,
+        title: `Nouveau message WhatsApp · ${sender}`,
         body: text.slice(0, 500),
       })),
     });
+  // Archive media now: Meta only keeps it ~30 days, and nobody may open the
+  // conversation before then. Bounded so a slow download never blocks the webhook.
+  if (media.mediaId) await archiveWhatsAppMedia(media.mediaId, 8_000);
   return activity;
 }

@@ -56,6 +56,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
+import { InboxLive } from "@/components/whatsapp/inbox-live";
 import { StatusBadge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -244,6 +245,7 @@ export default async function WhatsAppInboxPage({
           <Metric label="Conversations" value={allConversations.length} />
           <Metric label="Non lus" value={unreadTotal} emphasis={unreadTotal > 0} />
           <Metric label="Urgentes" value={urgentCount} danger={urgentCount > 0} />
+          <InboxLive openPhone={explicitConversation ? selectedPhone : null} unread={unreadConversations} />
           <Link
             href="/app/whatsapp"
             className="rounded-xl bg-electric px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm"
@@ -1397,6 +1399,9 @@ function MobileInbox({
           >
             <MobileContext selected={selected} clientSummary={clientSummary} ban={ban} />
           </Sheet>
+          <span className="hidden">
+            <InboxLive openPhone={selected.phone} unread={counts.unread} />
+          </span>
           <Sheet
             title="Actions"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 active:bg-surface-2"
@@ -1479,6 +1484,7 @@ function MobileInbox({
                 : `${counts.unread} conversation${counts.unread > 1 ? "s" : ""} non lue${counts.unread > 1 ? "s" : ""}`}
             </p>
           </div>
+          <InboxLive openPhone={null} unread={counts.unread} />
           <Link
             href="/app/whatsapp"
             aria-label="Nouvel envoi"

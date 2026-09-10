@@ -282,3 +282,13 @@ export async function fetchWhatsAppMedia(mediaId: string): Promise<{ bytes: Buff
     mimeType: info.mime_type || "application/octet-stream",
   };
 }
+
+/** Tell Meta the message was read: the client sees blue ticks. Best effort. */
+export async function sendWhatsAppReadReceipt(messageId: string) {
+  if (!messageId) return;
+  try {
+    await send({ messaging_product: "whatsapp", status: "read", message_id: messageId });
+  } catch {
+    /* receipts are cosmetic; never surface to the user */
+  }
+}

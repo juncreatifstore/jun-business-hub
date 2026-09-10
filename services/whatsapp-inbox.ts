@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sendWhatsAppReadReceipt } from "@/lib/whatsapp";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import {
   decodeWhatsAppInboxPayload,
@@ -75,11 +76,32 @@ export async function markWhatsAppConversationRead(phone: string) {
   const user = await requireUser();
   assertStaff(user.role);
   const normalized = cleanPhone(phone);
+  await acknowledgeWhatsAppConversation(normalized);
+  refreshInbox();
+}
+
+/**
+ * Called when an agent opens a conversation: unread → read in the hub, and a
+ * read receipt is sent to Meta for the latest inbound message (WhatsApp then
+ * marks every earlier message as read on the client's phone).
+ */
+export async function acknowledgeWhatsAppConversation(phone: string) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const latestUnread = await prisma.activity.findFirst({
+    where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" },
+    orderBy: { createdAt: "desc" },
+    select: { message: true },
+  });
+  if (!latestUnread) return { changed: false };
   await prisma.activity.updateMany({
     where: { resourceType: "WhatsAppConversation", resourceId: normalized, type: "WHATSAPP_INBOUND_UNREAD" },
     data: { type: "WHATSAPP_INBOUND_READ" },
   });
-  refreshInbox();
+  const messageId = /"messageId":"([^"]+)"/.exec(latestUnread.message)?.[1];
+  if (messageId) await sendWhatsAppReadReceipt(messageId);
+  return { changed: true };
 }
 
 export async function setWhatsAppConversationStatus(phone: string, status: "OPEN" | "WAITING" | "RESOLVED") {
