@@ -8,7 +8,7 @@
 export function splitInstallments(
   amount: number,
   count: number,
-  from: Date = new Date()
+  from: Date = new Date(),
 ): { number: number; dueDate: Date; amount: number }[] {
   if (count < 1 || !Number.isFinite(amount) || amount <= 0) return [];
   const per = Math.floor((amount / count) * 100) / 100;
@@ -16,9 +16,7 @@ export function splitInstallments(
   return Array.from({ length: count }, (_, i) => {
     const due = new Date(from);
     due.setMonth(due.getMonth() + i + 1);
-    const value = i === count - 1
-      ? Math.round((amount - per * (count - 1)) * 100) / 100
-      : per;
+    const value = i === count - 1 ? Math.round((amount - per * (count - 1)) * 100) / 100 : per;
 
     return {
       number: i + 1,

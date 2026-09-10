@@ -16,7 +16,12 @@ export interface PaymentProvider {
   /** Whether this provider can create hosted checkout sessions. */
   readonly supportsCheckout: boolean;
   /** Create a hosted checkout for online providers; MANUAL throws by design. */
-  createCheckout(input: { amount: number; currency: string; reference: string; clientEmail?: string }): Promise<{ url: string }>;
+  createCheckout(input: {
+    amount: number;
+    currency: string;
+    reference: string;
+    clientEmail?: string;
+  }): Promise<{ url: string }>;
 }
 
 class ManualProvider implements PaymentProvider {
@@ -29,7 +34,10 @@ class ManualProvider implements PaymentProvider {
 
 class NotConfiguredProvider implements PaymentProvider {
   readonly supportsCheckout = false;
-  constructor(readonly name: PaymentProviderName, private envHint: string) {}
+  constructor(
+    readonly name: PaymentProviderName,
+    private envHint: string,
+  ) {}
   async createCheckout(): Promise<{ url: string }> {
     throw new Error(`${this.name} is not implemented yet — READY interface, requires ${this.envHint}`);
   }

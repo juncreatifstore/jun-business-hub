@@ -44,7 +44,9 @@ export default async function SignaturePreparePage({ params }: { params: { id: s
         type: request.document.type,
         status: request.document.status,
         html: request.document.versions[0]?.content ?? "",
-        clientName: request.document.client ? `${request.document.client.firstName} ${request.document.client.lastName}` : null,
+        clientName: request.document.client
+          ? `${request.document.client.firstName} ${request.document.client.lastName}`
+          : null,
       });
     }
     const pdf = await PDFDocument.load(bytes);
@@ -53,24 +55,40 @@ export default async function SignaturePreparePage({ params }: { params: { id: s
     pageCount = 1;
   }
 
-  return <div className="min-w-0 space-y-4">
-    <PageHeader
-      eyebrow="JUN Secure Sign"
-      title={`Placement des champs · ${request.document.documentId}`}
-      subtitle="Placez les champs directement sur le PDF avant l’envoi au client. Sur téléphone, faites défiler le document horizontalement si nécessaire."
-      actions={<Link href={`/app/signatures/${request.id}`} className="w-full sm:w-auto"><Button variant="secondary" className="w-full sm:w-auto"><ArrowLeft className="mr-1.5 h-4 w-4" />Retour à la demande</Button></Link>}
-    />
-    <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.04] p-3 text-xs leading-5 text-muted2 sm:p-4">
-      <div className="flex items-start gap-2"><Move className="mt-0.5 h-4 w-4 shrink-0 text-blue-400"/><p><strong className="text-ink">Conseil mobile :</strong> choisissez le signataire et le type de champ, puis touchez le PDF pour placer le champ. Le déplacement et le redimensionnement restent disponibles au tactile.</p></div>
-    </div>
-    <div className="min-w-0 overflow-hidden">
-      <SignaturePlacementEditor
-        requestId={request.id}
-        documentId={request.documentId}
-        signers={signers}
-        pageCount={pageCount}
-        action={saveSignaturePlacements.bind(null, request.id)}
+  return (
+    <div className="min-w-0 space-y-4">
+      <PageHeader
+        eyebrow="JUN Secure Sign"
+        title={`Placement des champs · ${request.document.documentId}`}
+        subtitle="Placez les champs directement sur le PDF avant l’envoi au client. Sur téléphone, faites défiler le document horizontalement si nécessaire."
+        actions={
+          <Link href={`/app/signatures/${request.id}`} className="w-full sm:w-auto">
+            <Button variant="secondary" className="w-full sm:w-auto">
+              <ArrowLeft className="mr-1.5 h-4 w-4" />
+              Retour à la demande
+            </Button>
+          </Link>
+        }
       />
+      <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.04] p-3 text-xs leading-5 text-muted2 sm:p-4">
+        <div className="flex items-start gap-2">
+          <Move className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+          <p>
+            <strong className="text-ink">Conseil mobile :</strong> choisissez le signataire et le type de
+            champ, puis touchez le PDF pour placer le champ. Le déplacement et le redimensionnement restent
+            disponibles au tactile.
+          </p>
+        </div>
+      </div>
+      <div className="min-w-0 overflow-hidden">
+        <SignaturePlacementEditor
+          requestId={request.id}
+          documentId={request.documentId}
+          signers={signers}
+          pageCount={pageCount}
+          action={saveSignaturePlacements.bind(null, request.id)}
+        />
+      </div>
     </div>
-  </div>;
+  );
 }

@@ -9,10 +9,17 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: NextRequest) {
   const user = await getCurrentUser();
   if (!user || !can(user, "SETTINGS_MANAGE")) {
-    return NextResponse.redirect(new URL("/app/forbidden", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"));
+    return NextResponse.redirect(
+      new URL("/app/forbidden", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+    );
   }
   if (!googleConfigured()) {
-    return NextResponse.redirect(new URL("/app/settings/email?toast_error=Google OAuth is not configured (GOOGLE_CLIENT_ID / SECRET / REDIRECT_URI)", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"));
+    return NextResponse.redirect(
+      new URL(
+        "/app/settings/email?toast_error=Google OAuth is not configured (GOOGLE_CLIENT_ID / SECRET / REDIRECT_URI)",
+        process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+      ),
+    );
   }
   const state = await signSession({ sub: user.id, role: "GOOGLE_OAUTH_STATE" });
   return NextResponse.redirect(googleAuthUrl(state));

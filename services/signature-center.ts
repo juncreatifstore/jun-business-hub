@@ -103,9 +103,16 @@ function readRecipients(formData: FormData): SignatureRecipient[] {
   const recipients: SignatureRecipient[] = [];
 
   for (let i = 1; i <= 4; i += 1) {
-    const name = String(formData.get(`signer${i}Name`) ?? "").trim().slice(0, 160);
-    const email = String(formData.get(`signer${i}Email`) ?? "").trim().toLowerCase().slice(0, 254);
-    const roleRaw = String(formData.get(`signer${i}Role`) ?? "OTHER").trim().toUpperCase();
+    const name = String(formData.get(`signer${i}Name`) ?? "")
+      .trim()
+      .slice(0, 160);
+    const email = String(formData.get(`signer${i}Email`) ?? "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 254);
+    const roleRaw = String(formData.get(`signer${i}Role`) ?? "OTHER")
+      .trim()
+      .toUpperCase();
     if (!name && !email) continue;
     if (!name || !EMAIL_RE.test(email)) throw new Error(`Signer ${i}: valid name and email are required`);
     recipients.push({
@@ -119,7 +126,8 @@ function readRecipients(formData: FormData): SignatureRecipient[] {
   }
 
   if (recipients.length === 0) throw new Error("Add at least one signer");
-  if (new Set(recipients.map((r) => r.email)).size !== recipients.length) throw new Error("Each signer must use a different email address");
+  if (new Set(recipients.map((r) => r.email)).size !== recipients.length)
+    throw new Error("Each signer must use a different email address");
   return recipients;
 }
 
@@ -153,28 +161,39 @@ async function dispatchToDocuSign(input: {
 export async function createSignatureCenterRequest(formData: FormData): Promise<void> {
   const user = await assertPermission("DOCUMENT_SIGN");
   const documentId = String(formData.get("documentId") ?? "").trim();
-  const message = String(formData.get("message") ?? "").trim().slice(0, 1000);
+  const message = String(formData.get("message") ?? "")
+    .trim()
+    .slice(0, 1000);
   if (!documentId) redirect("/app/signatures/new?toast_error=Choose a document");
 
   let recipients: SignatureRecipient[];
   try {
     recipients = readRecipients(formData);
   } catch (e) {
-    redirect(`/app/signatures/new?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Invalid signers")}`);
+    redirect(
+      `/app/signatures/new?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Invalid signers")}`,
+    );
   }
 
   const doc = await prisma.document.findUnique({ where: { id: documentId }, include: { client: true } });
   if (!doc) redirect("/app/signatures/new?toast_error=Document not found");
-  if (doc.status !== "FINAL") redirect("/app/signatures/new?toast_error=Only finalized documents can be prepared for signature");
+  if (doc.status !== "FINAL")
+    redirect("/app/signatures/new?toast_error=Only finalized documents can be prepared for signature");
 
   const policyError = clientSignaturePolicyError(doc.type, doc.client, recipients);
   if (policyError) redirect(`/app/signatures/new?toast_error=${encodeURIComponent(policyError)}`);
 
   const duplicate = await prisma.signatureRequest.findFirst({
-    where: { documentId: doc.id, status: { in: ["READY_FOR_SIGNATURE", "SENT", "VIEWED", "PARTIALLY_SIGNED"] } },
+    where: {
+      documentId: doc.id,
+      status: { in: ["READY_FOR_SIGNATURE", "SENT", "VIEWED", "PARTIALLY_SIGNED"] },
+    },
     select: { id: true },
   });
-  if (duplicate) redirect(`/app/signatures/${duplicate.id}?toast_error=This document already has an active signature request`);
+  if (duplicate)
+    redirect(
+      `/app/signatures/${duplicate.id}?toast_error=This document already has an active signature request`,
+    );
 
   const providerReady = await docuSignIsReady();
   let provider = "PENDING";
@@ -190,7 +209,9 @@ export async function createSignatureCenterRequest(formData: FormData): Promise<
       status = "SENT";
       sentAt = new Date();
     } catch (e) {
-      redirect(`/app/signatures/new?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Could not send signature request")}`);
+      redirect(
+        `/app/signatures/new?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Could not send signature request")}`,
+      );
     }
   }
 
@@ -227,13 +248,17 @@ export async function createSignatureCenterRequest(formData: FormData): Promise<
   await logActivity({
     userId: user.id,
     type: "SIGNATURE_REQUESTED",
-    message: providerReady ? `Signature request sent for ${doc.documentId}` : `Signature request prepared for ${doc.documentId}`,
+    message: providerReady
+      ? `Signature request sent for ${doc.documentId}`
+      : `Signature request prepared for ${doc.documentId}`,
     clientId: doc.clientId ?? undefined,
     caseId: doc.caseId ?? undefined,
   });
 
   revalidatePath("/app/signatures");
-  redirect(`/app/signatures/${request.id}?toast=${encodeURIComponent(providerReady ? "Signature request sent via DocuSign" : "Signature request prepared — configure DocuSign to send it")}`);
+  redirect(
+    `/app/signatures/${request.id}?toast=${encodeURIComponent(providerReady ? "Signature request sent via DocuSign" : "Signature request prepared — configure DocuSign to send it")}`,
+  );
 }
 
 export async function sendPreparedSignatureRequest(requestId: string): Promise<void> {
@@ -243,10 +268,13 @@ export async function sendPreparedSignatureRequest(requestId: string): Promise<v
     include: { document: { include: { client: true } } },
   });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
-  if (request.status !== "READY_FOR_SIGNATURE") redirect(`/app/signatures/${request.id}?toast_error=Only prepared requests can be sent`);
+  if (request.status !== "READY_FOR_SIGNATURE")
+    redirect(`/app/signatures/${request.id}?toast_error=Only prepared requests can be sent`);
 
   if (!(await docuSignIsReady())) {
-    redirect(`/app/signatures/${request.id}?toast_error=DocuSign is not configured yet. The request remains safely prepared.`);
+    redirect(
+      `/app/signatures/${request.id}?toast_error=DocuSign is not configured yet. The request remains safely prepared.`,
+    );
   }
 
   const recipients = signatureRecipients(request.recipients);
@@ -271,10 +299,16 @@ export async function sendPreparedSignatureRequest(requestId: string): Promise<v
       action: "SIGNATURE_PREPARED_REQUEST_SENT",
       resourceType: "SignatureRequest",
       resourceId: request.id,
-      after: { provider: "DOCUSIGN", signerCount: recipients.length, clientSignatureRequired: CLIENT_SIGNATURE_REQUIRED_TYPES.has(request.document.type) },
+      after: {
+        provider: "DOCUSIGN",
+        signerCount: recipients.length,
+        clientSignatureRequired: CLIENT_SIGNATURE_REQUIRED_TYPES.has(request.document.type),
+      },
     });
   } catch (e) {
-    redirect(`/app/signatures/${request.id}?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "DocuSign send failed")}`);
+    redirect(
+      `/app/signatures/${request.id}?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "DocuSign send failed")}`,
+    );
   }
 
   revalidatePath(`/app/signatures/${request.id}`);

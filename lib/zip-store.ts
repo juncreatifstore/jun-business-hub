@@ -4,7 +4,7 @@ function crc32Table() {
   const table = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
     let c = n;
-    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     table[n] = c >>> 0;
   }
   return table;
@@ -25,7 +25,10 @@ function dosDateTime(date = new Date()) {
 }
 
 export function safeZipName(name: string, index: number) {
-  const clean = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim().slice(0, 180);
+  const clean = name
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+    .trim()
+    .slice(0, 180);
   return clean || `file-${index + 1}`;
 }
 

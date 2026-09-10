@@ -3,7 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 import fs from "fs/promises";
 import path from "path";
-import { downloadWorkspaceFile, removeWorkspaceFile, uploadWorkspaceFile } from "@/lib/google-workspace-drive";
+import {
+  downloadWorkspaceFile,
+  removeWorkspaceFile,
+  uploadWorkspaceFile,
+} from "@/lib/google-workspace-drive";
 import { downloadWorkspaceRange } from "@/lib/google-workspace-range";
 
 export interface StorageDriver {
@@ -20,11 +24,14 @@ class SupabaseStorage implements StorageDriver {
   private client() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) throw new Error("Supabase storage requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key)
+      throw new Error("Supabase storage requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
     return createClient(url, key, { auth: { persistSession: false } });
   }
   async upload(key: string, data: Buffer, contentType: string) {
-    const { error } = await this.client().storage.from(BUCKET).upload(key, data, { contentType, upsert: false });
+    const { error } = await this.client()
+      .storage.from(BUCKET)
+      .upload(key, data, { contentType, upsert: false });
     if (error) throw new Error(`Upload failed: ${error.message}`);
   }
   async getSignedUrl(key: string, expiresInSeconds = 300) {
@@ -47,7 +54,9 @@ class GoogleWorkspaceStorage implements StorageDriver {
     await uploadWorkspaceFile(key, data, contentType);
   }
   async getSignedUrl(): Promise<string> {
-    throw new Error("Google Workspace storage is private and served through JUN authenticated/public policy routes");
+    throw new Error(
+      "Google Workspace storage is private and served through JUN authenticated/public policy routes",
+    );
   }
   async download(key: string) {
     return downloadWorkspaceFile(key);
@@ -98,7 +107,8 @@ export function storage(): StorageDriver {
   const configured = (process.env.STORAGE_DRIVER ?? "").toUpperCase();
   if (process.env.NODE_ENV === "production") {
     if (configured === "GOOGLE_WORKSPACE") return new GoogleWorkspaceStorage();
-    if (configured && configured !== "SUPABASE") throw new Error(`Unsupported production STORAGE_DRIVER: ${configured}`);
+    if (configured && configured !== "SUPABASE")
+      throw new Error(`Unsupported production STORAGE_DRIVER: ${configured}`);
     return new SupabaseStorage();
   }
   if (configured === "GOOGLE_WORKSPACE") return new GoogleWorkspaceStorage();
@@ -106,7 +116,11 @@ export function storage(): StorageDriver {
 }
 
 function safeFileName(filename: string) {
-  const compact = filename.trim().replace(/\s+/g, " ").replace(/[\\/:*?"<>|]/g, "_").slice(-140);
+  const compact = filename
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .slice(-140);
   return compact || "file.bin";
 }
 
@@ -119,10 +133,29 @@ export function makeStorageKey(scope: string, filename: string) {
 export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 export const ALLOWED_MIME = [
   "application/pdf",
-  "image/png", "image/jpeg", "image/webp", "image/gif", "image/heic", "image/heif",
-  "audio/mpeg", "audio/mp4", "audio/x-m4a", "audio/wav", "audio/ogg", "audio/webm", "audio/aac", "audio/flac",
-  "video/mp4", "video/webm", "video/quicktime", "video/x-m4v", "video/mpeg", "video/ogg",
-  "text/plain", "text/csv", "text/markdown",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "audio/aac",
+  "audio/flac",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-m4v",
+  "video/mpeg",
+  "video/ogg",
+  "text/plain",
+  "text/csv",
+  "text/markdown",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",

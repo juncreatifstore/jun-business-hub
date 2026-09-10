@@ -24,5 +24,29 @@ export function initials(first: string, last: string) {
   return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
 }
 
-export const VAULT_CATEGORIES = ["Company Legal", "Banking", "Tax", "Licenses", "Insurance", "Corporate Contracts", "Sensitive"] as const;
-export const FILE_CATEGORIES = ["IDENTITY", "PASSPORT", "CONTRACT", "PAYMENT_PROOF", "RECEIPT", "REFUND", "VISA", "FLIGHT", "INVOICE", "COMPANY", "LEGAL", "TAX", "EMPLOYEE", "VENDOR", "OTHER"] as const;
+export const VAULT_CATEGORIES = [
+  "Company Legal",
+  "Banking",
+  "Tax",
+  "Licenses",
+  "Insurance",
+  "Corporate Contracts",
+  "Sensitive",
+] as const;
+export const FILE_CATEGORIES = [
+  "IDENTITY",
+  "PASSPORT",
+  "CONTRACT",
+  "PAYMENT_PROOF",
+  "RECEIPT",
+  "REFUND",
+  "VISA",
+  "FLIGHT",
+  "INVOICE",
+  "COMPANY",
+  "LEGAL",
+  "TAX",
+  "EMPLOYEE",
+  "VENDOR",
+  "OTHER",
+] as const;

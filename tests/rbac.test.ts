@@ -29,8 +29,9 @@ describe("RBAC role → permission mapping", () => {
   });
 
   it("only FINANCE-tier roles (and full admins) can approve payments", () => {
-    const approvers = (Object.keys(ROLE_PERMISSIONS) as (keyof typeof ROLE_PERMISSIONS)[])
-      .filter((r) => roleHasPermission(r, "PAYMENT_APPROVE"));
+    const approvers = (Object.keys(ROLE_PERMISSIONS) as (keyof typeof ROLE_PERMISSIONS)[]).filter((r) =>
+      roleHasPermission(r, "PAYMENT_APPROVE"),
+    );
     expect(approvers.sort()).toEqual(["ADMIN", "DIRECTOR", "FINANCE", "SUPER_ADMIN"].sort());
   });
 

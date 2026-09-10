@@ -13,7 +13,8 @@ export async function GET(req: NextRequest, { params }: { params: { provider: st
   const provider = providerOf(params.provider);
   if (!provider) return NextResponse.json({ error: "Unknown cloud provider" }, { status: 404 });
   const config = cloudOAuthConfig(provider);
-  if (!config) return NextResponse.redirect(new URL(`/app/drive/cloud?error=${provider}_not_configured`, req.url));
+  if (!config)
+    return NextResponse.redirect(new URL(`/app/drive/cloud?error=${provider}_not_configured`, req.url));
 
   const state = await signCloudOAuthState(user.id, provider);
   const redirectUri = new URL(`/api/drive/cloud/${provider}/callback`, req.url).toString();

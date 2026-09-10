@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getCurrentUser();
-  if (!user || !can(user, "DOCUMENT_READ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user || !can(user, "DOCUMENT_READ"))
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const request = await prisma.signatureRequest.findUnique({
     where: { id: params.id },

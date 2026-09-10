@@ -9,7 +9,9 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="hidden flex-col justify-between bg-night p-10 text-white lg:flex">
-        <Link href="/" className="font-display text-3xl">JUN</Link>
+        <Link href="/" className="font-display text-3xl">
+          JUN
+        </Link>
         <div>
           <p className="text-[11px] uppercase tracking-[0.3em] text-gold">JUN Business Hub</p>
           <h1 className="mt-3 max-w-md font-display text-4xl leading-tight">

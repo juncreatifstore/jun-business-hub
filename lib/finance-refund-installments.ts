@@ -21,12 +21,18 @@ const defaults: RefundInstallmentMeta = {
   updatedAt: null,
 };
 
-function key(id: string) { return `finance.refund.installment.${id}`; }
+function key(id: string) {
+  return `finance.refund.installment.${id}`;
+}
 
 export async function getRefundInstallmentMeta(id: string): Promise<RefundInstallmentMeta> {
   const row = await prisma.appSetting.findUnique({ where: { key: key(id) }, select: { value: true } });
   if (!row) return { ...defaults };
-  try { return { ...defaults, ...JSON.parse(row.value) } as RefundInstallmentMeta; } catch { return { ...defaults }; }
+  try {
+    return { ...defaults, ...JSON.parse(row.value) } as RefundInstallmentMeta;
+  } catch {
+    return { ...defaults };
+  }
 }
 
 export async function saveRefundInstallmentMeta(id: string, patch: Partial<RefundInstallmentMeta>) {
@@ -41,12 +47,19 @@ export async function saveRefundInstallmentMeta(id: string, patch: Partial<Refun
 }
 
 export async function getRefundInstallmentMetaMap(ids: string[]) {
-  const rows = ids.length ? await prisma.appSetting.findMany({ where: { key: { in: ids.map(key) } }, select: { key: true, value: true } }) : [];
+  const rows = ids.length
+    ? await prisma.appSetting.findMany({
+        where: { key: { in: ids.map(key) } },
+        select: { key: true, value: true },
+      })
+    : [];
   const map = new Map<string, RefundInstallmentMeta>();
   for (const id of ids) map.set(id, { ...defaults });
   for (const row of rows) {
     const id = row.key.replace("finance.refund.installment.", "");
-    try { map.set(id, { ...defaults, ...JSON.parse(row.value) }); } catch {}
+    try {
+      map.set(id, { ...defaults, ...JSON.parse(row.value) });
+    } catch {}
   }
   return map;
 }

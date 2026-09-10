@@ -19,16 +19,32 @@ export async function GET(req: NextRequest) {
   // CSRF: state must be a JWT we signed, for THIS user.
   const payload = state ? await verifySession(state) : null;
   if (!payload || payload.role !== "GOOGLE_OAUTH_STATE" || payload.sub !== user.id) {
-    return NextResponse.redirect(new URL("/app/settings/email?toast_error=Invalid OAuth state — try again", base));
+    return NextResponse.redirect(
+      new URL("/app/settings/email?toast_error=Invalid OAuth state — try again", base),
+    );
   }
-  if (!code) return NextResponse.redirect(new URL("/app/settings/email?toast_error=Missing authorization code", base));
+  if (!code)
+    return NextResponse.redirect(new URL("/app/settings/email?toast_error=Missing authorization code", base));
 
   try {
     const t = await exchangeCode(code);
     const acc = await saveConnectedAccount({ ...t, connectedById: user.id });
-    await audit({ userId: user.id, action: "MAILBOX_CONNECTED", resourceType: "MailAccount", resourceId: acc.id, after: { email: acc.email, provider: "GOOGLE" } });
-    return NextResponse.redirect(new URL(`/app/settings/email?toast=${encodeURIComponent(`${acc.email} connected`)}`, base));
+    await audit({
+      userId: user.id,
+      action: "MAILBOX_CONNECTED",
+      resourceType: "MailAccount",
+      resourceId: acc.id,
+      after: { email: acc.email, provider: "GOOGLE" },
+    });
+    return NextResponse.redirect(
+      new URL(`/app/settings/email?toast=${encodeURIComponent(`${acc.email} connected`)}`, base),
+    );
   } catch (e) {
-    return NextResponse.redirect(new URL(`/app/settings/email?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "OAuth failed")}`, base));
+    return NextResponse.redirect(
+      new URL(
+        `/app/settings/email?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "OAuth failed")}`,
+        base,
+      ),
+    );
   }
 }

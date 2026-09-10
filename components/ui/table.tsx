@@ -8,13 +8,22 @@ export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTab
   );
 }
 export function THead({ children }: { children: React.ReactNode }) {
-  return <thead className="border-b border-line bg-white/[0.025] text-left text-[10px] uppercase tracking-[0.14em] text-muted2">{children}</thead>;
+  return (
+    <thead className="border-b border-line bg-white/[0.025] text-left text-[10px] uppercase tracking-[0.14em] text-muted2">
+      {children}
+    </thead>
+  );
 }
 export function TH({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return <th className={cn("px-4 py-3 font-medium", className)} {...props} />;
 }
 export function TR({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn("border-b border-line transition last:border-0 hover:bg-white/[0.025]", className)} {...props} />;
+  return (
+    <tr
+      className={cn("border-b border-line transition last:border-0 hover:bg-white/[0.025]", className)}
+      {...props}
+    />
+  );
 }
 export function TD({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return <td className={cn("px-4 py-3 align-middle", className)} {...props} />;

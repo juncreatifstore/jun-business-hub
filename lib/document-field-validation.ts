@@ -18,13 +18,20 @@ function digits(value: DocumentFieldValue) {
 }
 
 function numeric(value: DocumentFieldValue): number | null {
-  const normalized = String(value ?? "").trim().replace(/\s/g, "").replace(/[$€£]/g, "").replace(/,/g, ".");
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/[$€£]/g, "")
+    .replace(/,/g, ".");
   if (!normalized) return null;
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 
-export function validateDocumentField(def: DocumentFieldDefinition, value: DocumentFieldValue): string | null {
+export function validateDocumentField(
+  def: DocumentFieldDefinition,
+  value: DocumentFieldValue,
+): string | null {
   const type = def.type.toUpperCase();
   const rule = (def.validation || "").toLowerCase();
   const raw = String(value ?? "").trim();
@@ -51,10 +58,16 @@ export function validateDocumentField(def: DocumentFieldDefinition, value: Docum
   } else if (effective === "credit_card" || type === "CREDIT_CARD") {
     const count = digits(value).length;
     if (count < 15 || count > 16) return `${def.name} must contain 15–16 digits`;
-  } else if (effective === "us_currency" || effective === "eu_currency" || type === "US_CURRENCY" || type === "EU_CURRENCY") {
+  } else if (
+    effective === "us_currency" ||
+    effective === "eu_currency" ||
+    type === "US_CURRENCY" ||
+    type === "EU_CURRENCY"
+  ) {
     if (numeric(value) === null) return `${def.name} must be a valid currency amount`;
   } else if (effective === "us_state" || type === "US_STATE" || effective === "gender" || type === "GENDER") {
-    if (def.options?.length && !def.options.includes(raw)) return `${def.name} must use one of the allowed options`;
+    if (def.options?.length && !def.options.includes(raw))
+      return `${def.name} must use one of the allowed options`;
   } else if (type === "NUMBER") {
     if (numeric(value) === null) return `${def.name} must be a number`;
   } else if (type === "DATE") {

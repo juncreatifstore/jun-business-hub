@@ -34,7 +34,10 @@ export async function getDrivePublicSecurity(fileId: string): Promise<DrivePubli
     `${PUBLIC_EXPIRES_PREFIX}${fileId}`,
     `${PUBLIC_PASSWORD_PREFIX}${fileId}`,
   ];
-  const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } }, select: { key: true, value: true } });
+  const settings = await prisma.appSetting.findMany({
+    where: { key: { in: keys } },
+    select: { key: true, value: true },
+  });
   const map = new Map(settings.map((s) => [s.key, s.value]));
   const expiresRaw = map.get(`${PUBLIC_EXPIRES_PREFIX}${fileId}`) ?? null;
   const expiresAt = expiresRaw && !Number.isNaN(new Date(expiresRaw).getTime()) ? new Date(expiresRaw) : null;
@@ -73,18 +76,24 @@ export async function verifyDrivePublicAccess(token: string | undefined, fileId:
   }
 }
 
-export async function recordDrivePublicAccess(fileId: string, action: "FILE_PUBLIC_VIEW" | "FILE_PUBLIC_OPEN" | "FILE_PUBLIC_DOWNLOAD", meta: { ip?: string | null; userAgent?: string | null; after?: Record<string, unknown> } = {}) {
-  await prisma.auditLog.create({
-    data: {
-      userId: null,
-      action,
-      resourceType: "File",
-      resourceId: fileId,
-      ip: meta.ip ?? null,
-      userAgent: meta.userAgent ?? null,
-      after: meta.after as any,
-    },
-  }).catch(() => undefined);
+export async function recordDrivePublicAccess(
+  fileId: string,
+  action: "FILE_PUBLIC_VIEW" | "FILE_PUBLIC_OPEN" | "FILE_PUBLIC_DOWNLOAD",
+  meta: { ip?: string | null; userAgent?: string | null; after?: Record<string, unknown> } = {},
+) {
+  await prisma.auditLog
+    .create({
+      data: {
+        userId: null,
+        action,
+        resourceType: "File",
+        resourceId: fileId,
+        ip: meta.ip ?? null,
+        userAgent: meta.userAgent ?? null,
+        after: meta.after as any,
+      },
+    })
+    .catch(() => undefined);
 }
 
 export function requestPublicMeta(headers: Headers) {

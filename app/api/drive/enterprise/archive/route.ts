@@ -25,21 +25,37 @@ export async function POST(req: NextRequest) {
 
   const settings = await getDriveEnterpriseSettings();
   if (!ids.length) return NextResponse.json({ error: "No files selected" }, { status: 400 });
-  if (ids.length > settings.zipMaxFiles) return NextResponse.json({ error: `Archive limit is ${settings.zipMaxFiles} files` }, { status: 413 });
+  if (ids.length > settings.zipMaxFiles)
+    return NextResponse.json({ error: `Archive limit is ${settings.zipMaxFiles} files` }, { status: 413 });
 
   const files = await prisma.file.findMany({
     where: { id: { in: ids }, isVault: false, archivedAt: null },
     select: { id: true, name: true, storageKey: true, sizeBytes: true, createdAt: true },
   });
-  if (files.length !== ids.length) return NextResponse.json({ error: "One or more files are unavailable" }, { status: 404 });
+  if (files.length !== ids.length)
+    return NextResponse.json({ error: "One or more files are unavailable" }, { status: 404 });
   const total = files.reduce((sum, f) => sum + f.sizeBytes, 0);
-  if (total > settings.zipMaxBytes) return NextResponse.json({ error: `Archive exceeds ${Math.round(settings.zipMaxBytes / 1048576)} MB limit` }, { status: 413 });
+  if (total > settings.zipMaxBytes)
+    return NextResponse.json(
+      { error: `Archive exceeds ${Math.round(settings.zipMaxBytes / 1048576)} MB limit` },
+      { status: 413 },
+    );
 
   const entries: Array<{ name: string; data: Buffer; modifiedAt: Date }> = [];
-  for (const file of files) entries.push({ name: file.name, data: await storage().download(file.storageKey), modifiedAt: file.createdAt });
+  for (const file of files)
+    entries.push({
+      name: file.name,
+      data: await storage().download(file.storageKey),
+      modifiedAt: file.createdAt,
+    });
   const zip = buildStoredZip(entries);
 
-  await audit({ userId: user.id, action: "DRIVE_BULK_DOWNLOAD_ZIP", resourceType: "Drive", after: { fileIds: files.map((f) => f.id), files: files.length, bytes: total } });
+  await audit({
+    userId: user.id,
+    action: "DRIVE_BULK_DOWNLOAD_ZIP",
+    resourceType: "Drive",
+    after: { fileIds: files.map((f) => f.id), files: files.length, bytes: total },
+  });
   return new NextResponse(new Uint8Array(zip), {
     headers: {
       "Content-Type": "application/zip",

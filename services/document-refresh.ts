@@ -26,7 +26,10 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     return await Promise.race([
       promise,
       new Promise<T>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error(`AI update timed out after ${Math.round(ms / 1000)} seconds.`)), ms);
+        timer = setTimeout(
+          () => reject(new Error(`AI update timed out after ${Math.round(ms / 1000)} seconds.`)),
+          ms,
+        );
       }),
     ]);
   } finally {
@@ -66,13 +69,19 @@ export async function refreshDocumentFromLatestDataAction(
       return { status: "error", message: "Document or current version not found." };
     }
     if (!doc.clientId || !doc.client) {
-      return { status: "error", message: "This document is not linked to a client, so there is no client data to refresh." };
+      return {
+        status: "error",
+        message: "This document is not linked to a client, so there is no client data to refresh.",
+      };
     }
     if (!["DRAFT", "FINAL"].includes(doc.status)) {
       return { status: "error", message: "Only DRAFT or FINAL documents can be updated from latest data." };
     }
     if (!process.env.OPENAI_API_KEY) {
-      return { status: "error", message: "JUN AI is not configured on the server (OPENAI_API_KEY is missing)." };
+      return {
+        status: "error",
+        message: "JUN AI is not configured on the server (OPENAI_API_KEY is missing).",
+      };
     }
 
     const latest = doc.versions[0];
@@ -88,7 +97,10 @@ export async function refreshDocumentFromLatestDataAction(
       "For an agreement or refund agreement, include a CLIENT acceptance/signature section. State that by signing or electronically accepting, the client confirms having read the document and recognizes the information, transactions, amounts and details accepted by the client as exact.",
       "Include a concise authenticity clause explaining that the electronic document is officially issued by JUN CREATIF AND TRAVEL LLC and verifiable online; do not make an absolute legal-validity claim that overrides applicable law.",
       currentText ? `Existing document context to preserve where still accurate: ${currentText}` : "",
-    ].filter(Boolean).join(" ").slice(0, 1990);
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 1990);
 
     const input = new FormData();
     input.set("instruction", instruction);
@@ -114,16 +126,24 @@ export async function refreshDocumentFromLatestDataAction(
     }
 
     const generatedText = htmlToText(generated.content);
-    if (/generated offline|\[BODY\s*[—-]\s*complete this draft\]|OPENAI_API_KEY is not configured/i.test(generatedText)) {
+    if (
+      /generated offline|\[BODY\s*[—-]\s*complete this draft\]|OPENAI_API_KEY is not configured/i.test(
+        generatedText,
+      )
+    ) {
       return {
         status: "error",
-        message: "The AI provider did not return a real refreshed document. The existing version was left unchanged. Try again after checking the AI connection.",
+        message:
+          "The AI provider did not return a real refreshed document. The existing version was left unchanged. Try again after checking the AI connection.",
       };
     }
 
     const content = sanitizeDocumentHtml(generated.content.slice(0, 500_000));
     if (htmlToText(content).trim().length < 80) {
-      return { status: "error", message: "The generated update was unexpectedly empty. The current document was left unchanged." };
+      return {
+        status: "error",
+        message: "The generated update was unexpectedly empty. The current document was left unchanged.",
+      };
     }
 
     const financialIssues = checkRefundAgreementArithmetic(htmlToText(content));
@@ -145,13 +165,18 @@ export async function refreshDocumentFromLatestDataAction(
       select: { id: true, version: true },
     });
     if (!current || current.id !== latest.id) {
-      return { status: "error", message: "The document changed while the update was running. Refresh the page and try again on the newest version." };
+      return {
+        status: "error",
+        message:
+          "The document changed while the update was running. Refresh the page and try again on the newest version.",
+      };
     }
 
     const nextVersion = latest.version + 1;
-    const changeNote = previousStatus === "FINAL"
-      ? `Revision from FINAL v${latest.version} using latest recorded client data`
-      : `Updated from latest recorded client data (from v${latest.version})`;
+    const changeNote =
+      previousStatus === "FINAL"
+        ? `Revision from FINAL v${latest.version} using latest recorded client data`
+        : `Updated from latest recorded client data (from v${latest.version})`;
 
     await prisma.$transaction([
       prisma.documentVersion.create({

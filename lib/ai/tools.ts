@@ -32,7 +32,16 @@ export function buildAITools(user: CurrentUser) {
           include: { _count: { select: { cases: true, documents: true, payments: true, refunds: true } } },
         });
         if (!c) return { error: "Client not found" };
-        return { id: c.id, internalId: c.internalId, name: `${c.firstName} ${c.lastName}`, status: c.status, email: c.email, phone: c.phone, country: c.country, counts: c._count };
+        return {
+          id: c.id,
+          internalId: c.internalId,
+          name: `${c.firstName} ${c.lastName}`,
+          status: c.status,
+          email: c.email,
+          phone: c.phone,
+          country: c.country,
+          counts: c._count,
+        };
       },
     }),
     searchCases: tool({
@@ -55,10 +64,21 @@ export function buildAITools(user: CurrentUser) {
         if (!can(user, "CASE_READ")) return DENIED;
         const c = await prisma.case.findFirst({
           where: { OR: [{ id }, { caseNumber: id }] },
-          include: { client: { select: { firstName: true, lastName: true, internalId: true } }, _count: { select: { tasks: true, documents: true } } },
+          include: {
+            client: { select: { firstName: true, lastName: true, internalId: true } },
+            _count: { select: { tasks: true, documents: true } },
+          },
         });
         if (!c) return { error: "Case not found" };
-        return { id: c.id, caseNumber: c.caseNumber, title: c.title, status: c.status, priority: c.priority, client: `${c.client.firstName} ${c.client.lastName} (${c.client.internalId})`, counts: c._count };
+        return {
+          id: c.id,
+          caseNumber: c.caseNumber,
+          title: c.title,
+          status: c.status,
+          priority: c.priority,
+          client: `${c.client.firstName} ${c.client.lastName} (${c.client.internalId})`,
+          counts: c._count,
+        };
       },
     }),
     searchDocuments: tool({
@@ -75,7 +95,8 @@ export function buildAITools(user: CurrentUser) {
       },
     }),
     getDocument: tool({
-      description: "Get one document's metadata + a short plain-text excerpt of the latest version (never the full HTML).",
+      description:
+        "Get one document's metadata + a short plain-text excerpt of the latest version (never the full HTML).",
       inputSchema: z.object({ id: z.string().min(1).max(60) }),
       execute: async ({ id }) => {
         if (!can(user, "DOCUMENT_READ")) return DENIED;
@@ -85,7 +106,15 @@ export function buildAITools(user: CurrentUser) {
         });
         if (!d) return { error: "Document not found" };
         const excerpt = htmlToText(d.versions[0]?.content ?? "").slice(0, 800);
-        return { id: d.id, documentId: d.documentId, title: d.title, type: d.type, status: d.status, latestVersion: d.versions[0]?.version ?? 0, excerpt };
+        return {
+          id: d.id,
+          documentId: d.documentId,
+          title: d.title,
+          type: d.type,
+          status: d.status,
+          latestVersion: d.versions[0]?.version ?? 0,
+          excerpt,
+        };
       },
     }),
     searchPayments: tool({
@@ -99,7 +128,15 @@ export function buildAITools(user: CurrentUser) {
           take: 8,
           include: { client: { select: { firstName: true, lastName: true } } },
         });
-        return rows.map((p) => ({ id: p.id, reference: p.reference, amount: Number(p.amount), currency: p.currency, method: p.method, status: p.status, client: `${p.client.firstName} ${p.client.lastName}` }));
+        return rows.map((p) => ({
+          id: p.id,
+          reference: p.reference,
+          amount: Number(p.amount),
+          currency: p.currency,
+          method: p.method,
+          status: p.status,
+          client: `${p.client.firstName} ${p.client.lastName}`,
+        }));
       },
     }),
     getPayment: tool({
@@ -131,8 +168,20 @@ export function buildAITools(user: CurrentUser) {
       execute: async ({ query }) => {
         if (!can(user, "REFUND_READ")) return DENIED;
         const ci = { contains: query, mode: "insensitive" as const };
-        const rows = await prisma.refund.findMany({ where: { OR: [{ refundNumber: ci }, { reason: ci }] }, take: 8, include: { installments: true } });
-        return rows.map((r) => ({ id: r.id, reference: r.refundNumber, amount: Number(r.amount), currency: r.currency, status: r.status, installments: r.installments.length, installmentsPaid: r.installments.filter((i) => i.status === "PAID").length }));
+        const rows = await prisma.refund.findMany({
+          where: { OR: [{ refundNumber: ci }, { reason: ci }] },
+          take: 8,
+          include: { installments: true },
+        });
+        return rows.map((r) => ({
+          id: r.id,
+          reference: r.refundNumber,
+          amount: Number(r.amount),
+          currency: r.currency,
+          status: r.status,
+          installments: r.installments.length,
+          installmentsPaid: r.installments.filter((i) => i.status === "PAID").length,
+        }));
       },
     }),
     getRefund: tool({
@@ -140,15 +189,46 @@ export function buildAITools(user: CurrentUser) {
       inputSchema: z.object({ id: z.string().min(1).max(60) }),
       execute: async ({ id }) => {
         if (!can(user, "REFUND_READ")) return DENIED;
-        const r = await prisma.refund.findFirst({ where: { OR: [{ id }, { refundNumber: id }] }, include: { installments: { orderBy: { dueDate: "asc" } }, client: { select: { firstName: true, lastName: true } } } });
+        const r = await prisma.refund.findFirst({
+          where: { OR: [{ id }, { refundNumber: id }] },
+          include: {
+            installments: { orderBy: { dueDate: "asc" } },
+            client: { select: { firstName: true, lastName: true } },
+          },
+        });
         if (!r) return { error: "Refund not found" };
-        return { id: r.id, reference: r.refundNumber, amount: Number(r.amount), currency: r.currency, status: r.status, reason: r.reason, client: `${r.client.firstName} ${r.client.lastName}`, installments: r.installments.map((i) => ({ due: i.dueDate, amount: Number(i.amount), status: i.status })) };
+        return {
+          id: r.id,
+          reference: r.refundNumber,
+          amount: Number(r.amount),
+          currency: r.currency,
+          status: r.status,
+          reason: r.reason,
+          client: `${r.client.firstName} ${r.client.lastName}`,
+          installments: r.installments.map((i) => ({
+            due: i.dueDate,
+            amount: Number(i.amount),
+            status: i.status,
+          })),
+        };
       },
     }),
     createDocumentDraft: tool({
-      description: "Create a DRAFT document (never final, never signed). Provide type, title, HTML-free body text; optional clientId/caseId. Returns the new document id for the human to review.",
+      description:
+        "Create a DRAFT document (never final, never signed). Provide type, title, HTML-free body text; optional clientId/caseId. Returns the new document id for the human to review.",
       inputSchema: z.object({
-        type: z.enum(["CONTRACT", "AGREEMENT", "REFUND_AGREEMENT", "RECEIPT", "INVOICE", "LETTER", "ATTESTATION", "AUTHORIZATION", "REPORT", "CUSTOM"]),
+        type: z.enum([
+          "CONTRACT",
+          "AGREEMENT",
+          "REFUND_AGREEMENT",
+          "RECEIPT",
+          "INVOICE",
+          "LETTER",
+          "ATTESTATION",
+          "AUTHORIZATION",
+          "REPORT",
+          "CUSTOM",
+        ]),
         title: z.string().min(1).max(200),
         body: z.string().min(1).max(20000),
         clientId: z.string().optional(),
@@ -161,7 +241,8 @@ export function buildAITools(user: CurrentUser) {
       },
     }),
     createReceiptDraft: tool({
-      description: "Create a RECEIPT-type DRAFT document for a confirmed payment (by payment reference). A human finalizes it.",
+      description:
+        "Create a RECEIPT-type DRAFT document for a confirmed payment (by payment reference). A human finalizes it.",
       inputSchema: z.object({ paymentReference: z.string().min(1).max(40) }),
       execute: async ({ paymentReference }) => {
         if (!can(user, "DOCUMENT_CREATE") || !can(user, "PAYMENT_READ")) return DENIED;
@@ -170,7 +251,8 @@ export function buildAITools(user: CurrentUser) {
       },
     }),
     createTaskDraft: tool({
-      description: "Create a TODO task assigned to nobody (the human assigns it). Provide title, optional description, optional caseId/clientId, optional dueDate ISO.",
+      description:
+        "Create a TODO task assigned to nobody (the human assigns it). Provide title, optional description, optional caseId/clientId, optional dueDate ISO.",
       inputSchema: z.object({
         title: z.string().min(1).max(200),
         description: z.string().max(2000).optional(),

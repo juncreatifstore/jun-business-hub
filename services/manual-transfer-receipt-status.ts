@@ -11,7 +11,10 @@ import { setManualTransferOrderStatus } from "@/services/finance-manual-transfer
 const MANUAL_PAYMENT_LINK_PREFIX = "finance.manual.payment.";
 
 async function getLinkedPaymentId(orderId: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: `${MANUAL_PAYMENT_LINK_PREFIX}${orderId}` }, select: { value: true } });
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${MANUAL_PAYMENT_LINK_PREFIX}${orderId}` },
+    select: { value: true },
+  });
   return row?.value || null;
 }
 
@@ -23,9 +26,10 @@ async function ensureCompletedTransferPayment(orderId: string, userId: string) {
   // provider/transfer fees and FX, not the gross amount paid by the sender.
   const receivedAmount = Number(order.receiveAmount);
   const receivedCurrency = order.receiveCurrency;
-  const provider = order.receiverSnapshot.rail === "WESTERN_UNION"
-    ? "Western Union"
-    : (order.receiverSnapshot.bankName || "Bank transfer");
+  const provider =
+    order.receiverSnapshot.rail === "WESTERN_UNION"
+      ? "Western Union"
+      : order.receiverSnapshot.bankName || "Bank transfer";
   const method = order.receiverSnapshot.rail === "BANK_TRANSFER" ? "BANK_TRANSFER" : "OTHER";
   const notes = `Net client payment received for manual transfer order ${order.orderNumber}. Sender paid ${order.sendCurrency} ${order.sendAmount.toFixed(2)}; transfer fees ${order.sendCurrency} ${order.feeAmount.toFixed(2)}; net received ${receivedCurrency} ${receivedAmount.toFixed(2)}. ${order.purpose || "Commercial payment"}`;
 
@@ -54,7 +58,12 @@ async function ensureCompletedTransferPayment(orderId: string, userId: string) {
         resourceType: "Payment",
         resourceId: corrected.id,
         before: { amount: Number(existing.amount), currency: existing.currency, status: existing.status },
-        after: { amount: receivedAmount, currency: receivedCurrency, status: "CONFIRMED", orderNumber: order.orderNumber },
+        after: {
+          amount: receivedAmount,
+          currency: receivedCurrency,
+          status: "CONFIRMED",
+          orderNumber: order.orderNumber,
+        },
       });
       return corrected;
     }
@@ -133,5 +142,8 @@ export async function setManualTransferOrderStatusWithReceipt(id: string, formDa
 export async function getManualTransferLinkedPayment(orderId: string) {
   const paymentId = await getLinkedPaymentId(orderId);
   if (!paymentId) return null;
-  return prisma.payment.findUnique({ where: { id: paymentId }, select: { id: true, reference: true, amount: true, currency: true, status: true, paidAt: true } });
+  return prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: { id: true, reference: true, amount: true, currency: true, status: true, paidAt: true },
+  });
 }

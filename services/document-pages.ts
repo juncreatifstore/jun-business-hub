@@ -16,9 +16,12 @@ export async function saveDocumentPages(documentId: string, formData: FormData) 
     where: { id: documentId },
     include: { versions: { orderBy: { version: "desc" }, take: 1 } },
   });
-  if (!doc || !doc.versions[0]) redirect(`/app/documents?toast_error=${encodeURIComponent("Document not found")}`);
+  if (!doc || !doc.versions[0])
+    redirect(`/app/documents?toast_error=${encodeURIComponent("Document not found")}`);
   if (doc.status !== "DRAFT" || isDocumentFrozen(doc.status)) {
-    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Create a revision before reorganizing a finalized document")}`);
+    redirect(
+      `/app/documents/${documentId}?toast_error=${encodeURIComponent("Create a revision before reorganizing a finalized document")}`,
+    );
   }
 
   const raw = String(formData.get("content") ?? "").slice(0, 500_000);
@@ -58,5 +61,7 @@ export async function saveDocumentPages(documentId: string, formData: FormData) 
     caseId: doc.caseId,
   });
   revalidatePath(`/app/documents/${documentId}`);
-  redirect(`/app/documents/${documentId}/pages?toast=${encodeURIComponent(`Page layout saved as version ${version}`)}`);
+  redirect(
+    `/app/documents/${documentId}/pages?toast=${encodeURIComponent(`Page layout saved as version ${version}`)}`,
+  );
 }

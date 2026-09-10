@@ -7,11 +7,38 @@ import sanitizeHtml from "sanitize-html";
  * NEVER render user/AI-supplied HTML without passing it through here first.
  */
 const ALLOWED_TAGS = [
-  "h1", "h2", "h3", "h4", "p", "br", "hr",
-  "strong", "b", "em", "i", "u", "s", "sub", "sup", "mark", "code", "pre",
-  "ul", "ol", "li", "blockquote",
-  "table", "thead", "tbody", "tr", "th", "td",
-  "a", "span", "div", "img",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "p",
+  "br",
+  "hr",
+  "strong",
+  "b",
+  "em",
+  "i",
+  "u",
+  "s",
+  "sub",
+  "sup",
+  "mark",
+  "code",
+  "pre",
+  "ul",
+  "ol",
+  "li",
+  "blockquote",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td",
+  "a",
+  "span",
+  "div",
+  "img",
 ];
 
 const SAFE_DRAW_PREFIX = "data:image/png;base64,";
@@ -20,7 +47,12 @@ const MAX_DRAW_DATA_URL = 750_000;
 function safeImageSrc(src: string | undefined): string {
   const value = src ?? "";
   if (/^https?:\/\//i.test(value)) return value;
-  if (value.startsWith(SAFE_DRAW_PREFIX) && value.length <= MAX_DRAW_DATA_URL && /^[A-Za-z0-9+/=]+$/.test(value.slice(SAFE_DRAW_PREFIX.length))) return value;
+  if (
+    value.startsWith(SAFE_DRAW_PREFIX) &&
+    value.length <= MAX_DRAW_DATA_URL &&
+    /^[A-Za-z0-9+/=]+$/.test(value.slice(SAFE_DRAW_PREFIX.length))
+  )
+    return value;
   return "";
 }
 
@@ -38,7 +70,10 @@ function safeLinkHref(href: string | undefined): string {
  */
 export function normalizeDocumentHtmlInput(input: string): string {
   let value = String(input ?? "").trim();
-  value = value.replace(/^\s*```(?:html|htm)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  value = value
+    .replace(/^\s*```(?:html|htm)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
   // Some imported templates contain a lone leading "html" line without backticks.
   if (/^html\s*[\r\n]+\s*</i.test(value)) value = value.replace(/^html\s*[\r\n]+/i, "").trim();
   return value;
@@ -54,14 +89,27 @@ export function sanitizeDocumentHtml(dirty: string): string {
       th: ["colspan", "rowspan"],
       td: ["colspan", "rowspan"],
       p: ["style"],
-      h1: ["style"], h2: ["style"], h3: ["style"],
+      h1: ["style"],
+      h2: ["style"],
+      h3: ["style"],
       mark: ["data-jun-mark"],
       span: ["data-jun-mark"],
       div: [
-        "data-jun-block", "data-kind", "data-text",
-        "data-jun-field", "data-field-type", "data-field-name", "data-required",
-        "data-help", "data-options", "data-order", "data-validation", "data-formula",
-        "data-jun-page", "data-page-id", "data-rotation",
+        "data-jun-block",
+        "data-kind",
+        "data-text",
+        "data-jun-field",
+        "data-field-type",
+        "data-field-name",
+        "data-required",
+        "data-help",
+        "data-options",
+        "data-order",
+        "data-validation",
+        "data-formula",
+        "data-jun-page",
+        "data-page-id",
+        "data-rotation",
       ],
     },
     allowedSchemes: ["http", "https", "mailto", "tel"],
@@ -101,8 +149,17 @@ export function sanitizeDocumentHtml(dirty: string): string {
       },
       div: (_tagName, attribs) => {
         if (attribs["data-jun-page"] === "true") {
-          const rotation = ["0", "90", "180", "270"].includes(attribs["data-rotation"]) ? attribs["data-rotation"] : "0";
-          return { tagName: "div", attribs: { "data-jun-page": "true", "data-page-id": (attribs["data-page-id"] ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80), "data-rotation": rotation } };
+          const rotation = ["0", "90", "180", "270"].includes(attribs["data-rotation"])
+            ? attribs["data-rotation"]
+            : "0";
+          return {
+            tagName: "div",
+            attribs: {
+              "data-jun-page": "true",
+              "data-page-id": (attribs["data-page-id"] ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80),
+              "data-rotation": rotation,
+            },
+          };
         }
         return { tagName: "div", attribs };
       },

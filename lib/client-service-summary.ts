@@ -5,7 +5,9 @@ import { getPaymentCoreMetaMap } from "@/lib/finance-payment-core";
 import { invoiceFinancialState, listInvoices } from "@/lib/finance-invoices";
 import { expenseEffectiveStatus, expensePaidTotal, listFinanceExpenses } from "@/lib/finance-expenses";
 
-function round(v: number) { return Math.round((v + Number.EPSILON) * 100) / 100; }
+function round(v: number) {
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
 
 export type ServiceCurrencySummary = {
   currency: string;
@@ -61,9 +63,11 @@ export async function getClientServiceSummaries(clientId: string): Promise<Clien
   const paymentMeta = await getPaymentCoreMetaMap(paymentIds);
 
   const invoiceStates = new Map<string, Awaited<ReturnType<typeof invoiceFinancialState>>>();
-  await Promise.all(clientInvoices.map(async (invoice) => {
-    invoiceStates.set(invoice.id, await invoiceFinancialState(invoice));
-  }));
+  await Promise.all(
+    clientInvoices.map(async (invoice) => {
+      invoiceStates.set(invoice.id, await invoiceFinancialState(invoice));
+    }),
+  );
 
   return cases.map((c) => {
     const invoices = clientInvoices.filter((i) => i.caseId === c.id);

@@ -66,21 +66,55 @@ function settingEnabled(value: string | undefined, fallback = true) {
   return !["off", "false", "0", "no"].includes(value.toLowerCase());
 }
 
-async function loadOfficialCompany(): Promise<OfficialCompany & { logoKey: string; sealKey: string; signatureKey: string }> {
+async function loadOfficialCompany(): Promise<
+  OfficialCompany & { logoKey: string; sealKey: string; signatureKey: string }
+> {
   try {
     const rows = await prisma.appSetting.findMany({
-      where: { key: { in: [
-        "company.name", "company.trade_name", "company.tagline", "company.website", "company.po_box", "company.address", "company.mailing_address",
-        "company.phone", "company.phone_secondary", "company.whatsapp", "company.email", "company.finance_email", "company.documents_email", "company.support_email",
-        "company.registration", "company.tax_id", "company.legal_representative", "company.representative_title", "company.registration_country",
-        "company.registration_state", "company.formation_date", "company.bank_details",
-        "document.footer_label", "document.watermark_opacity", "document.seal_size",
-        "document.logo_key", "document.seal_key", "document.signature_key",
-        "document.show_logo", "document.show_seal", "document.show_signature", "document.show_qr", "document.show_tax_id",
-      ] } },
+      where: {
+        key: {
+          in: [
+            "company.name",
+            "company.trade_name",
+            "company.tagline",
+            "company.website",
+            "company.po_box",
+            "company.address",
+            "company.mailing_address",
+            "company.phone",
+            "company.phone_secondary",
+            "company.whatsapp",
+            "company.email",
+            "company.finance_email",
+            "company.documents_email",
+            "company.support_email",
+            "company.registration",
+            "company.tax_id",
+            "company.legal_representative",
+            "company.representative_title",
+            "company.registration_country",
+            "company.registration_state",
+            "company.formation_date",
+            "company.bank_details",
+            "document.footer_label",
+            "document.watermark_opacity",
+            "document.seal_size",
+            "document.logo_key",
+            "document.seal_key",
+            "document.signature_key",
+            "document.show_logo",
+            "document.show_seal",
+            "document.show_signature",
+            "document.show_qr",
+            "document.show_tax_id",
+          ],
+        },
+      },
     });
     const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-    const website = (s["company.website"] || DEFAULT_COMPANY.site).replace(/^https?:\/\//i, "").replace(/\/$/, "");
+    const website = (s["company.website"] || DEFAULT_COMPANY.site)
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/$/, "");
     const opacity = Number(s["document.watermark_opacity"] ?? DEFAULT_COMPANY.watermarkOpacity);
     const sealSize = Number(s["document.seal_size"] ?? DEFAULT_COMPANY.sealSize);
     return {
@@ -107,7 +141,9 @@ async function loadOfficialCompany(): Promise<OfficialCompany & { logoKey: strin
       formationDate: s["company.formation_date"] || "",
       bankDetails: s["company.bank_details"] || "",
       footerLabel: s["document.footer_label"] || "",
-      watermarkOpacity: Number.isFinite(opacity) ? Math.min(0.08, Math.max(0.018, opacity)) : DEFAULT_COMPANY.watermarkOpacity,
+      watermarkOpacity: Number.isFinite(opacity)
+        ? Math.min(0.08, Math.max(0.018, opacity))
+        : DEFAULT_COMPANY.watermarkOpacity,
       sealSize: Number.isFinite(sealSize) ? Math.min(120, Math.max(40, sealSize)) : DEFAULT_COMPANY.sealSize,
       showLogo: settingEnabled(s["document.show_logo"], true),
       showSeal: settingEnabled(s["document.show_seal"], true),
@@ -148,19 +184,28 @@ function replaceCompanyTokens(html: string, company: OfficialCompany): string {
     "company.formation_date": company.formationDate,
     "company.bank_details": company.bankDetails,
   };
-  return html.replace(/\{\{\s*(company\.[a-z0-9_]+)\s*\}\}/gi, (match, key: string) => values[key.toLowerCase()] ?? match);
+  return html.replace(
+    /\{\{\s*(company\.[a-z0-9_]+)\s*\}\}/gi,
+    (match, key: string) => values[key.toLowerCase()] ?? match,
+  );
 }
 
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
   const out: string[] = [];
   for (const raw of text.split("\n")) {
     const words = raw.split(/\s+/).filter(Boolean);
-    if (words.length === 0) { out.push(""); continue; }
+    if (words.length === 0) {
+      out.push("");
+      continue;
+    }
     let line = "";
     for (const word of words) {
       const probe = line ? `${line} ${word}` : word;
       if (font.widthOfTextAtSize(probe, size) <= maxWidth) line = probe;
-      else { if (line) out.push(line); line = word; }
+      else {
+        if (line) out.push(line);
+        line = word;
+      }
     }
     if (line) out.push(line);
   }
@@ -168,21 +213,35 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
 }
 
 async function embedBytes(pdf: PDFDocument, bytes: Uint8Array): Promise<PDFImage | null> {
-  try { return await pdf.embedPng(bytes); } catch {
-    try { return await pdf.embedJpg(bytes); } catch { return null; }
+  try {
+    return await pdf.embedPng(bytes);
+  } catch {
+    try {
+      return await pdf.embedJpg(bytes);
+    } catch {
+      return null;
+    }
   }
 }
 
-async function embedStoredImage(pdf: PDFDocument, key: string, fallbackUrl?: string): Promise<PDFImage | null> {
+async function embedStoredImage(
+  pdf: PDFDocument,
+  key: string,
+  fallbackUrl?: string,
+): Promise<PDFImage | null> {
   if (key) {
-    try { return await embedBytes(pdf, new Uint8Array(await storage().download(key))); } catch {}
+    try {
+      return await embedBytes(pdf, new Uint8Array(await storage().download(key)));
+    } catch {}
   }
   if (!fallbackUrl) return null;
   try {
     const res = await fetch(fallbackUrl, { cache: "no-store" });
     if (!res.ok) return null;
     return await embedBytes(pdf, new Uint8Array(await res.arrayBuffer()));
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function drawWatermark(page: PDFPage, logo: PDFImage | null, bold: PDFFont, opacity: number) {
@@ -233,7 +292,9 @@ function drawSignature(page: PDFPage, signature: PDFImage | null) {
   page.drawImage(signature, { x: PAGE.margin, y: 48, width: w, height: h, opacity: 0.96 });
 }
 
-function applyRotation(page: PDFPage, rotation: PageRotation) { page.setRotation(degrees(rotation)); }
+function applyRotation(page: PDFPage, rotation: PageRotation) {
+  page.setRotation(degrees(rotation));
+}
 
 function newPage(ctx: Ctx, rotation: PageRotation = ctx.rotation) {
   ctx.footer(ctx.page, ctx.pageNo);
@@ -245,7 +306,18 @@ function newPage(ctx: Ctx, rotation: PageRotation = ctx.rotation) {
   ctx.y = PAGE.h - 72;
 }
 
-function drawLines(ctx: Ctx, lines: string[], opts: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb>; gap?: number; lead?: number; indent?: number } = {}) {
+function drawLines(
+  ctx: Ctx,
+  lines: string[],
+  opts: {
+    size?: number;
+    bold?: boolean;
+    color?: ReturnType<typeof rgb>;
+    gap?: number;
+    lead?: number;
+    indent?: number;
+  } = {},
+) {
   const size = opts.size ?? 9.7;
   const font = opts.bold ? ctx.bold : ctx.font;
   const lead = opts.lead ?? size * 1.28;
@@ -282,23 +354,48 @@ async function buildBase(meta: PdfBaseMeta): Promise<{ ctx: Ctx; finish: () => P
 
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? "https://www.juncreatif.org").replace(/\/$/, "");
   const verifyUrl = `${base}${meta.verifyPath}`;
-  const qrImg = company.showQr ? await pdf.embedPng(await QRCode.toBuffer(verifyUrl, { margin: 0, width: 240 })) : null;
+  const qrImg = company.showQr
+    ? await pdf.embedPng(await QRCode.toBuffer(verifyUrl, { margin: 0, width: 240 }))
+    : null;
 
-  const decoratePage = (p: PDFPage) => drawWatermark(p, company.showLogo ? assets.logo : null, bold, company.watermarkOpacity);
+  const decoratePage = (p: PDFPage) =>
+    drawWatermark(p, company.showLogo ? assets.logo : null, bold, company.watermarkOpacity);
   const footer = (p: PDFPage, n: number) => {
     if (meta.includeCompanySignature !== false && company.showSignature) drawSignature(p, assets.signature);
     if (company.showSeal) drawSeal(p, assets.seal, company.sealSize);
-    p.drawLine({ start: { x: PAGE.margin, y: 43 }, end: { x: PAGE.w - PAGE.margin, y: 43 }, thickness: 0.45, color: LIGHT });
+    p.drawLine({
+      start: { x: PAGE.margin, y: 43 },
+      end: { x: PAGE.w - PAGE.margin, y: 43 },
+      thickness: 0.45,
+      color: LIGHT,
+    });
     const taxSuffix = company.showTaxId && company.taxId ? ` · EIN/Tax ID ${company.taxId}` : "";
     const leftFooter = company.footerLabel || `${company.name} · ${company.site}${taxSuffix}`;
     p.drawText(leftFooter.slice(0, 92), { x: PAGE.margin, y: 29, size: 7.4, font, color: GRAY });
     const pageText = `${meta.reference} · ${n}`;
-    p.drawText(pageText, { x: PAGE.w - PAGE.margin - font.widthOfTextAtSize(pageText, 7.4), y: 29, size: 7.4, font, color: GRAY });
+    p.drawText(pageText, {
+      x: PAGE.w - PAGE.margin - font.widthOfTextAtSize(pageText, 7.4),
+      y: 29,
+      size: 7.4,
+      font,
+      color: GRAY,
+    });
   };
 
   const page = pdf.addPage([PAGE.w, PAGE.h]);
   decoratePage(page);
-  const ctx: Ctx = { pdf, page, y: PAGE.h - PAGE.margin, font, bold, pageNo: 1, rotation: 0, assets, footer, decoratePage };
+  const ctx: Ctx = {
+    pdf,
+    page,
+    y: PAGE.h - PAGE.margin,
+    font,
+    bold,
+    pageNo: 1,
+    rotation: 0,
+    assets,
+    footer,
+    decoratePage,
+  };
 
   if (company.showLogo && logo) {
     const scale = Math.min(62 / logo.width, 50 / logo.height);
@@ -310,25 +407,65 @@ async function buildBase(meta: PdfBaseMeta): Promise<{ ctx: Ctx; finish: () => P
   }
 
   const infoX = PAGE.margin + 70;
-  ctx.page.drawText(company.name.slice(0, 60), { x: infoX, y: ctx.y + 7, size: 11, font: bold, color: NIGHT });
+  ctx.page.drawText(company.name.slice(0, 60), {
+    x: infoX,
+    y: ctx.y + 7,
+    size: 11,
+    font: bold,
+    color: NIGHT,
+  });
   ctx.page.drawText(company.tagline.slice(0, 80), { x: infoX, y: ctx.y - 5, size: 8.2, font, color: GRAY });
-  ctx.page.drawText(company.mailingAddress.slice(0, 85), { x: infoX, y: ctx.y - 17, size: 7.3, font, color: GRAY });
+  ctx.page.drawText(company.mailingAddress.slice(0, 85), {
+    x: infoX,
+    y: ctx.y - 17,
+    size: 7.3,
+    font,
+    color: GRAY,
+  });
   const contact = [company.phone, company.email].filter(Boolean).join(" · ");
-  if (contact) ctx.page.drawText(contact.slice(0, 85), { x: infoX, y: ctx.y - 28, size: 7.3, font, color: GRAY });
+  if (contact)
+    ctx.page.drawText(contact.slice(0, 85), { x: infoX, y: ctx.y - 28, size: 7.3, font, color: GRAY });
 
   if (qrImg) {
     ctx.page.drawImage(qrImg, { x: PAGE.w - PAGE.margin - 58, y: ctx.y - 42, width: 58, height: 58 });
-    ctx.page.drawText("Scan to verify", { x: PAGE.w - PAGE.margin - 55, y: ctx.y - 53, size: 6.8, font, color: GRAY });
+    ctx.page.drawText("Scan to verify", {
+      x: PAGE.w - PAGE.margin - 55,
+      y: ctx.y - 53,
+      size: 6.8,
+      font,
+      color: GRAY,
+    });
   }
-  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y - 38 }, end: { x: PAGE.w - PAGE.margin - (qrImg ? 74 : 0), y: ctx.y - 38 }, thickness: 1, color: GOLD });
+  ctx.page.drawLine({
+    start: { x: PAGE.margin, y: ctx.y - 38 },
+    end: { x: PAGE.w - PAGE.margin - (qrImg ? 74 : 0), y: ctx.y - 38 },
+    thickness: 1,
+    color: GOLD,
+  });
   ctx.y -= 86;
 
-  drawLines(ctx, wrap(meta.title, bold, 15.2, PAGE.w - 2 * PAGE.margin), { size: 15.2, bold: true, lead: 18, gap: 4 });
+  drawLines(ctx, wrap(meta.title, bold, 15.2, PAGE.w - 2 * PAGE.margin), {
+    size: 15.2,
+    bold: true,
+    lead: 18,
+    gap: 4,
+  });
   const metaLine1 = `${meta.reference} · ${new Date().toISOString().slice(0, 10)} · ${meta.statusLine}`;
-  drawLines(ctx, wrap(metaLine1, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10, gap: 1 });
-  for (const extra of meta.extraHeader ?? []) drawLines(ctx, wrap(extra, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10 });
+  drawLines(ctx, wrap(metaLine1, font, 7.7, PAGE.w - 2 * PAGE.margin), {
+    size: 7.7,
+    color: GRAY,
+    lead: 10,
+    gap: 1,
+  });
+  for (const extra of meta.extraHeader ?? [])
+    drawLines(ctx, wrap(extra, font, 7.7, PAGE.w - 2 * PAGE.margin), { size: 7.7, color: GRAY, lead: 10 });
   ctx.y -= 7;
-  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y + 3 }, end: { x: PAGE.w - PAGE.margin, y: ctx.y + 3 }, thickness: 0.35, color: LIGHT });
+  ctx.page.drawLine({
+    start: { x: PAGE.margin, y: ctx.y + 3 },
+    end: { x: PAGE.w - PAGE.margin, y: ctx.y + 3 },
+    thickness: 0.35,
+    color: LIGHT,
+  });
   ctx.y -= 8;
 
   return {
@@ -338,7 +475,13 @@ async function buildBase(meta: PdfBaseMeta): Promise<{ ctx: Ctx; finish: () => P
       const pages = pdf.getPages();
       pages.forEach((p, index) => {
         const total = `${index + 1}/${pages.length}`;
-        p.drawText(total, { x: PAGE.w / 2 - font.widthOfTextAtSize(total, 7.2) / 2, y: 29, size: 7.2, font, color: GRAY });
+        p.drawText(total, {
+          x: PAGE.w / 2 - font.widthOfTextAtSize(total, 7.2) / 2,
+          y: 29,
+          size: 7.2,
+          font,
+          color: GRAY,
+        });
       });
       return pdf.save();
     },
@@ -366,7 +509,8 @@ function isHeadingLine(block: string): boolean {
   if (!text || text.length > 90 || text.split(/\s+/).length > 12) return false;
   if (/^\[[^\]]+\]$/.test(text)) return false;
   if (/^[^:]{1,44}\s*:\s*\S/.test(text)) return false;
-  if (/^(Date|Dat|From|To|Ant|Ak|Objet|Objè|Reference|Référence|Client|Case|Dossier)\s*:/i.test(text)) return false;
+  if (/^(Date|Dat|From|To|Ant|Ak|Objet|Objè|Reference|Référence|Client|Case|Dossier)\s*:/i.test(text))
+    return false;
   return /^[A-ZÀ-ÖØ-Þ0-9]/.test(text) && !/[.!?]$/.test(text);
 }
 
@@ -375,7 +519,10 @@ function renderTextPage(ctx: Ctx, html: string, options: { skipLeadingTitle?: st
   if (!text) return;
 
   const width = PAGE.w - 2 * PAGE.margin;
-  const blocks = text.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+  const blocks = text
+    .split(/\n+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
 
   if (
     options.skipLeadingTitle &&
@@ -416,14 +563,27 @@ function renderDocumentAuthenticityNotice(ctx: Ctx, signatureStatus?: string | n
   const width = PAGE.w - 2 * PAGE.margin;
   if (ctx.y < PAGE.margin + 125) newPage(ctx);
   ctx.y -= 8;
-  ctx.page.drawLine({ start: { x: PAGE.margin, y: ctx.y }, end: { x: PAGE.w - PAGE.margin, y: ctx.y }, thickness: 0.6, color: GOLD });
+  ctx.page.drawLine({
+    start: { x: PAGE.margin, y: ctx.y },
+    end: { x: PAGE.w - PAGE.margin, y: ctx.y },
+    thickness: 0.6,
+    color: GOLD,
+  });
   ctx.y -= 14;
-  drawLines(ctx, ["AUTHENTICITE, VALEUR PROBANTE ET ACCEPTATION"], { size: 8.5, bold: true, color: NIGHT, lead: 10.5, gap: 2 });
+  drawLines(ctx, ["AUTHENTICITE, VALEUR PROBANTE ET ACCEPTATION"], {
+    size: 8.5,
+    bold: true,
+    color: NIGHT,
+    lead: 10.5,
+    gap: 2,
+  });
 
-  const legal = "Ce document electronique est emis comme document officiel de JUN CREATIF AND TRAVEL LLC. Son authenticite, sa version et son integrite sont verifiables en ligne au moyen du QR code et de la page de verification. Il est destine a conserver sa valeur probante et a produire les effets juridiques applicables, sous reserve de la legislation competente.";
+  const legal =
+    "Ce document electronique est emis comme document officiel de JUN CREATIF AND TRAVEL LLC. Son authenticite, sa version et son integrite sont verifiables en ligne au moyen du QR code et de la page de verification. Il est destine a conserver sa valeur probante et a produire les effets juridiques applicables, sous reserve de la legislation competente.";
   drawLines(ctx, wrap(legal, ctx.font, 7.5, width), { size: 7.5, color: GRAY, lead: 9.4, gap: 2 });
 
-  const companySignature = "La signature manuscrite du responsable de l'entreprise n'est pas requise pour authentifier ce document: l'identification du document, le QR code, la verification en ligne et les empreintes d'integrite assurent son controle d'authenticite.";
+  const companySignature =
+    "La signature manuscrite du responsable de l'entreprise n'est pas requise pour authentifier ce document: l'identification du document, le QR code, la verification en ligne et les empreintes d'integrite assurent son controle d'authenticite.";
   drawLines(ctx, wrap(companySignature, ctx.font, 7.5, width), { size: 7.5, color: GRAY, lead: 9.4, gap: 2 });
 
   const signed = Boolean(signatureStatus && /SIGNED|COMPLETED|COMPLETE/i.test(signatureStatus));
@@ -433,7 +593,16 @@ function renderDocumentAuthenticityNotice(ctx: Ctx, signatureStatus?: string | n
   drawLines(ctx, wrap(acceptance, ctx.font, 7.5, width), { size: 7.5, color: GRAY, lead: 9.4, gap: 1 });
 }
 
-export async function renderDocumentPdf(input: { documentId: string; title: string; type: string; status: string; html: string; clientName?: string | null; caseNumber?: string | null; signatureStatus?: string | null }): Promise<Uint8Array> {
+export async function renderDocumentPdf(input: {
+  documentId: string;
+  title: string;
+  type: string;
+  status: string;
+  html: string;
+  clientName?: string | null;
+  caseNumber?: string | null;
+  signatureStatus?: string | null;
+}): Promise<Uint8Array> {
   const company = await loadOfficialCompany();
   const normalizedHtml = normalizeDocumentHtmlInput(replaceCompanyTokens(input.html, company));
   const { ctx, finish } = await buildBase({
@@ -449,19 +618,41 @@ export async function renderDocumentPdf(input: { documentId: string; title: stri
   });
 
   const logicalPages = parseDocumentPages(normalizedHtml).filter((p) => cleanBodyText(p.html).length > 0);
-  const pages = logicalPages.length ? logicalPages : [{ id: "page-1", rotation: 0 as const, html: normalizedHtml }];
+  const pages = logicalPages.length
+    ? logicalPages
+    : [{ id: "page-1", rotation: 0 as const, html: normalizedHtml }];
   for (let i = 0; i < pages.length; i++) {
     const logical = pages[i];
-    if (i === 0) { ctx.rotation = logical.rotation; applyRotation(ctx.page, logical.rotation); }
-    else newPage(ctx, logical.rotation);
+    if (i === 0) {
+      ctx.rotation = logical.rotation;
+      applyRotation(ctx.page, logical.rotation);
+    } else newPage(ctx, logical.rotation);
     renderTextPage(ctx, logical.html, { skipLeadingTitle: i === 0 ? input.title : undefined });
   }
   renderDocumentAuthenticityNotice(ctx, input.signatureStatus);
   return finish();
 }
 
-export async function renderReceiptPdf(input: { reference: string; clientName: string; clientInternalId: string; amount: number; currency: string; method: string; paymentReference: string; paidAt: Date; issuedAt: Date; caseNumber?: string | null; reason?: string | null; issuerName: string }): Promise<Uint8Array> {
-  const { ctx, finish } = await buildBase({ title: "Official Payment Receipt", reference: input.reference, verifyPath: `/verify/${input.reference}`, statusLine: "RECEIPT · ISSUED" });
+export async function renderReceiptPdf(input: {
+  reference: string;
+  clientName: string;
+  clientInternalId: string;
+  amount: number;
+  currency: string;
+  method: string;
+  paymentReference: string;
+  paidAt: Date;
+  issuedAt: Date;
+  caseNumber?: string | null;
+  reason?: string | null;
+  issuerName: string;
+}): Promise<Uint8Array> {
+  const { ctx, finish } = await buildBase({
+    title: "Official Payment Receipt",
+    reference: input.reference,
+    verifyPath: `/verify/${input.reference}`,
+    statusLine: "RECEIPT · ISSUED",
+  });
   const rows: [string, string][] = [
     ["Receipt number", input.reference],
     ["Client", `${input.clientName} (${input.clientInternalId})`],
@@ -479,10 +670,22 @@ export async function renderReceiptPdf(input: { reference: string; clientName: s
     if (ctx.y < PAGE.margin + 60) newPage(ctx);
     ctx.page.drawText(key, { x: PAGE.margin, y: ctx.y, size: 9.4, font: ctx.bold, color: NIGHT });
     const valueLines = wrap(value, ctx.font, 9.4, PAGE.w - 2 * PAGE.margin - 165);
-    valueLines.forEach((line, index) => ctx.page.drawText(line, { x: PAGE.margin + 165, y: ctx.y - index * 12, size: 9.4, font: ctx.font, color: NIGHT }));
+    valueLines.forEach((line, index) =>
+      ctx.page.drawText(line, {
+        x: PAGE.margin + 165,
+        y: ctx.y - index * 12,
+        size: 9.4,
+        font: ctx.font,
+        color: NIGHT,
+      }),
+    );
     ctx.y -= Math.max(1, valueLines.length) * 12 + 4;
   }
   ctx.y -= 6;
-  drawLines(ctx, ["This receipt is issued electronically and can be authenticated using the QR code above."], { size: 8.6, color: GRAY });
+  drawLines(
+    ctx,
+    ["This receipt is issued electronically and can be authenticated using the QR code above."],
+    { size: 8.6, color: GRAY },
+  );
   return finish();
 }

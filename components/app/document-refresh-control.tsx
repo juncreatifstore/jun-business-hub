@@ -55,7 +55,11 @@ export function DocumentRefreshControl({
           }`}
           role="status"
         >
-          {state.status === "success" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />}
+          {state.status === "success" ? (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
           <span>{state.message}</span>
         </div>
       ) : null}

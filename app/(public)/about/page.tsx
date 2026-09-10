@@ -9,24 +9,24 @@ export default function AboutPage() {
         <section>
           <h2 className="text-xl font-semibold">The company</h2>
           <p className="mt-2 text-muted2">
-            JUN CREATIF AND TRAVEL LLC is a service company built around a simple conviction: the
-            people we serve deserve institutional-grade handling of their travel, documents, and
-            payments — not improvisation. We combine human responsibility with a purpose-built
-            operations platform, JUN Business Hub.
+            JUN CREATIF AND TRAVEL LLC is a service company built around a simple conviction: the people we
+            serve deserve institutional-grade handling of their travel, documents, and payments — not
+            improvisation. We combine human responsibility with a purpose-built operations platform, JUN
+            Business Hub.
           </p>
         </section>
         <section>
           <h2 className="text-xl font-semibold">Mission</h2>
           <p className="mt-2 text-muted2">
-            To carry each client&apos;s file from first contact to completion with full traceability:
-            every document numbered, every payment receipted, every commitment recorded.
+            To carry each client&apos;s file from first contact to completion with full traceability: every
+            document numbered, every payment receipted, every commitment recorded.
           </p>
         </section>
         <section>
           <h2 className="text-xl font-semibold">Vision</h2>
           <p className="mt-2 text-muted2">
-            To be the reference for trustworthy travel and documentation services in our communities,
-            where a JUN registry ID on a document means it can be verified by anyone, anywhere.
+            To be the reference for trustworthy travel and documentation services in our communities, where a
+            JUN registry ID on a document means it can be verified by anyone, anywhere.
           </p>
         </section>
         <section>

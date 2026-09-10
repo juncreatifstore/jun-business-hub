@@ -27,13 +27,22 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   if (user.role === "CLIENT") {
     const account = await prisma.clientAccount.findUnique({ where: { userId: user.id } });
-    if (!account || !clientCanAccessFile(file, account.clientId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!account || !clientCanAccessFile(file, account.clientId))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   } else {
-    if (file.isVault && !can(user, "VAULT_READ")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    if (!file.isVault && !can(user, "FILE_READ")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (file.isVault && !can(user, "VAULT_READ"))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!file.isVault && !can(user, "FILE_READ"))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  await audit({ userId: user.id, action: file.isVault ? "VAULT_FILE_ACCESS" : "FILE_DOWNLOAD", resourceType: "File", resourceId: file.id, after: { name: file.name, isVault: file.isVault, ranged: Boolean(req.headers.get("range")) } });
+  await audit({
+    userId: user.id,
+    action: file.isVault ? "VAULT_FILE_ACCESS" : "FILE_DOWNLOAD",
+    resourceType: "File",
+    resourceId: file.id,
+    after: { name: file.name, isVault: file.isVault, ranged: Boolean(req.headers.get("range")) },
+  });
 
   if ((process.env.STORAGE_DRIVER ?? "").toUpperCase() === "SUPABASE") {
     const url = await storage().getSignedUrl(file.storageKey, 300);

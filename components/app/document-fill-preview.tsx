@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, CopyPlus, Circle as CircleIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  CopyPlus,
+  Circle as CircleIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { documentFieldHasValue, validateDocumentField } from "@/lib/document-field-validation";
@@ -47,7 +54,9 @@ function valueLabel(value: string | boolean | undefined, type: string): string {
   return String(value ?? "").trim();
 }
 
-function digits(value: string) { return value.replace(/\D/g, ""); }
+function digits(value: string) {
+  return value.replace(/\D/g, "");
+}
 function formatUsPhone(value: string) {
   const d = digits(value).slice(0, 10);
   if (d.length <= 3) return d;
@@ -64,7 +73,12 @@ function formatEin(value: string) {
   const d = digits(value).slice(0, 9);
   return d.length <= 2 ? d : `${d.slice(0, 2)}-${d.slice(2)}`;
 }
-function formatCard(value: string) { return digits(value).slice(0, 16).replace(/(.{4})/g, "$1 ").trim(); }
+function formatCard(value: string) {
+  return digits(value)
+    .slice(0, 16)
+    .replace(/(.{4})/g, "$1 ")
+    .trim();
+}
 
 export function DocumentFillPreview({
   documentId,
@@ -99,7 +113,10 @@ export function DocumentFillPreview({
         type: (el.dataset.fieldType || "TEXT").toUpperCase(),
         required: el.dataset.required === "true",
         help: el.dataset.help || "",
-        options: (el.dataset.options || "").split(",").map((x) => x.trim()).filter(Boolean),
+        options: (el.dataset.options || "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
         order: Number(el.dataset.order || 0),
         formula: el.dataset.formula || "",
         validation: el.dataset.validation || "",
@@ -126,30 +143,75 @@ export function DocumentFillPreview({
       if (["DROPDOWN", "US_STATE", "GENDER"].includes(field.type)) {
         const select = document.createElement("select");
         select.className = "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm";
-        const empty = document.createElement("option"); empty.value = ""; empty.textContent = "Select…"; select.append(empty);
-        field.options.forEach((option) => { const o = document.createElement("option"); o.value = option; o.textContent = option; select.append(o); });
-        select.onchange = () => update(select.value); control = select;
-      } else if (field.type === "RADIO") {
-        const wrap = document.createElement("div"); wrap.className = "flex flex-wrap gap-3";
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "Select…";
+        select.append(empty);
         field.options.forEach((option) => {
-          const l = document.createElement("label"); l.className = "inline-flex items-center gap-1 text-sm";
-          const radio = document.createElement("input"); radio.type = "radio"; radio.name = `field-${field.order}-${field.name}`; radio.value = option;
-          radio.onchange = () => update(option); l.append(radio, document.createTextNode(option)); wrap.append(l);
-        }); control = wrap;
+          const o = document.createElement("option");
+          o.value = option;
+          o.textContent = option;
+          select.append(o);
+        });
+        select.onchange = () => update(select.value);
+        control = select;
+      } else if (field.type === "RADIO") {
+        const wrap = document.createElement("div");
+        wrap.className = "flex flex-wrap gap-3";
+        field.options.forEach((option) => {
+          const l = document.createElement("label");
+          l.className = "inline-flex items-center gap-1 text-sm";
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = `field-${field.order}-${field.name}`;
+          radio.value = option;
+          radio.onchange = () => update(option);
+          l.append(radio, document.createTextNode(option));
+          wrap.append(l);
+        });
+        control = wrap;
       } else if (field.type === "CHECKBOX") {
-        const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.className = "h-5 w-5";
-        checkbox.onchange = () => update(checkbox.checked); control = checkbox;
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "h-5 w-5";
+        checkbox.onchange = () => update(checkbox.checked);
+        control = checkbox;
       } else if (field.type === "FORMULA") {
-        const input = document.createElement("input"); input.readOnly = true; input.dataset.formulaField = field.name; input.className = "w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium"; control = input;
+        const input = document.createElement("input");
+        input.readOnly = true;
+        input.dataset.formulaField = field.name;
+        input.className =
+          "w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium";
+        control = input;
       } else if (field.type === "IMAGE") {
-        const input = document.createElement("input"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.className = "w-full text-sm";
-        input.onchange = () => update(input.files?.[0]?.name || ""); control = input;
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/png,image/jpeg,image/webp";
+        input.className = "w-full text-sm";
+        input.onchange = () => update(input.files?.[0]?.name || "");
+        control = input;
       } else {
         const input = document.createElement("input");
-        input.type = ["NUMBER", "AGE"].includes(field.type) ? "number" : field.type === "DATE" ? "date" : field.type === "EMAIL" ? "email" : "text";
-        if (field.type === "AGE") { input.min = "0"; input.max = "130"; input.step = "1"; }
-        if (["US_PHONE", "ZIP", "SSN", "EIN", "CREDIT_CARD"].includes(field.type)) input.inputMode = "numeric";
-        input.placeholder = field.type === "SIGNATURE" ? "Type signer name" : field.type === "INITIALS" ? "Initials" : field.help || field.name;
+        input.type = ["NUMBER", "AGE"].includes(field.type)
+          ? "number"
+          : field.type === "DATE"
+            ? "date"
+            : field.type === "EMAIL"
+              ? "email"
+              : "text";
+        if (field.type === "AGE") {
+          input.min = "0";
+          input.max = "130";
+          input.step = "1";
+        }
+        if (["US_PHONE", "ZIP", "SSN", "EIN", "CREDIT_CARD"].includes(field.type))
+          input.inputMode = "numeric";
+        input.placeholder =
+          field.type === "SIGNATURE"
+            ? "Type signer name"
+            : field.type === "INITIALS"
+              ? "Initials"
+              : field.help || field.name;
         input.className = `w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm ${field.type === "SIGNATURE" ? "italic" : ""}`;
         input.oninput = () => {
           if (field.type === "US_PHONE") input.value = formatUsPhone(input.value);
@@ -175,10 +237,14 @@ export function DocumentFillPreview({
     }
   }, [fields, values]);
 
-  const completed = useMemo(() => fields.filter((field) => {
-    if (field.type === "FORMULA") return true;
-    return documentFieldHasValue(values[field.name], field.type);
-  }).length, [fields, values]);
+  const completed = useMemo(
+    () =>
+      fields.filter((field) => {
+        if (field.type === "FORMULA") return true;
+        return documentFieldHasValue(values[field.name], field.type);
+      }).length,
+    [fields, values],
+  );
 
   function focusField(index: number) {
     if (!fields.length) return;
@@ -191,7 +257,16 @@ export function DocumentFillPreview({
   function validationErrors(): string[] {
     return fields.flatMap((field) => {
       if (field.type === "FORMULA") return [];
-      const error = validateDocumentField({ name: field.name, type: field.type, required: field.required, validation: field.validation, options: field.options }, values[field.name]);
+      const error = validateDocumentField(
+        {
+          name: field.name,
+          type: field.type,
+          required: field.required,
+          validation: field.validation,
+          options: field.options,
+        },
+        values[field.name],
+      );
       return error ? [error] : [];
     });
   }
@@ -262,34 +337,120 @@ export function DocumentFillPreview({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Link href={`/app/documents/${documentId}`} className="inline-flex items-center gap-2 text-sm font-medium text-muted2 hover:text-electric"><ArrowLeft className="h-4 w-4" />Back to document</Link>
-        <div className="text-xs text-muted2">{completed}/{fields.length} fields completed</div>
+        <Link
+          href={`/app/documents/${documentId}`}
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted2 hover:text-electric"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to document
+        </Link>
+        <div className="text-xs text-muted2">
+          {completed}/{fields.length} fields completed
+        </div>
       </div>
       <div className="mb-4 rounded-xl border border-line bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-sm font-semibold">Preview / Fill</p><p className="text-xs text-muted2">{title} · Required fields and configured validation rules are checked before creating a filled copy.</p></div>
-          <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => focusField(current - 1)} disabled={current <= 0}>Previous</Button><Button type="button" variant="outline" onClick={() => focusField(current + 1)} disabled={current >= fields.length - 1}>Next <ArrowRight className="ml-1 h-4 w-4" /></Button><Button type="button" variant="outline" onClick={() => validate()}><CheckCircle2 className="mr-1.5 h-4 w-4" />Validate</Button></div>
+          <div>
+            <p className="text-sm font-semibold">Preview / Fill</p>
+            <p className="text-xs text-muted2">
+              {title} · Required fields and configured validation rules are checked before creating a filled
+              copy.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => focusField(current - 1)}
+              disabled={current <= 0}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => focusField(current + 1)}
+              disabled={current >= fields.length - 1}
+            >
+              Next <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+            <Button type="button" variant="outline" onClick={() => validate()}>
+              <CheckCircle2 className="mr-1.5 h-4 w-4" />
+              Validate
+            </Button>
+          </div>
         </div>
-        {(errors.length || serverError) ? <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{serverError || errors.join(" · ")}</span></div> : null}
+        {errors.length || serverError ? (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{serverError || errors.join(" · ")}</span>
+          </div>
+        ) : null}
         <form ref={formRef} action={createFilledCopy} className="mt-4 flex flex-wrap items-end gap-3">
           <input ref={valuesRef} type="hidden" name="values" />
           <input ref={htmlRef} type="hidden" name="filledHtml" />
-          <div className="min-w-64 flex-1"><Input name="copyTitle" placeholder={`${title} — Filled copy`} maxLength={180} /><p className="mt-1 text-xs text-muted2">Optional: give the new independent document a different title.</p></div>
-          <Button type="button" variant="primary" disabled={creating || fields.length === 0} onClick={createCopy}><CopyPlus className="mr-1.5 h-4 w-4" />{creating ? "Creating…" : "Create filled copy"}</Button>
+          <div className="min-w-64 flex-1">
+            <Input name="copyTitle" placeholder={`${title} — Filled copy`} maxLength={180} />
+            <p className="mt-1 text-xs text-muted2">
+              Optional: give the new independent document a different title.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            disabled={creating || fields.length === 0}
+            onClick={createCopy}
+          >
+            <CopyPlus className="mr-1.5 h-4 w-4" />
+            {creating ? "Creating…" : "Create filled copy"}
+          </Button>
         </form>
       </div>
-      {fields.length === 0 ? <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This document has no fillable fields yet. Add fields in the Document Editor first.</div> : null}
+      {fields.length === 0 ? (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          This document has no fillable fields yet. Add fields in the Document Editor first.
+        </div>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
         <aside className="h-fit rounded-xl border border-line bg-white p-3 lg:sticky lg:top-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted2">Fields to fill in</p>
           <div className="space-y-1.5">
             {fields.map((field, index) => {
-              const filled = field.type === "FORMULA" || documentFieldHasValue(values[field.name], field.type);
-              return <button key={`${field.order}-${field.name}`} type="button" onClick={() => focusField(index)} className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs ${current === index ? "border-electric bg-electric/5" : "border-line hover:bg-surface"}`}><span className="shrink-0">{filled ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <CircleIcon className="h-4 w-4 text-muted2" />}</span><span className="min-w-0"><span className="block truncate font-medium">{field.order}. {field.name}{field.required ? " *" : ""}</span><span className="block text-[10px] text-muted2">{field.type}</span></span></button>;
+              const filled =
+                field.type === "FORMULA" || documentFieldHasValue(values[field.name], field.type);
+              return (
+                <button
+                  key={`${field.order}-${field.name}`}
+                  type="button"
+                  onClick={() => focusField(index)}
+                  className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs ${current === index ? "border-electric bg-electric/5" : "border-line hover:bg-surface"}`}
+                >
+                  <span className="shrink-0">
+                    {filled ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <CircleIcon className="h-4 w-4 text-muted2" />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">
+                      {field.order}. {field.name}
+                      {field.required ? " *" : ""}
+                    </span>
+                    <span className="block text-[10px] text-muted2">{field.type}</span>
+                  </span>
+                </button>
+              );
             })}
           </div>
         </aside>
-        <div className="mx-auto w-full max-w-[850px] rounded-xl border border-line bg-white shadow-sm"><div ref={rootRef} className="doc-prose min-h-[900px] px-12 py-10 text-[15px] text-night" dangerouslySetInnerHTML={{ __html: html }} /></div>
+        <div className="mx-auto w-full max-w-[850px] rounded-xl border border-line bg-white shadow-sm">
+          <div
+            ref={rootRef}
+            className="doc-prose min-h-[900px] px-12 py-10 text-[15px] text-night"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </div>
       </div>
     </div>
   );

@@ -22,7 +22,10 @@ export default function Loading() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(300px,.7fr)]">
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">
-          <div className="flex items-center justify-between"><Skeleton className="h-4 w-40" /><Skeleton className="h-8 w-8" /></div>
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-8 w-8" />
+          </div>
           <Skeleton className="mt-5 h-64 w-full" />
         </div>
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-5">

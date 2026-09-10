@@ -21,13 +21,23 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
   const [conversations, actions] = await Promise.all([
     prisma.aIConversation.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 30 }),
     canApprove
-      ? prisma.aIAction.findMany({ where: { status: "PROPOSED" }, orderBy: { createdAt: "desc" }, take: 20, include: { user: true } })
+      ? prisma.aIAction.findMany({
+          where: { status: "PROPOSED" },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: { user: true },
+        })
       : Promise.resolve([]),
   ]);
 
-  const activeId = searchParams.c && conversations.some((c) => c.id === searchParams.c) ? searchParams.c : null;
+  const activeId =
+    searchParams.c && conversations.some((c) => c.id === searchParams.c) ? searchParams.c : null;
   const messages = activeId
-    ? await prisma.aIMessage.findMany({ where: { conversationId: activeId }, orderBy: { createdAt: "asc" }, take: 100 })
+    ? await prisma.aIMessage.findMany({
+        where: { conversationId: activeId },
+        orderBy: { createdAt: "asc" },
+        take: 100,
+      })
     : [];
 
   const modelConnected = Boolean(process.env.OPENAI_API_KEY);
@@ -36,12 +46,20 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
     <div>
       <PageHeader
         title="JUN AI"
-        subtitle={modelConnected ? "Model connected. JUN AI drafts and searches — humans approve every sensitive action." : "Offline mode: tool commands work, conversational answers need OPENAI_API_KEY."}
+        subtitle={
+          modelConnected
+            ? "Model connected. JUN AI drafts and searches — humans approve every sensitive action."
+            : "Offline mode: tool commands work, conversational answers need OPENAI_API_KEY."
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
         <div>
-          <Link href="/app/ai"><Button variant="secondary" className="mb-3 w-full">New conversation</Button></Link>
+          <Link href="/app/ai">
+            <Button variant="secondary" className="mb-3 w-full">
+              New conversation
+            </Button>
+          </Link>
           <ul className="space-y-1">
             {conversations.map((c) => (
               <li key={c.id}>
@@ -68,8 +86,13 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
               ) : (
                 <div className="space-y-4">
                   {messages.map((m) => (
-                    <div key={m.id} className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${m.role === "user" ? "ml-auto bg-electric/15" : "bg-white/[0.05]"}`}>
-                      <p className="mb-1 text-[11px] uppercase tracking-wide text-muted2">{m.role === "user" ? "You" : "JUN AI"} · {formatDateTime(m.createdAt)}</p>
+                    <div
+                      key={m.id}
+                      className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${m.role === "user" ? "ml-auto bg-electric/15" : "bg-white/[0.05]"}`}
+                    >
+                      <p className="mb-1 text-[11px] uppercase tracking-wide text-muted2">
+                        {m.role === "user" ? "You" : "JUN AI"} · {formatDateTime(m.createdAt)}
+                      </p>
                       <p className="whitespace-pre-wrap">{m.content}</p>
                     </div>
                   ))}
@@ -85,17 +108,24 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
                   className="h-11 flex-1 rounded-lg border border-white/10 bg-white/5 px-4 text-sm outline-none focus:border-electric"
                   autoComplete="off"
                 />
-                <Button type="submit" variant="primary"><Sparkles className="mr-2 h-4 w-4" /> Send</Button>
+                <Button type="submit" variant="primary">
+                  <Sparkles className="mr-2 h-4 w-4" /> Send
+                </Button>
               </form>
             </CardContent>
           </Card>
 
           {canApprove ? (
             <Card>
-              <CardHeader><CardTitle>Proposed AI actions — human approval required</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>Proposed AI actions — human approval required</CardTitle>
+              </CardHeader>
               <CardContent>
                 {actions.length === 0 ? (
-                  <p className="text-sm text-muted2">Nothing pending. When JUN AI proposes a sensitive action (like sending an email), it appears here for review.</p>
+                  <p className="text-sm text-muted2">
+                    Nothing pending. When JUN AI proposes a sensitive action (like sending an email), it
+                    appears here for review.
+                  </p>
                 ) : (
                   <ul className="space-y-3">
                     {actions.map((a) => (
@@ -103,19 +133,27 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <p className="font-medium">{a.tool.replaceAll("_", " ")}</p>
-                            <p className="text-xs text-muted2">Proposed by {a.user.firstName} {a.user.lastName} · {formatDateTime(a.createdAt)}</p>
+                            <p className="text-xs text-muted2">
+                              Proposed by {a.user.firstName} {a.user.lastName} · {formatDateTime(a.createdAt)}
+                            </p>
                           </div>
                           <StatusBadge status={a.status} />
                         </div>
-                        <pre className="mt-2 overflow-x-auto rounded bg-black/30 p-2 text-xs text-muted2">{JSON.stringify(a.args, null, 2)}</pre>
+                        <pre className="mt-2 overflow-x-auto rounded bg-black/30 p-2 text-xs text-muted2">
+                          {JSON.stringify(a.args, null, 2)}
+                        </pre>
                         <div className="mt-3 flex gap-2">
                           <form action={reviewAIAction.bind(null, a.id)}>
                             <input type="hidden" name="decision" value="APPROVED" />
-                            <Button type="submit" variant="gold" size="sm">Approve & execute</Button>
+                            <Button type="submit" variant="gold" size="sm">
+                              Approve & execute
+                            </Button>
                           </form>
                           <form action={reviewAIAction.bind(null, a.id)}>
                             <input type="hidden" name="decision" value="REJECTED" />
-                            <Button type="submit" variant="danger" size="sm">Reject</Button>
+                            <Button type="submit" variant="danger" size="sm">
+                              Reject
+                            </Button>
                           </form>
                         </div>
                       </li>

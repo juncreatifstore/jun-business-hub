@@ -7,14 +7,20 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   await assertPermission("FILE_READ");
-  const file = await prisma.file.findFirst({ where: { id: params.id, isVault: false }, select: { id: true } });
+  const file = await prisma.file.findFirst({
+    where: { id: params.id, isVault: false },
+    select: { id: true },
+  });
   if (!file) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const baseWhere = { resourceType: "File", resourceId: file.id } as const;
   const [security, events, views, opens, downloads] = await Promise.all([
     getDrivePublicSecurity(file.id),
     prisma.auditLog.findMany({
-      where: { ...baseWhere, action: { in: ["FILE_PUBLIC_VIEW", "FILE_PUBLIC_OPEN", "FILE_PUBLIC_DOWNLOAD"] } },
+      where: {
+        ...baseWhere,
+        action: { in: ["FILE_PUBLIC_VIEW", "FILE_PUBLIC_OPEN", "FILE_PUBLIC_DOWNLOAD"] },
+      },
       orderBy: { createdAt: "desc" },
       take: 20,
       select: { id: true, action: true, createdAt: true, ip: true, userAgent: true },
@@ -33,6 +39,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     passwordProtected: Boolean(security.passwordHash),
     publicUrl: publicUrl.toString(),
     metrics: { views, opens, downloads, lastAccessAt: events[0]?.createdAt.toISOString() ?? null },
-    recentAccess: events.map((e) => ({ id: e.id, action: e.action, createdAt: e.createdAt.toISOString(), ip: e.ip, userAgent: e.userAgent })),
+    recentAccess: events.map((e) => ({
+      id: e.id,
+      action: e.action,
+      createdAt: e.createdAt.toISOString(),
+      ip: e.ip,
+      userAgent: e.userAgent,
+    })),
   });
 }

@@ -19,10 +19,16 @@ export function LoginForm({ next }: { next?: string }) {
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="next" value={next ?? ""} />
-      <Field label="Work email"><Input name="email" type="email" autoComplete="email" required /></Field>
-      <Field label="Password"><Input name="password" type="password" autoComplete="current-password" required /></Field>
+      <Field label="Work email">
+        <Input name="email" type="email" autoComplete="email" required />
+      </Field>
+      <Field label="Password">
+        <Input name="password" type="password" autoComplete="current-password" required />
+      </Field>
       <div className="-mt-2 text-right">
-        <Link href="/forgot-password" className="text-xs font-medium underline underline-offset-4">Forgot password?</Link>
+        <Link href="/forgot-password" className="text-xs font-medium underline underline-offset-4">
+          Forgot password?
+        </Link>
       </div>
       {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
       <Submit />

@@ -17,9 +17,17 @@ export async function reindexDriveLibrary(): Promise<void> {
   });
   let indexed = 0;
   for (const file of files) {
-    try { await indexDriveFile(file.id); indexed++; } catch {}
+    try {
+      await indexDriveFile(file.id);
+      indexed++;
+    } catch {}
   }
-  await audit({ userId: user.id, action: "DRIVE_LIBRARY_REINDEX", resourceType: "Drive", after: { indexed, requested: files.length } });
+  await audit({
+    userId: user.id,
+    action: "DRIVE_LIBRARY_REINDEX",
+    resourceType: "Drive",
+    after: { indexed, requested: files.length },
+  });
   revalidatePath("/app/drive/search");
   redirect(`/app/drive/search?toast=${encodeURIComponent(`Indexed ${indexed} files`)}`);
 }

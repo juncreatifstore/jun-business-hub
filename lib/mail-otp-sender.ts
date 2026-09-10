@@ -33,7 +33,9 @@ export async function resolveOtpSenderMailbox() {
     }
 
     if (!preferred.accessTokenEnc && !preferred.refreshTokenEnc) {
-      throw new Error(`OTP sender mailbox ${preferred.email} is disconnected. Reconnect it in Settings → Email.`);
+      throw new Error(
+        `OTP sender mailbox ${preferred.email} is disconnected. Reconnect it in Settings → Email.`,
+      );
     }
 
     return preferred;
@@ -41,10 +43,7 @@ export async function resolveOtpSenderMailbox() {
 
   return prisma.mailAccount.findFirst({
     where: {
-      OR: [
-        { accessTokenEnc: { not: null } },
-        { refreshTokenEnc: { not: null } },
-      ],
+      OR: [{ accessTokenEnc: { not: null } }, { refreshTokenEnc: { not: null } }],
     },
     orderBy: { createdAt: "asc" },
     select: {

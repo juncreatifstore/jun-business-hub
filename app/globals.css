@@ -34,57 +34,105 @@
 
 .jun-app-dark input,
 .jun-app-dark textarea,
-.jun-app-dark select { color: hsl(var(--jun-ink)); }
+.jun-app-dark select {
+  color: hsl(var(--jun-ink));
+}
 .jun-app-dark input::placeholder,
-.jun-app-dark textarea::placeholder { color: hsl(var(--jun-muted)); }
+.jun-app-dark textarea::placeholder {
+  color: hsl(var(--jun-muted));
+}
 .jun-app-dark input[type="file"]::file-selector-button {
-  margin-right: .75rem;
-  border: 1px solid rgb(255 255 255 / .08);
-  border-radius: .65rem;
-  background: rgb(255 255 255 / .04);
+  margin-right: 0.75rem;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 0.65rem;
+  background: rgb(255 255 255 / 0.04);
   color: rgb(226 232 240);
-  padding: .45rem .7rem;
+  padding: 0.45rem 0.7rem;
   cursor: pointer;
 }
-.jun-app-dark input[type="file"]::file-selector-button:hover { background: rgb(255 255 255 / .07); }
+.jun-app-dark input[type="file"]::file-selector-button:hover {
+  background: rgb(255 255 255 / 0.07);
+}
 
 /* Compatibility bridge while older operational screens are progressively
    migrated to the premium dashboard design. This prevents hard-coded light
    Tailwind utilities from flashing white inside the authenticated dark shell. */
-.jun-app-dark .bg-white { background-color: #0e1624 !important; }
-.jun-app-dark .bg-white\/95 { background-color: rgb(14 22 36 / .95) !important; }
+.jun-app-dark .bg-white {
+  background-color: #0e1624 !important;
+}
+.jun-app-dark .bg-white\/95 {
+  background-color: rgb(14 22 36 / 0.95) !important;
+}
 .jun-app-dark .bg-blue-50,
-.jun-app-dark .bg-blue-50\/60 { background-color: rgb(59 130 246 / .08) !important; }
-.jun-app-dark .bg-emerald-50 { background-color: rgb(16 185 129 / .08) !important; }
-.jun-app-dark .bg-amber-50 { background-color: rgb(245 158 11 / .08) !important; }
-.jun-app-dark .bg-red-50 { background-color: rgb(244 63 94 / .08) !important; }
-.jun-app-dark .bg-violet-50 { background-color: rgb(139 92 246 / .08) !important; }
-.jun-app-dark .bg-cyan-50 { background-color: rgb(6 182 212 / .08) !important; }
-.jun-app-dark .bg-slate-100 { background-color: rgb(148 163 184 / .08) !important; }
-.jun-app-dark .border-blue-200 { border-color: rgb(96 165 250 / .22) !important; }
-.jun-app-dark .border-emerald-200 { border-color: rgb(52 211 153 / .22) !important; }
+.jun-app-dark .bg-blue-50\/60 {
+  background-color: rgb(59 130 246 / 0.08) !important;
+}
+.jun-app-dark .bg-emerald-50 {
+  background-color: rgb(16 185 129 / 0.08) !important;
+}
+.jun-app-dark .bg-amber-50 {
+  background-color: rgb(245 158 11 / 0.08) !important;
+}
+.jun-app-dark .bg-red-50 {
+  background-color: rgb(244 63 94 / 0.08) !important;
+}
+.jun-app-dark .bg-violet-50 {
+  background-color: rgb(139 92 246 / 0.08) !important;
+}
+.jun-app-dark .bg-cyan-50 {
+  background-color: rgb(6 182 212 / 0.08) !important;
+}
+.jun-app-dark .bg-slate-100 {
+  background-color: rgb(148 163 184 / 0.08) !important;
+}
+.jun-app-dark .border-blue-200 {
+  border-color: rgb(96 165 250 / 0.22) !important;
+}
+.jun-app-dark .border-emerald-200 {
+  border-color: rgb(52 211 153 / 0.22) !important;
+}
 .jun-app-dark .border-amber-200,
-.jun-app-dark .border-amber-300\/40 { border-color: rgb(251 191 36 / .22) !important; }
-.jun-app-dark .border-red-200 { border-color: rgb(251 113 133 / .22) !important; }
-.jun-app-dark .border-violet-200 { border-color: rgb(167 139 250 / .22) !important; }
+.jun-app-dark .border-amber-300\/40 {
+  border-color: rgb(251 191 36 / 0.22) !important;
+}
+.jun-app-dark .border-red-200 {
+  border-color: rgb(251 113 133 / 0.22) !important;
+}
+.jun-app-dark .border-violet-200 {
+  border-color: rgb(167 139 250 / 0.22) !important;
+}
 .jun-app-dark .text-blue-900,
 .jun-app-dark .text-blue-800,
-.jun-app-dark .text-blue-700 { color: rgb(147 197 253) !important; }
+.jun-app-dark .text-blue-700 {
+  color: rgb(147 197 253) !important;
+}
 .jun-app-dark .text-emerald-900,
 .jun-app-dark .text-emerald-800,
 .jun-app-dark .text-emerald-700,
-.jun-app-dark .text-emerald-600 { color: rgb(110 231 183) !important; }
+.jun-app-dark .text-emerald-600 {
+  color: rgb(110 231 183) !important;
+}
 .jun-app-dark .text-amber-900,
 .jun-app-dark .text-amber-800,
 .jun-app-dark .text-amber-700,
-.jun-app-dark .text-amber-600 { color: rgb(252 211 77) !important; }
+.jun-app-dark .text-amber-600 {
+  color: rgb(252 211 77) !important;
+}
 .jun-app-dark .text-red-900,
 .jun-app-dark .text-red-800,
 .jun-app-dark .text-red-700,
-.jun-app-dark .text-red-600 { color: rgb(253 164 175) !important; }
-.jun-app-dark .text-violet-700 { color: rgb(196 181 253) !important; }
-.jun-app-dark .text-cyan-700 { color: rgb(103 232 249) !important; }
-.jun-app-dark .text-slate-700 { color: rgb(203 213 225) !important; }
+.jun-app-dark .text-red-600 {
+  color: rgb(253 164 175) !important;
+}
+.jun-app-dark .text-violet-700 {
+  color: rgb(196 181 253) !important;
+}
+.jun-app-dark .text-cyan-700 {
+  color: rgb(103 232 249) !important;
+}
+.jun-app-dark .text-slate-700 {
+  color: rgb(203 213 225) !important;
+}
 
 /* Documents are intentionally rendered as white paper even inside the dark
    authenticated workspace. Keep editor/preview text and table rules readable. */
@@ -97,32 +145,86 @@
 .jun-app-dark .doc-prose :where(h1, h2, h3, h4, p, li, blockquote, pre, td, th) {
   color: #0f172a;
 }
-.jun-app-dark .doc-prose a { color: #1d4ed8 !important; }
-.jun-app-dark .doc-prose code { background: #f1f5f9; color: #0f172a; }
+.jun-app-dark .doc-prose a {
+  color: #1d4ed8 !important;
+}
+.jun-app-dark .doc-prose code {
+  background: #f1f5f9;
+  color: #0f172a;
+}
 .jun-app-dark .doc-prose td,
-.jun-app-dark .doc-prose th { border-color: #e2e8f0 !important; }
-
-/* Premium workspace polish shared by Drive, Company Funds and legacy admin panels. */
-.jun-app-dark .shadow-sm { box-shadow: 0 16px 40px rgb(0 0 0 / .12); }
-.jun-app-dark .border-line { border-color: rgb(255 255 255 / .075); }
-.jun-app-dark table tbody tr { transition: background-color .16s ease, border-color .16s ease; }
-.jun-app-dark table tbody tr:hover { background-color: rgb(255 255 255 / .025); }
-.jun-app-dark code { border-radius: .4rem; background: rgb(255 255 255 / .05); padding: .1rem .32rem; color: rgb(147 197 253); }
-.jun-app-dark ::selection { background: rgb(59 130 246 / .35); color: white; }
-.jun-app-dark * { scrollbar-color: rgb(71 85 105) transparent; scrollbar-width: thin; }
-
-html { scroll-behavior: smooth; }
-body { @apply bg-surface text-ink antialiased; }
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+.jun-app-dark .doc-prose th {
+  border-color: #e2e8f0 !important;
 }
 
-.registry-id { @apply font-mono text-[13px] tracking-tight; }
-.doc-prose h1 { @apply text-2xl font-semibold mt-6 mb-3; }
-.doc-prose h2 { @apply text-xl font-semibold mt-5 mb-2; }
-.doc-prose p  { @apply my-2 leading-relaxed; }
-.doc-prose ul { @apply list-disc pl-6 my-2; }
-.doc-prose table { @apply w-full border-collapse my-3; }
-.doc-prose td, .doc-prose th { @apply border border-line p-2 text-sm; }
-.doc-prose [data-jun-block="true"][data-kind="page"] { display: none !important; }
+/* Premium workspace polish shared by Drive, Company Funds and legacy admin panels. */
+.jun-app-dark .shadow-sm {
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.12);
+}
+.jun-app-dark .border-line {
+  border-color: rgb(255 255 255 / 0.075);
+}
+.jun-app-dark table tbody tr {
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
+}
+.jun-app-dark table tbody tr:hover {
+  background-color: rgb(255 255 255 / 0.025);
+}
+.jun-app-dark code {
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 0.05);
+  padding: 0.1rem 0.32rem;
+  color: rgb(147 197 253);
+}
+.jun-app-dark ::selection {
+  background: rgb(59 130 246 / 0.35);
+  color: white;
+}
+.jun-app-dark * {
+  scrollbar-color: rgb(71 85 105) transparent;
+  scrollbar-width: thin;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+body {
+  @apply bg-surface text-ink antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.registry-id {
+  @apply font-mono text-[13px] tracking-tight;
+}
+.doc-prose h1 {
+  @apply text-2xl font-semibold mt-6 mb-3;
+}
+.doc-prose h2 {
+  @apply text-xl font-semibold mt-5 mb-2;
+}
+.doc-prose p {
+  @apply my-2 leading-relaxed;
+}
+.doc-prose ul {
+  @apply list-disc pl-6 my-2;
+}
+.doc-prose table {
+  @apply w-full border-collapse my-3;
+}
+.doc-prose td,
+.doc-prose th {
+  @apply border border-line p-2 text-sm;
+}
+.doc-prose [data-jun-block="true"][data-kind="page"] {
+  display: none !important;
+}

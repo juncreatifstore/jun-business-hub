@@ -32,7 +32,11 @@ export type DriveApproval = {
 };
 
 function parse<T>(value: string): T | null {
-  try { return JSON.parse(value) as T; } catch { return null; }
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
 }
 
 export function resourceCommentPrefix(resourceType: DriveCollaborationResource, resourceId: string) {
@@ -46,7 +50,12 @@ export async function getDriveComments(resourceType: DriveCollaborationResource,
   });
   const comments = rows.map((r) => parse<DriveComment>(r.value)).filter((v): v is DriveComment => Boolean(v));
   const userIds = [...new Set(comments.flatMap((c) => [c.authorId, ...c.mentionUserIds]))];
-  const users = userIds.length ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, firstName: true, lastName: true, email: true } }) : [];
+  const users = userIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      })
+    : [];
   const map = new Map(users.map((u) => [u.id, u]));
   return comments.map((comment) => ({
     ...comment,
@@ -56,19 +65,37 @@ export async function getDriveComments(resourceType: DriveCollaborationResource,
 }
 
 export async function getDriveApprovals(resourceType?: DriveCollaborationResource, resourceId?: string) {
-  const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: DRIVE_APPROVAL_PREFIX } }, orderBy: { updatedAt: "desc" } });
-  let approvals = rows.map((r) => parse<DriveApproval>(r.value)).filter((v): v is DriveApproval => Boolean(v));
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { startsWith: DRIVE_APPROVAL_PREFIX } },
+    orderBy: { updatedAt: "desc" },
+  });
+  let approvals = rows
+    .map((r) => parse<DriveApproval>(r.value))
+    .filter((v): v is DriveApproval => Boolean(v));
   if (resourceType) approvals = approvals.filter((a) => a.resourceType === resourceType);
   if (resourceId) approvals = approvals.filter((a) => a.resourceId === resourceId);
   return approvals;
 }
 
-export async function getDriveCollaborationResource(resourceType: DriveCollaborationResource, resourceId: string) {
-  if (resourceType === "File") return prisma.file.findFirst({ where: { id: resourceId, isVault: false, archivedAt: null }, select: { id: true, name: true } });
-  return prisma.folder.findFirst({ where: { id: resourceId, isVault: false }, select: { id: true, name: true } });
+export async function getDriveCollaborationResource(
+  resourceType: DriveCollaborationResource,
+  resourceId: string,
+) {
+  if (resourceType === "File")
+    return prisma.file.findFirst({
+      where: { id: resourceId, isVault: false, archivedAt: null },
+      select: { id: true, name: true },
+    });
+  return prisma.folder.findFirst({
+    where: { id: resourceId, isVault: false },
+    select: { id: true, name: true },
+  });
 }
 
-export async function getDriveCollaborationSnapshot(resourceType: DriveCollaborationResource, resourceId: string) {
+export async function getDriveCollaborationSnapshot(
+  resourceType: DriveCollaborationResource,
+  resourceId: string,
+) {
   const [resource, comments, approvals, teamUsers] = await Promise.all([
     getDriveCollaborationResource(resourceType, resourceId),
     getDriveComments(resourceType, resourceId),

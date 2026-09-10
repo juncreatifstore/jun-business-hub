@@ -30,7 +30,9 @@ export function AppShell({
   function toggleCollapsed() {
     setCollapsed((current) => {
       const next = !current;
-      try { localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0"); } catch {}
+      try {
+        localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0");
+      } catch {}
       return next;
     });
   }
@@ -56,7 +58,9 @@ export function AppShell({
       </div>
 
       <MobileBottomNav onOpenMenu={() => setOpen(true)} />
-      <Suspense fallback={null}><Toaster /></Suspense>
+      <Suspense fallback={null}>
+        <Toaster />
+      </Suspense>
     </div>
   );
 }

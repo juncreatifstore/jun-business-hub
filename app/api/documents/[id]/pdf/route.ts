@@ -33,7 +33,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   if (user.role === "CLIENT") {
     const account = await prisma.clientAccount.findUnique({ where: { userId: user.id } });
-    if (!account || !clientCanAccessDocument(doc, account.clientId)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!account || !clientCanAccessDocument(doc, account.clientId))
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   } else if (!can(user, "DOCUMENT_READ")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -47,8 +48,17 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       bytes = new Uint8Array(stored);
       integrity = doc.finalPdfHash && sha256(stored) === doc.finalPdfHash ? "verified" : "TAMPERED";
       if (integrity === "TAMPERED") {
-        await audit({ userId: user.id, action: "DOCUMENT_PDF_TAMPER_DETECTED", resourceType: "Document", resourceId: doc.id, after: { documentId: doc.documentId } });
-        return NextResponse.json({ error: "Stored PDF failed integrity verification — contact an administrator" }, { status: 409 });
+        await audit({
+          userId: user.id,
+          action: "DOCUMENT_PDF_TAMPER_DETECTED",
+          resourceType: "Document",
+          resourceId: doc.id,
+          after: { documentId: doc.documentId },
+        });
+        return NextResponse.json(
+          { error: "Stored PDF failed integrity verification — contact an administrator" },
+          { status: 409 },
+        );
       }
     } catch {
       bytes = await renderLive(doc);
@@ -57,7 +67,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     bytes = await renderLive(doc);
   }
 
-  await audit({ userId: user.id, action: "DOCUMENT_DOWNLOAD", resourceType: "Document", resourceId: doc.id, after: { documentId: doc.documentId, integrity } });
+  await audit({
+    userId: user.id,
+    action: "DOCUMENT_DOWNLOAD",
+    resourceType: "Document",
+    resourceId: doc.id,
+    after: { documentId: doc.documentId, integrity },
+  });
 
   return new NextResponse(Buffer.from(bytes), {
     headers: {
@@ -68,7 +84,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   });
 }
 
-type DocWithRels = NonNullable<Awaited<ReturnType<typeof prisma.document.findUnique<{ where: { id: string }; include: { client: true; case: true; versions: true; signatures: true } }>>>>;
+type DocWithRels = NonNullable<
+  Awaited<
+    ReturnType<
+      typeof prisma.document.findUnique<{
+        where: { id: string };
+        include: { client: true; case: true; versions: true; signatures: true };
+      }>
+    >
+  >
+>;
 
 async function renderLive(doc: DocWithRels): Promise<Uint8Array> {
   return renderDocumentPdf({

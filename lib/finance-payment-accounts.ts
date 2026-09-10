@@ -34,7 +34,9 @@ function parseAccount(value: string): FinancePaymentAccount | null {
       instructions: String(row.instructions || ""),
       enabled: row.enabled !== false,
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export async function getFinancePaymentAccounts(options?: { enabledOnly?: boolean }) {
@@ -43,12 +45,17 @@ export async function getFinancePaymentAccounts(options?: { enabledOnly?: boolea
     orderBy: { updatedAt: "desc" },
     select: { value: true },
   });
-  const accounts = rows.map((r) => parseAccount(r.value)).filter((v): v is FinancePaymentAccount => Boolean(v));
+  const accounts = rows
+    .map((r) => parseAccount(r.value))
+    .filter((v): v is FinancePaymentAccount => Boolean(v));
   return options?.enabledOnly ? accounts.filter((a) => a.enabled) : accounts;
 }
 
 export async function getFinancePaymentAccount(id: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: `${PAYMENT_ACCOUNT_PREFIX}${id}` }, select: { value: true } });
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${PAYMENT_ACCOUNT_PREFIX}${id}` },
+    select: { value: true },
+  });
   return row ? parseAccount(row.value) : null;
 }
 

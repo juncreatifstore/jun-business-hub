@@ -20,7 +20,12 @@ export async function getClientCommunicationBan(clientId: string): Promise<Clien
   if (!row?.value) return { banned: false };
   try {
     const parsed = JSON.parse(row.value) as ClientCommunicationBan;
-    return { banned: Boolean(parsed.banned), reason: parsed.reason, bannedAt: parsed.bannedAt, bannedById: parsed.bannedById };
+    return {
+      banned: Boolean(parsed.banned),
+      reason: parsed.reason,
+      bannedAt: parsed.bannedAt,
+      bannedById: parsed.bannedById,
+    };
   } catch {
     return { banned: row.value === "BANNED" || row.value === "true" };
   }
@@ -31,9 +36,19 @@ export async function isClientCommunicationBanned(clientId?: string | null) {
   return (await getClientCommunicationBan(clientId)).banned;
 }
 
-export async function setClientCommunicationBan(input: { clientId: string; banned: boolean; reason?: string; userId?: string }) {
+export async function setClientCommunicationBan(input: {
+  clientId: string;
+  banned: boolean;
+  reason?: string;
+  userId?: string;
+}) {
   const value: ClientCommunicationBan = input.banned
-    ? { banned: true, reason: String(input.reason || "").trim() || "Communication bloquée par JUN", bannedAt: new Date().toISOString(), bannedById: input.userId }
+    ? {
+        banned: true,
+        reason: String(input.reason || "").trim() || "Communication bloquée par JUN",
+        bannedAt: new Date().toISOString(),
+        bannedById: input.userId,
+      }
     : { banned: false };
   await prisma.appSetting.upsert({
     where: { key: key(input.clientId) },
@@ -61,9 +76,14 @@ export async function findBannedClientByPhone(phone: string) {
 }
 
 export async function findBannedClientByEmail(email: string) {
-  const normalized = String(email || "").trim().toLowerCase();
+  const normalized = String(email || "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return null;
-  const client = await prisma.client.findFirst({ where: { email: { equals: normalized, mode: "insensitive" } }, select: { id: true, firstName: true, lastName: true, email: true } });
+  const client = await prisma.client.findFirst({
+    where: { email: { equals: normalized, mode: "insensitive" } },
+    select: { id: true, firstName: true, lastName: true, email: true },
+  });
   if (!client) return null;
   return (await isClientCommunicationBanned(client.id)) ? client : null;
 }

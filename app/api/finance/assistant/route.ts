@@ -16,7 +16,10 @@ export async function POST(req: NextRequest) {
   let question = "Give me an executive finance summary and the top priorities.";
   try {
     const body = await req.json();
-    question = String(body?.question || question).trim().slice(0, 1200) || question;
+    question =
+      String(body?.question || question)
+        .trim()
+        .slice(0, 1200) || question;
   } catch {}
 
   const intelligence = await getFinanceEnterpriseIntelligence();
@@ -33,14 +36,21 @@ export async function POST(req: NextRequest) {
       critical: intelligence.anomalies.filter((a) => a.level === "CRITICAL").length,
       high: intelligence.anomalies.filter((a) => a.level === "HIGH").length,
     },
-    topAnomalies: intelligence.anomalies.slice(0, 12).map((a) => ({ level: a.level, category: a.category, title: a.title, detail: a.detail })),
+    topAnomalies: intelligence.anomalies
+      .slice(0, 12)
+      .map((a) => ({ level: a.level, category: a.category, title: a.title, detail: a.detail })),
     forecast: intelligence.forecast,
     providerAnalytics: intelligence.providerAnalytics.slice(0, 12),
     accounts: { configured: intelligence.configuredAccounts, active: intelligence.activeAccounts },
   };
 
   if (!process.env.OPENAI_API_KEY) {
-    await audit({ userId: user.id, action: "FINANCE_AI_FALLBACK", resourceType: "Finance", after: { question } });
+    await audit({
+      userId: user.id,
+      action: "FINANCE_AI_FALLBACK",
+      resourceType: "Finance",
+      after: { question },
+    });
     return NextResponse.json({ answer: fallback, mode: "rules", generatedAt: safeSnapshot.generatedAt });
   }
 
@@ -58,10 +68,29 @@ export async function POST(req: NextRequest) {
       ].join(" "),
       prompt: `User question:\n${question}\n\nSanitized finance snapshot:\n${JSON.stringify(safeSnapshot)}`,
     });
-    await audit({ userId: user.id, action: "FINANCE_AI_QUERY", resourceType: "Finance", after: { question, riskLevel: intelligence.riskLevel, anomalyCount: intelligence.anomalies.length } });
-    return NextResponse.json({ answer: text.trim() || fallback, mode: "ai", generatedAt: safeSnapshot.generatedAt });
+    await audit({
+      userId: user.id,
+      action: "FINANCE_AI_QUERY",
+      resourceType: "Finance",
+      after: { question, riskLevel: intelligence.riskLevel, anomalyCount: intelligence.anomalies.length },
+    });
+    return NextResponse.json({
+      answer: text.trim() || fallback,
+      mode: "ai",
+      generatedAt: safeSnapshot.generatedAt,
+    });
   } catch (error) {
-    await audit({ userId: user.id, action: "FINANCE_AI_ERROR", resourceType: "Finance", after: { question, error: error instanceof Error ? error.message.slice(0, 300) : "AI error" } });
-    return NextResponse.json({ answer: fallback, mode: "rules", generatedAt: safeSnapshot.generatedAt, warning: "AI provider unavailable; rules-based summary shown." });
+    await audit({
+      userId: user.id,
+      action: "FINANCE_AI_ERROR",
+      resourceType: "Finance",
+      after: { question, error: error instanceof Error ? error.message.slice(0, 300) : "AI error" },
+    });
+    return NextResponse.json({
+      answer: fallback,
+      mode: "rules",
+      generatedAt: safeSnapshot.generatedAt,
+      warning: "AI provider unavailable; rules-based summary shown.",
+    });
   }
 }

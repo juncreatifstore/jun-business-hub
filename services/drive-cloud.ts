@@ -6,7 +6,13 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { storage, makeStorageKey } from "@/lib/storage";
 import { assertDriveQuotaForUpload } from "@/lib/drive-enterprise";
-import { downloadCloudFile, getCloudConnection, isCloudAdmin, removeCloudConnection, type CloudProvider } from "@/lib/drive-cloud";
+import {
+  downloadCloudFile,
+  getCloudConnection,
+  isCloudAdmin,
+  removeCloudConnection,
+  type CloudProvider,
+} from "@/lib/drive-cloud";
 import { processDriveAutomation } from "@/lib/drive-automation";
 
 function safeProvider(value: string): CloudProvider | null {
@@ -49,7 +55,21 @@ export async function importCloudFile(formData: FormData): Promise<void> {
         uploadedById: user.id,
       },
     });
-    await prisma.auditLog.create({ data: { userId: user.id, action: "DRIVE_CLOUD_FILE_IMPORTED", resourceType: "File", resourceId: file.id, after: { provider, externalFileId: fileId, sourceAccount: connection.accountEmail, name: source.name, bytes: source.data.length } } });
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "DRIVE_CLOUD_FILE_IMPORTED",
+        resourceType: "File",
+        resourceId: file.id,
+        after: {
+          provider,
+          externalFileId: fileId,
+          sourceAccount: connection.accountEmail,
+          name: source.name,
+          bytes: source.data.length,
+        },
+      },
+    });
     await processDriveAutomation(file.id, user.id, source.data).catch(() => null);
     revalidatePath("/app/drive");
     revalidatePath("/app/drive/cloud");
@@ -65,7 +85,16 @@ export async function disconnectCloudProvider(formData: FormData): Promise<void>
   const provider = safeProvider(String(formData.get("provider") ?? ""));
   if (!provider) cloudReturn("Invalid cloud provider", true);
   await removeCloudConnection(user.id, provider);
-  await prisma.auditLog.create({ data: { userId: user.id, action: "DRIVE_CLOUD_DISCONNECTED", resourceType: "CloudConnection", resourceId: provider } }).catch(() => undefined);
+  await prisma.auditLog
+    .create({
+      data: {
+        userId: user.id,
+        action: "DRIVE_CLOUD_DISCONNECTED",
+        resourceType: "CloudConnection",
+        resourceId: provider,
+      },
+    })
+    .catch(() => undefined);
   revalidatePath("/app/drive/cloud");
   cloudReturn(`${provider === "google" ? "Google Drive" : "OneDrive"} disconnected`);
 }

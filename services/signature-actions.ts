@@ -13,15 +13,21 @@ export async function voidTrackedSignatureRequest(requestId: string): Promise<vo
     include: { document: true },
   });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
-  if (request.status === "SIGNED") redirect(`/app/signatures/${request.id}?toast_error=A completed request cannot be voided`);
+  if (request.status === "SIGNED")
+    redirect(`/app/signatures/${request.id}?toast_error=A completed request cannot be voided`);
   if (request.status === "VOIDED") redirect(`/app/signatures/${request.id}?toast=Request already voided`);
 
   if (request.provider === "DOCUSIGN" && request.providerEnvelopeId) {
     try {
       const { docusignVoid } = await import("@/lib/docusign");
-      await docusignVoid(request.providerEnvelopeId, `Voided from JUN Business Hub by ${user.firstName} ${user.lastName}`);
+      await docusignVoid(
+        request.providerEnvelopeId,
+        `Voided from JUN Business Hub by ${user.firstName} ${user.lastName}`,
+      );
     } catch (e) {
-      redirect(`/app/signatures/${request.id}?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Could not void DocuSign envelope")}`);
+      redirect(
+        `/app/signatures/${request.id}?toast_error=${encodeURIComponent(e instanceof Error ? e.message : "Could not void DocuSign envelope")}`,
+      );
     }
   }
 
@@ -31,7 +37,11 @@ export async function voidTrackedSignatureRequest(requestId: string): Promise<vo
     action: "SIGNATURE_REQUEST_VOID",
     resourceType: "SignatureRequest",
     resourceId: request.id,
-    after: { documentId: request.document.documentId, provider: request.provider, providerEnvelopeId: request.providerEnvelopeId },
+    after: {
+      documentId: request.document.documentId,
+      provider: request.provider,
+      providerEnvelopeId: request.providerEnvelopeId,
+    },
   });
   revalidatePath("/app/signatures");
   revalidatePath(`/app/signatures/${request.id}`);

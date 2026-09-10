@@ -4,8 +4,18 @@ import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getClientBlock } from "@/lib/client-transaction-block";
 import { getClientTermination, getClientTerminationReadiness } from "@/lib/client-relationship-termination";
-import { startClientTermination, triggerTerminationRefunds, cancelClientTermination, unblockClientTransactions } from "@/services/client-transaction-block";
-import { createOfficialFinalNotice, attachFinalTerminationNotice, markFinalTerminationPackageDelivered, finalizeClientTerminationFinalNotice } from "@/services/client-final-notice";
+import {
+  startClientTermination,
+  triggerTerminationRefunds,
+  cancelClientTermination,
+  unblockClientTransactions,
+} from "@/services/client-transaction-block";
+import {
+  createOfficialFinalNotice,
+  attachFinalTerminationNotice,
+  markFinalTerminationPackageDelivered,
+  finalizeClientTerminationFinalNotice,
+} from "@/services/client-final-notice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,46 +23,402 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { formatDateTime, formatMoney } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, FileCheck2, LockKeyhole, RotateCcw, ShieldCheck } from "lucide-react";
 
-export const dynamic="force-dynamic";
-function ok(v:boolean){return v?<Badge className="bg-emerald-100 text-emerald-800">COMPLETE</Badge>:<Badge className="bg-amber-100 text-amber-800">REQUIRED</Badge>}
-
-export default async function RelationshipPage({params}:{params:Promise<{id:string}>|{id:string}}){
- const user=await requirePermission("CLIENT_READ");const {id}=await Promise.resolve(params);
- const [readiness,workflow,block,finalNotices]=await Promise.all([
-  getClientTerminationReadiness(id),
-  getClientTermination(id),
-  getClientBlock(id),
-  prisma.document.findMany({where:{clientId:id,status:{in:["FINAL","SIGNED"]},OR:[{title:{contains:"AVIS FINAL",mode:"insensitive"}},{title:{contains:"RELATION",mode:"insensitive"}}]},orderBy:{updatedAt:"desc"},select:{id:true,documentId:true,title:true,status:true}}),
- ]);if(!readiness)notFound();
- const {client}=readiness;const activeWorkflow=workflow&&!['CANCELLED'].includes(workflow.status);const refundsSettled=readiness.openRefunds.length===0&&readiness.refundableBalances.length===0;
- const finalNoticeAttached=Boolean(workflow?.signedDocumentId);const delivered=Boolean(workflow?.packageDeliveredAt);
- return <div className="space-y-5">
-  <div className="flex flex-wrap items-start justify-between gap-4"><div><Link href={`/app/clients/${id}/dashboard`} className="text-sm text-muted2 hover:text-electric">← Client 360</Link><h1 className="mt-2 text-2xl font-semibold">Relationship termination review</h1><p className="mt-1 text-sm text-muted2">{client.firstName} {client.lastName} · {client.internalId}</p></div><div className="flex gap-2"><Link href={`/app/clients/${id}/statement`}><Button variant="outline">Review statement</Button></Link><a href={`/api/clients/${id}/statement.pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Open statement PDF</Button></a></div></div>
-
-  <Card><CardHeader><CardTitle>Last-resort procedure</CardTitle></CardHeader><CardContent className="space-y-2 text-sm"><p>This process does <strong>not</strong> erase the financial or legal history of the client. Cases, payments, invoices, expenses, refunds, official documents, statements, notes and audit history remain preserved.</p><p>Permanent transaction blocking is available only after every operational and financial transaction is closed, all money due to the client is refunded, the official FINAL termination notice is generated and authenticated by JUN QR + official seal, and the final notice plus final statement are delivered to the client.</p><p className="text-muted2">At final termination, confidential identity/travel uploads classified as IDENTITY, PASSPORT or VISA are automatically destroyed from operational storage. Financial, contractual and audit evidence is preserved.</p></CardContent></Card>
-
-  {block?.blocked?<Card className="border-red-300 bg-red-50"><CardHeader><CardTitle>Relationship terminated</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><p><strong>All new transactions are blocked.</strong></p><p>Reason: {block.reason}</p><p className="text-xs text-muted2">Blocked {formatDateTime(new Date(block.blockedAt))}</p>{can(user,"CLIENT_ARCHIVE")?<form action={unblockClientTransactions.bind(null,id)} className="max-w-xl space-y-2"><Textarea name="reason" required rows={2} placeholder="Detailed reason for exceptional reactivation…"/><Input name="confirmation" required placeholder="Type UNBLOCK CLIENT"/><Button variant="outline"><RotateCcw className="h-4 w-4"/>Unblock client</Button></form>:null}</CardContent></Card>:
-  !activeWorkflow?<Card><CardHeader><CardTitle>Start formal review</CardTitle></CardHeader><CardContent>{can(user,"CLIENT_ARCHIVE")?<form action={startClientTermination.bind(null,id)} className="max-w-2xl space-y-3"><Textarea name="reason" rows={5} required placeholder="Detailed reason for considering the termination of the commercial relationship…"/><Input name="confirmation" required placeholder="Type START TERMINATION REVIEW"/><Button variant="outline">Start termination review</Button></form>:<p className="text-sm text-muted2">You do not have permission to start this review.</p>}</CardContent></Card>:
-  <>
-   <Card><CardHeader><div><CardTitle>Termination checklist</CardTitle><p className="mt-1 text-xs text-muted2">Final blocking remains disabled until every required item is complete.</p></div><Badge className="bg-surface text-ink">{workflow?.status}</Badge></CardHeader><CardContent className="space-y-3 text-sm">
-    <Check label="No active service / case" value={readiness.activeCases.length===0} detail={readiness.activeCases.length?`${readiness.activeCases.length} case(s) still active`:"All cases completed/cancelled/archived"}/>
-    <Check label="All invoices closed" value={readiness.openInvoices.length===0} detail={readiness.openInvoices.length?`${readiness.openInvoices.length} invoice(s) still open`:"No unpaid/open invoice"}/>
-    <Check label="No pending incoming payment" value={readiness.pendingPayments.length===0} detail={readiness.pendingPayments.length?`${readiness.pendingPayments.length} payment(s) pending`:"No pending payment"}/>
-    <Check label="All company expenses completed" value={readiness.openExpenses.length===0} detail={readiness.openExpenses.length?`${readiness.openExpenses.length} expense(s) unfinished`:"No unfinished client expense"}/>
-    <Check label="Final client refunds completed" value={refundsSettled} detail={readiness.openRefunds.length?`${readiness.openRefunds.length} refund(s) still pending/approved/partially paid`:readiness.refundableBalances.length?"Refundable client funds still remain":"No refund balance remains"}/>
-    <Check label="Client owes JUN nothing" value={readiness.clientDebt.length===0} detail={readiness.clientDebt.length?readiness.clientDebt.map(d=>formatMoney(d.amount,d.currency)).join(" · "):"Client account has no debt"}/>
-    <Check label="Official FINAL notice attached" value={finalNoticeAttached} detail={finalNoticeAttached?"QR + seal authenticated FINAL notice attached":"Generate, review and FINALIZE the official notice"}/>
-    <Check label="Final notice + final statement delivered" value={delivered} detail={delivered?`Recorded ${workflow?.packageDeliveredAt?formatDateTime(new Date(workflow.packageDeliveredAt)):""}`:"Delivery must be recorded before final blocking"}/>
-   </CardContent></Card>
-
-   {readiness.refundableBalances.length?<Card className="border-amber-200 bg-amber-50/40"><CardHeader><CardTitle>Automatic final refund initiation</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><p>The client still has refundable funds: <strong>{readiness.refundableBalances.map(b=>formatMoney(b.amount,b.currency)).join(" · ")}</strong>.</p><p>JUN will automatically create refund request(s). They must pass the normal approval and payout process. Final termination remains locked until every refund is fully PAID and the account is ready to reach a final zero balance.</p>{can(user,"REFUND_CREATE")?<form action={triggerTerminationRefunds.bind(null,id)}><Button variant="outline">Trigger final refund request(s)</Button></form>:null}</CardContent></Card>:null}
-
-   <Card><CardHeader><CardTitle>Official final account termination notice</CardTitle></CardHeader><CardContent className="space-y-4 text-sm"><div className="rounded-lg border border-electric/20 bg-electric/5 p-3"><p className="flex items-center gap-2 font-medium"><ShieldCheck className="h-4 w-4 text-electric"/>Official JUN template</p><p className="mt-1 text-xs text-muted2">This generator uses verified payments, refund payouts, remaining refund balances and Drive evidence. No handwritten signature is required. Authentication is provided by the document QR code, unique registry ID and official JUN seal.</p></div><div className="flex flex-wrap gap-2">{can(user,"DOCUMENT_CREATE")?<form action={createOfficialFinalNotice.bind(null,id)}><Button variant="primary"><FileCheck2 className="h-4 w-4"/>Create official final notice</Button></form>:null}<a href={`/api/clients/${id}/statement.pdf`} target="_blank" rel="noreferrer"><Button variant="outline">Open statement PDF</Button></a></div>{finalNotices.length?<form action={attachFinalTerminationNotice.bind(null,id)} className="max-w-xl space-y-2"><Select name="documentId" defaultValue={workflow?.signedDocumentId||""} required><option value="">Select FINAL termination notice…</option>{finalNotices.map(d=><option key={d.id} value={d.id}>{d.documentId} · {d.title} · {d.status}</option>)}</Select><Button variant="outline">Attach FINAL notice</Button></form>:<p className="text-amber-700">No FINAL termination notice is currently available. Create the official notice, review it, then FINALIZE it.</p>}</CardContent></Card>
-
-   {finalNoticeAttached&&!delivered?<Card><CardHeader><CardTitle>Record delivery to client</CardTitle></CardHeader><CardContent><form action={markFinalTerminationPackageDelivered.bind(null,id)} className="max-w-2xl space-y-2"><Textarea name="deliveryNote" required rows={3} placeholder="Example: Sent by email on Aug 22, 2026 with the FINAL QR/seal-authenticated notice and final statement attached."/><Button variant="outline">Mark final package delivered</Button></form></CardContent></Card>:null}
-
-   <Card className={readiness.transactionsSettled&&finalNoticeAttached&&delivered?"border-red-300":""}><CardHeader><CardTitle>Final termination</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">{readiness.transactionsSettled&&finalNoticeAttached&&delivered?<><p><strong>All prerequisites are complete.</strong> Finalizing will block every future commercial transaction. Confidential IDENTITY / PASSPORT / VISA uploads will be permanently destroyed from operational storage, while financial, contractual and audit archives remain preserved.</p><form action={finalizeClientTerminationFinalNotice.bind(null,id)} className="max-w-md space-y-2"><Input name="confirmation" required placeholder="Type FINALIZE TERMINATION"/><Button variant="danger"><LockKeyhole className="h-4 w-4"/>Finalize & block future transactions</Button></form></>:<div className="flex items-start gap-2 text-muted2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0"/><p>Final termination is locked. Complete the checklist above first.</p></div>}{can(user,"CLIENT_ARCHIVE")?<form action={cancelClientTermination.bind(null,id)} className="max-w-xl border-t border-line pt-4"><Textarea name="reason" required rows={2} placeholder="Reason for cancelling this termination review…"/><Button className="mt-2" variant="ghost">Cancel termination review</Button></form>:null}</CardContent></Card>
-  </>}
- </div>;
+export const dynamic = "force-dynamic";
+function ok(v: boolean) {
+  return v ? (
+    <Badge className="bg-emerald-100 text-emerald-800">COMPLETE</Badge>
+  ) : (
+    <Badge className="bg-amber-100 text-amber-800">REQUIRED</Badge>
+  );
 }
-function Check({label,value,detail}:{label:string;value:boolean;detail:string}){return <div className="flex items-start justify-between gap-4 rounded-lg border border-line p-3"><div className="flex gap-2">{value?<CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600"/>:<AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600"/>}<div><div className="font-medium">{label}</div><div className="text-xs text-muted2">{detail}</div></div></div>{ok(value)}</div>}
+
+export default async function RelationshipPage({
+  params,
+}: {
+  params: Promise<{ id: string }> | { id: string };
+}) {
+  const user = await requirePermission("CLIENT_READ");
+  const { id } = await Promise.resolve(params);
+  const [readiness, workflow, block, finalNotices] = await Promise.all([
+    getClientTerminationReadiness(id),
+    getClientTermination(id),
+    getClientBlock(id),
+    prisma.document.findMany({
+      where: {
+        clientId: id,
+        status: { in: ["FINAL", "SIGNED"] },
+        OR: [
+          { title: { contains: "AVIS FINAL", mode: "insensitive" } },
+          { title: { contains: "RELATION", mode: "insensitive" } },
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, documentId: true, title: true, status: true },
+    }),
+  ]);
+  if (!readiness) notFound();
+  const { client } = readiness;
+  const activeWorkflow = workflow && !["CANCELLED"].includes(workflow.status);
+  const refundsSettled = readiness.openRefunds.length === 0 && readiness.refundableBalances.length === 0;
+  const finalNoticeAttached = Boolean(workflow?.signedDocumentId);
+  const delivered = Boolean(workflow?.packageDeliveredAt);
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link href={`/app/clients/${id}/dashboard`} className="text-sm text-muted2 hover:text-electric">
+            ← Client 360
+          </Link>
+          <h1 className="mt-2 text-2xl font-semibold">Relationship termination review</h1>
+          <p className="mt-1 text-sm text-muted2">
+            {client.firstName} {client.lastName} · {client.internalId}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link href={`/app/clients/${id}/statement`}>
+            <Button variant="outline">Review statement</Button>
+          </Link>
+          <a href={`/api/clients/${id}/statement.pdf`} target="_blank" rel="noreferrer">
+            <Button variant="outline">Open statement PDF</Button>
+          </a>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Last-resort procedure</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <p>
+            This process does <strong>not</strong> erase the financial or legal history of the client. Cases,
+            payments, invoices, expenses, refunds, official documents, statements, notes and audit history
+            remain preserved.
+          </p>
+          <p>
+            Permanent transaction blocking is available only after every operational and financial transaction
+            is closed, all money due to the client is refunded, the official FINAL termination notice is
+            generated and authenticated by JUN QR + official seal, and the final notice plus final statement
+            are delivered to the client.
+          </p>
+          <p className="text-muted2">
+            At final termination, confidential identity/travel uploads classified as IDENTITY, PASSPORT or
+            VISA are automatically destroyed from operational storage. Financial, contractual and audit
+            evidence is preserved.
+          </p>
+        </CardContent>
+      </Card>
+
+      {block?.blocked ? (
+        <Card className="border-red-300 bg-red-50">
+          <CardHeader>
+            <CardTitle>Relationship terminated</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              <strong>All new transactions are blocked.</strong>
+            </p>
+            <p>Reason: {block.reason}</p>
+            <p className="text-xs text-muted2">Blocked {formatDateTime(new Date(block.blockedAt))}</p>
+            {can(user, "CLIENT_ARCHIVE") ? (
+              <form action={unblockClientTransactions.bind(null, id)} className="max-w-xl space-y-2">
+                <Textarea
+                  name="reason"
+                  required
+                  rows={2}
+                  placeholder="Detailed reason for exceptional reactivation…"
+                />
+                <Input name="confirmation" required placeholder="Type UNBLOCK CLIENT" />
+                <Button variant="outline">
+                  <RotateCcw className="h-4 w-4" />
+                  Unblock client
+                </Button>
+              </form>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : !activeWorkflow ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Start formal review</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {can(user, "CLIENT_ARCHIVE") ? (
+              <form action={startClientTermination.bind(null, id)} className="max-w-2xl space-y-3">
+                <Textarea
+                  name="reason"
+                  rows={5}
+                  required
+                  placeholder="Detailed reason for considering the termination of the commercial relationship…"
+                />
+                <Input name="confirmation" required placeholder="Type START TERMINATION REVIEW" />
+                <Button variant="outline">Start termination review</Button>
+              </form>
+            ) : (
+              <p className="text-sm text-muted2">You do not have permission to start this review.</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card>
+            <CardHeader>
+              <div>
+                <CardTitle>Termination checklist</CardTitle>
+                <p className="mt-1 text-xs text-muted2">
+                  Final blocking remains disabled until every required item is complete.
+                </p>
+              </div>
+              <Badge className="bg-surface text-ink">{workflow?.status}</Badge>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <Check
+                label="No active service / case"
+                value={readiness.activeCases.length === 0}
+                detail={
+                  readiness.activeCases.length
+                    ? `${readiness.activeCases.length} case(s) still active`
+                    : "All cases completed/cancelled/archived"
+                }
+              />
+              <Check
+                label="All invoices closed"
+                value={readiness.openInvoices.length === 0}
+                detail={
+                  readiness.openInvoices.length
+                    ? `${readiness.openInvoices.length} invoice(s) still open`
+                    : "No unpaid/open invoice"
+                }
+              />
+              <Check
+                label="No pending incoming payment"
+                value={readiness.pendingPayments.length === 0}
+                detail={
+                  readiness.pendingPayments.length
+                    ? `${readiness.pendingPayments.length} payment(s) pending`
+                    : "No pending payment"
+                }
+              />
+              <Check
+                label="All company expenses completed"
+                value={readiness.openExpenses.length === 0}
+                detail={
+                  readiness.openExpenses.length
+                    ? `${readiness.openExpenses.length} expense(s) unfinished`
+                    : "No unfinished client expense"
+                }
+              />
+              <Check
+                label="Final client refunds completed"
+                value={refundsSettled}
+                detail={
+                  readiness.openRefunds.length
+                    ? `${readiness.openRefunds.length} refund(s) still pending/approved/partially paid`
+                    : readiness.refundableBalances.length
+                      ? "Refundable client funds still remain"
+                      : "No refund balance remains"
+                }
+              />
+              <Check
+                label="Client owes JUN nothing"
+                value={readiness.clientDebt.length === 0}
+                detail={
+                  readiness.clientDebt.length
+                    ? readiness.clientDebt.map((d) => formatMoney(d.amount, d.currency)).join(" · ")
+                    : "Client account has no debt"
+                }
+              />
+              <Check
+                label="Official FINAL notice attached"
+                value={finalNoticeAttached}
+                detail={
+                  finalNoticeAttached
+                    ? "QR + seal authenticated FINAL notice attached"
+                    : "Generate, review and FINALIZE the official notice"
+                }
+              />
+              <Check
+                label="Final notice + final statement delivered"
+                value={delivered}
+                detail={
+                  delivered
+                    ? `Recorded ${workflow?.packageDeliveredAt ? formatDateTime(new Date(workflow.packageDeliveredAt)) : ""}`
+                    : "Delivery must be recorded before final blocking"
+                }
+              />
+            </CardContent>
+          </Card>
+
+          {readiness.refundableBalances.length ? (
+            <Card className="border-amber-200 bg-amber-50/40">
+              <CardHeader>
+                <CardTitle>Automatic final refund initiation</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <p>
+                  The client still has refundable funds:{" "}
+                  <strong>
+                    {readiness.refundableBalances.map((b) => formatMoney(b.amount, b.currency)).join(" · ")}
+                  </strong>
+                  .
+                </p>
+                <p>
+                  JUN will automatically create refund request(s). They must pass the normal approval and
+                  payout process. Final termination remains locked until every refund is fully PAID and the
+                  account is ready to reach a final zero balance.
+                </p>
+                {can(user, "REFUND_CREATE") ? (
+                  <form action={triggerTerminationRefunds.bind(null, id)}>
+                    <Button variant="outline">Trigger final refund request(s)</Button>
+                  </form>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Official final account termination notice</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="rounded-lg border border-electric/20 bg-electric/5 p-3">
+                <p className="flex items-center gap-2 font-medium">
+                  <ShieldCheck className="h-4 w-4 text-electric" />
+                  Official JUN template
+                </p>
+                <p className="mt-1 text-xs text-muted2">
+                  This generator uses verified payments, refund payouts, remaining refund balances and Drive
+                  evidence. No handwritten signature is required. Authentication is provided by the document
+                  QR code, unique registry ID and official JUN seal.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {can(user, "DOCUMENT_CREATE") ? (
+                  <form action={createOfficialFinalNotice.bind(null, id)}>
+                    <Button variant="primary">
+                      <FileCheck2 className="h-4 w-4" />
+                      Create official final notice
+                    </Button>
+                  </form>
+                ) : null}
+                <a href={`/api/clients/${id}/statement.pdf`} target="_blank" rel="noreferrer">
+                  <Button variant="outline">Open statement PDF</Button>
+                </a>
+              </div>
+              {finalNotices.length ? (
+                <form action={attachFinalTerminationNotice.bind(null, id)} className="max-w-xl space-y-2">
+                  <Select name="documentId" defaultValue={workflow?.signedDocumentId || ""} required>
+                    <option value="">Select FINAL termination notice…</option>
+                    {finalNotices.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.documentId} · {d.title} · {d.status}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button variant="outline">Attach FINAL notice</Button>
+                </form>
+              ) : (
+                <p className="text-amber-700">
+                  No FINAL termination notice is currently available. Create the official notice, review it,
+                  then FINALIZE it.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {finalNoticeAttached && !delivered ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Record delivery to client</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form
+                  action={markFinalTerminationPackageDelivered.bind(null, id)}
+                  className="max-w-2xl space-y-2"
+                >
+                  <Textarea
+                    name="deliveryNote"
+                    required
+                    rows={3}
+                    placeholder="Example: Sent by email on Aug 22, 2026 with the FINAL QR/seal-authenticated notice and final statement attached."
+                  />
+                  <Button variant="outline">Mark final package delivered</Button>
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <Card
+            className={
+              readiness.transactionsSettled && finalNoticeAttached && delivered ? "border-red-300" : ""
+            }
+          >
+            <CardHeader>
+              <CardTitle>Final termination</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {readiness.transactionsSettled && finalNoticeAttached && delivered ? (
+                <>
+                  <p>
+                    <strong>All prerequisites are complete.</strong> Finalizing will block every future
+                    commercial transaction. Confidential IDENTITY / PASSPORT / VISA uploads will be
+                    permanently destroyed from operational storage, while financial, contractual and audit
+                    archives remain preserved.
+                  </p>
+                  <form
+                    action={finalizeClientTerminationFinalNotice.bind(null, id)}
+                    className="max-w-md space-y-2"
+                  >
+                    <Input name="confirmation" required placeholder="Type FINALIZE TERMINATION" />
+                    <Button variant="danger">
+                      <LockKeyhole className="h-4 w-4" />
+                      Finalize & block future transactions
+                    </Button>
+                  </form>
+                </>
+              ) : (
+                <div className="flex items-start gap-2 text-muted2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>Final termination is locked. Complete the checklist above first.</p>
+                </div>
+              )}
+              {can(user, "CLIENT_ARCHIVE") ? (
+                <form
+                  action={cancelClientTermination.bind(null, id)}
+                  className="max-w-xl border-t border-line pt-4"
+                >
+                  <Textarea
+                    name="reason"
+                    required
+                    rows={2}
+                    placeholder="Reason for cancelling this termination review…"
+                  />
+                  <Button className="mt-2" variant="ghost">
+                    Cancel termination review
+                  </Button>
+                </form>
+              ) : null}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+function Check({ label, value, detail }: { label: string; value: boolean; detail: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-line p-3">
+      <div className="flex gap-2">
+        {value ? (
+          <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />
+        ) : (
+          <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
+        )}
+        <div>
+          <div className="font-medium">{label}</div>
+          <div className="text-xs text-muted2">{detail}</div>
+        </div>
+      </div>
+      {ok(value)}
+    </div>
+  );
+}

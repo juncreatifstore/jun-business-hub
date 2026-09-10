@@ -41,7 +41,10 @@ function parsePolicy(value?: string | null): DrivePrivacyPolicy | null {
 
 export async function getDrivePrivacyPolicy(fileId: string): Promise<DrivePrivacyPolicy> {
   const [filePolicy, globalPolicy] = await Promise.all([
-    prisma.appSetting.findUnique({ where: { key: `${DRIVE_PRIVACY_FILE_PREFIX}${fileId}` }, select: { value: true } }),
+    prisma.appSetting.findUnique({
+      where: { key: `${DRIVE_PRIVACY_FILE_PREFIX}${fileId}` },
+      select: { value: true },
+    }),
     prisma.appSetting.findUnique({ where: { key: DRIVE_PRIVACY_GLOBAL_KEY }, select: { value: true } }),
   ]);
   return parsePolicy(filePolicy?.value) ?? parsePolicy(globalPolicy?.value) ?? DEFAULT_POLICY;
@@ -50,7 +53,8 @@ export async function getDrivePrivacyPolicy(fileId: string): Promise<DrivePrivac
 function privacySecret() {
   const raw = process.env.DRIVE_PRIVACY_SECRET || process.env.AUTH_SECRET;
   if (!raw) {
-    if (process.env.NODE_ENV === "production") throw new Error("DRIVE_PRIVACY_SECRET or AUTH_SECRET is required in production");
+    if (process.env.NODE_ENV === "production")
+      throw new Error("DRIVE_PRIVACY_SECRET or AUTH_SECRET is required in production");
     return new TextEncoder().encode("jun-drive-privacy-dev-secret");
   }
   return new TextEncoder().encode(raw);

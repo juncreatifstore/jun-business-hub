@@ -41,12 +41,27 @@ export async function createClient(_prev: FormState, formData: FormData): Promis
   const client = await prisma.client.create({
     data: { ...r.data, internalId, ownerId: user.id, tags: { create: r.tags.map((tag) => ({ tag })) } },
   });
-  await audit({ userId: user.id, action: "CLIENT_CREATE", resourceType: "Client", resourceId: client.id, after: { internalId, name: `${client.firstName} ${client.lastName}` } });
-  await logActivity({ type: "CLIENT_CREATED", message: `Client ${client.firstName} ${client.lastName} created`, userId: user.id, clientId: client.id });
+  await audit({
+    userId: user.id,
+    action: "CLIENT_CREATE",
+    resourceType: "Client",
+    resourceId: client.id,
+    after: { internalId, name: `${client.firstName} ${client.lastName}` },
+  });
+  await logActivity({
+    type: "CLIENT_CREATED",
+    message: `Client ${client.firstName} ${client.lastName} created`,
+    userId: user.id,
+    clientId: client.id,
+  });
   redirect(`/app/clients/${client.id}?toast=${encodeURIComponent("Client created")}`);
 }
 
-export async function updateClient(clientId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+export async function updateClient(
+  clientId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
   const user = await assertPermission("CLIENT_UPDATE");
   const r = clientData(formData);
   if ("errors" in r) return { errors: r.errors };
@@ -62,11 +77,19 @@ export async function updateClient(clientId: string, _prev: FormState, formData:
     }),
   ]);
   await audit({
-    userId: user.id, action: "CLIENT_UPDATE", resourceType: "Client", resourceId: clientId,
+    userId: user.id,
+    action: "CLIENT_UPDATE",
+    resourceType: "Client",
+    resourceId: clientId,
     before: { status: before.status, email: before.email, phone: before.phone },
     after: { status: r.data.status, email: r.data.email, phone: r.data.phone },
   });
-  await logActivity({ type: "CLIENT_UPDATED", message: `Client ${r.data.firstName} ${r.data.lastName} updated`, userId: user.id, clientId });
+  await logActivity({
+    type: "CLIENT_UPDATED",
+    message: `Client ${r.data.firstName} ${r.data.lastName} updated`,
+    userId: user.id,
+    clientId,
+  });
   redirect(`/app/clients/${clientId}?toast=${encodeURIComponent("Client updated")}`);
 }
 
@@ -77,7 +100,12 @@ export async function archiveClient(clientId: string) {
     data: { status: "ARCHIVED", archivedAt: new Date() },
   });
   await audit({ userId: user.id, action: "CLIENT_ARCHIVE", resourceType: "Client", resourceId: clientId });
-  await logActivity({ type: "CLIENT_ARCHIVED", message: `Client ${c.firstName} ${c.lastName} archived`, userId: user.id, clientId });
+  await logActivity({
+    type: "CLIENT_ARCHIVED",
+    message: `Client ${c.firstName} ${c.lastName} archived`,
+    userId: user.id,
+    clientId,
+  });
   revalidatePath("/app/clients");
   redirect(`/app/clients?toast=${encodeURIComponent("Client archived")}`);
 }
@@ -86,7 +114,10 @@ export async function restoreClient(clientId: string) {
   const user = await assertPermission("CLIENT_ARCHIVE");
   const before = await prisma.client.findUnique({ where: { id: clientId } });
   if (!before) redirect(`/app/clients?toast_error=${encodeURIComponent("Client not found")}`);
-  if (before.status !== "ARCHIVED") redirect(`/app/clients/${clientId}/dashboard?toast_error=${encodeURIComponent("Client is not archived")}`);
+  if (before.status !== "ARCHIVED")
+    redirect(
+      `/app/clients/${clientId}/dashboard?toast_error=${encodeURIComponent("Client is not archived")}`,
+    );
 
   const c = await prisma.client.update({
     where: { id: clientId },
@@ -100,7 +131,12 @@ export async function restoreClient(clientId: string) {
     before: { status: before.status, archivedAt: before.archivedAt },
     after: { status: "ACTIVE", archivedAt: null },
   });
-  await logActivity({ type: "CLIENT_RESTORED", message: `Client ${c.firstName} ${c.lastName} restored from archive`, userId: user.id, clientId });
+  await logActivity({
+    type: "CLIENT_RESTORED",
+    message: `Client ${c.firstName} ${c.lastName} restored from archive`,
+    userId: user.id,
+    clientId,
+  });
   revalidatePath("/app/clients");
   revalidatePath(`/app/clients/${clientId}`);
   revalidatePath(`/app/clients/${clientId}/dashboard`);
@@ -110,7 +146,9 @@ export async function restoreClient(clientId: string) {
 
 export async function addClientNote(clientId: string, formData: FormData) {
   const user = await assertPermission("CLIENT_UPDATE");
-  const body = String(formData.get("body") ?? "").trim().slice(0, 5000);
+  const body = String(formData.get("body") ?? "")
+    .trim()
+    .slice(0, 5000);
   if (!body) return;
   await prisma.clientNote.create({ data: { clientId, authorId: user.id, body } });
   await logActivity({ type: "NOTE_ADDED", message: "Note added to client", userId: user.id, clientId });

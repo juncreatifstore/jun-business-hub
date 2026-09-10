@@ -33,12 +33,21 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 
   if (!payment.paidAt || !["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(payment.status)) {
-    return NextResponse.json({ error: "Receipt unavailable until the payment is confirmed" }, { status: 409 });
+    return NextResponse.json(
+      { error: "Receipt unavailable until the payment is confirmed" },
+      { status: 409 },
+    );
   }
 
   const receiptMeta = await ensureReceiptMeta(payment);
   if (receiptMeta.status === "VOID") {
-    return NextResponse.json({ error: "This receipt has been voided and is no longer an active financial receipt", receiptReference: receiptMeta.receiptReference }, { status: 410 });
+    return NextResponse.json(
+      {
+        error: "This receipt has been voided and is no longer an active financial receipt",
+        receiptReference: receiptMeta.receiptReference,
+      },
+      { status: 410 },
+    );
   }
 
   const paidAt = payment.paidAt;
@@ -65,7 +74,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     action: "RECEIPT_DOWNLOAD",
     resourceType: "Payment",
     resourceId: payment.id,
-    after: { reference: receiptReference, paymentReference: payment.reference, pdfSha256: tracked?.pdfSha256 ?? null, downloadCount: tracked?.downloadCount ?? null },
+    after: {
+      reference: receiptReference,
+      paymentReference: payment.reference,
+      pdfSha256: tracked?.pdfSha256 ?? null,
+      downloadCount: tracked?.downloadCount ?? null,
+    },
   });
 
   return new NextResponse(Buffer.from(bytes), {

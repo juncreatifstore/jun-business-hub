@@ -5,7 +5,14 @@ import { prisma } from "@/lib/prisma";
 
 const RECEIPT_PREFIX = "finance.universal.receipt.";
 
-export type UniversalReceiptSource = "COMMISSION" | "PARTNER_WITHDRAWAL" | "REFUND" | "REFUND_PAYOUT" | "EXPENSE" | "MANUAL_TRANSFER" | "PAYMENT";
+export type UniversalReceiptSource =
+  | "COMMISSION"
+  | "PARTNER_WITHDRAWAL"
+  | "REFUND"
+  | "REFUND_PAYOUT"
+  | "EXPENSE"
+  | "MANUAL_TRANSFER"
+  | "PAYMENT";
 export type UniversalFinancialReceipt = {
   id: string;
   receiptNumber: string;
@@ -24,13 +31,21 @@ export type UniversalFinancialReceipt = {
   issuedById: string;
 };
 
-function key(id: string) { return `${RECEIPT_PREFIX}${id}`; }
-function round(v: number) { return Math.round((v + Number.EPSILON) * 100) / 100; }
+function key(id: string) {
+  return `${RECEIPT_PREFIX}${id}`;
+}
+function round(v: number) {
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
 function receiptId(sourceType: UniversalReceiptSource, sourceId: string) {
   return createHash("sha256").update(`${sourceType}:${sourceId}`).digest("hex").slice(0, 24);
 }
 function receiptNumber(sourceType: UniversalReceiptSource, sourceId: string, issuedAt: Date) {
-  const suffix = createHash("sha256").update(`${sourceType}:${sourceId}`).digest("hex").slice(0, 8).toUpperCase();
+  const suffix = createHash("sha256")
+    .update(`${sourceType}:${sourceId}`)
+    .digest("hex")
+    .slice(0, 8)
+    .toUpperCase();
   return `FRC-${issuedAt.getUTCFullYear()}-${suffix}`;
 }
 
@@ -52,7 +67,9 @@ export async function ensureUniversalFinancialReceipt(input: {
   const existing = await prisma.appSetting.findUnique({ where: { key: key(id) }, select: { value: true } });
   let previous: UniversalFinancialReceipt | null = null;
   if (existing) {
-    try { previous = JSON.parse(existing.value) as UniversalFinancialReceipt; } catch {}
+    try {
+      previous = JSON.parse(existing.value) as UniversalFinancialReceipt;
+    } catch {}
   }
 
   const issuedAt = previous?.issuedAt ? new Date(previous.issuedAt) : new Date();
@@ -73,16 +90,27 @@ export async function ensureUniversalFinancialReceipt(input: {
     issuedAt: issuedAt.toISOString(),
     issuedById: previous?.issuedById || input.issuedById,
   };
-  await prisma.appSetting.upsert({ where: { key: key(id) }, create: { key: key(id), value: JSON.stringify(receipt) }, update: { value: JSON.stringify(receipt) } });
+  await prisma.appSetting.upsert({
+    where: { key: key(id) },
+    create: { key: key(id), value: JSON.stringify(receipt) },
+    update: { value: JSON.stringify(receipt) },
+  });
   return receipt;
 }
 
 export async function getUniversalFinancialReceipt(id: string) {
   const row = await prisma.appSetting.findUnique({ where: { key: key(id) }, select: { value: true } });
   if (!row) return null;
-  try { return JSON.parse(row.value) as UniversalFinancialReceipt; } catch { return null; }
+  try {
+    return JSON.parse(row.value) as UniversalFinancialReceipt;
+  } catch {
+    return null;
+  }
 }
 
-export async function getUniversalFinancialReceiptForSource(sourceType: UniversalReceiptSource, sourceId: string) {
+export async function getUniversalFinancialReceiptForSource(
+  sourceType: UniversalReceiptSource,
+  sourceId: string,
+) {
   return getUniversalFinancialReceipt(receiptId(sourceType, sourceId));
 }

@@ -23,5 +23,7 @@ export async function subscribeWhatsAppAppToWaba() {
   }
   revalidatePath("/app/settings/whatsapp");
   if (errorMessage) redirect(`/app/settings/whatsapp?toast_error=${encodeURIComponent(errorMessage)}`);
-  redirect(`/app/settings/whatsapp?toast=${encodeURIComponent("Meta app subscribed to WhatsApp Business Account")}`);
+  redirect(
+    `/app/settings/whatsapp?toast=${encodeURIComponent("Meta app subscribed to WhatsApp Business Account")}`,
+  );
 }

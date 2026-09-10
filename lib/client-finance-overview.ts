@@ -3,154 +3,229 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getPaymentCoreMetaMap } from "@/lib/finance-payment-core";
 import { invoiceFinancialState, listInvoices, type FinanceInvoice } from "@/lib/finance-invoices";
-import { expenseEffectiveStatus, expensePaidTotal, expenseRemaining, listFinanceExpenses } from "@/lib/finance-expenses";
+import {
+  expenseEffectiveStatus,
+  expensePaidTotal,
+  expenseRemaining,
+  listFinanceExpenses,
+} from "@/lib/finance-expenses";
 
-function round(v:number){ return Math.round((v + Number.EPSILON) * 100) / 100; }
+function round(v: number) {
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
 
 type CurrencySummary = {
-  currency:string;
-  grossReceived:number;
-  fees:number;
-  netReceived:number;
-  appliedToInvoices:number;
-  unappliedFunds:number;
-  billed:number;
-  invoicePaid:number;
-  receivable:number;
-  approvedRefunds:number;
-  refundPaid:number;
-  expensePaid:number;
-  expenseCommitted:number;
-  expensePendingApproval:number;
-  expenseRemaining:number;
-  realizedProfit:number;
-  forecastProfit:number;
-  realizedMarginPercent:number|null;
-  forecastMarginPercent:number|null;
+  currency: string;
+  grossReceived: number;
+  fees: number;
+  netReceived: number;
+  appliedToInvoices: number;
+  unappliedFunds: number;
+  billed: number;
+  invoicePaid: number;
+  receivable: number;
+  approvedRefunds: number;
+  refundPaid: number;
+  expensePaid: number;
+  expenseCommitted: number;
+  expensePendingApproval: number;
+  expenseRemaining: number;
+  realizedProfit: number;
+  forecastProfit: number;
+  realizedMarginPercent: number | null;
+  forecastMarginPercent: number | null;
 };
 
-export async function getClientFinanceOverview(clientId:string){
+export async function getClientFinanceOverview(clientId: string) {
   const [payments, refunds, allInvoices, allExpenses] = await Promise.all([
     prisma.payment.findMany({
-      where:{clientId},
-      orderBy:[{paidAt:"desc"},{createdAt:"desc"}],
-      select:{id:true,reference:true,amount:true,currency:true,status:true,method:true,provider:true,providerRef:true,paidAt:true,createdAt:true,caseId:true},
+      where: { clientId },
+      orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        reference: true,
+        amount: true,
+        currency: true,
+        status: true,
+        method: true,
+        provider: true,
+        providerRef: true,
+        paidAt: true,
+        createdAt: true,
+        caseId: true,
+      },
     }),
     prisma.refund.findMany({
-      where:{clientId},
-      orderBy:{createdAt:"desc"},
-      include:{installments:{select:{amount:true,status:true,paidAt:true}}},
+      where: { clientId },
+      orderBy: { createdAt: "desc" },
+      include: { installments: { select: { amount: true, status: true, paidAt: true } } },
     }),
     listInvoices(5000),
     listFinanceExpenses(5000),
   ]);
-  const invoices = allInvoices.filter((i)=>i.clientId===clientId);
-  const expenses = allExpenses.filter((e)=>e.clientId===clientId);
-  const metaMap = await getPaymentCoreMetaMap(payments.map((p)=>p.id));
+  const invoices = allInvoices.filter((i) => i.clientId === clientId);
+  const expenses = allExpenses.filter((e) => e.clientId === clientId);
+  const metaMap = await getPaymentCoreMetaMap(payments.map((p) => p.id));
 
-  const caseIds=[...new Set(expenses.map((e)=>e.caseId).filter((v):v is string=>Boolean(v)))];
-  const caseRows=caseIds.length?await prisma.case.findMany({where:{id:{in:caseIds}},select:{id:true,caseNumber:true,title:true}}):[];
-  const caseMap=new Map(caseRows.map((c)=>[c.id,c]));
+  const caseIds = [...new Set(expenses.map((e) => e.caseId).filter((v): v is string => Boolean(v)))];
+  const caseRows = caseIds.length
+    ? await prisma.case.findMany({
+        where: { id: { in: caseIds } },
+        select: { id: true, caseNumber: true, title: true },
+      })
+    : [];
+  const caseMap = new Map(caseRows.map((c) => [c.id, c]));
 
-  const allocationByPayment = new Map<string,number>();
-  for(const invoice of invoices){
-    if(invoice.status==="CANCELLED") continue;
-    for(const link of invoice.payments){
-      allocationByPayment.set(link.paymentId, round((allocationByPayment.get(link.paymentId)||0)+Math.max(0,Number(link.amountApplied||0))));
+  const allocationByPayment = new Map<string, number>();
+  for (const invoice of invoices) {
+    if (invoice.status === "CANCELLED") continue;
+    for (const link of invoice.payments) {
+      allocationByPayment.set(
+        link.paymentId,
+        round((allocationByPayment.get(link.paymentId) || 0) + Math.max(0, Number(link.amountApplied || 0))),
+      );
     }
   }
 
-  const paymentRows = payments.map((p)=>{
-    const gross=round(Number(p.amount));
-    const fee=round(Math.max(0,Number(metaMap.get(p.id)?.feeAmount||0)));
-    const net=round(Math.max(0,gross-fee));
-    const requestedAllocation=round(Math.max(0,allocationByPayment.get(p.id)||0));
-    const applied=round(Math.min(net,requestedAllocation));
-    const unapplied=round(Math.max(0,net-applied));
-    const overallocated=round(Math.max(0,requestedAllocation-net));
+  const paymentRows = payments.map((p) => {
+    const gross = round(Number(p.amount));
+    const fee = round(Math.max(0, Number(metaMap.get(p.id)?.feeAmount || 0)));
+    const net = round(Math.max(0, gross - fee));
+    const requestedAllocation = round(Math.max(0, allocationByPayment.get(p.id) || 0));
+    const applied = round(Math.min(net, requestedAllocation));
+    const unapplied = round(Math.max(0, net - applied));
+    const overallocated = round(Math.max(0, requestedAllocation - net));
     return {
       ...p,
-      gross,fee,net,applied,unapplied,overallocated,
-      serviceLabel:metaMap.get(p.id)?.serviceLabel||null,
+      gross,
+      fee,
+      net,
+      applied,
+      unapplied,
+      overallocated,
+      serviceLabel: metaMap.get(p.id)?.serviceLabel || null,
     };
   });
 
-  const invoiceRows = await Promise.all(invoices.map(async(invoice:FinanceInvoice)=>({invoice,state:await invoiceFinancialState(invoice)})));
+  const invoiceRows = await Promise.all(
+    invoices.map(async (invoice: FinanceInvoice) => ({
+      invoice,
+      state: await invoiceFinancialState(invoice),
+    })),
+  );
 
-  const byCurrency=new Map<string,CurrencySummary>();
-  const bucket=(currency:string)=>{
-    const key=currency.toUpperCase();
-    const existing=byCurrency.get(key);
-    if(existing) return existing;
-    const value:CurrencySummary={currency:key,grossReceived:0,fees:0,netReceived:0,appliedToInvoices:0,unappliedFunds:0,billed:0,invoicePaid:0,receivable:0,approvedRefunds:0,refundPaid:0,expensePaid:0,expenseCommitted:0,expensePendingApproval:0,expenseRemaining:0,realizedProfit:0,forecastProfit:0,realizedMarginPercent:null,forecastMarginPercent:null};
-    byCurrency.set(key,value);return value;
+  const byCurrency = new Map<string, CurrencySummary>();
+  const bucket = (currency: string) => {
+    const key = currency.toUpperCase();
+    const existing = byCurrency.get(key);
+    if (existing) return existing;
+    const value: CurrencySummary = {
+      currency: key,
+      grossReceived: 0,
+      fees: 0,
+      netReceived: 0,
+      appliedToInvoices: 0,
+      unappliedFunds: 0,
+      billed: 0,
+      invoicePaid: 0,
+      receivable: 0,
+      approvedRefunds: 0,
+      refundPaid: 0,
+      expensePaid: 0,
+      expenseCommitted: 0,
+      expensePendingApproval: 0,
+      expenseRemaining: 0,
+      realizedProfit: 0,
+      forecastProfit: 0,
+      realizedMarginPercent: null,
+      forecastMarginPercent: null,
+    };
+    byCurrency.set(key, value);
+    return value;
   };
 
-  for(const p of paymentRows){
-    if(!["CONFIRMED","PARTIALLY_REFUNDED","REFUNDED"].includes(p.status)) continue;
-    const b=bucket(p.currency);
-    b.grossReceived=round(b.grossReceived+p.gross);
-    b.fees=round(b.fees+p.fee);
-    b.netReceived=round(b.netReceived+p.net);
-    b.appliedToInvoices=round(b.appliedToInvoices+p.applied);
-    b.unappliedFunds=round(b.unappliedFunds+p.unapplied);
+  for (const p of paymentRows) {
+    if (!["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"].includes(p.status)) continue;
+    const b = bucket(p.currency);
+    b.grossReceived = round(b.grossReceived + p.gross);
+    b.fees = round(b.fees + p.fee);
+    b.netReceived = round(b.netReceived + p.net);
+    b.appliedToInvoices = round(b.appliedToInvoices + p.applied);
+    b.unappliedFunds = round(b.unappliedFunds + p.unapplied);
   }
 
-  for(const row of invoiceRows){
-    if(row.invoice.status==="CANCELLED") continue;
-    const b=bucket(row.invoice.currency);
-    b.billed=round(b.billed+row.invoice.total);
-    b.invoicePaid=round(b.invoicePaid+row.state.paid);
-    b.receivable=round(b.receivable+row.state.balance);
+  for (const row of invoiceRows) {
+    if (row.invoice.status === "CANCELLED") continue;
+    const b = bucket(row.invoice.currency);
+    b.billed = round(b.billed + row.invoice.total);
+    b.invoicePaid = round(b.invoicePaid + row.state.paid);
+    b.receivable = round(b.receivable + row.state.balance);
   }
 
-  const refundRows=refunds.map((r)=>{
-    const amount=round(Number(r.amount));
-    const paid=round(r.installments.filter((i)=>i.status==="PAID").reduce((s,i)=>s+Number(i.amount),0));
-    if(["APPROVED","PARTIALLY_PAID","PAID"].includes(r.status)){
-      const b=bucket(r.currency);
-      b.approvedRefunds=round(b.approvedRefunds+amount);
-      b.refundPaid=round(b.refundPaid+paid);
+  const refundRows = refunds.map((r) => {
+    const amount = round(Number(r.amount));
+    const paid = round(
+      r.installments.filter((i) => i.status === "PAID").reduce((s, i) => s + Number(i.amount), 0),
+    );
+    if (["APPROVED", "PARTIALLY_PAID", "PAID"].includes(r.status)) {
+      const b = bucket(r.currency);
+      b.approvedRefunds = round(b.approvedRefunds + amount);
+      b.refundPaid = round(b.refundPaid + paid);
     }
-    return {...r,amountNumber:amount,paidNumber:paid,remainingNumber:round(Math.max(0,amount-paid))};
+    return {
+      ...r,
+      amountNumber: amount,
+      paidNumber: paid,
+      remainingNumber: round(Math.max(0, amount - paid)),
+    };
   });
 
-  const expenseRows=expenses.map((e)=>{
-    const effectiveStatus=expenseEffectiveStatus(e);
-    const paid=round(expensePaidTotal(e));
-    const remaining=round(expenseRemaining(e));
-    const committed=["APPROVED","PARTIALLY_PAID","PAID"].includes(effectiveStatus);
-    const pendingApproval=["DRAFT","SUBMITTED"].includes(effectiveStatus);
-    if(!["REJECTED","CANCELLED"].includes(effectiveStatus)){
-      const b=bucket(e.currency);
-      b.expensePaid=round(b.expensePaid+paid);
-      if(committed) b.expenseCommitted=round(b.expenseCommitted+e.amount);
-      if(pendingApproval) b.expensePendingApproval=round(b.expensePendingApproval+e.amount);
-      b.expenseRemaining=round(b.expenseRemaining+(committed?remaining:0));
-    }
-    const caseRow=e.caseId?caseMap.get(e.caseId):null;
-    return {...e,effectiveStatus,paidNumber:paid,remainingNumber:remaining,caseLabel:caseRow?`${caseRow.caseNumber} · ${caseRow.title}`:null};
-  }).sort((a,b)=>new Date(b.updatedAt).getTime()-new Date(a.updatedAt).getTime());
+  const expenseRows = expenses
+    .map((e) => {
+      const effectiveStatus = expenseEffectiveStatus(e);
+      const paid = round(expensePaidTotal(e));
+      const remaining = round(expenseRemaining(e));
+      const committed = ["APPROVED", "PARTIALLY_PAID", "PAID"].includes(effectiveStatus);
+      const pendingApproval = ["DRAFT", "SUBMITTED"].includes(effectiveStatus);
+      if (!["REJECTED", "CANCELLED"].includes(effectiveStatus)) {
+        const b = bucket(e.currency);
+        b.expensePaid = round(b.expensePaid + paid);
+        if (committed) b.expenseCommitted = round(b.expenseCommitted + e.amount);
+        if (pendingApproval) b.expensePendingApproval = round(b.expensePendingApproval + e.amount);
+        b.expenseRemaining = round(b.expenseRemaining + (committed ? remaining : 0));
+      }
+      const caseRow = e.caseId ? caseMap.get(e.caseId) : null;
+      return {
+        ...e,
+        effectiveStatus,
+        paidNumber: paid,
+        remainingNumber: remaining,
+        caseLabel: caseRow ? `${caseRow.caseNumber} · ${caseRow.title}` : null,
+      };
+    })
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  for(const b of byCurrency.values()){
-    b.realizedProfit=round(b.netReceived-b.refundPaid-b.expensePaid);
-    b.forecastProfit=round(b.netReceived-b.approvedRefunds-b.expenseCommitted);
-    b.realizedMarginPercent=b.netReceived>0?round((b.realizedProfit/b.netReceived)*100):null;
-    b.forecastMarginPercent=b.netReceived>0?round((b.forecastProfit/b.netReceived)*100):null;
+  for (const b of byCurrency.values()) {
+    b.realizedProfit = round(b.netReceived - b.refundPaid - b.expensePaid);
+    b.forecastProfit = round(b.netReceived - b.approvedRefunds - b.expenseCommitted);
+    b.realizedMarginPercent = b.netReceived > 0 ? round((b.realizedProfit / b.netReceived) * 100) : null;
+    b.forecastMarginPercent = b.netReceived > 0 ? round((b.forecastProfit / b.netReceived) * 100) : null;
   }
 
   return {
-    summaries:[...byCurrency.values()].sort((a,b)=>a.currency.localeCompare(b.currency)),
-    payments:paymentRows,
-    invoices:invoiceRows.sort((a,b)=>new Date(b.invoice.issueDate).getTime()-new Date(a.invoice.issueDate).getTime()),
-    expenses:expenseRows,
-    refunds:refundRows,
-    alerts:{
-      overallocatedPayments:paymentRows.filter((p)=>p.overallocated>0),
-      overdueInvoices:invoiceRows.filter((r)=>r.state.overdue&&r.state.balance>0),
-      pendingPayments:paymentRows.filter((p)=>p.status==="PENDING"),
-      pendingRefunds:refundRows.filter((r)=>["REQUESTED","UNDER_REVIEW"].includes(r.status)),
-      pendingExpenses:expenseRows.filter((e)=>["DRAFT","SUBMITTED"].includes(e.effectiveStatus)),
+    summaries: [...byCurrency.values()].sort((a, b) => a.currency.localeCompare(b.currency)),
+    payments: paymentRows,
+    invoices: invoiceRows.sort(
+      (a, b) => new Date(b.invoice.issueDate).getTime() - new Date(a.invoice.issueDate).getTime(),
+    ),
+    expenses: expenseRows,
+    refunds: refundRows,
+    alerts: {
+      overallocatedPayments: paymentRows.filter((p) => p.overallocated > 0),
+      overdueInvoices: invoiceRows.filter((r) => r.state.overdue && r.state.balance > 0),
+      pendingPayments: paymentRows.filter((p) => p.status === "PENDING"),
+      pendingRefunds: refundRows.filter((r) => ["REQUESTED", "UNDER_REVIEW"].includes(r.status)),
+      pendingExpenses: expenseRows.filter((e) => ["DRAFT", "SUBMITTED"].includes(e.effectiveStatus)),
     },
   };
 }

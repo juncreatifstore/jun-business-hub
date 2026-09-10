@@ -11,7 +11,11 @@ import {
   verifyDrivePublicAccess,
 } from "@/lib/drive-public-security";
 import { drivePublicPolicyAllows, getDriveEnterpriseSettings } from "@/lib/drive-enterprise";
-import { drivePrivacyCookieName, getDrivePrivacyPolicy, verifyDrivePrivacyConsent } from "@/lib/drive-privacy";
+import {
+  drivePrivacyCookieName,
+  getDrivePrivacyPolicy,
+  verifyDrivePrivacyConsent,
+} from "@/lib/drive-privacy";
 
 export const dynamic = "force-dynamic";
 
@@ -40,15 +44,28 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     getDriveEnterpriseSettings(),
     getDrivePrivacyPolicy(file.id),
   ]);
-  if (security.disabled || publicLinkExpired(security) || !publicTokenMatches(security, suppliedToken) || !drivePublicPolicyAllows(enterprise, security)) {
+  if (
+    security.disabled ||
+    publicLinkExpired(security) ||
+    !publicTokenMatches(security, suppliedToken) ||
+    !drivePublicPolicyAllows(enterprise, security)
+  ) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   if (privacy.required) {
-    const accepted = await verifyDrivePrivacyConsent(req.cookies.get(drivePrivacyCookieName(file.id))?.value, file.id, privacy.version);
-    if (!accepted) return NextResponse.json({ error: "Confidentiality acceptance required" }, { status: 428 });
+    const accepted = await verifyDrivePrivacyConsent(
+      req.cookies.get(drivePrivacyCookieName(file.id))?.value,
+      file.id,
+      privacy.version,
+    );
+    if (!accepted)
+      return NextResponse.json({ error: "Confidentiality acceptance required" }, { status: 428 });
   }
   if (security.passwordHash) {
-    const unlocked = await verifyDrivePublicAccess(req.cookies.get(publicAccessCookieName(file.id))?.value, file.id);
+    const unlocked = await verifyDrivePublicAccess(
+      req.cookies.get(publicAccessCookieName(file.id))?.value,
+      file.id,
+    );
     if (!unlocked) return NextResponse.json({ error: "Password required" }, { status: 401 });
   }
 

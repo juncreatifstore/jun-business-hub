@@ -53,13 +53,16 @@ function chooseConsolidatedDepositLine(lines: string[]): string | undefined {
   const candidates = lines.filter((line) => {
     const n = normalizeLine(line).toLowerCase();
     return (
-      /montant total (?:depose|verse)/.test(n) ||
-      /total (?:amount )?(?:deposited|paid)/.test(n)
-    ) && lineHasUsd(line);
+      (/montant total (?:depose|verse)/.test(n) || /total (?:amount )?(?:deposited|paid)/.test(n)) &&
+      lineHasUsd(line)
+    );
   });
 
   if (!candidates.length) return undefined;
-  return candidates.find((line) => !/gourdes?|\bhtg\b|taux|exchange rate/i.test(normalizeLine(line))) ?? candidates[candidates.length - 1];
+  return (
+    candidates.find((line) => !/gourdes?|\bhtg\b|taux|exchange rate/i.test(normalizeLine(line))) ??
+    candidates[candidates.length - 1]
+  );
 }
 
 function firstMatchingLine(lines: string[], patterns: RegExp[]): string | undefined {
@@ -77,7 +80,10 @@ function firstMatchingLine(lines: string[], patterns: RegExp[]): string | undefi
  * with high confidence. This prevents false positives on unrelated documents.
  */
 export function checkRefundAgreementArithmetic(text: string): FinancialIntegrityIssue[] {
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
   const depositLine = chooseConsolidatedDepositLine(lines);
   const refundLine = firstMatchingLine(lines, [
     /remboursements? (?:recus|deja recus|effectues|deja effectues)/,
@@ -104,13 +110,16 @@ export function checkRefundAgreementArithmetic(text: string): FinancialIntegrity
 
   if (Math.abs(expectedRemaining - statedRemaining) <= 0.01) return [];
 
-  const money = (amount: number) => amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return [{
-    code: "REFUND_BALANCE_MISMATCH",
-    totalDeposited,
-    refundsReceived,
-    expectedRemaining,
-    statedRemaining,
-    message: `Financial verification failed: total deposited USD ${money(totalDeposited)} - refunds received USD ${money(refundsReceived)} = USD ${money(expectedRemaining)}, not USD ${money(statedRemaining)}.`,
-  }];
+  const money = (amount: number) =>
+    amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return [
+    {
+      code: "REFUND_BALANCE_MISMATCH",
+      totalDeposited,
+      refundsReceived,
+      expectedRemaining,
+      statedRemaining,
+      message: `Financial verification failed: total deposited USD ${money(totalDeposited)} - refunds received USD ${money(refundsReceived)} = USD ${money(expectedRemaining)}, not USD ${money(statedRemaining)}.`,
+    },
+  ];
 }

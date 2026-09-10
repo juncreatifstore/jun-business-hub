@@ -42,7 +42,10 @@ function parse(value: string, refundId: string): RefundWorkflowMeta {
 }
 
 export async function getRefundWorkflowMeta(refundId: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: `${REFUND_WORKFLOW_PREFIX}${refundId}` }, select: { value: true } });
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${REFUND_WORKFLOW_PREFIX}${refundId}` },
+    select: { value: true },
+  });
   return row ? parse(row.value, refundId) : empty(refundId);
 }
 
@@ -50,12 +53,20 @@ export async function saveRefundWorkflowMeta(refundId: string, patch: Partial<Re
   const current = await getRefundWorkflowMeta(refundId);
   const next: RefundWorkflowMeta = { ...current, ...patch, refundId, updatedAt: new Date().toISOString() };
   const key = `${REFUND_WORKFLOW_PREFIX}${refundId}`;
-  await prisma.appSetting.upsert({ where: { key }, create: { key, value: JSON.stringify(next) }, update: { value: JSON.stringify(next) } });
+  await prisma.appSetting.upsert({
+    where: { key },
+    create: { key, value: JSON.stringify(next) },
+    update: { value: JSON.stringify(next) },
+  });
   return next;
 }
 
 export function refundPaidTotal(installments: { amount: unknown; status: string }[]) {
-  return Math.round(installments.filter((i) => i.status === "PAID").reduce((sum, i) => sum + Number(i.amount), 0) * 100) / 100;
+  return (
+    Math.round(
+      installments.filter((i) => i.status === "PAID").reduce((sum, i) => sum + Number(i.amount), 0) * 100,
+    ) / 100
+  );
 }
 
 export function refundRemaining(amount: unknown, installments: { amount: unknown; status: string }[]) {

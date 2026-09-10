@@ -15,12 +15,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const form = await req.formData();
   const password = String(form.get("password") ?? "");
   const key = String(form.get("key") ?? "");
-  const file = await prisma.file.findFirst({ where: { id: params.id, isVault: false, archivedAt: null }, select: { id: true } });
+  const file = await prisma.file.findFirst({
+    where: { id: params.id, isVault: false, archivedAt: null },
+    select: { id: true },
+  });
   if (!file) return NextResponse.redirect(new URL(`/view/file/${params.id}?error=unavailable`, req.url), 303);
 
   const security = await getDrivePublicSecurity(file.id);
-  if (security.disabled || publicLinkExpired(security) || !publicTokenMatches(security, key || null) || !security.passwordHash) {
-    return NextResponse.redirect(new URL(`/view/file/${file.id}${key ? `?key=${encodeURIComponent(key)}&error=unavailable` : "?error=unavailable"}`, req.url), 303);
+  if (
+    security.disabled ||
+    publicLinkExpired(security) ||
+    !publicTokenMatches(security, key || null) ||
+    !security.passwordHash
+  ) {
+    return NextResponse.redirect(
+      new URL(
+        `/view/file/${file.id}${key ? `?key=${encodeURIComponent(key)}&error=unavailable` : "?error=unavailable"}`,
+        req.url,
+      ),
+      303,
+    );
   }
 
   const ok = await bcrypt.compare(password, security.passwordHash).catch(() => false);

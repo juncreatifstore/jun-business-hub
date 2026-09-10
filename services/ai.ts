@@ -7,11 +7,26 @@ import { checkRefundAgreementArithmetic } from "@/lib/document-financial-integri
 import { revalidatePath } from "next/cache";
 
 const BLOCKED_TOPICS = [
-  "refund", "remboursement", "dispute", "conflict", "legal", "lawyer", "avocat",
-  "contract", "contrat", "bank", "banque", "iban", "routing", "wire",
+  "refund",
+  "remboursement",
+  "dispute",
+  "conflict",
+  "legal",
+  "lawyer",
+  "avocat",
+  "contract",
+  "contrat",
+  "bank",
+  "banque",
+  "iban",
+  "routing",
+  "wire",
 ];
 
-export async function classifyEmailAILevel(subject: string, body: string): Promise<"AUTO" | "APPROVAL_REQUIRED" | "BLOCKED"> {
+export async function classifyEmailAILevel(
+  subject: string,
+  body: string,
+): Promise<"AUTO" | "APPROVAL_REQUIRED" | "BLOCKED"> {
   const text = `${subject} ${body}`.toLowerCase();
   if (BLOCKED_TOPICS.some((t) => text.includes(t))) return "BLOCKED";
   const amounts = text.match(/\$?\s?(\d[\d,]*\.?\d*)/g) ?? [];
@@ -40,12 +55,22 @@ async function openaiChat(messages: { role: string; content: string }[]): Promis
 type ToolResult = { tool: string; ok: boolean; data?: unknown; error?: string };
 
 async function runTool(user: CurrentUser, name: string, arg: string): Promise<ToolResult> {
-  const deny = (p: string): ToolResult => ({ tool: name, ok: false, error: `You lack the ${p} permission, so JUN AI cannot use this tool for you.` });
+  const deny = (p: string): ToolResult => ({
+    tool: name,
+    ok: false,
+    error: `You lack the ${p} permission, so JUN AI cannot use this tool for you.`,
+  });
   switch (name) {
     case "searchClients": {
       if (!can(user, "CLIENT_READ")) return deny("CLIENT_READ");
       const data = await prisma.client.findMany({
-        where: { OR: [{ firstName: { contains: arg, mode: "insensitive" } }, { lastName: { contains: arg, mode: "insensitive" } }, { internalId: { contains: arg, mode: "insensitive" } }] },
+        where: {
+          OR: [
+            { firstName: { contains: arg, mode: "insensitive" } },
+            { lastName: { contains: arg, mode: "insensitive" } },
+            { internalId: { contains: arg, mode: "insensitive" } },
+          ],
+        },
         take: 5,
         select: { id: true, internalId: true, firstName: true, lastName: true, email: true, status: true },
       });
@@ -54,7 +79,12 @@ async function runTool(user: CurrentUser, name: string, arg: string): Promise<To
     case "searchCases": {
       if (!can(user, "CASE_READ")) return deny("CASE_READ");
       const data = await prisma.case.findMany({
-        where: { OR: [{ title: { contains: arg, mode: "insensitive" } }, { caseNumber: { contains: arg, mode: "insensitive" } }] },
+        where: {
+          OR: [
+            { title: { contains: arg, mode: "insensitive" } },
+            { caseNumber: { contains: arg, mode: "insensitive" } },
+          ],
+        },
         take: 5,
         select: { id: true, caseNumber: true, title: true, status: true, priority: true },
       });
@@ -63,7 +93,12 @@ async function runTool(user: CurrentUser, name: string, arg: string): Promise<To
     case "searchDocuments": {
       if (!can(user, "DOCUMENT_READ")) return deny("DOCUMENT_READ");
       const data = await prisma.document.findMany({
-        where: { OR: [{ title: { contains: arg, mode: "insensitive" } }, { documentId: { contains: arg, mode: "insensitive" } }] },
+        where: {
+          OR: [
+            { title: { contains: arg, mode: "insensitive" } },
+            { documentId: { contains: arg, mode: "insensitive" } },
+          ],
+        },
         take: 5,
         select: { id: true, documentId: true, title: true, type: true, status: true },
       });
@@ -72,7 +107,12 @@ async function runTool(user: CurrentUser, name: string, arg: string): Promise<To
     case "searchPayments": {
       if (!can(user, "PAYMENT_READ")) return deny("PAYMENT_READ");
       const data = await prisma.payment.findMany({
-        where: { OR: [{ reference: { contains: arg, mode: "insensitive" } }, { client: { lastName: { contains: arg, mode: "insensitive" } } }] },
+        where: {
+          OR: [
+            { reference: { contains: arg, mode: "insensitive" } },
+            { client: { lastName: { contains: arg, mode: "insensitive" } } },
+          ],
+        },
         take: 5,
         select: { id: true, reference: true, amount: true, currency: true, status: true },
       });
@@ -86,7 +126,7 @@ async function runTool(user: CurrentUser, name: string, arg: string): Promise<To
 function formatToolResult(result: ToolResult, query: string): string {
   if (!result.ok) return `⚠ ${result.error ?? "The search could not be completed."}`;
 
-  const rows = Array.isArray(result.data) ? result.data as Record<string, unknown>[] : [];
+  const rows = Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
   if (rows.length === 0) {
     const labels: Record<string, string> = {
       searchClients: "client",
@@ -100,20 +140,27 @@ function formatToolResult(result: ToolResult, query: string): string {
 
   switch (result.tool) {
     case "searchClients":
-      return `I found ${rows.length} client${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => {
-        const name = `${String(r.firstName ?? "")} ${String(r.lastName ?? "")}`.trim();
-        const email = r.email ? ` · ${String(r.email)}` : "";
-        return `• ${name || "Unnamed client"} — ${String(r.internalId ?? "No ID")} · ${String(r.status ?? "UNKNOWN")}${email}`;
-      }).join("\n")}`;
+      return `I found ${rows.length} client${rows.length === 1 ? "" : "s"}:\n${rows
+        .map((r) => {
+          const name = `${String(r.firstName ?? "")} ${String(r.lastName ?? "")}`.trim();
+          const email = r.email ? ` · ${String(r.email)}` : "";
+          return `• ${name || "Unnamed client"} — ${String(r.internalId ?? "No ID")} · ${String(r.status ?? "UNKNOWN")}${email}`;
+        })
+        .join("\n")}`;
     case "searchCases":
       return `I found ${rows.length} case${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => `• ${String(r.caseNumber ?? "No number")} — ${String(r.title ?? "Untitled")} · ${String(r.status ?? "UNKNOWN")} · ${String(r.priority ?? "")}`).join("\n")}`;
     case "searchDocuments":
       return `I found ${rows.length} document${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => `• ${String(r.documentId ?? "No ID")} — ${String(r.title ?? "Untitled")} · ${String(r.type ?? "")} · ${String(r.status ?? "UNKNOWN")}`).join("\n")}`;
     case "searchPayments":
-      return `I found ${rows.length} payment${rows.length === 1 ? "" : "s"}:\n${rows.map((r) => {
-        const amount = typeof r.amount === "number" ? r.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(r.amount ?? "0.00");
-        return `• ${String(r.reference ?? "No reference")} — ${String(r.currency ?? "USD")} ${amount} · ${String(r.status ?? "UNKNOWN")}`;
-      }).join("\n")}`;
+      return `I found ${rows.length} payment${rows.length === 1 ? "" : "s"}:\n${rows
+        .map((r) => {
+          const amount =
+            typeof r.amount === "number"
+              ? r.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : String(r.amount ?? "0.00");
+          return `• ${String(r.reference ?? "No reference")} — ${String(r.currency ?? "USD")} ${amount} · ${String(r.status ?? "UNKNOWN")}`;
+        })
+        .join("\n")}`;
     default:
       return `I found ${rows.length} result${rows.length === 1 ? "" : "s"}.`;
   }
@@ -123,12 +170,16 @@ export async function sendAIMessage(conversationId: string | null, formData: For
   const user = await assertPermission("AI_USE");
   const { rateLimitAsync } = await import("@/lib/rate-limit");
   if (!(await rateLimitAsync(`ai:${user.id}`, 30, 60_000))) return;
-  const content = String(formData.get("message") ?? "").trim().slice(0, 4000);
+  const content = String(formData.get("message") ?? "")
+    .trim()
+    .slice(0, 4000);
   if (!content) return;
 
   let convId = conversationId;
   if (!convId) {
-    const conv = await prisma.aIConversation.create({ data: { userId: user.id, title: content.slice(0, 60) } });
+    const conv = await prisma.aIConversation.create({
+      data: { userId: user.id, title: content.slice(0, 60) },
+    });
     convId = conv.id;
   } else {
     const conv = await prisma.aIConversation.findUnique({ where: { id: convId } });
@@ -141,23 +192,37 @@ export async function sendAIMessage(conversationId: string | null, formData: For
   if (!process.env.OPENAI_API_KEY) {
     const toolMatch = content.match(/^search (clients|cases|documents|payments)\s+(.+)/i);
     if (toolMatch) {
-      const map: Record<string, string> = { clients: "searchClients", cases: "searchCases", documents: "searchDocuments", payments: "searchPayments" };
+      const map: Record<string, string> = {
+        clients: "searchClients",
+        cases: "searchCases",
+        documents: "searchDocuments",
+        payments: "searchPayments",
+      };
       const query = toolMatch[2].trim();
       const result = await runTool(user, map[toolMatch[1].toLowerCase()], query);
       reply = formatToolResult(result, query);
     } else {
-      reply = "JUN AI is not connected to a model yet (OPENAI_API_KEY is not configured). You can still search JUN data with commands such as: search clients <name>, search cases <query>, search documents <query>, or search payments <query>.";
+      reply =
+        "JUN AI is not connected to a model yet (OPENAI_API_KEY is not configured). You can still search JUN data with commands such as: search clients <name>, search cases <query>, search documents <query>, or search payments <query>.";
     }
   } else {
     const { generateText, stepCountIs } = await import("ai");
     const { openai } = await import("@ai-sdk/openai");
     const { buildAITools } = await import("@/lib/ai/tools");
-    const history = await prisma.aIMessage.findMany({ where: { conversationId: convId }, orderBy: { createdAt: "asc" }, take: 24 });
+    const history = await prisma.aIMessage.findMany({
+      where: { conversationId: convId },
+      orderBy: { createdAt: "asc" },
+      take: 24,
+    });
     try {
       const result = await generateText({
         model: openai(process.env.OPENAI_MODEL ?? "gpt-4o-mini"),
-        system: "You are JUN AI, the internal assistant of JUN CREATIF AND TRAVEL LLC. Be concise and professional. Use tools to look up real data instead of guessing. You may create drafts, but never finalize documents, sign, send emails, or approve payments/refunds without human approval. Never reveal secrets, tokens, passwords or full identity-document data.",
-        messages: history.map((m) => ({ role: m.role === "assistant" ? ("assistant" as const) : ("user" as const), content: m.content })),
+        system:
+          "You are JUN AI, the internal assistant of JUN CREATIF AND TRAVEL LLC. Be concise and professional. Use tools to look up real data instead of guessing. You may create drafts, but never finalize documents, sign, send emails, or approve payments/refunds without human approval. Never reveal secrets, tokens, passwords or full identity-document data.",
+        messages: history.map((m) => ({
+          role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+          content: m.content,
+        })),
         tools: buildAITools(user),
         stopWhen: stepCountIs(5),
       });
@@ -173,9 +238,13 @@ export async function sendAIMessage(conversationId: string | null, formData: For
   redirect(`/app/ai?c=${convId}`);
 }
 
-export async function generateDocumentDraft(formData: FormData): Promise<{ content?: string; error?: string }> {
+export async function generateDocumentDraft(
+  formData: FormData,
+): Promise<{ content?: string; error?: string }> {
   const user = await assertPermission("DOCUMENT_CREATE");
-  const instruction = String(formData.get("instruction") ?? "").trim().slice(0, 2000);
+  const instruction = String(formData.get("instruction") ?? "")
+    .trim()
+    .slice(0, 2000);
   const clientId = String(formData.get("clientId") ?? "");
   const caseId = String(formData.get("caseId") ?? "");
   if (!instruction) return { error: "Write an instruction first." };
@@ -202,10 +271,12 @@ export async function generateDocumentDraft(formData: FormData): Promise<{ conte
           },
         },
       }),
-      prisma.appSetting.findMany({
-        where: { key: { in: ["company.legal_representative", "company.representative_title"] } },
-        select: { key: true, value: true },
-      }).catch(() => []),
+      prisma.appSetting
+        .findMany({
+          where: { key: { in: ["company.legal_representative", "company.representative_title"] } },
+          select: { key: true, value: true },
+        })
+        .catch(() => []),
     ]);
 
     if (client) {
@@ -215,7 +286,8 @@ export async function generateDocumentDraft(formData: FormData): Promise<{ conte
 
       if (can(user, "PAYMENT_READ") && client.payments.length) {
         const totals = new Map<string, number>();
-        for (const p of client.payments) totals.set(p.currency, (totals.get(p.currency) || 0) + Number(p.amount));
+        for (const p of client.payments)
+          totals.set(p.currency, (totals.get(p.currency) || 0) + Number(p.amount));
         context += `Historical confirmed client payments (include every one of these in any final-account/termination document):\n${client.payments.map((p) => `- ${p.reference} | ${p.currency} ${Number(p.amount).toFixed(2)} | received ${((p.paidAt || p.createdAt) as Date).toISOString().slice(0, 10)} | current status ${p.status}`).join("\n")}\n`;
         context += `Total historical confirmed payments by currency: ${[...totals.entries()].map(([currency, amount]) => `${currency} ${amount.toFixed(2)}`).join("; ")}. These totals are computer-calculated authoritative facts; copy them exactly and do not recompute them differently.\n`;
       } else if (can(user, "PAYMENT_READ")) {
@@ -224,13 +296,21 @@ export async function generateDocumentDraft(formData: FormData): Promise<{ conte
 
       if (can(user, "REFUND_READ")) {
         const refundRows = client.refunds.map((refund) => {
-          const paid = refund.installments.filter((i) => i.status === "PAID").reduce((sum, i) => sum + Number(i.amount), 0);
+          const paid = refund.installments
+            .filter((i) => i.status === "PAID")
+            .reduce((sum, i) => sum + Number(i.amount), 0);
           const remaining = Math.max(0, Number(refund.amount) - paid);
-          const paidDates = refund.installments.filter((i) => i.status === "PAID" && i.paidAt).map((i) => i.paidAt!.toISOString().slice(0, 10));
+          const paidDates = refund.installments
+            .filter((i) => i.status === "PAID" && i.paidAt)
+            .map((i) => i.paidAt!.toISOString().slice(0, 10));
           return { refund, paid, remaining, paidDates };
         });
         const paidRefunds = refundRows.filter((x) => x.paid > 0);
-        const openRefunds = refundRows.filter((x) => x.remaining > 0.005 && ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PARTIALLY_PAID"].includes(x.refund.status));
+        const openRefunds = refundRows.filter(
+          (x) =>
+            x.remaining > 0.005 &&
+            ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PARTIALLY_PAID"].includes(x.refund.status),
+        );
         if (paidRefunds.length) {
           context += `Refunds already paid to the client (state these explicitly):\n${paidRefunds.map((x) => `- ${x.refund.refundNumber} | ${x.refund.currency} ${x.paid.toFixed(2)} paid | original requested ${x.refund.currency} ${Number(x.refund.amount).toFixed(2)} | status ${x.refund.status} | paid date(s) ${x.paidDates.join(", ") || "recorded in system"}`).join("\n")}\n`;
         } else {
@@ -250,11 +330,15 @@ export async function generateDocumentDraft(formData: FormData): Promise<{ conte
     if (c) context += `Case: ${c.caseNumber} — ${c.title} (${c.status}).\n`;
   }
 
-  const draftingRules = "You draft formal professional business documents for JUN CREATIF AND TRAVEL LLC as clean HTML using only h1, h2, p, ul, li and table elements; no scripts or inline styles. Use the exact factual financial data supplied in context and never omit a supplied payment or refund when the document concerns account closure, relationship termination, refunds, or a final notice. FINANCIAL ARITHMETIC IS A HARD CONSTRAINT: every total, subtotal, converted amount, refund sum and remaining balance must be mathematically verified before output. Never guess a balance. For a remaining refund, use the equation total deposited minus refunds already received equals remaining due. Example: USD 2,913 - (USD 150 + USD 1,000 + USD 1,000) = USD 763, never USD 1,763. Never invent transactions, dates, amounts, legal citations, signatures, or facts. Use the supplied Document date and never output [DATE]. Drafts are unsigned. Do NOT add a handwritten or blank signature block for JUN CREATIF AND TRAVEL LLC or its representative: company authenticity is established by the document's online verification page, QR code and integrity hash. For contracts, agreements and refund agreements that require acceptance, include a CLIENT signature section with client name, signature line and date line. If the instruction concerns termination of the commercial relationship, structure the document with clear sections: purpose/decision, financial history, refunds already completed, remaining refund obligation, final account settlement, effects of termination, finality of decision, records/statement, and client acceptance/signature when applicable. Explicitly state that any remaining approved amount will be paid through the refund workflow; after all refunds and obligations are settled the client will receive a final statement showing a zero balance (0.00). State that the company's decision to terminate the commercial relationship is final and not subject to appeal or internal reconsideration, while preserving any rights that cannot legally be waived. State that no new commercial service or transaction will be accepted after final termination. Be explicit, formal, neutral and detailed; do not use vague promises such as 'as soon as possible' when the system only shows a pending workflow. Never state that a pending refund has already been paid.";
+  const draftingRules =
+    "You draft formal professional business documents for JUN CREATIF AND TRAVEL LLC as clean HTML using only h1, h2, p, ul, li and table elements; no scripts or inline styles. Use the exact factual financial data supplied in context and never omit a supplied payment or refund when the document concerns account closure, relationship termination, refunds, or a final notice. FINANCIAL ARITHMETIC IS A HARD CONSTRAINT: every total, subtotal, converted amount, refund sum and remaining balance must be mathematically verified before output. Never guess a balance. For a remaining refund, use the equation total deposited minus refunds already received equals remaining due. Example: USD 2,913 - (USD 150 + USD 1,000 + USD 1,000) = USD 763, never USD 1,763. Never invent transactions, dates, amounts, legal citations, signatures, or facts. Use the supplied Document date and never output [DATE]. Drafts are unsigned. Do NOT add a handwritten or blank signature block for JUN CREATIF AND TRAVEL LLC or its representative: company authenticity is established by the document's online verification page, QR code and integrity hash. For contracts, agreements and refund agreements that require acceptance, include a CLIENT signature section with client name, signature line and date line. If the instruction concerns termination of the commercial relationship, structure the document with clear sections: purpose/decision, financial history, refunds already completed, remaining refund obligation, final account settlement, effects of termination, finality of decision, records/statement, and client acceptance/signature when applicable. Explicitly state that any remaining approved amount will be paid through the refund workflow; after all refunds and obligations are settled the client will receive a final statement showing a zero balance (0.00). State that the company's decision to terminate the commercial relationship is final and not subject to appeal or internal reconsideration, while preserving any rights that cannot legally be waived. State that no new commercial service or transaction will be accepted after final termination. Be explicit, formal, neutral and detailed; do not use vague promises such as 'as soon as possible' when the system only shows a pending workflow. Never state that a pending refund has already been paid.";
 
   let ai = await openaiChat([
     { role: "system", content: draftingRules },
-    { role: "user", content: `${context}\nInstruction: ${instruction}\nReturn only the HTML body of the draft.` },
+    {
+      role: "user",
+      content: `${context}\nInstruction: ${instruction}\nReturn only the HTML body of the draft.`,
+    },
   ]);
 
   if (ai) {
@@ -281,12 +365,20 @@ export async function generateDocumentDraft(formData: FormData): Promise<{ conte
           resourceId: clientId || caseId || user.id,
           after: { code: financialIssues[0].code, message: financialIssues[0].message },
         }).catch(() => undefined);
-        return { error: `${financialIssues[0].message} JUN AI refused to insert a financially inconsistent draft. Please regenerate or correct the source figures.` };
+        return {
+          error: `${financialIssues[0].message} JUN AI refused to insert a financially inconsistent draft. Please regenerate or correct the source figures.`,
+        };
       }
     }
   }
 
-  await logActivity({ type: "AI_DRAFT", message: "AI document draft generated", userId: user.id, clientId: clientId || null, caseId: caseId || null });
+  await logActivity({
+    type: "AI_DRAFT",
+    message: "AI document draft generated",
+    userId: user.id,
+    clientId: clientId || null,
+    caseId: caseId || null,
+  });
 
   if (ai) return { content: ai };
   return {
@@ -299,7 +391,13 @@ export async function proposeAIAction(tool: string, args: Record<string, unknown
   const action = await prisma.aIAction.create({
     data: { userId: user.id, tool, args: args as never },
   });
-  await audit({ userId: user.id, action: "AI_ACTION_PROPOSED", resourceType: "AIAction", resourceId: action.id, after: { tool } });
+  await audit({
+    userId: user.id,
+    action: "AI_ACTION_PROPOSED",
+    resourceType: "AIAction",
+    resourceId: action.id,
+    after: { tool },
+  });
   revalidatePath("/app/ai");
 }
 
@@ -313,9 +411,19 @@ export async function reviewAIAction(actionId: string, formData: FormData) {
   if (decision === "REJECTED") {
     await prisma.aIAction.update({
       where: { id: actionId },
-      data: { status: "REJECTED", reviewedById: user.id, reviewedAt: new Date(), result: { approved: false } },
+      data: {
+        status: "REJECTED",
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+        result: { approved: false },
+      },
     });
-    await audit({ userId: user.id, action: "AI_ACTION_REJECTED", resourceType: "AIAction", resourceId: actionId });
+    await audit({
+      userId: user.id,
+      action: "AI_ACTION_REJECTED",
+      resourceType: "AIAction",
+      resourceId: actionId,
+    });
     revalidatePath("/app/ai");
     return;
   }
@@ -330,10 +438,23 @@ export async function reviewAIAction(actionId: string, formData: FormData) {
     if (action.tool === "SEND_EMAIL") {
       const args = action.args as { threadId?: string };
       if (!args.threadId) throw new Error("SEND_EMAIL action is missing threadId");
-      result = { approved: true, threadId: args.threadId, note: "Human approval recorded. Email sending remains controlled by the Mail send action." };
+      result = {
+        approved: true,
+        threadId: args.threadId,
+        note: "Human approval recorded. Email sending remains controlled by the Mail send action.",
+      };
     }
-    await prisma.aIAction.update({ where: { id: actionId }, data: { status: "EXECUTED", result: result as never } });
-    await audit({ userId: user.id, action: "AI_ACTION_APPROVED", resourceType: "AIAction", resourceId: actionId, after: { tool: action.tool } });
+    await prisma.aIAction.update({
+      where: { id: actionId },
+      data: { status: "EXECUTED", result: result as never },
+    });
+    await audit({
+      userId: user.id,
+      action: "AI_ACTION_APPROVED",
+      resourceType: "AIAction",
+      resourceId: actionId,
+      after: { tool: action.tool },
+    });
   } catch (e) {
     await prisma.aIAction.update({
       where: { id: actionId },

@@ -2,10 +2,26 @@ import Link from "next/link";
 import { ShieldCheck, Plane, FileText, Landmark, Sparkles, ArrowRight } from "lucide-react";
 
 const services = [
-  { icon: Plane, title: "Travel services", body: "Itineraries, reservations, visas, and full travel files managed end to end." },
-  { icon: FileText, title: "Document services", body: "Contracts, attestations, and official paperwork drafted, tracked, and verifiable." },
-  { icon: Landmark, title: "Business support", body: "Company formalities, payments, receipts, and structured client records." },
-  { icon: Sparkles, title: "Creative projects", body: "Brand and creative work under the JUN Creatif division." },
+  {
+    icon: Plane,
+    title: "Travel services",
+    body: "Itineraries, reservations, visas, and full travel files managed end to end.",
+  },
+  {
+    icon: FileText,
+    title: "Document services",
+    body: "Contracts, attestations, and official paperwork drafted, tracked, and verifiable.",
+  },
+  {
+    icon: Landmark,
+    title: "Business support",
+    body: "Company formalities, payments, receipts, and structured client records.",
+  },
+  {
+    icon: Sparkles,
+    title: "Creative projects",
+    body: "Brand and creative work under the JUN Creatif division.",
+  },
 ];
 
 const values = [
@@ -27,14 +43,20 @@ export default function HomePage() {
             Travel and documents, run like an institution.
           </h1>
           <p className="mt-6 max-w-xl text-lg text-white/70">
-            We manage journeys, paperwork, and payments inside one accountable system — so every
-            commitment we make to you is recorded, numbered, and verifiable.
+            We manage journeys, paperwork, and payments inside one accountable system — so every commitment we
+            make to you is recorded, numbered, and verifiable.
           </p>
           <div className="mt-9 flex flex-wrap gap-4">
-            <Link href="/contact" className="inline-flex items-center gap-2 rounded-lg bg-electric px-6 py-3 font-medium text-white transition hover:brightness-110">
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-lg bg-electric px-6 py-3 font-medium text-white transition hover:brightness-110"
+            >
               Contact us <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/services" className="rounded-lg border border-white/25 px-6 py-3 text-white/85 transition hover:bg-white/5">
+            <Link
+              href="/services"
+              className="rounded-lg border border-white/25 px-6 py-3 text-white/85 transition hover:bg-white/5"
+            >
               Explore services
             </Link>
           </div>
@@ -65,9 +87,9 @@ export default function HomePage() {
           <div>
             <h2 className="font-display text-3xl">Why clients choose JUN</h2>
             <p className="mt-4 text-muted2">
-              Because travel and legal paperwork are too important for loose ends. Our internal
-              platform — JUN Business Hub — keeps every client file, contract, payment, and refund
-              connected, dated, and auditable.
+              Because travel and legal paperwork are too important for loose ends. Our internal platform — JUN
+              Business Hub — keeps every client file, contract, payment, and refund connected, dated, and
+              auditable.
             </p>
           </div>
           <dl className="grid gap-6 sm:grid-cols-2">

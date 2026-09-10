@@ -11,7 +11,11 @@ type ProviderResult = { envelopeId: string; provider: string };
 
 interface SignatureProvider {
   readonly name: string;
-  createEnvelope(input: { documentId: string; title: string; signers: { name: string; email: string }[] }): Promise<ProviderResult>;
+  createEnvelope(input: {
+    documentId: string;
+    title: string;
+    signers: { name: string; email: string }[];
+  }): Promise<ProviderResult>;
 }
 
 class MockSignatureProvider implements SignatureProvider {
@@ -24,7 +28,11 @@ class MockSignatureProvider implements SignatureProvider {
 class DocusignProvider implements SignatureProvider {
   readonly name = "DOCUSIGN";
   constructor(private pdfBytes: Uint8Array) {}
-  async createEnvelope(input: { documentId: string; title: string; signers: { name: string; email: string }[] }): Promise<ProviderResult> {
+  async createEnvelope(input: {
+    documentId: string;
+    title: string;
+    signers: { name: string; email: string }[];
+  }): Promise<ProviderResult> {
     const { docusignCreateEnvelope } = await import("@/lib/docusign");
     const { envelopeId } = await docusignCreateEnvelope({
       documentId: input.documentId,
@@ -40,7 +48,8 @@ async function signatureProvider(finalPdf: () => Promise<Uint8Array>): Promise<S
   const { docusignConfigured } = await import("@/lib/docusign");
   const wanted = process.env.SIGNATURE_PROVIDER ?? "MOCK";
   if (wanted === "DOCUSIGN") {
-    if (!docusignConfigured()) throw new Error("SIGNATURE_PROVIDER=DOCUSIGN but DocuSign credentials are missing");
+    if (!docusignConfigured())
+      throw new Error("SIGNATURE_PROVIDER=DOCUSIGN but DocuSign credentials are missing");
     return new DocusignProvider(await finalPdf());
   }
   return new MockSignatureProvider();
@@ -50,21 +59,30 @@ export async function createSignatureRequest(documentId: string): Promise<void> 
   const user = await assertPermission("DOCUMENT_SIGN");
   const doc = await prisma.document.findUnique({ where: { id: documentId }, include: { client: true } });
   if (!doc) redirect("/app/documents?toast_error=Document not found");
-  if (doc.status !== "FINAL") redirect(`/app/documents/${doc.id}?toast_error=Only finalized documents can be sent for signature`);
-  if (!doc.client) redirect(`/app/documents/${doc.id}?toast_error=${encodeURIComponent("This document is not linked to a client")}`);
+  if (doc.status !== "FINAL")
+    redirect(`/app/documents/${doc.id}?toast_error=Only finalized documents can be sent for signature`);
+  if (!doc.client)
+    redirect(
+      `/app/documents/${doc.id}?toast_error=${encodeURIComponent("This document is not linked to a client")}`,
+    );
   const client = doc.client;
-  if (!client.email) redirect(`/app/documents/${doc.id}?toast_error=${encodeURIComponent("Add the client's email before creating a signature request")}`);
+  if (!client.email)
+    redirect(
+      `/app/documents/${doc.id}?toast_error=${encodeURIComponent("Add the client's email before creating a signature request")}`,
+    );
 
   // Company authenticity is established by JUN's QR/online verification and
   // integrity hash. The quick signature flow therefore requests only the
   // client's signature; the JUN representative is not a signer.
-  const recipients: SignatureRecipient[] = [{
-    name: `${client.firstName} ${client.lastName}`.trim(),
-    email: client.email,
-    role: "CLIENT",
-    order: 1,
-    signedAt: null,
-  }];
+  const recipients: SignatureRecipient[] = [
+    {
+      name: `${client.firstName} ${client.lastName}`.trim(),
+      email: client.email,
+      role: "CLIENT",
+      order: 1,
+      signedAt: null,
+    },
+  ];
 
   const provider = await signatureProvider(async () => {
     if (doc.finalPdfKey) {
@@ -72,11 +90,25 @@ export async function createSignatureRequest(documentId: string): Promise<void> 
       return new Uint8Array(await storage().download(doc.finalPdfKey));
     }
     const { renderDocumentPdf } = await import("@/services/pdf");
-    const latest = await prisma.documentVersion.findFirst({ where: { documentId: doc.id }, orderBy: { version: "desc" } });
-    return renderDocumentPdf({ documentId: doc.documentId, title: doc.title, type: doc.type, status: doc.status, html: latest?.content ?? "", clientName: `${client.firstName} ${client.lastName}` });
+    const latest = await prisma.documentVersion.findFirst({
+      where: { documentId: doc.id },
+      orderBy: { version: "desc" },
+    });
+    return renderDocumentPdf({
+      documentId: doc.documentId,
+      title: doc.title,
+      type: doc.type,
+      status: doc.status,
+      html: latest?.content ?? "",
+      clientName: `${client.firstName} ${client.lastName}`,
+    });
   });
 
-  const envelope = await provider.createEnvelope({ documentId: doc.documentId, title: doc.title, signers: recipients.map(({ name, email }) => ({ name, email })) });
+  const envelope = await provider.createEnvelope({
+    documentId: doc.documentId,
+    title: doc.title,
+    signers: recipients.map(({ name, email }) => ({ name, email })),
+  });
   const request = await prisma.signatureRequest.create({
     data: {
       documentId: doc.id,
@@ -89,22 +121,39 @@ export async function createSignatureRequest(documentId: string): Promise<void> 
     },
   });
 
-  await audit({ userId: user.id, action: "SIGNATURE_REQUEST_CREATE", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: doc.documentId, provider: envelope.provider, recipients: 1, signerRole: "CLIENT" } });
-  await logActivity({ userId: user.id, type: "SIGNATURE_REQUESTED", message: `Client signature requested for ${doc.documentId}`, clientId: doc.clientId ?? undefined, caseId: doc.caseId ?? undefined });
+  await audit({
+    userId: user.id,
+    action: "SIGNATURE_REQUEST_CREATE",
+    resourceType: "SignatureRequest",
+    resourceId: request.id,
+    after: { documentId: doc.documentId, provider: envelope.provider, recipients: 1, signerRole: "CLIENT" },
+  });
+  await logActivity({
+    userId: user.id,
+    type: "SIGNATURE_REQUESTED",
+    message: `Client signature requested for ${doc.documentId}`,
+    clientId: doc.clientId ?? undefined,
+    caseId: doc.caseId ?? undefined,
+  });
   revalidatePath(`/app/documents/${doc.id}`);
-  redirect(`/app/signatures/${request.id}?toast=${encodeURIComponent(envelope.provider === "DOCUSIGN" ? "Client signature request sent via DocuSign." : `Client-only signature request created via ${envelope.provider}`)}`);
+  redirect(
+    `/app/signatures/${request.id}?toast=${encodeURIComponent(envelope.provider === "DOCUSIGN" ? "Client signature request sent via DocuSign." : `Client-only signature request created via ${envelope.provider}`)}`,
+  );
 }
 
 export async function mockSignRecipient(requestId: string, recipientIndex: number): Promise<void> {
   const user = await assertPermission("DOCUMENT_SIGN");
-  if (process.env.NODE_ENV === "production") redirect("/app/signatures?toast_error=Mock signing is disabled in production");
+  if (process.env.NODE_ENV === "production")
+    redirect("/app/signatures?toast_error=Mock signing is disabled in production");
   const request = await prisma.signatureRequest.findUnique({
     where: { id: requestId },
     include: { document: { include: { versions: { orderBy: { version: "desc" }, take: 1 } } } },
   });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
-  if (request.provider !== "MOCK") redirect(`/app/signatures/${request.id}?toast_error=This request uses ${request.provider}`);
-  if (["SIGNED", "DECLINED", "EXPIRED", "VOIDED"].includes(request.status)) redirect(`/app/signatures/${request.id}?toast_error=This request is closed`);
+  if (request.provider !== "MOCK")
+    redirect(`/app/signatures/${request.id}?toast_error=This request uses ${request.provider}`);
+  if (["SIGNED", "DECLINED", "EXPIRED", "VOIDED"].includes(request.status))
+    redirect(`/app/signatures/${request.id}?toast_error=This request is closed`);
 
   const recipients = signatureRecipients(request.recipients);
   const recipient = recipients[recipientIndex];
@@ -117,13 +166,31 @@ export async function mockSignRecipient(requestId: string, recipientIndex: numbe
     const content = request.document.versions[0]?.content ?? "";
     const signedPdfHash = sha256(`${request.document.documentId}::SIGNED::${content}`);
     await prisma.$transaction([
-      prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: recipients as never, status: "SIGNED", completedAt: new Date(), signedPdfHash } }),
+      prisma.signatureRequest.update({
+        where: { id: request.id },
+        data: { recipients: recipients as never, status: "SIGNED", completedAt: new Date(), signedPdfHash },
+      }),
       prisma.document.update({ where: { id: request.documentId }, data: { status: "SIGNED" } }),
     ]);
-    await audit({ userId: user.id, action: "SIGNATURE_COMPLETED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: request.document.documentId, signedPdfHash } });
+    await audit({
+      userId: user.id,
+      action: "SIGNATURE_COMPLETED",
+      resourceType: "SignatureRequest",
+      resourceId: request.id,
+      after: { documentId: request.document.documentId, signedPdfHash },
+    });
   } else {
-    await prisma.signatureRequest.update({ where: { id: request.id }, data: { recipients: recipients as never, status: "PARTIALLY_SIGNED" } });
-    await audit({ userId: user.id, action: "SIGNER_SIGNED", resourceType: "SignatureRequest", resourceId: request.id, after: { signer: recipient.email } });
+    await prisma.signatureRequest.update({
+      where: { id: request.id },
+      data: { recipients: recipients as never, status: "PARTIALLY_SIGNED" },
+    });
+    await audit({
+      userId: user.id,
+      action: "SIGNER_SIGNED",
+      resourceType: "SignatureRequest",
+      resourceId: request.id,
+      after: { signer: recipient.email },
+    });
   }
   revalidatePath(`/app/signatures/${request.id}`);
   redirect(`/app/signatures/${request.id}?toast=Signature recorded`);
@@ -131,11 +198,21 @@ export async function mockSignRecipient(requestId: string, recipientIndex: numbe
 
 export async function voidSignatureRequest(requestId: string): Promise<void> {
   const user = await assertPermission("DOCUMENT_SIGN");
-  const request = await prisma.signatureRequest.findUnique({ where: { id: requestId }, include: { document: true } });
+  const request = await prisma.signatureRequest.findUnique({
+    where: { id: requestId },
+    include: { document: true },
+  });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
-  if (request.status === "SIGNED") redirect(`/app/signatures/${request.id}?toast_error=A completed request cannot be voided`);
+  if (request.status === "SIGNED")
+    redirect(`/app/signatures/${request.id}?toast_error=A completed request cannot be voided`);
   await prisma.signatureRequest.update({ where: { id: requestId }, data: { status: "VOIDED" } });
-  await audit({ userId: user.id, action: "SIGNATURE_REQUEST_VOID", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: request.document.documentId } });
+  await audit({
+    userId: user.id,
+    action: "SIGNATURE_REQUEST_VOID",
+    resourceType: "SignatureRequest",
+    resourceId: request.id,
+    after: { documentId: request.document.documentId },
+  });
   revalidatePath(`/app/signatures/${request.id}`);
   redirect(`/app/signatures/${request.id}?toast=Request voided`);
 }

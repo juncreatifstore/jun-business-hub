@@ -36,20 +36,30 @@ export function ContactForm() {
   return (
     <form action={action} className="grid gap-5 sm:grid-cols-2">
       <div>
-        <Field label="First name"><Input name="firstName" required maxLength={80} /></Field>
+        <Field label="First name">
+          <Input name="firstName" required maxLength={80} />
+        </Field>
         <Err errors={state.errors} name="firstName" />
       </div>
       <div>
-        <Field label="Last name"><Input name="lastName" required maxLength={80} /></Field>
+        <Field label="Last name">
+          <Input name="lastName" required maxLength={80} />
+        </Field>
         <Err errors={state.errors} name="lastName" />
       </div>
       <div>
-        <Field label="Email"><Input name="email" type="email" required maxLength={160} /></Field>
+        <Field label="Email">
+          <Input name="email" type="email" required maxLength={160} />
+        </Field>
         <Err errors={state.errors} name="email" />
       </div>
-      <Field label="Phone (optional)"><Input name="phone" maxLength={40} /></Field>
+      <Field label="Phone (optional)">
+        <Input name="phone" maxLength={40} />
+      </Field>
       <div className="sm:col-span-2">
-        <Field label="Subject"><Input name="subject" required maxLength={200} /></Field>
+        <Field label="Subject">
+          <Input name="subject" required maxLength={200} />
+        </Field>
         <Err errors={state.errors} name="subject" />
       </div>
       <Field label="Department">
@@ -63,11 +73,17 @@ export function ContactForm() {
         </Select>
       </Field>
       <div className="sm:col-span-2">
-        <Field label="Message"><Textarea name="message" required rows={6} maxLength={5000} /></Field>
+        <Field label="Message">
+          <Textarea name="message" required rows={6} maxLength={5000} />
+        </Field>
         <Err errors={state.errors} name="message" />
       </div>
-      {state.message && !state.ok ? <p className="text-sm text-red-600 sm:col-span-2">{state.message}</p> : null}
-      <div className="sm:col-span-2"><Submit /></div>
+      {state.message && !state.ok ? (
+        <p className="text-sm text-red-600 sm:col-span-2">{state.message}</p>
+      ) : null}
+      <div className="sm:col-span-2">
+        <Submit />
+      </div>
     </form>
   );
 }

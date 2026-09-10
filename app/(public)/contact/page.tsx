@@ -8,8 +8,8 @@ export default function ContactPage() {
       <p className="text-[11px] uppercase tracking-[0.3em] text-electric">Contact</p>
       <h1 className="mt-3 font-display text-4xl">Tell us what you need</h1>
       <p className="mt-4 text-muted2">
-        Your message opens a tracked request routed to the right department. We reply from a named
-        team member, not a no-reply address.
+        Your message opens a tracked request routed to the right department. We reply from a named team
+        member, not a no-reply address.
       </p>
       <div className="mt-10">
         <ContactForm />

@@ -43,7 +43,10 @@ function parseFields(html: string): ParsedField[] {
       type,
       required: /data-required=["']true["']/i.test(tag),
       validation: attr(tag, "data-validation"),
-      options: attr(tag, "data-options").split(",").map((x) => x.trim()).filter(Boolean),
+      options: attr(tag, "data-options")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean),
     });
   }
   return fields;
@@ -56,7 +59,9 @@ export async function createFilledDocument(sourceDocumentId: string, formData: F
     include: { versions: { orderBy: { version: "desc" }, take: 1 } },
   });
   if (!source || !source.versions[0]) {
-    redirect(`/app/documents/${sourceDocumentId}?toast_error=${encodeURIComponent("Source document is no longer available")}`);
+    redirect(
+      `/app/documents/${sourceDocumentId}?toast_error=${encodeURIComponent("Source document is no longer available")}`,
+    );
   }
 
   const sourceVersion = source.versions[0];
@@ -64,26 +69,35 @@ export async function createFilledDocument(sourceDocumentId: string, formData: F
   try {
     const raw = String(formData.get("values") ?? "{}");
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) values = parsed as Record<string, unknown>;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      values = parsed as Record<string, unknown>;
   } catch {
-    redirect(`/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent("The filled values could not be validated")}`);
+    redirect(
+      `/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent("The filled values could not be validated")}`,
+    );
   }
 
   const invalid = parseFields(sourceVersion.content)
     .map((field) => validateDocumentField(field, values[field.name] as string | boolean | undefined))
     .filter((error): error is string => Boolean(error));
   if (invalid.length) {
-    redirect(`/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent(invalid.slice(0, 5).join(" · "))}`);
+    redirect(
+      `/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent(invalid.slice(0, 5).join(" · "))}`,
+    );
   }
 
   const rawFilledHtml = String(formData.get("filledHtml") ?? "").slice(0, 500_000);
   const filledHtml = sanitizeDocumentHtml(rawFilledHtml);
   if (!filledHtml.trim()) {
-    redirect(`/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent("Filled document content is empty")}`);
+    redirect(
+      `/app/documents/${sourceDocumentId}/fill?error=${encodeURIComponent("Filled document content is empty")}`,
+    );
   }
 
   const documentId = await nextNumber(DOC_PREFIX[source.type] ?? "JUN-DOC");
-  const titleSuffix = String(formData.get("copyTitle") ?? "").trim().slice(0, 180);
+  const titleSuffix = String(formData.get("copyTitle") ?? "")
+    .trim()
+    .slice(0, 180);
   const title = titleSuffix || `${source.title} — Filled copy`;
   const valueNames = Object.keys(values).slice(0, 100);
 

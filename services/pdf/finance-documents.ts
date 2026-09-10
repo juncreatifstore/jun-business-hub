@@ -2,42 +2,707 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
-import { buildFinanceDocumentVerificationUrl, registerFinanceDocumentVerification } from "@/lib/finance-document-verification";
+import {
+  buildFinanceDocumentVerificationUrl,
+  registerFinanceDocumentVerification,
+} from "@/lib/finance-document-verification";
 
-const PAGE={w:595.28,h:841.89,m:46};
-const INK=rgb(.055,.09,.16),MUTED=rgb(.42,.46,.54),LINE=rgb(.86,.88,.92),SOFT=rgb(.965,.97,.98),ACCENT=rgb(.10,.42,.92);
+const PAGE = { w: 595.28, h: 841.89, m: 46 };
+const INK = rgb(0.055, 0.09, 0.16),
+  MUTED = rgb(0.42, 0.46, 0.54),
+  LINE = rgb(0.86, 0.88, 0.92),
+  SOFT = rgb(0.965, 0.97, 0.98),
+  ACCENT = rgb(0.1, 0.42, 0.92);
 
-type PdfCtx={pdf:PDFDocument;page:PDFPage;font:PDFFont;bold:PDFFont;y:number;pageNo:number;title:string;reference:string;company:string;website:string};
-export type FinancePdfRow={cells:string[];align?:Array<"left"|"right">};
+type PdfCtx = {
+  pdf: PDFDocument;
+  page: PDFPage;
+  font: PDFFont;
+  bold: PDFFont;
+  y: number;
+  pageNo: number;
+  title: string;
+  reference: string;
+  company: string;
+  website: string;
+};
+export type FinancePdfRow = { cells: string[]; align?: Array<"left" | "right"> };
 
-function safe(v:unknown){return String(v??"").replace(/[–—]/g,"-").replace(/\s+/g," ").trim()}
-function wrap(text:string,font:PDFFont,size:number,width:number){const out:string[]=[];for(const p of safe(text).split("\n")){const words=p.split(/\s+/).filter(Boolean);let line="";for(const w of words){const probe=line?`${line} ${w}`:w;if(font.widthOfTextAtSize(probe,size)<=width)line=probe;else{if(line)out.push(line);let piece=w;while(font.widthOfTextAtSize(piece,size)>width&&piece.length>2){let cut=piece.length-1;while(cut>1&&font.widthOfTextAtSize(piece.slice(0,cut),size)>width)cut--;out.push(piece.slice(0,cut));piece=piece.slice(cut)}line=piece}}if(line)out.push(line)}return out.length?out:[""]}
-async function company(){const rows=await prisma.appSetting.findMany({where:{key:{in:["company.name","company.website","company.address","company.mailing_address","company.phone","company.finance_email","company.email"]}},select:{key:true,value:true}}).catch(()=>[]);const s=Object.fromEntries(rows.map(r=>[r.key,r.value]));return{name:s["company.name"]||"JUN CREATIF AND TRAVEL LLC",website:(s["company.website"]||"www.juncreatif.org").replace(/^https?:\/\//,""),address:s["company.mailing_address"]||s["company.address"]||"",phone:s["company.phone"]||"",email:s["company.finance_email"]||s["company.email"]||""}}
-function footer(c:PdfCtx){c.page.drawLine({start:{x:PAGE.m,y:35},end:{x:PAGE.w-PAGE.m,y:35},thickness:.5,color:LINE});c.page.drawText(`${c.company} · ${c.website}`,{x:PAGE.m,y:22,size:7.2,font:c.font,color:MUTED});const r=`${c.reference} · Page ${c.pageNo}`;c.page.drawText(r,{x:PAGE.w-PAGE.m-c.font.widthOfTextAtSize(r,7.2),y:22,size:7.2,font:c.font,color:MUTED})}
-function addPage(c:PdfCtx){if(c.pageNo)footer(c);c.page=c.pdf.addPage([PAGE.w,PAGE.h]);c.pageNo++;c.y=PAGE.h-PAGE.m;c.page.drawText(c.company,{x:PAGE.m,y:c.y,size:9,font:c.bold,color:INK});c.page.drawText(c.website,{x:PAGE.w-PAGE.m-c.font.widthOfTextAtSize(c.website,8),y:c.y,size:8,font:c.font,color:MUTED});c.y-=18;c.page.drawLine({start:{x:PAGE.m,y:c.y},end:{x:PAGE.w-PAGE.m,y:c.y},thickness:1.2,color:INK});c.y-=22}
-async function base(title:string,reference:string){const pdf=await PDFDocument.create();const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);const co=await company();const c={pdf,page:null as unknown as PDFPage,font,bold,y:0,pageNo:0,title,reference,company:co.name,website:co.website};addPage(c);const verifyUrl=buildFinanceDocumentVerificationUrl(reference);const qr=await pdf.embedPng(await QRCode.toBuffer(verifyUrl,{margin:0,width:220,errorCorrectionLevel:"M"}));c.page.drawImage(qr,{x:PAGE.w-PAGE.m-50,y:c.y-48,width:50,height:50});c.page.drawText("SCAN TO VERIFY",{x:PAGE.w-PAGE.m-49,y:c.y-57,size:5.6,font:bold,color:MUTED});c.page.drawText(safe(title),{x:PAGE.m,y:c.y,size:22,font:bold,color:INK});c.y-=27;c.page.drawText(reference,{x:PAGE.m,y:c.y,size:8.5,font,color:MUTED});c.page.drawText("Authenticity: juncreatif.org/verify",{x:PAGE.m+130,y:c.y,size:7,font,color:MUTED});c.y-=22;return{c,co,finish:async()=>{footer(c);pdf.setTitle(title);pdf.setAuthor(co.name);pdf.setCreator("JUN Business Hub Finance PDF Engine");await registerFinanceDocumentVerification({reference,type:title,status:"ISSUED"});return pdf.save()}}}
-function need(c:PdfCtx,h:number){if(c.y-h<52)addPage(c)}
-function text(c:PdfCtx,value:string,opts:{size?:number;bold?:boolean;width?:number;color?:ReturnType<typeof rgb>;gap?:number}={}){const size=opts.size??9.5,font=opts.bold?c.bold:c.font,width=opts.width??PAGE.w-PAGE.m*2;const lines=wrap(value,font,size,width);need(c,lines.length*size*1.32+6);for(const l of lines){c.page.drawText(l,{x:PAGE.m,y:c.y,size,font,color:opts.color??INK});c.y-=size*1.32}c.y-=opts.gap??3}
-function labelValue(c:PdfCtx,label:string,value:string,x:number,y:number,w:number){c.page.drawText(safe(label).toUpperCase(),{x,y,size:6.8,font:c.bold,color:MUTED});const lines=wrap(value,c.font,9,w);lines.slice(0,3).forEach((l,i)=>c.page.drawText(l,{x,y:y-13-i*11,size:9,font:c.font,color:INK}))}
-function money(v:number,currency:string){try{return new Intl.NumberFormat("en-US",{style:"currency",currency,minimumFractionDigits:2}).format(v)}catch{return `${currency} ${v.toFixed(2)}`}}
-function section(c:PdfCtx,title:string){need(c,34);c.y-=3;c.page.drawText(safe(title),{x:PAGE.m,y:c.y,size:13,font:c.bold,color:INK});c.y-=10;c.page.drawLine({start:{x:PAGE.m,y:c.y},end:{x:PAGE.w-PAGE.m,y:c.y},thickness:.6,color:LINE});c.y-=17}
-function table(c:PdfCtx,headers:string[],rows:FinancePdfRow[],widths:number[]){const total=widths.reduce((a,b)=>a+b,0);if(total>PAGE.w-PAGE.m*2+0.5)throw new Error(`Finance PDF table exceeds printable A4 width: ${total}`);const x0=PAGE.m,rowFont=7.4,headH=23;const drawHead=()=>{need(c,headH+18);c.page.drawRectangle({x:x0,y:c.y-headH+5,width:total,height:headH,color:SOFT,borderColor:LINE,borderWidth:.5});let x=x0;headers.forEach((h,i)=>{c.page.drawText(safe(h).slice(0,28),{x:x+5,y:c.y-10,size:6.6,font:c.bold,color:MUTED});x+=widths[i]});c.y-=headH};drawHead();for(const row of rows){const lineSets=row.cells.map((v,i)=>wrap(v,c.font,rowFont,widths[i]-10));const maxLines=Math.max(...lineSets.map(v=>Math.min(v.length,5)),1);const h=Math.max(25,maxLines*9.2+10);if(c.y-h<52){addPage(c);drawHead()}c.page.drawRectangle({x:x0,y:c.y-h+5,width:total,height:h,borderColor:LINE,borderWidth:.45});let x=x0;row.cells.forEach((_,i)=>{const lines=lineSets[i].slice(0,5),align=row.align?.[i]||"left";lines.forEach((l,j)=>{const tw=c.font.widthOfTextAtSize(l,rowFont);c.page.drawText(l,{x:align==="right"?x+widths[i]-5-tw:x+5,y:c.y-10-j*9.2,size:rowFont,font:c.font,color:INK})});x+=widths[i]});c.y-=h}}
-
-export async function renderClientStatementPdf(input:{reference:string;language:"FR"|"EN"|"ES"|"HT";client:{name:string;internalId:string;email?:string|null;phone?:string|null;address?:string|null;country?:string|null};balances:Array<{currency:string;confirmedFunds:number;commissions:number;activeRefunds:number;refundsPaid:number;partnerWithdrawals?:number;available:number}>;entries:Array<{date:Date;reference:string;description:string;status:string;currency:string;credit:number;debit:number;runningBalance:number}>}){
- const t={FR:{title:"Relevé de compte client",summary:"Résumé du compte",history:"Historique des mouvements",available:"Solde disponible",funds:"Fonds confirmés",comm:"Commissions reçues",refunds:"Refunds engagés",withdrawals:"Retraits partenaire payés",paid:"Refunds réellement versés",date:"Date",ref:"Référence",desc:"Description",status:"Statut",debit:"Débit",credit:"Crédit",balance:"Solde",note:"Ce relevé reflète les mouvements financiers enregistrés dans JUN Business Hub."},EN:{title:"Client account statement",summary:"Account summary",history:"Transaction history",available:"Available balance",funds:"Confirmed funds",comm:"Commissions received",refunds:"Committed refunds",withdrawals:"Partner withdrawals paid",paid:"Refunds actually paid",date:"Date",ref:"Reference",desc:"Description",status:"Status",debit:"Debit",credit:"Credit",balance:"Balance",note:"This statement reflects financial movements recorded in JUN Business Hub."},ES:{title:"Estado de cuenta del cliente",summary:"Resumen de cuenta",history:"Historial de movimientos",available:"Saldo disponible",funds:"Fondos confirmados",comm:"Comisiones recibidas",refunds:"Reembolsos comprometidos",withdrawals:"Retiros de socio pagados",paid:"Reembolsos pagados",date:"Fecha",ref:"Referencia",desc:"Descripción",status:"Estado",debit:"Débito",credit:"Crédito",balance:"Saldo",note:"Este estado refleja los movimientos financieros registrados en JUN Business Hub."},HT:{title:"Relve kont kliyan",summary:"Rezime kont lan",history:"Istwa mouvman yo",available:"Balans disponib",funds:"Lajan konfime",comm:"Komisyon resevwa",refunds:"Ranbousman angaje",withdrawals:"Retrè patnè ki peye",paid:"Ranbousman ki peye",date:"Dat",ref:"Referans",desc:"Deskripsyon",status:"Estati",debit:"Sòti",credit:"Antre",balance:"Balans",note:"Relve sa a montre mouvman finansye ki anrejistre nan JUN Business Hub."}}[input.language];
- const {c,finish}=await base(t.title,input.reference);need(c,72);labelValue(c,"Client",input.client.name,PAGE.m,c.y,220);labelValue(c,"Account",input.client.internalId,320,c.y,220);c.y-=46;labelValue(c,"Contact",[input.client.email,input.client.phone].filter(Boolean).join(" · ")||"-",PAGE.m,c.y,220);labelValue(c,"Address",[input.client.address,input.client.country].filter(Boolean).join(", ")||"-",320,c.y,220);c.y-=52;section(c,t.summary);
- for(const b of input.balances){need(c,102);c.page.drawRectangle({x:PAGE.m,y:c.y-86,width:PAGE.w-PAGE.m*2,height:92,borderColor:LINE,borderWidth:.7});c.page.drawText(b.currency,{x:PAGE.m+12,y:c.y-12,size:8,font:c.bold,color:MUTED});c.page.drawText(money(b.available,b.currency),{x:PAGE.m+12,y:c.y-34,size:18,font:c.bold,color:INK});c.page.drawText(t.available,{x:PAGE.m+12,y:c.y-48,size:7.5,font:c.font,color:MUTED});const vals=[[t.funds,b.confirmedFunds],[t.comm,b.commissions],[t.refunds,-b.activeRefunds],[t.withdrawals,-(b.partnerWithdrawals||0)],[t.paid,b.refundsPaid]] as const;vals.forEach((r,i)=>{const yy=c.y-10-i*14;const val=money(r[1],b.currency);c.page.drawText(r[0],{x:310,y:yy,size:7.2,font:c.font,color:MUTED});c.page.drawText(val,{x:PAGE.w-PAGE.m-10-c.font.widthOfTextAtSize(val,7.2),y:yy,size:7.2,font:c.font,color:INK})});c.y-=104}
- section(c,t.history);const locale=input.language==="FR"?"fr-FR":input.language==="ES"?"es-MX":input.language==="HT"?"fr-HT":"en-US";table(c,[t.date,t.ref,t.desc,t.status,t.debit,t.credit,t.balance],input.entries.map(e=>({cells:[new Intl.DateTimeFormat(locale,{year:"numeric",month:"short",day:"2-digit"}).format(e.date),e.reference,e.description,e.status.replaceAll("_"," "),e.debit?money(e.debit,e.currency):"-",e.credit?money(e.credit,e.currency):"-",money(e.runningBalance,e.currency)],align:["left","left","left","left","right","right","right"]})),[54,68,138,62,55,55,71]);c.y-=10;text(c,t.note,{size:7.4,color:MUTED});return finish();
+function safe(v: unknown) {
+  return String(v ?? "")
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function wrap(text: string, font: PDFFont, size: number, width: number) {
+  const out: string[] = [];
+  for (const p of safe(text).split("\n")) {
+    const words = p.split(/\s+/).filter(Boolean);
+    let line = "";
+    for (const w of words) {
+      const probe = line ? `${line} ${w}` : w;
+      if (font.widthOfTextAtSize(probe, size) <= width) line = probe;
+      else {
+        if (line) out.push(line);
+        let piece = w;
+        while (font.widthOfTextAtSize(piece, size) > width && piece.length > 2) {
+          let cut = piece.length - 1;
+          while (cut > 1 && font.widthOfTextAtSize(piece.slice(0, cut), size) > width) cut--;
+          out.push(piece.slice(0, cut));
+          piece = piece.slice(cut);
+        }
+        line = piece;
+      }
+    }
+    if (line) out.push(line);
+  }
+  return out.length ? out : [""];
+}
+async function company() {
+  const rows = await prisma.appSetting
+    .findMany({
+      where: {
+        key: {
+          in: [
+            "company.name",
+            "company.website",
+            "company.address",
+            "company.mailing_address",
+            "company.phone",
+            "company.finance_email",
+            "company.email",
+          ],
+        },
+      },
+      select: { key: true, value: true },
+    })
+    .catch(() => []);
+  const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  return {
+    name: s["company.name"] || "JUN CREATIF AND TRAVEL LLC",
+    website: (s["company.website"] || "www.juncreatif.org").replace(/^https?:\/\//, ""),
+    address: s["company.mailing_address"] || s["company.address"] || "",
+    phone: s["company.phone"] || "",
+    email: s["company.finance_email"] || s["company.email"] || "",
+  };
+}
+function footer(c: PdfCtx) {
+  c.page.drawLine({
+    start: { x: PAGE.m, y: 35 },
+    end: { x: PAGE.w - PAGE.m, y: 35 },
+    thickness: 0.5,
+    color: LINE,
+  });
+  c.page.drawText(`${c.company} · ${c.website}`, { x: PAGE.m, y: 22, size: 7.2, font: c.font, color: MUTED });
+  const r = `${c.reference} · Page ${c.pageNo}`;
+  c.page.drawText(r, {
+    x: PAGE.w - PAGE.m - c.font.widthOfTextAtSize(r, 7.2),
+    y: 22,
+    size: 7.2,
+    font: c.font,
+    color: MUTED,
+  });
+}
+function addPage(c: PdfCtx) {
+  if (c.pageNo) footer(c);
+  c.page = c.pdf.addPage([PAGE.w, PAGE.h]);
+  c.pageNo++;
+  c.y = PAGE.h - PAGE.m;
+  c.page.drawText(c.company, { x: PAGE.m, y: c.y, size: 9, font: c.bold, color: INK });
+  c.page.drawText(c.website, {
+    x: PAGE.w - PAGE.m - c.font.widthOfTextAtSize(c.website, 8),
+    y: c.y,
+    size: 8,
+    font: c.font,
+    color: MUTED,
+  });
+  c.y -= 18;
+  c.page.drawLine({
+    start: { x: PAGE.m, y: c.y },
+    end: { x: PAGE.w - PAGE.m, y: c.y },
+    thickness: 1.2,
+    color: INK,
+  });
+  c.y -= 22;
+}
+async function base(title: string, reference: string) {
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica),
+    bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const co = await company();
+  const c = {
+    pdf,
+    page: null as unknown as PDFPage,
+    font,
+    bold,
+    y: 0,
+    pageNo: 0,
+    title,
+    reference,
+    company: co.name,
+    website: co.website,
+  };
+  addPage(c);
+  const verifyUrl = buildFinanceDocumentVerificationUrl(reference);
+  const qr = await pdf.embedPng(
+    await QRCode.toBuffer(verifyUrl, { margin: 0, width: 220, errorCorrectionLevel: "M" }),
+  );
+  c.page.drawImage(qr, { x: PAGE.w - PAGE.m - 50, y: c.y - 48, width: 50, height: 50 });
+  c.page.drawText("SCAN TO VERIFY", {
+    x: PAGE.w - PAGE.m - 49,
+    y: c.y - 57,
+    size: 5.6,
+    font: bold,
+    color: MUTED,
+  });
+  c.page.drawText(safe(title), { x: PAGE.m, y: c.y, size: 22, font: bold, color: INK });
+  c.y -= 27;
+  c.page.drawText(reference, { x: PAGE.m, y: c.y, size: 8.5, font, color: MUTED });
+  c.page.drawText("Authenticity: juncreatif.org/verify", {
+    x: PAGE.m + 130,
+    y: c.y,
+    size: 7,
+    font,
+    color: MUTED,
+  });
+  c.y -= 22;
+  return {
+    c,
+    co,
+    finish: async () => {
+      footer(c);
+      pdf.setTitle(title);
+      pdf.setAuthor(co.name);
+      pdf.setCreator("JUN Business Hub Finance PDF Engine");
+      await registerFinanceDocumentVerification({ reference, type: title, status: "ISSUED" });
+      return pdf.save();
+    },
+  };
+}
+function need(c: PdfCtx, h: number) {
+  if (c.y - h < 52) addPage(c);
+}
+function text(
+  c: PdfCtx,
+  value: string,
+  opts: { size?: number; bold?: boolean; width?: number; color?: ReturnType<typeof rgb>; gap?: number } = {},
+) {
+  const size = opts.size ?? 9.5,
+    font = opts.bold ? c.bold : c.font,
+    width = opts.width ?? PAGE.w - PAGE.m * 2;
+  const lines = wrap(value, font, size, width);
+  need(c, lines.length * size * 1.32 + 6);
+  for (const l of lines) {
+    c.page.drawText(l, { x: PAGE.m, y: c.y, size, font, color: opts.color ?? INK });
+    c.y -= size * 1.32;
+  }
+  c.y -= opts.gap ?? 3;
+}
+function labelValue(c: PdfCtx, label: string, value: string, x: number, y: number, w: number) {
+  c.page.drawText(safe(label).toUpperCase(), { x, y, size: 6.8, font: c.bold, color: MUTED });
+  const lines = wrap(value, c.font, 9, w);
+  lines
+    .slice(0, 3)
+    .forEach((l, i) => c.page.drawText(l, { x, y: y - 13 - i * 11, size: 9, font: c.font, color: INK }));
+}
+function money(v: number, currency: string) {
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2 }).format(
+      v,
+    );
+  } catch {
+    return `${currency} ${v.toFixed(2)}`;
+  }
+}
+function section(c: PdfCtx, title: string) {
+  need(c, 34);
+  c.y -= 3;
+  c.page.drawText(safe(title), { x: PAGE.m, y: c.y, size: 13, font: c.bold, color: INK });
+  c.y -= 10;
+  c.page.drawLine({
+    start: { x: PAGE.m, y: c.y },
+    end: { x: PAGE.w - PAGE.m, y: c.y },
+    thickness: 0.6,
+    color: LINE,
+  });
+  c.y -= 17;
+}
+function table(c: PdfCtx, headers: string[], rows: FinancePdfRow[], widths: number[]) {
+  const total = widths.reduce((a, b) => a + b, 0);
+  if (total > PAGE.w - PAGE.m * 2 + 0.5)
+    throw new Error(`Finance PDF table exceeds printable A4 width: ${total}`);
+  const x0 = PAGE.m,
+    rowFont = 7.4,
+    headH = 23;
+  const drawHead = () => {
+    need(c, headH + 18);
+    c.page.drawRectangle({
+      x: x0,
+      y: c.y - headH + 5,
+      width: total,
+      height: headH,
+      color: SOFT,
+      borderColor: LINE,
+      borderWidth: 0.5,
+    });
+    let x = x0;
+    headers.forEach((h, i) => {
+      c.page.drawText(safe(h).slice(0, 28), { x: x + 5, y: c.y - 10, size: 6.6, font: c.bold, color: MUTED });
+      x += widths[i];
+    });
+    c.y -= headH;
+  };
+  drawHead();
+  for (const row of rows) {
+    const lineSets = row.cells.map((v, i) => wrap(v, c.font, rowFont, widths[i] - 10));
+    const maxLines = Math.max(...lineSets.map((v) => Math.min(v.length, 5)), 1);
+    const h = Math.max(25, maxLines * 9.2 + 10);
+    if (c.y - h < 52) {
+      addPage(c);
+      drawHead();
+    }
+    c.page.drawRectangle({
+      x: x0,
+      y: c.y - h + 5,
+      width: total,
+      height: h,
+      borderColor: LINE,
+      borderWidth: 0.45,
+    });
+    let x = x0;
+    row.cells.forEach((_, i) => {
+      const lines = lineSets[i].slice(0, 5),
+        align = row.align?.[i] || "left";
+      lines.forEach((l, j) => {
+        const tw = c.font.widthOfTextAtSize(l, rowFont);
+        c.page.drawText(l, {
+          x: align === "right" ? x + widths[i] - 5 - tw : x + 5,
+          y: c.y - 10 - j * 9.2,
+          size: rowFont,
+          font: c.font,
+          color: INK,
+        });
+      });
+      x += widths[i];
+    });
+    c.y -= h;
+  }
 }
 
-export async function renderInvoicePdf(input:{invoiceNumber:string;title:string;status:string;clientName:string;clientId:string;email?:string|null;phone?:string|null;address?:string|null;caseLabel?:string|null;currency:string;issueDate:Date;dueDate:Date;lines:Array<{description:string;quantity:number;unitPrice:number;taxRate:number;lineTotal:number}>;subtotal:number;taxTotal:number;total:number;paid:number;balance:number;notes?:string;terms?:string}){
- const {c,finish}=await base("Invoice",input.invoiceNumber);need(c,88);labelValue(c,"Bill to",input.clientName,PAGE.m,c.y,220);labelValue(c,"Client ID",input.clientId,320,c.y,220);c.y-=46;labelValue(c,"Contact",[input.email,input.phone].filter(Boolean).join(" · ")||"-",PAGE.m,c.y,220);labelValue(c,"Case",input.caseLabel||"-",320,c.y,220);c.y-=44;labelValue(c,"Issue date",input.issueDate.toISOString().slice(0,10),PAGE.m,c.y,120);labelValue(c,"Due date",input.dueDate.toISOString().slice(0,10),180,c.y,120);labelValue(c,"Status",input.status.replaceAll("_"," "),315,c.y,120);labelValue(c,"Currency",input.currency,450,c.y,80);c.y-=48;section(c,input.title);table(c,["Description","Qty","Unit price","Tax","Line total"],input.lines.map(l=>({cells:[l.description,String(l.quantity),money(l.unitPrice,input.currency),`${l.taxRate.toFixed(2)}%`,money(l.lineTotal,input.currency)],align:["left","right","right","right","right"]})),[225,45,82,55,96]);c.y-=12;need(c,92);[["Subtotal",input.subtotal],["Tax",input.taxTotal],["Total",input.total],["Paid",input.paid],["Balance due",input.balance]].forEach(([lab,val],i)=>{const y=c.y-i*16;c.page.drawText(String(lab),{x:340,y,size:i===4?9:8,font:i===4?c.bold:c.font,color:i===4?INK:MUTED});const m=money(Number(val),input.currency);c.page.drawText(m,{x:PAGE.w-PAGE.m-c.bold.widthOfTextAtSize(m,i===4?10:8),y,size:i===4?10:8,font:i===4?c.bold:c.font,color:INK})});c.y-=92;if(input.notes){section(c,"Notes");text(c,input.notes,{size:8.5})}if(input.terms){section(c,"Payment terms");text(c,input.terms,{size:8.5})}return finish();
+export async function renderClientStatementPdf(input: {
+  reference: string;
+  language: "FR" | "EN" | "ES" | "HT";
+  client: {
+    name: string;
+    internalId: string;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    country?: string | null;
+  };
+  balances: Array<{
+    currency: string;
+    confirmedFunds: number;
+    commissions: number;
+    activeRefunds: number;
+    refundsPaid: number;
+    partnerWithdrawals?: number;
+    available: number;
+  }>;
+  entries: Array<{
+    date: Date;
+    reference: string;
+    description: string;
+    status: string;
+    currency: string;
+    credit: number;
+    debit: number;
+    runningBalance: number;
+  }>;
+}) {
+  const t = {
+    FR: {
+      title: "Relevé de compte client",
+      summary: "Résumé du compte",
+      history: "Historique des mouvements",
+      available: "Solde disponible",
+      funds: "Fonds confirmés",
+      comm: "Commissions reçues",
+      refunds: "Refunds engagés",
+      withdrawals: "Retraits partenaire payés",
+      paid: "Refunds réellement versés",
+      date: "Date",
+      ref: "Référence",
+      desc: "Description",
+      status: "Statut",
+      debit: "Débit",
+      credit: "Crédit",
+      balance: "Solde",
+      note: "Ce relevé reflète les mouvements financiers enregistrés dans JUN Business Hub.",
+    },
+    EN: {
+      title: "Client account statement",
+      summary: "Account summary",
+      history: "Transaction history",
+      available: "Available balance",
+      funds: "Confirmed funds",
+      comm: "Commissions received",
+      refunds: "Committed refunds",
+      withdrawals: "Partner withdrawals paid",
+      paid: "Refunds actually paid",
+      date: "Date",
+      ref: "Reference",
+      desc: "Description",
+      status: "Status",
+      debit: "Debit",
+      credit: "Credit",
+      balance: "Balance",
+      note: "This statement reflects financial movements recorded in JUN Business Hub.",
+    },
+    ES: {
+      title: "Estado de cuenta del cliente",
+      summary: "Resumen de cuenta",
+      history: "Historial de movimientos",
+      available: "Saldo disponible",
+      funds: "Fondos confirmados",
+      comm: "Comisiones recibidas",
+      refunds: "Reembolsos comprometidos",
+      withdrawals: "Retiros de socio pagados",
+      paid: "Reembolsos pagados",
+      date: "Fecha",
+      ref: "Referencia",
+      desc: "Descripción",
+      status: "Estado",
+      debit: "Débito",
+      credit: "Crédito",
+      balance: "Saldo",
+      note: "Este estado refleja los movimientos financieros registrados en JUN Business Hub.",
+    },
+    HT: {
+      title: "Relve kont kliyan",
+      summary: "Rezime kont lan",
+      history: "Istwa mouvman yo",
+      available: "Balans disponib",
+      funds: "Lajan konfime",
+      comm: "Komisyon resevwa",
+      refunds: "Ranbousman angaje",
+      withdrawals: "Retrè patnè ki peye",
+      paid: "Ranbousman ki peye",
+      date: "Dat",
+      ref: "Referans",
+      desc: "Deskripsyon",
+      status: "Estati",
+      debit: "Sòti",
+      credit: "Antre",
+      balance: "Balans",
+      note: "Relve sa a montre mouvman finansye ki anrejistre nan JUN Business Hub.",
+    },
+  }[input.language];
+  const { c, finish } = await base(t.title, input.reference);
+  need(c, 72);
+  labelValue(c, "Client", input.client.name, PAGE.m, c.y, 220);
+  labelValue(c, "Account", input.client.internalId, 320, c.y, 220);
+  c.y -= 46;
+  labelValue(
+    c,
+    "Contact",
+    [input.client.email, input.client.phone].filter(Boolean).join(" · ") || "-",
+    PAGE.m,
+    c.y,
+    220,
+  );
+  labelValue(
+    c,
+    "Address",
+    [input.client.address, input.client.country].filter(Boolean).join(", ") || "-",
+    320,
+    c.y,
+    220,
+  );
+  c.y -= 52;
+  section(c, t.summary);
+  for (const b of input.balances) {
+    need(c, 102);
+    c.page.drawRectangle({
+      x: PAGE.m,
+      y: c.y - 86,
+      width: PAGE.w - PAGE.m * 2,
+      height: 92,
+      borderColor: LINE,
+      borderWidth: 0.7,
+    });
+    c.page.drawText(b.currency, { x: PAGE.m + 12, y: c.y - 12, size: 8, font: c.bold, color: MUTED });
+    c.page.drawText(money(b.available, b.currency), {
+      x: PAGE.m + 12,
+      y: c.y - 34,
+      size: 18,
+      font: c.bold,
+      color: INK,
+    });
+    c.page.drawText(t.available, { x: PAGE.m + 12, y: c.y - 48, size: 7.5, font: c.font, color: MUTED });
+    const vals = [
+      [t.funds, b.confirmedFunds],
+      [t.comm, b.commissions],
+      [t.refunds, -b.activeRefunds],
+      [t.withdrawals, -(b.partnerWithdrawals || 0)],
+      [t.paid, b.refundsPaid],
+    ] as const;
+    vals.forEach((r, i) => {
+      const yy = c.y - 10 - i * 14;
+      const val = money(r[1], b.currency);
+      c.page.drawText(r[0], { x: 310, y: yy, size: 7.2, font: c.font, color: MUTED });
+      c.page.drawText(val, {
+        x: PAGE.w - PAGE.m - 10 - c.font.widthOfTextAtSize(val, 7.2),
+        y: yy,
+        size: 7.2,
+        font: c.font,
+        color: INK,
+      });
+    });
+    c.y -= 104;
+  }
+  section(c, t.history);
+  const locale =
+    input.language === "FR"
+      ? "fr-FR"
+      : input.language === "ES"
+        ? "es-MX"
+        : input.language === "HT"
+          ? "fr-HT"
+          : "en-US";
+  table(
+    c,
+    [t.date, t.ref, t.desc, t.status, t.debit, t.credit, t.balance],
+    input.entries.map((e) => ({
+      cells: [
+        new Intl.DateTimeFormat(locale, { year: "numeric", month: "short", day: "2-digit" }).format(e.date),
+        e.reference,
+        e.description,
+        e.status.replaceAll("_", " "),
+        e.debit ? money(e.debit, e.currency) : "-",
+        e.credit ? money(e.credit, e.currency) : "-",
+        money(e.runningBalance, e.currency),
+      ],
+      align: ["left", "left", "left", "left", "right", "right", "right"],
+    })),
+    [54, 68, 138, 62, 55, 55, 71],
+  );
+  c.y -= 10;
+  text(c, t.note, { size: 7.4, color: MUTED });
+  return finish();
 }
 
-export async function renderRefundPdf(input:{refundNumber:string;status:string;clientName:string;clientId:string;currency:string;amount:number;paid:number;remaining:number;reason:string;createdAt:Date;paymentReference?:string|null;caseNumber?:string|null;installments:Array<{number:number;amount:number;dueDate:Date;status:string;paidAt:Date|null}>}){
- const {c,finish}=await base("Refund / Withdrawal Statement",input.refundNumber);need(c,96);labelValue(c,"Client",input.clientName,PAGE.m,c.y,220);labelValue(c,"Client ID",input.clientId,320,c.y,220);c.y-=44;labelValue(c,"Status",input.status.replaceAll("_"," "),PAGE.m,c.y,130);labelValue(c,"Original payment",input.paymentReference||"Global client balance",190,c.y,160);labelValue(c,"Case",input.caseNumber||"-",380,c.y,150);c.y-=48;section(c,"Financial summary");table(c,["Requested","Paid","Remaining"],[{cells:[money(input.amount,input.currency),money(input.paid,input.currency),money(input.remaining,input.currency)],align:["right","right","right"]}],[165,165,165]);c.y-=12;section(c,"Reason");text(c,input.reason,{size:9});section(c,"Installment schedule");table(c,["#","Due date","Amount","Status","Paid date"],input.installments.map(i=>({cells:[String(i.number),i.dueDate.toISOString().slice(0,10),money(i.amount,input.currency),i.status.replaceAll("_"," "),i.paidAt?i.paidAt.toISOString().slice(0,10):"-"],align:["right","left","right","left","left"]})),[34,105,120,130,106]);return finish();
+export async function renderInvoicePdf(input: {
+  invoiceNumber: string;
+  title: string;
+  status: string;
+  clientName: string;
+  clientId: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  caseLabel?: string | null;
+  currency: string;
+  issueDate: Date;
+  dueDate: Date;
+  lines: Array<{
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate: number;
+    lineTotal: number;
+  }>;
+  subtotal: number;
+  taxTotal: number;
+  total: number;
+  paid: number;
+  balance: number;
+  notes?: string;
+  terms?: string;
+}) {
+  const { c, finish } = await base("Invoice", input.invoiceNumber);
+  need(c, 88);
+  labelValue(c, "Bill to", input.clientName, PAGE.m, c.y, 220);
+  labelValue(c, "Client ID", input.clientId, 320, c.y, 220);
+  c.y -= 46;
+  labelValue(c, "Contact", [input.email, input.phone].filter(Boolean).join(" · ") || "-", PAGE.m, c.y, 220);
+  labelValue(c, "Case", input.caseLabel || "-", 320, c.y, 220);
+  c.y -= 44;
+  labelValue(c, "Issue date", input.issueDate.toISOString().slice(0, 10), PAGE.m, c.y, 120);
+  labelValue(c, "Due date", input.dueDate.toISOString().slice(0, 10), 180, c.y, 120);
+  labelValue(c, "Status", input.status.replaceAll("_", " "), 315, c.y, 120);
+  labelValue(c, "Currency", input.currency, 450, c.y, 80);
+  c.y -= 48;
+  section(c, input.title);
+  table(
+    c,
+    ["Description", "Qty", "Unit price", "Tax", "Line total"],
+    input.lines.map((l) => ({
+      cells: [
+        l.description,
+        String(l.quantity),
+        money(l.unitPrice, input.currency),
+        `${l.taxRate.toFixed(2)}%`,
+        money(l.lineTotal, input.currency),
+      ],
+      align: ["left", "right", "right", "right", "right"],
+    })),
+    [225, 45, 82, 55, 96],
+  );
+  c.y -= 12;
+  need(c, 92);
+  [
+    ["Subtotal", input.subtotal],
+    ["Tax", input.taxTotal],
+    ["Total", input.total],
+    ["Paid", input.paid],
+    ["Balance due", input.balance],
+  ].forEach(([lab, val], i) => {
+    const y = c.y - i * 16;
+    c.page.drawText(String(lab), {
+      x: 340,
+      y,
+      size: i === 4 ? 9 : 8,
+      font: i === 4 ? c.bold : c.font,
+      color: i === 4 ? INK : MUTED,
+    });
+    const m = money(Number(val), input.currency);
+    c.page.drawText(m, {
+      x: PAGE.w - PAGE.m - c.bold.widthOfTextAtSize(m, i === 4 ? 10 : 8),
+      y,
+      size: i === 4 ? 10 : 8,
+      font: i === 4 ? c.bold : c.font,
+      color: INK,
+    });
+  });
+  c.y -= 92;
+  if (input.notes) {
+    section(c, "Notes");
+    text(c, input.notes, { size: 8.5 });
+  }
+  if (input.terms) {
+    section(c, "Payment terms");
+    text(c, input.terms, { size: 8.5 });
+  }
+  return finish();
 }
 
-export async function renderFinancialMovementReceiptPdf(input:{receiptNumber:string;title:string;clientName:string;clientId:string;amount:number;currency:string;direction:"CREDIT"|"DEBIT";status:string;description:string;method?:string;transactionReference?:string;sourceType:string;issuedAt:Date}){
- const {c,finish}=await base(input.title,input.receiptNumber);need(c,120);labelValue(c,"Client",input.clientName,PAGE.m,c.y,220);labelValue(c,"Client ID",input.clientId,320,c.y,220);c.y-=46;labelValue(c,"Operation",input.sourceType.replaceAll("_"," "),PAGE.m,c.y,150);labelValue(c,"Status",input.status.replaceAll("_"," "),220,c.y,130);labelValue(c,"Issued",input.issuedAt.toISOString().slice(0,10),390,c.y,130);c.y-=48;section(c,"Transaction amount");const amountText=`${input.direction==="CREDIT"?"+":"-"}${money(input.amount,input.currency)}`;c.page.drawText(amountText,{x:PAGE.m,y:c.y,size:24,font:c.bold,color:input.direction==="CREDIT"?ACCENT:INK});c.y-=38;section(c,"Transaction details");table(c,["Direction","Method","Transaction reference"],[{cells:[input.direction,input.method||"-",input.transactionReference||"-"],align:["left","left","left"]}],[105,150,248]);c.y-=12;section(c,"Description");text(c,input.description||"Financial transaction recorded in JUN Business Hub.",{size:9});c.y-=8;text(c,"This receipt records the financial action shown above. It does not replace a bank or provider statement where one is required.",{size:7.5,color:MUTED});return finish();
+export async function renderRefundPdf(input: {
+  refundNumber: string;
+  status: string;
+  clientName: string;
+  clientId: string;
+  currency: string;
+  amount: number;
+  paid: number;
+  remaining: number;
+  reason: string;
+  createdAt: Date;
+  paymentReference?: string | null;
+  caseNumber?: string | null;
+  installments: Array<{ number: number; amount: number; dueDate: Date; status: string; paidAt: Date | null }>;
+}) {
+  const { c, finish } = await base("Refund / Withdrawal Statement", input.refundNumber);
+  need(c, 96);
+  labelValue(c, "Client", input.clientName, PAGE.m, c.y, 220);
+  labelValue(c, "Client ID", input.clientId, 320, c.y, 220);
+  c.y -= 44;
+  labelValue(c, "Status", input.status.replaceAll("_", " "), PAGE.m, c.y, 130);
+  labelValue(c, "Original payment", input.paymentReference || "Global client balance", 190, c.y, 160);
+  labelValue(c, "Case", input.caseNumber || "-", 380, c.y, 150);
+  c.y -= 48;
+  section(c, "Financial summary");
+  table(
+    c,
+    ["Requested", "Paid", "Remaining"],
+    [
+      {
+        cells: [
+          money(input.amount, input.currency),
+          money(input.paid, input.currency),
+          money(input.remaining, input.currency),
+        ],
+        align: ["right", "right", "right"],
+      },
+    ],
+    [165, 165, 165],
+  );
+  c.y -= 12;
+  section(c, "Reason");
+  text(c, input.reason, { size: 9 });
+  section(c, "Installment schedule");
+  table(
+    c,
+    ["#", "Due date", "Amount", "Status", "Paid date"],
+    input.installments.map((i) => ({
+      cells: [
+        String(i.number),
+        i.dueDate.toISOString().slice(0, 10),
+        money(i.amount, input.currency),
+        i.status.replaceAll("_", " "),
+        i.paidAt ? i.paidAt.toISOString().slice(0, 10) : "-",
+      ],
+      align: ["right", "left", "right", "left", "left"],
+    })),
+    [34, 105, 120, 130, 106],
+  );
+  return finish();
+}
+
+export async function renderFinancialMovementReceiptPdf(input: {
+  receiptNumber: string;
+  title: string;
+  clientName: string;
+  clientId: string;
+  amount: number;
+  currency: string;
+  direction: "CREDIT" | "DEBIT";
+  status: string;
+  description: string;
+  method?: string;
+  transactionReference?: string;
+  sourceType: string;
+  issuedAt: Date;
+}) {
+  const { c, finish } = await base(input.title, input.receiptNumber);
+  need(c, 120);
+  labelValue(c, "Client", input.clientName, PAGE.m, c.y, 220);
+  labelValue(c, "Client ID", input.clientId, 320, c.y, 220);
+  c.y -= 46;
+  labelValue(c, "Operation", input.sourceType.replaceAll("_", " "), PAGE.m, c.y, 150);
+  labelValue(c, "Status", input.status.replaceAll("_", " "), 220, c.y, 130);
+  labelValue(c, "Issued", input.issuedAt.toISOString().slice(0, 10), 390, c.y, 130);
+  c.y -= 48;
+  section(c, "Transaction amount");
+  const amountText = `${input.direction === "CREDIT" ? "+" : "-"}${money(input.amount, input.currency)}`;
+  c.page.drawText(amountText, {
+    x: PAGE.m,
+    y: c.y,
+    size: 24,
+    font: c.bold,
+    color: input.direction === "CREDIT" ? ACCENT : INK,
+  });
+  c.y -= 38;
+  section(c, "Transaction details");
+  table(
+    c,
+    ["Direction", "Method", "Transaction reference"],
+    [
+      {
+        cells: [input.direction, input.method || "-", input.transactionReference || "-"],
+        align: ["left", "left", "left"],
+      },
+    ],
+    [105, 150, 248],
+  );
+  c.y -= 12;
+  section(c, "Description");
+  text(c, input.description || "Financial transaction recorded in JUN Business Hub.", { size: 9 });
+  c.y -= 8;
+  text(
+    c,
+    "This receipt records the financial action shown above. It does not replace a bank or provider statement where one is required.",
+    { size: 7.5, color: MUTED },
+  );
+  return finish();
 }

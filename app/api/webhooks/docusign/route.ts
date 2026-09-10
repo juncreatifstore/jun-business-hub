@@ -106,10 +106,7 @@ export async function POST(req: NextRequest) {
         })
         .catch(() => undefined);
 
-      return NextResponse.json(
-        { error: "Signed PDF archival failed; retry required" },
-        { status: 503 },
-      );
+      return NextResponse.json({ error: "Signed PDF archival failed; retry required" }, { status: 503 });
     }
 
     await prisma.$transaction([

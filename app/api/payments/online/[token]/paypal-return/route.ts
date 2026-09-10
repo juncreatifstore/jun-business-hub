@@ -22,13 +22,17 @@ export async function GET(req: NextRequest, { params }: { params: { token: strin
   try {
     const captured = await capturePaypalOrder(session.providerSessionId);
     if (captured.completed) {
-      await markOnlineSessionStatus(session.id, "PAID", { providerPaymentId: captured.captureId || session.providerSessionId });
+      await markOnlineSessionStatus(session.id, "PAID", {
+        providerPaymentId: captured.captureId || session.providerSessionId,
+      });
       destination.searchParams.set("result", "success");
     } else {
       destination.searchParams.set("result", "pending");
     }
   } catch (error) {
-    await markOnlineSessionStatus(session.id, "FAILED", { error: error instanceof Error ? error.message : "PayPal capture failed" });
+    await markOnlineSessionStatus(session.id, "FAILED", {
+      error: error instanceof Error ? error.message : "PayPal capture failed",
+    });
     destination.searchParams.set("result", "failure");
   }
   return NextResponse.redirect(destination);

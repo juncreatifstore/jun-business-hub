@@ -6,31 +6,53 @@ const catalog = [
   {
     category: "Travel",
     items: [
-      { name: "Trip planning & reservations", body: "Flights, lodging, and itineraries prepared and tracked as one travel file." },
-      { name: "Visa assistance", body: "Requirements review, document checklists, and application follow-up." },
-      { name: "Group & family travel", body: "Coordinated files for multiple travelers with a single point of contact." },
+      {
+        name: "Trip planning & reservations",
+        body: "Flights, lodging, and itineraries prepared and tracked as one travel file.",
+      },
+      {
+        name: "Visa assistance",
+        body: "Requirements review, document checklists, and application follow-up.",
+      },
+      {
+        name: "Group & family travel",
+        body: "Coordinated files for multiple travelers with a single point of contact.",
+      },
     ],
   },
   {
     category: "Documents",
     items: [
-      { name: "Contracts & agreements", body: "Drafted, versioned, and finalized with registry IDs and verification QR codes." },
-      { name: "Attestations & authorizations", body: "Official letters prepared to your case's exact requirements." },
-      { name: "Receipts & payment records", body: "Every confirmed payment produces a numbered, verifiable receipt." },
+      {
+        name: "Contracts & agreements",
+        body: "Drafted, versioned, and finalized with registry IDs and verification QR codes.",
+      },
+      {
+        name: "Attestations & authorizations",
+        body: "Official letters prepared to your case's exact requirements.",
+      },
+      {
+        name: "Receipts & payment records",
+        body: "Every confirmed payment produces a numbered, verifiable receipt.",
+      },
     ],
   },
   {
     category: "Business support",
     items: [
-      { name: "Refund management", body: "Structured refund agreements, installment schedules, and status tracking." },
-      { name: "Client file administration", body: "One consolidated, confidential record for all your documents and history." },
+      {
+        name: "Refund management",
+        body: "Structured refund agreements, installment schedules, and status tracking.",
+      },
+      {
+        name: "Client file administration",
+        body: "One consolidated, confidential record for all your documents and history.",
+      },
     ],
   },
   {
     category: "Creatif",
-    items: [
-      { name: "Creative projects", body: "Brand and design work under the JUN Creatif division." },
-    ],
+    items: [{ name: "Creative projects", body: "Brand and design work under the JUN Creatif division." }],
   },
 ];
 

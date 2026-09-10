@@ -5,10 +5,10 @@ import { createSign } from "crypto";
 export function docusignConfigured(): boolean {
   return Boolean(
     process.env.DOCUSIGN_CLIENT_ID &&
-      process.env.DOCUSIGN_USER_ID &&
-      process.env.DOCUSIGN_ACCOUNT_ID &&
-      process.env.DOCUSIGN_BASE_PATH &&
-      process.env.DOCUSIGN_PRIVATE_KEY
+    process.env.DOCUSIGN_USER_ID &&
+    process.env.DOCUSIGN_ACCOUNT_ID &&
+    process.env.DOCUSIGN_BASE_PATH &&
+    process.env.DOCUSIGN_PRIVATE_KEY,
   );
 }
 
@@ -22,14 +22,16 @@ export async function docusignAccessToken(): Promise<string> {
   const oauthBase = process.env.DOCUSIGN_OAUTH_BASE ?? "account-d.docusign.com";
   const now = Math.floor(Date.now() / 1000);
   const headerB = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claimB = b64url(JSON.stringify({
-    iss: process.env.DOCUSIGN_CLIENT_ID,
-    sub: process.env.DOCUSIGN_USER_ID,
-    aud: oauthBase,
-    iat: now,
-    exp: now + 3600,
-    scope: "signature impersonation",
-  }));
+  const claimB = b64url(
+    JSON.stringify({
+      iss: process.env.DOCUSIGN_CLIENT_ID,
+      sub: process.env.DOCUSIGN_USER_ID,
+      aud: oauthBase,
+      iat: now,
+      exp: now + 3600,
+      scope: "signature impersonation",
+    }),
+  );
   const key = (process.env.DOCUSIGN_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
   const signer = createSign("RSA-SHA256");
   signer.update(`${headerB}.${claimB}`);
@@ -50,7 +52,14 @@ function api(path: string) {
   return `${process.env.DOCUSIGN_BASE_PATH}/restapi/v2.1/accounts/${process.env.DOCUSIGN_ACCOUNT_ID}${path}`;
 }
 
-type DsField = { type: "SIGNATURE" | "INITIALS" | "DATE_SIGNED" | "NAME"; page: number; x: number; y: number; width?: number; height?: number };
+type DsField = {
+  type: "SIGNATURE" | "INITIALS" | "DATE_SIGNED" | "NAME";
+  page: number;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+};
 
 function docusignTabs(fields: DsField[]) {
   const signHereTabs: object[] = [];
@@ -97,10 +106,19 @@ export async function docusignCreateEnvelope(input: {
       emailSubject: `Signature request — ${input.title} (${input.documentId})`,
       ...(emailBlurb ? { emailBlurb } : {}),
       status: "sent",
-      documents: [{ documentBase64: Buffer.from(input.pdfBytes).toString("base64"), name: `${input.documentId}.pdf`, fileExtension: "pdf", documentId: "1" }],
+      documents: [
+        {
+          documentBase64: Buffer.from(input.pdfBytes).toString("base64"),
+          name: `${input.documentId}.pdf`,
+          fileExtension: "pdf",
+          documentId: "1",
+        },
+      ],
       recipients: {
         signers: input.signers.map((s, i) => {
-          const fields = s.fields?.length ? s.fields : [{ type: "SIGNATURE" as const, page: 1, x: 72, y: 700, width: 150, height: 48 }];
+          const fields = s.fields?.length
+            ? s.fields
+            : [{ type: "SIGNATURE" as const, page: 1, x: 72, y: 700, width: 150, height: 48 }];
           return {
             email: s.email,
             name: s.name,
@@ -119,7 +137,9 @@ export async function docusignCreateEnvelope(input: {
 
 export async function docusignSignedPdf(envelopeId: string): Promise<Uint8Array> {
   const token = await docusignAccessToken();
-  const res = await fetch(api(`/envelopes/${envelopeId}/documents/combined`), { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(api(`/envelopes/${envelopeId}/documents/combined`), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   if (!res.ok) throw new Error(`DocuSign signed PDF fetch failed: ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
 }

@@ -21,7 +21,9 @@ export const caseSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   description: z.string().trim().max(5000).optional().or(z.literal("")),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).default("MEDIUM"),
-  status: z.enum(["OPEN", "IN_PROGRESS", "WAITING_CLIENT", "WAITING_INTERNAL", "COMPLETED", "CANCELLED", "ARCHIVED"]).default("OPEN"),
+  status: z
+    .enum(["OPEN", "IN_PROGRESS", "WAITING_CLIENT", "WAITING_INTERNAL", "COMPLETED", "CANCELLED", "ARCHIVED"])
+    .default("OPEN"),
   dueDate: z.string().optional().or(z.literal("")),
   tags: z.string().max(300).optional().or(z.literal("")),
 });
@@ -62,7 +64,18 @@ export const refundSchema = z.object({
 });
 
 export const documentSchema = z.object({
-  type: z.enum(["CONTRACT", "AGREEMENT", "REFUND_AGREEMENT", "RECEIPT", "INVOICE", "LETTER", "ATTESTATION", "AUTHORIZATION", "REPORT", "CUSTOM"]),
+  type: z.enum([
+    "CONTRACT",
+    "AGREEMENT",
+    "REFUND_AGREEMENT",
+    "RECEIPT",
+    "INVOICE",
+    "LETTER",
+    "ATTESTATION",
+    "AUTHORIZATION",
+    "REPORT",
+    "CUSTOM",
+  ]),
   title: z.string().trim().min(1, "Title is required").max(200),
   clientId: z.string().optional().or(z.literal("")),
   caseId: z.string().optional().or(z.literal("")),
@@ -85,6 +98,15 @@ export const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1, "Password is required").max(200),
 });
-export function emptyToNull(v: string | undefined) { return v && v.length > 0 ? v : null; }
-export function parseTags(v: string | undefined) { return (v ?? "").split(",").map((t) => t.trim()).filter(Boolean); }
-export function parseDate(v: string | undefined) { return v && v.length > 0 ? new Date(v) : null; }
+export function emptyToNull(v: string | undefined) {
+  return v && v.length > 0 ? v : null;
+}
+export function parseTags(v: string | undefined) {
+  return (v ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+export function parseDate(v: string | undefined) {
+  return v && v.length > 0 ? new Date(v) : null;
+}

@@ -9,7 +9,7 @@ import { randomBytes } from "crypto";
 
 const [email, firstName = "Admin", lastName = "JUN"] = process.argv.slice(2);
 if (!email || !email.includes("@")) {
-  console.error("Usage: node scripts/create-admin.mjs email \"First\" \"Last\"");
+  console.error('Usage: node scripts/create-admin.mjs email "First" "Last"');
   process.exit(1);
 }
 

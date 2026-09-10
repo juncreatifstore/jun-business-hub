@@ -43,7 +43,13 @@ const STATUS_STYLES: Record<string, string> = {
 
 export function Badge({ className, children, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em]", className)} {...props}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em]",
+        className,
+      )}
+      {...props}
+    >
       {children}
     </span>
   );

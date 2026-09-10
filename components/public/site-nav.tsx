@@ -41,7 +41,12 @@ export function SiteNav() {
       {open ? (
         <nav className="border-t border-white/10 px-5 py-4 md:hidden">
           {[...links, { href: "/login", label: "Sign in" }].map((l) => (
-            <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className="block py-2 text-white/80">
+            <Link
+              key={l.href}
+              href={l.href}
+              onClick={() => setOpen(false)}
+              className="block py-2 text-white/80"
+            >
               {l.label}
             </Link>
           ))}

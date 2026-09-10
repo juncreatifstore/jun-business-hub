@@ -36,12 +36,28 @@ export async function renameDriveFile(fileId: string, formData: FormData): Promi
   const returnTo = safeReturn(formData);
   const file = await activeDriveFile(fileId);
   if (!file) redirect(toast(returnTo, "toast_error", "File not found"));
-  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ").slice(0, 200);
+  const name = String(formData.get("name") ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 200);
   if (!name) redirect(toast(returnTo, "toast_error", "File name is required"));
   if (name === file.name) redirect(returnTo);
   await prisma.file.update({ where: { id: file.id }, data: { name } });
-  await audit({ userId: user.id, action: "FILE_RENAME", resourceType: "File", resourceId: file.id, before: { name: file.name }, after: { name } });
-  await logActivity({ userId: user.id, type: "FILE_RENAMED", message: `Renamed ${file.name} to ${name}`, resourceType: "File", resourceId: file.id });
+  await audit({
+    userId: user.id,
+    action: "FILE_RENAME",
+    resourceType: "File",
+    resourceId: file.id,
+    before: { name: file.name },
+    after: { name },
+  });
+  await logActivity({
+    userId: user.id,
+    type: "FILE_RENAMED",
+    message: `Renamed ${file.name} to ${name}`,
+    resourceType: "File",
+    resourceId: file.id,
+  });
   revalidatePath("/app/drive");
   redirect(toast(returnTo, "toast", "File renamed"));
 }
@@ -74,8 +90,20 @@ export async function duplicateDriveFile(fileId: string, formData: FormData): Pr
       isVault: false,
     },
   });
-  await audit({ userId: user.id, action: "FILE_DUPLICATE", resourceType: "File", resourceId: copy.id, after: { sourceFileId: file.id, name } });
-  await logActivity({ userId: user.id, type: "FILE_DUPLICATED", message: `Duplicated ${file.name}`, resourceType: "File", resourceId: copy.id });
+  await audit({
+    userId: user.id,
+    action: "FILE_DUPLICATE",
+    resourceType: "File",
+    resourceId: copy.id,
+    after: { sourceFileId: file.id, name },
+  });
+  await logActivity({
+    userId: user.id,
+    type: "FILE_DUPLICATED",
+    message: `Duplicated ${file.name}`,
+    resourceType: "File",
+    resourceId: copy.id,
+  });
   revalidatePath("/app/drive");
   redirect(toast(returnTo, "toast", "File duplicated"));
 }
@@ -85,11 +113,20 @@ export async function saveDriveFileNote(fileId: string, formData: FormData): Pro
   const returnTo = safeReturn(formData);
   const file = await activeDriveFile(fileId);
   if (!file) redirect(toast(returnTo, "toast_error", "File not found"));
-  const note = String(formData.get("note") ?? "").trim().slice(0, 4000);
+  const note = String(formData.get("note") ?? "")
+    .trim()
+    .slice(0, 4000);
   const key = `${NOTE_PREFIX}${file.id}`;
-  if (note) await prisma.appSetting.upsert({ where: { key }, update: { value: note }, create: { key, value: note } });
+  if (note)
+    await prisma.appSetting.upsert({ where: { key }, update: { value: note }, create: { key, value: note } });
   else await prisma.appSetting.deleteMany({ where: { key } });
-  await audit({ userId: user.id, action: "FILE_NOTE_UPDATE", resourceType: "File", resourceId: file.id, after: { hasNote: Boolean(note) } });
+  await audit({
+    userId: user.id,
+    action: "FILE_NOTE_UPDATE",
+    resourceType: "File",
+    resourceId: file.id,
+    after: { hasNote: Boolean(note) },
+  });
   revalidatePath("/app/drive");
   redirect(toast(returnTo, "toast", "File note saved"));
 }
@@ -102,8 +139,14 @@ export async function setDrivePublicEnabled(fileId: string, formData: FormData):
   const enabled = String(formData.get("enabled") ?? "") === "1";
   const key = `${PUBLIC_DISABLED_PREFIX}${file.id}`;
   if (enabled) await prisma.appSetting.deleteMany({ where: { key } });
-  else await prisma.appSetting.upsert({ where: { key }, update: { value: "1" }, create: { key, value: "1" } });
-  await audit({ userId: user.id, action: enabled ? "FILE_PUBLIC_ENABLE" : "FILE_PUBLIC_DISABLE", resourceType: "File", resourceId: file.id });
+  else
+    await prisma.appSetting.upsert({ where: { key }, update: { value: "1" }, create: { key, value: "1" } });
+  await audit({
+    userId: user.id,
+    action: enabled ? "FILE_PUBLIC_ENABLE" : "FILE_PUBLIC_DISABLE",
+    resourceType: "File",
+    resourceId: file.id,
+  });
   revalidatePath("/app/drive");
   revalidatePath(`/view/file/${file.id}`);
   redirect(toast(returnTo, "toast", enabled ? "Public link enabled" : "Public link disabled"));
@@ -118,7 +161,12 @@ export async function regenerateDrivePublicLink(fileId: string, formData: FormDa
   const key = `${PUBLIC_TOKEN_PREFIX}${file.id}`;
   await prisma.appSetting.upsert({ where: { key }, update: { value: token }, create: { key, value: token } });
   await prisma.appSetting.deleteMany({ where: { key: `${PUBLIC_DISABLED_PREFIX}${file.id}` } });
-  await audit({ userId: user.id, action: "FILE_PUBLIC_REGENERATE", resourceType: "File", resourceId: file.id });
+  await audit({
+    userId: user.id,
+    action: "FILE_PUBLIC_REGENERATE",
+    resourceType: "File",
+    resourceId: file.id,
+  });
   revalidatePath("/app/drive");
   revalidatePath(`/view/file/${file.id}`);
   redirect(toast(returnTo, "toast", "Public link regenerated. Old link revoked."));
@@ -130,10 +178,12 @@ export async function uploadDriveNewVersion(fileId: string, formData: FormData):
   const file = await activeDriveFile(fileId);
   if (!file) redirect(toast(returnTo, "toast_error", "File not found"));
   const raw = formData.get("file");
-  if (!(raw instanceof File) || raw.size === 0) redirect(toast(returnTo, "toast_error", "Choose a replacement file"));
+  if (!(raw instanceof File) || raw.size === 0)
+    redirect(toast(returnTo, "toast_error", "Choose a replacement file"));
   if (raw.size > MAX_UPLOAD_BYTES) redirect(toast(returnTo, "toast_error", "File exceeds the 15 MB limit"));
   const mime = raw.type || "application/octet-stream";
-  if (!ALLOWED_MIME.includes(mime)) redirect(toast(returnTo, "toast_error", `File type not allowed (${mime})`));
+  if (!ALLOWED_MIME.includes(mime))
+    redirect(toast(returnTo, "toast_error", `File type not allowed (${mime})`));
   const quota = await assertDriveQuotaForUpload(raw.size);
   if (!quota.allowed) redirect(toast(returnTo, "toast_error", quotaMessage(quota)));
 
@@ -157,12 +207,29 @@ export async function uploadDriveNewVersion(fileId: string, formData: FormData):
     createdBy: `${user.firstName} ${user.lastName}`,
   };
   await prisma.$transaction([
-    prisma.appSetting.create({ data: { key: `${VERSION_PREFIX}${file.id}.${versionId}`, value: JSON.stringify(versionMeta) } }),
-    prisma.file.update({ where: { id: file.id }, data: { storageKey: replacementKey, mimeType: mime, sizeBytes: raw.size } }),
+    prisma.appSetting.create({
+      data: { key: `${VERSION_PREFIX}${file.id}.${versionId}`, value: JSON.stringify(versionMeta) },
+    }),
+    prisma.file.update({
+      where: { id: file.id },
+      data: { storageKey: replacementKey, mimeType: mime, sizeBytes: raw.size },
+    }),
   ]);
   await storage().remove(file.storageKey);
-  await audit({ userId: user.id, action: "FILE_NEW_VERSION", resourceType: "File", resourceId: file.id, after: { versionId, sizeBytes: raw.size, mimeType: mime } });
-  await logActivity({ userId: user.id, type: "FILE_NEW_VERSION", message: `Uploaded a new version of ${file.name}`, resourceType: "File", resourceId: file.id });
+  await audit({
+    userId: user.id,
+    action: "FILE_NEW_VERSION",
+    resourceType: "File",
+    resourceId: file.id,
+    after: { versionId, sizeBytes: raw.size, mimeType: mime },
+  });
+  await logActivity({
+    userId: user.id,
+    type: "FILE_NEW_VERSION",
+    message: `Uploaded a new version of ${file.name}`,
+    resourceType: "File",
+    resourceId: file.id,
+  });
   revalidatePath("/app/drive");
   redirect(toast(returnTo, "toast", "New version uploaded"));
 }

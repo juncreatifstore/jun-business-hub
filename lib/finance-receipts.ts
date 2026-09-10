@@ -49,7 +49,12 @@ export async function getReceiptMeta(paymentId: string) {
   return row ? parse(row.value) : null;
 }
 
-export async function ensureReceiptMeta(payment: { id: string; reference: string; paidAt: Date | null; createdAt: Date }) {
+export async function ensureReceiptMeta(payment: {
+  id: string;
+  reference: string;
+  paidAt: Date | null;
+  createdAt: Date;
+}) {
   const existing = await getReceiptMeta(payment.id);
   if (existing) return existing;
   const now = new Date().toISOString();
@@ -66,7 +71,11 @@ export async function ensureReceiptMeta(payment: { id: string; reference: string
     voidReason: null,
     updatedAt: now,
   };
-  await prisma.appSetting.upsert({ where: { key: key(payment.id) }, create: { key: key(payment.id), value: JSON.stringify(meta) }, update: {} });
+  await prisma.appSetting.upsert({
+    where: { key: key(payment.id) },
+    create: { key: key(payment.id), value: JSON.stringify(meta) },
+    update: {},
+  });
   return (await getReceiptMeta(payment.id)) || meta;
 }
 
@@ -90,7 +99,14 @@ export async function voidReceiptMeta(paymentId: string, userId: string, reason:
   if (!current) return null;
   if (current.status === "VOID") return current;
   const now = new Date().toISOString();
-  const next: ReceiptMeta = { ...current, status: "VOID", voidedAt: now, voidedById: userId, voidReason: reason, updatedAt: now };
+  const next: ReceiptMeta = {
+    ...current,
+    status: "VOID",
+    voidedAt: now,
+    voidedById: userId,
+    voidReason: reason,
+    updatedAt: now,
+  };
   await prisma.appSetting.update({ where: { key: key(paymentId) }, data: { value: JSON.stringify(next) } });
   return next;
 }
@@ -99,7 +115,10 @@ export async function getReceiptMetaMap(paymentIds: string[]) {
   const ids = [...new Set(paymentIds.filter(Boolean))];
   const map = new Map<string, ReceiptMeta>();
   if (!ids.length) return map;
-  const rows = await prisma.appSetting.findMany({ where: { key: { in: ids.map(key) } }, select: { key: true, value: true } });
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { in: ids.map(key) } },
+    select: { key: true, value: true },
+  });
   for (const row of rows) {
     const parsed = parse(row.value);
     if (parsed) map.set(parsed.paymentId, parsed);

@@ -18,7 +18,9 @@ export async function GET(req: Request, { params }: { params: { token: string } 
     return NextResponse.json({ error: "Signed PDF not available" }, { status: 404 });
   }
 
-  const signer = signatureRecipients(request.recipients).find((r) => r.email.toLowerCase() === payload.email.toLowerCase() && r.order === payload.order);
+  const signer = signatureRecipients(request.recipients).find(
+    (r) => r.email.toLowerCase() === payload.email.toLowerCase() && r.order === payload.order,
+  );
   if (!signer?.signedAt) return NextResponse.json({ error: "Signer has not completed" }, { status: 403 });
 
   const bytes = await storage().download(request.signedPdfKey);

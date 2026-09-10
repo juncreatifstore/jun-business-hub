@@ -28,7 +28,10 @@ export default async function DocumentPrintPage({ params }: { params: { id: stri
   return (
     <div className="mx-auto max-w-3xl bg-white p-10 print:p-0">
       <div className="mb-6 flex items-center justify-between gap-3 print:hidden">
-        <Link href={`/app/documents/${doc.id}`} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-night shadow-sm hover:bg-surface">
+        <Link
+          href={`/app/documents/${doc.id}`}
+          className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-night shadow-sm hover:bg-surface"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to document
         </Link>
@@ -42,22 +45,37 @@ export default async function DocumentPrintPage({ params }: { params: { id: stri
         </div>
         <div className="text-right text-xs text-muted2">
           <p className="registry-id text-ink">{doc.documentId}</p>
-          <p>{doc.type.replaceAll("_", " ")} · {doc.status}</p>
+          <p>
+            {doc.type.replaceAll("_", " ")} · {doc.status}
+          </p>
           {doc.finalizedAt ? <p>Finalized {formatDateTime(doc.finalizedAt)}</p> : null}
         </div>
       </div>
-      <article className="doc-prose mt-8 text-[15px]" dangerouslySetInnerHTML={{ __html: sanitizeDocumentHtml(doc.versions[0].content) }} />
+      <article
+        className="doc-prose mt-8 text-[15px]"
+        dangerouslySetInnerHTML={{ __html: sanitizeDocumentHtml(doc.versions[0].content) }}
+      />
       <div className="mt-12 flex items-end justify-between border-t border-line pt-5 text-xs text-muted2">
         <div>
-          {doc.finalHash ? <p className="registry-id">Integrity SHA-256: {shortHash(doc.finalHash)}</p> : <p>Draft — not yet finalized.</p>}
-          {showQR ? <p className="mt-1">Verify at <span className="registry-id text-ink">{verifyUrl}</span></p> : null}
+          {doc.finalHash ? (
+            <p className="registry-id">Integrity SHA-256: {shortHash(doc.finalHash)}</p>
+          ) : (
+            <p>Draft — not yet finalized.</p>
+          )}
+          {showQR ? (
+            <p className="mt-1">
+              Verify at <span className="registry-id text-ink">{verifyUrl}</span>
+            </p>
+          ) : null}
         </div>
         {qr ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={qr} alt="Verification QR code" width={110} height={110} />
         ) : null}
       </div>
-      <p className="mt-8 text-center text-[10px] text-muted2 print:hidden">Use your browser&apos;s Print → Save as PDF to export.</p>
+      <p className="mt-8 text-center text-[10px] text-muted2 print:hidden">
+        Use your browser&apos;s Print → Save as PDF to export.
+      </p>
     </div>
   );
 }

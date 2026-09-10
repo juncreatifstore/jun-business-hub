@@ -56,11 +56,16 @@ function parseSession(value: string): OnlinePaymentSession | null {
   try {
     const row = JSON.parse(value) as OnlinePaymentSession;
     return row?.id && row?.paymentId && row?.provider ? row : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export async function getOnlinePaymentSession(id: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: `${ONLINE_SESSION_PREFIX}${id}` }, select: { value: true } });
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${ONLINE_SESSION_PREFIX}${id}` },
+    select: { value: true },
+  });
   return row ? parseSession(row.value) : null;
 }
 
@@ -69,7 +74,10 @@ export async function getOnlinePaymentSessionByToken(token: string) {
   if (!parsed) return null;
   const session = await getOnlinePaymentSession(parsed.id);
   if (!session || !safeEqual(hashToken(parsed.secret), session.tokenHash)) return null;
-  if (["CREATED", "PENDING"].includes(session.status) && new Date(session.expiresAt).getTime() <= Date.now()) {
+  if (
+    ["CREATED", "PENDING"].includes(session.status) &&
+    new Date(session.expiresAt).getTime() <= Date.now()
+  ) {
     const expired = { ...session, status: "EXPIRED" as const, updatedAt: new Date().toISOString() };
     await saveOnlinePaymentSession(expired);
     return expired;
@@ -78,7 +86,12 @@ export async function getOnlinePaymentSessionByToken(token: string) {
 }
 
 export async function listOnlinePaymentSessions(limit = 150) {
-  const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: ONLINE_SESSION_PREFIX } }, orderBy: { updatedAt: "desc" }, take: limit, select: { value: true } });
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { startsWith: ONLINE_SESSION_PREFIX } },
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+    select: { value: true },
+  });
   return rows.map((r) => parseSession(r.value)).filter((v): v is OnlinePaymentSession => Boolean(v));
 }
 
@@ -88,25 +101,61 @@ export async function saveOnlinePaymentSession(session: OnlinePaymentSession) {
   await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
   if (session.providerSessionId) {
     const indexKey = `${ONLINE_PROVIDER_INDEX_PREFIX}${session.provider}.${session.providerSessionId}`;
-    await prisma.appSetting.upsert({ where: { key: indexKey }, create: { key: indexKey, value: session.id }, update: { value: session.id } });
+    await prisma.appSetting.upsert({
+      where: { key: indexKey },
+      create: { key: indexKey, value: session.id },
+      update: { value: session.id },
+    });
   }
 }
 
-export async function getOnlineSessionByProviderId(provider: OnlinePaymentProvider, providerSessionId: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: `${ONLINE_PROVIDER_INDEX_PREFIX}${provider}.${providerSessionId}` }, select: { value: true } });
+export async function getOnlineSessionByProviderId(
+  provider: OnlinePaymentProvider,
+  providerSessionId: string,
+) {
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${ONLINE_PROVIDER_INDEX_PREFIX}${provider}.${providerSessionId}` },
+    select: { value: true },
+  });
   return row ? getOnlinePaymentSession(row.value) : null;
 }
 
-export async function markOnlineSessionStatus(id: string, status: OnlinePaymentStatus, options?: { providerPaymentId?: string | null; error?: string | null }) {
+export async function markOnlineSessionStatus(
+  id: string,
+  status: OnlinePaymentStatus,
+  options?: { providerPaymentId?: string | null; error?: string | null },
+) {
   const session = await getOnlinePaymentSession(id);
   if (!session) return null;
   if (session.status === "PAID" && status !== "PAID") return session;
-  const next: OnlinePaymentSession = { ...session, status, providerPaymentId: options?.providerPaymentId ?? session.providerPaymentId, lastError: options?.error ?? null, updatedAt: new Date().toISOString() };
+  const next: OnlinePaymentSession = {
+    ...session,
+    status,
+    providerPaymentId: options?.providerPaymentId ?? session.providerPaymentId,
+    lastError: options?.error ?? null,
+    updatedAt: new Date().toISOString(),
+  };
   await saveOnlinePaymentSession(next);
   if (status === "PAID") {
-    const result = await prisma.payment.updateMany({ where: { id: session.paymentId, status: "PENDING" }, data: { status: "CONFIRMED", providerRef: options?.providerPaymentId || session.providerSessionId || undefined, paidAt: new Date() } });
+    const result = await prisma.payment.updateMany({
+      where: { id: session.paymentId, status: "PENDING" },
+      data: {
+        status: "CONFIRMED",
+        providerRef: options?.providerPaymentId || session.providerSessionId || undefined,
+        paidAt: new Date(),
+      },
+    });
     if (result.count > 0) {
-      await prisma.notification.create({ data: { userId: session.createdById, type: "ONLINE_PAYMENT_CONFIRMED", title: "Online payment confirmed", body: `${session.provider.replaceAll("_", " ")} confirmed ${session.currency} ${session.amount.toFixed(2)} for ${session.clientName}.` } }).catch(() => undefined);
+      await prisma.notification
+        .create({
+          data: {
+            userId: session.createdById,
+            type: "ONLINE_PAYMENT_CONFIRMED",
+            title: "Online payment confirmed",
+            body: `${session.provider.replaceAll("_", " ")} confirmed ${session.currency} ${session.amount.toFixed(2)} for ${session.clientName}.`,
+          },
+        })
+        .catch(() => undefined);
     }
   }
   return next;
@@ -114,12 +163,19 @@ export async function markOnlineSessionStatus(id: string, status: OnlinePaymentS
 
 export async function hasWebhookEvent(provider: OnlinePaymentProvider, eventId: string) {
   if (!eventId) return false;
-  const row = await prisma.appSetting.findUnique({ where: { key: `${ONLINE_WEBHOOK_PREFIX}${provider}.${eventId}` }, select: { key: true } });
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${ONLINE_WEBHOOK_PREFIX}${provider}.${eventId}` },
+    select: { key: true },
+  });
   return Boolean(row);
 }
 
 export async function registerWebhookEvent(provider: OnlinePaymentProvider, eventId: string) {
   if (!eventId) return;
   const key = `${ONLINE_WEBHOOK_PREFIX}${provider}.${eventId}`;
-  await prisma.appSetting.upsert({ where: { key }, create: { key, value: new Date().toISOString() }, update: {} });
+  await prisma.appSetting.upsert({
+    where: { key },
+    create: { key, value: new Date().toISOString() },
+    update: {},
+  });
 }

@@ -76,7 +76,9 @@ const labels: Record<string, string> = {
 function prettySegment(segment: string) {
   if (labels[segment]) return labels[segment];
   if (/^[0-9a-f-]{20,}$/i.test(segment) || segment.length > 24) return "Détail";
-  return decodeURIComponent(segment).replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return decodeURIComponent(segment)
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function ContextBack() {
@@ -106,10 +108,16 @@ export function ContextBack() {
         <ArrowLeft className="h-4 w-4" />
       </button>
 
-      <nav aria-label="Fil d’Ariane" className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+      <nav
+        aria-label="Fil d’Ariane"
+        className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+      >
         <ol className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-xs">
           <li className="shrink-0">
-            <Link href="/app" className="flex items-center gap-1 text-slate-500 transition hover:text-blue-400">
+            <Link
+              href="/app"
+              className="flex items-center gap-1 text-slate-500 transition hover:text-blue-400"
+            >
               <Home className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Accueil</span>
             </Link>
@@ -120,9 +128,16 @@ export function ContextBack() {
               <li key={`${crumb.href}-${index}`} className="flex min-w-0 items-center gap-1.5">
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-700" />
                 {last ? (
-                  <span className="max-w-[180px] truncate font-medium text-slate-300 sm:max-w-[280px]">{crumb.label}</span>
+                  <span className="max-w-[180px] truncate font-medium text-slate-300 sm:max-w-[280px]">
+                    {crumb.label}
+                  </span>
                 ) : (
-                  <Link href={crumb.href} className="max-w-[140px] truncate text-slate-500 transition hover:text-blue-400 sm:max-w-[220px]">{crumb.label}</Link>
+                  <Link
+                    href={crumb.href}
+                    className="max-w-[140px] truncate text-slate-500 transition hover:text-blue-400 sm:max-w-[220px]"
+                  >
+                    {crumb.label}
+                  </Link>
                 )}
               </li>
             );

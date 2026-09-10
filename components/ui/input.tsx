@@ -7,11 +7,11 @@ export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTML
       ref={ref}
       className={cn(
         "flex h-9 w-full rounded-lg border border-line bg-white px-3 py-1 text-sm shadow-sm placeholder:text-muted2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric disabled:opacity-50",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  ),
 );
 Input.displayName = "Input";
 
@@ -21,11 +21,11 @@ export const Textarea = forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttrib
       ref={ref}
       className={cn(
         "flex min-h-[90px] w-full rounded-lg border border-line bg-white px-3 py-2 text-sm shadow-sm placeholder:text-muted2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric disabled:opacity-50",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  ),
 );
 Textarea.displayName = "Textarea";
 
@@ -34,7 +34,7 @@ export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLS
     <select
       className={cn(
         "flex h-9 w-full rounded-lg border border-line bg-white px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric disabled:opacity-50",
-        className
+        className,
       )}
       {...props}
     />
@@ -45,7 +45,15 @@ export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLab
   return <label className={cn("mb-1.5 block text-[13px] font-medium text-ink/80", className)} {...props} />;
 }
 
-export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+export function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+}) {
   return (
     <div>
       <Label>{label}</Label>

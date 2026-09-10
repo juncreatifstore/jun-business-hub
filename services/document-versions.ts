@@ -15,12 +15,19 @@ export async function restoreDocumentVersion(documentId: string, versionId: stri
     include: { versions: { orderBy: { version: "desc" } } },
   });
   if (!doc) redirect(`/app/documents?toast_error=${encodeURIComponent("Document not found")}`);
-  if (isDocumentFrozen(doc.status)) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("This document is frozen and cannot be restored")}`);
+  if (isDocumentFrozen(doc.status))
+    redirect(
+      `/app/documents/${documentId}?toast_error=${encodeURIComponent("This document is frozen and cannot be restored")}`,
+    );
 
   const source = doc.versions.find((v) => v.id === versionId);
-  if (!source) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Version not found")}`);
+  if (!source)
+    redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("Version not found")}`);
   const latest = doc.versions[0];
-  if (latest?.id === source.id) redirect(`/app/documents/${documentId}?toast_error=${encodeURIComponent("That version is already current")}`);
+  if (latest?.id === source.id)
+    redirect(
+      `/app/documents/${documentId}?toast_error=${encodeURIComponent("That version is already current")}`,
+    );
 
   const nextVersion = (latest?.version ?? 0) + 1;
   await prisma.$transaction([
@@ -58,5 +65,7 @@ export async function restoreDocumentVersion(documentId: string, versionId: stri
     resourceId: documentId,
   });
   revalidatePath(`/app/documents/${documentId}`);
-  redirect(`/app/documents/${documentId}?toast=${encodeURIComponent(`Version ${source.version} restored as v${nextVersion}`)}`);
+  redirect(
+    `/app/documents/${documentId}?toast=${encodeURIComponent(`Version ${source.version} restored as v${nextVersion}`)}`,
+  );
 }

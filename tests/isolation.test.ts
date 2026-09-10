@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { clientCanAccessFile, clientCanAccessDocument, clientCanAccessReceipt, isDocumentFrozen } from "@/lib/portal";
+import {
+  clientCanAccessFile,
+  clientCanAccessDocument,
+  clientCanAccessReceipt,
+  isDocumentFrozen,
+} from "@/lib/portal";
 
 const A = "client_A";
 const B = "client_B";

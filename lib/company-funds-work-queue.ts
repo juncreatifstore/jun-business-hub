@@ -26,14 +26,14 @@ async function computeCompanyFundsWorkQueue(): Promise<CompanyFundsWorkQueue> {
     getFinancialReserveDashboard(),
   ]);
 
-  const pendingAuthorizations = authorizations.filter(a => a.status === "PENDING");
-  const evidenceAuthorizationIds = new Set(evidence.map(e => e.authorizationId));
+  const pendingAuthorizations = authorizations.filter((a) => a.status === "PENDING");
+  const evidenceAuthorizationIds = new Set(evidence.map((e) => e.authorizationId));
   const approvedWithoutEvidence = authorizations.filter(
-    a => a.status === "APPROVED" && !evidenceAuthorizationIds.has(a.id),
+    (a) => a.status === "APPROVED" && !evidenceAuthorizationIds.has(a.id),
   );
-  const transfersInTransit = transfers.filter(t => ["INITIATED", "IN_TRANSIT"].includes(t.status));
-  const unreconciled = bankTransactions.filter(t => !["MATCHED", "IGNORED"].includes(t.status));
-  const criticalReserveAlerts = reserves.alerts.filter(a => a.type === "CRITICAL");
+  const transfersInTransit = transfers.filter((t) => ["INITIATED", "IN_TRANSIT"].includes(t.status));
+  const unreconciled = bankTransactions.filter((t) => !["MATCHED", "IGNORED"].includes(t.status));
+  const criticalReserveAlerts = reserves.alerts.filter((a) => a.type === "CRITICAL");
 
   const queue = {
     authorizations: pendingAuthorizations.length,

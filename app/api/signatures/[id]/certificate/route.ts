@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const user = await getCurrentUser();
-  if (!user || !can(user, "DOCUMENT_READ")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user || !can(user, "DOCUMENT_READ"))
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const certificate = await buildSignatureCertificate(params.id);
   if (!certificate) return NextResponse.json({ error: "Certificate not available" }, { status: 404 });

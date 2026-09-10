@@ -16,7 +16,16 @@ export type WhatsAppPhoneWabaMatch = {
 
 async function credentials() {
   const rows = await prisma.appSetting.findMany({
-    where: { key: { in: ["whatsapp.business_account_id", "whatsapp.phone_number_id", "whatsapp.access_token_enc", "whatsapp.graph_version"] } },
+    where: {
+      key: {
+        in: [
+          "whatsapp.business_account_id",
+          "whatsapp.phone_number_id",
+          "whatsapp.access_token_enc",
+          "whatsapp.graph_version",
+        ],
+      },
+    },
     select: { key: true, value: true },
   });
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
@@ -30,9 +39,17 @@ async function credentials() {
 
 export async function getWhatsAppPhoneWabaMatch(): Promise<WhatsAppPhoneWabaMatch> {
   const c = await credentials();
-  if (!c) return { configured: false, ok: false, match: false, error: "WABA ID, Phone Number ID or Permanent Access Token is missing." };
+  if (!c)
+    return {
+      configured: false,
+      ok: false,
+      match: false,
+      error: "WABA ID, Phone Number ID or Permanent Access Token is missing.",
+    };
   try {
-    const url = new URL(`https://graph.facebook.com/${c.graphVersion}/${encodeURIComponent(c.wabaId)}/phone_numbers`);
+    const url = new URL(
+      `https://graph.facebook.com/${c.graphVersion}/${encodeURIComponent(c.wabaId)}/phone_numbers`,
+    );
     url.searchParams.set("fields", "id,display_phone_number,verified_name");
     url.searchParams.set("limit", "100");
     const response = await fetch(url, {
@@ -41,10 +58,18 @@ export async function getWhatsAppPhoneWabaMatch(): Promise<WhatsAppPhoneWabaMatc
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return { configured: true, ok: false, match: false, phoneNumberId: c.phoneNumberId, wabaId: c.wabaId, error: `Meta ${response.status}: ${JSON.stringify(payload)}` };
+      return {
+        configured: true,
+        ok: false,
+        match: false,
+        phoneNumberId: c.phoneNumberId,
+        wabaId: c.wabaId,
+        error: `Meta ${response.status}: ${JSON.stringify(payload)}`,
+      };
     }
     const data = Array.isArray((payload as { data?: unknown[] }).data)
-      ? (payload as { data: Array<{ id?: string; display_phone_number?: string; verified_name?: string }> }).data
+      ? (payload as { data: Array<{ id?: string; display_phone_number?: string; verified_name?: string }> })
+          .data
       : [];
     const found = data.find((p) => String(p.id || "") === c.phoneNumberId);
     return {
@@ -55,9 +80,21 @@ export async function getWhatsAppPhoneWabaMatch(): Promise<WhatsAppPhoneWabaMatc
       wabaId: c.wabaId,
       displayPhone: found?.display_phone_number,
       verifiedName: found?.verified_name,
-      ...(!found ? { error: "The saved Phone Number ID was not found among the phone numbers attached to the saved WABA." } : {}),
+      ...(!found
+        ? {
+            error:
+              "The saved Phone Number ID was not found among the phone numbers attached to the saved WABA.",
+          }
+        : {}),
     };
   } catch (error) {
-    return { configured: true, ok: false, match: false, phoneNumberId: c.phoneNumberId, wabaId: c.wabaId, error: error instanceof Error ? error.message : "Unable to verify Phone Number ID against WABA." };
+    return {
+      configured: true,
+      ok: false,
+      match: false,
+      phoneNumberId: c.phoneNumberId,
+      wabaId: c.wabaId,
+      error: error instanceof Error ? error.message : "Unable to verify Phone Number ID against WABA.",
+    };
   }
 }

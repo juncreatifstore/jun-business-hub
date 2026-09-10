@@ -1,9 +1,21 @@
 export const metadata = { title: "Divisions" };
 
 const divisions = [
-  { name: "JUN Travel", role: "Journeys & visas", body: "The travel division: itineraries, reservations, visa files, and traveler support." },
-  { name: "JUN Documents", role: "Official paperwork", body: "Contracts, attestations, and verifiable documents managed under the JUN registry." },
-  { name: "JUN Creatif", role: "Creative studio", body: "Brand, design, and creative projects for clients and partner ventures." },
+  {
+    name: "JUN Travel",
+    role: "Journeys & visas",
+    body: "The travel division: itineraries, reservations, visa files, and traveler support.",
+  },
+  {
+    name: "JUN Documents",
+    role: "Official paperwork",
+    body: "Contracts, attestations, and verifiable documents managed under the JUN registry.",
+  },
+  {
+    name: "JUN Creatif",
+    role: "Creative studio",
+    body: "Brand, design, and creative projects for clients and partner ventures.",
+  },
 ];
 
 export default function BrandsPage() {

@@ -6,10 +6,7 @@ import { renderManualTransferOrderPdf } from "@/services/pdf/manual-transfer-ord
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requirePermission("PAYMENT_READ");
 
@@ -24,9 +21,10 @@ export async function GET(
     }
 
     const bytes = await renderManualTransferOrderPdf(order);
-    const safeFileName = String(order.orderNumber || "manual-payment-order")
-      .replace(/[^a-zA-Z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "manual-payment-order";
+    const safeFileName =
+      String(order.orderNumber || "manual-payment-order")
+        .replace(/[^a-zA-Z0-9._-]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "manual-payment-order";
 
     return new NextResponse(Buffer.from(bytes), {
       status: 200,
@@ -39,9 +37,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("[manual-transfer-pdf] generation failed", error);
-    return NextResponse.json(
-      { error: "Unable to generate payment order PDF" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unable to generate payment order PDF" }, { status: 500 });
   }
 }

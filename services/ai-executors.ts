@@ -14,16 +14,21 @@ function escapeHtml(s: string) {
 
 export async function createDraftFromAI(
   user: CurrentUser,
-  input: { type: string; title: string; body: string; clientId?: string; caseId?: string }
+  input: { type: string; title: string; body: string; clientId?: string; caseId?: string },
 ) {
   const clientId = emptyToNull(input.clientId ?? "");
   const caseId = emptyToNull(input.caseId ?? "");
-  if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) return { error: "clientId not found" };
-  if (caseId && !(await prisma.case.findUnique({ where: { id: caseId }, select: { id: true } }))) return { error: "caseId not found" };
+  if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } })))
+    return { error: "clientId not found" };
+  if (caseId && !(await prisma.case.findUnique({ where: { id: caseId }, select: { id: true } })))
+    return { error: "caseId not found" };
 
   const html = sanitizeDocumentHtml(
     `<h1>${escapeHtml(input.title)}</h1>` +
-      input.body.split(/\n{2,}/).map((p) => `<p>${escapeHtml(p.trim())}</p>`).join("")
+      input.body
+        .split(/\n{2,}/)
+        .map((p) => `<p>${escapeHtml(p.trim())}</p>`)
+        .join(""),
   );
   const documentId = await nextNumber(DOC_PREFIX[input.type] ?? "JUN-DOC");
   const doc = await prisma.document.create({
@@ -34,29 +39,63 @@ export async function createDraftFromAI(
       clientId,
       caseId,
       authorId: user.id,
-      versions: { create: { version: 1, content: html, authorId: user.id, changeNote: "AI draft (human review required)", hash: sha256(html) } },
+      versions: {
+        create: {
+          version: 1,
+          content: html,
+          authorId: user.id,
+          changeNote: "AI draft (human review required)",
+          hash: sha256(html),
+        },
+      },
     },
   });
-  await audit({ userId: user.id, action: "AI_DOCUMENT_DRAFT_CREATED", resourceType: "Document", resourceId: doc.id, after: { documentId, type: input.type } });
-  return { ok: true, id: doc.id, documentId, url: `/app/documents/${doc.id}`, note: "DRAFT created — a human must review and finalize." };
+  await audit({
+    userId: user.id,
+    action: "AI_DOCUMENT_DRAFT_CREATED",
+    resourceType: "Document",
+    resourceId: doc.id,
+    after: { documentId, type: input.type },
+  });
+  return {
+    ok: true,
+    id: doc.id,
+    documentId,
+    url: `/app/documents/${doc.id}`,
+    note: "DRAFT created — a human must review and finalize.",
+  };
 }
 
 export async function createReceiptDraftFromAI(user: CurrentUser, paymentReference: string) {
-  const p = await prisma.payment.findUnique({ where: { reference: paymentReference }, include: { client: true } });
+  const p = await prisma.payment.findUnique({
+    where: { reference: paymentReference },
+    include: { client: true },
+  });
   if (!p) return { error: "Payment not found" };
-  if (p.status !== "CONFIRMED" || !p.paidAt) return { error: "Payment is not a dated CONFIRMED payment — a receipt draft requires a confirmed payment" };
+  if (p.status !== "CONFIRMED" || !p.paidAt)
+    return {
+      error: "Payment is not a dated CONFIRMED payment — a receipt draft requires a confirmed payment",
+    };
   const body = `Received from ${p.client.firstName} ${p.client.lastName} (${p.client.internalId}): ${formatMoney(Number(p.amount), p.currency)} via ${p.method} on ${p.paidAt.toISOString().slice(0, 10)}. Payment reference ${p.reference}. Official receipt reference RCT-${p.reference}.`;
-  return createDraftFromAI(user, { type: "RECEIPT", title: `Receipt draft — ${p.reference}`, body, clientId: p.clientId, caseId: p.caseId ?? undefined });
+  return createDraftFromAI(user, {
+    type: "RECEIPT",
+    title: `Receipt draft — ${p.reference}`,
+    body,
+    clientId: p.clientId,
+    caseId: p.caseId ?? undefined,
+  });
 }
 
 export async function createTaskFromAI(
   user: CurrentUser,
-  input: { title: string; description?: string; caseId?: string; clientId?: string; dueDate?: string }
+  input: { title: string; description?: string; caseId?: string; clientId?: string; dueDate?: string },
 ) {
   const caseId = emptyToNull(input.caseId ?? "");
   const clientId = emptyToNull(input.clientId ?? "");
-  if (caseId && !(await prisma.case.findUnique({ where: { id: caseId }, select: { id: true } }))) return { error: "caseId not found" };
-  if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } }))) return { error: "clientId not found" };
+  if (caseId && !(await prisma.case.findUnique({ where: { id: caseId }, select: { id: true } })))
+    return { error: "caseId not found" };
+  if (clientId && !(await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } })))
+    return { error: "clientId not found" };
   const due = input.dueDate ? new Date(input.dueDate) : null;
   const task = await prisma.task.create({
     data: {
@@ -69,6 +108,12 @@ export async function createTaskFromAI(
       dueDate: due && !Number.isNaN(due.getTime()) ? due : null,
     },
   });
-  await audit({ userId: user.id, action: "AI_TASK_DRAFT_CREATED", resourceType: "Task", resourceId: task.id, after: { title: input.title } });
+  await audit({
+    userId: user.id,
+    action: "AI_TASK_DRAFT_CREATED",
+    resourceType: "Task",
+    resourceId: task.id,
+    after: { title: input.title },
+  });
   return { ok: true, id: task.id, url: "/app/tasks", note: "Task created unassigned — a human assigns it." };
 }

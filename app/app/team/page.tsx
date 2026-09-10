@@ -26,17 +26,35 @@ export default async function TeamPage() {
 
   return (
     <div>
-      <PageHeader title="Team" subtitle="Staff accounts, roles and access. Client-portal accounts are managed from each client page." />
+      <PageHeader
+        title="Team"
+        subtitle="Staff accounts, roles and access. Client-portal accounts are managed from each client page."
+      />
 
       <Card className="mb-8">
-        <CardHeader><CardTitle>Add a team member</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Add a team member</CardTitle>
+        </CardHeader>
         <CardContent>
-          <TeamForm action={createTeamMember} departments={departments.map((d) => ({ id: d.id, label: d.label }))} allowSuperAdmin={user.role === "SUPER_ADMIN"} />
+          <TeamForm
+            action={createTeamMember}
+            departments={departments.map((d) => ({ id: d.id, label: d.label }))}
+            allowSuperAdmin={user.role === "SUPER_ADMIN"}
+          />
         </CardContent>
       </Card>
 
       <Table>
-        <THead><tr><TH>Name</TH><TH>Role</TH><TH>Department</TH><TH>Status</TH><TH>Last login</TH><TH>Actions</TH></tr></THead>
+        <THead>
+          <tr>
+            <TH>Name</TH>
+            <TH>Role</TH>
+            <TH>Department</TH>
+            <TH>Status</TH>
+            <TH>Last login</TH>
+            <TH>Actions</TH>
+          </tr>
+        </THead>
         <tbody>
           {members.map((m) => {
             const isSelf = m.id === user.id;
@@ -44,12 +62,19 @@ export default async function TeamPage() {
             return (
               <TR key={m.id}>
                 <TD>
-                  <p className="font-medium">{m.firstName} {m.lastName}{isSelf ? <span className="ml-2 text-xs text-muted2">(you)</span> : null}</p>
+                  <p className="font-medium">
+                    {m.firstName} {m.lastName}
+                    {isSelf ? <span className="ml-2 text-xs text-muted2">(you)</span> : null}
+                  </p>
                   <p className="text-xs text-muted2">{m.email}</p>
                 </TD>
-                <TD><Badge className="bg-white/10 text-white/80">{m.role.replaceAll("_", " ")}</Badge></TD>
+                <TD>
+                  <Badge className="bg-white/10 text-white/80">{m.role.replaceAll("_", " ")}</Badge>
+                </TD>
                 <TD className="text-muted2">{m.department?.label ?? "—"}</TD>
-                <TD><StatusBadge status={m.status} /></TD>
+                <TD>
+                  <StatusBadge status={m.status} />
+                </TD>
                 <TD className="text-muted2">{m.lastLoginAt ? formatDate(m.lastLoginAt) : "Never"}</TD>
                 <TD>
                   {isSelf || protectedTarget ? (
@@ -58,16 +83,29 @@ export default async function TeamPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       {m.status === "ACTIVE" ? (
                         <form action={setUserStatus.bind(null, m.id, "SUSPENDED")}>
-                          <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-amber-400 hover:text-amber-400">Suspend</button>
+                          <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-amber-400 hover:text-amber-400">
+                            Suspend
+                          </button>
                         </form>
                       ) : (
                         <form action={setUserStatus.bind(null, m.id, "ACTIVE")}>
-                          <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-emerald-400 hover:text-emerald-400">Activate</button>
+                          <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-emerald-400 hover:text-emerald-400">
+                            Activate
+                          </button>
                         </form>
                       )}
                       <form action={resetUserPassword.bind(null, m.id)} className="flex items-center gap-1">
-                        <input name="password" type="password" minLength={10} required placeholder="New password" className="h-7 w-32 rounded-md border border-white/10 bg-white/5 px-2 text-xs outline-none focus:border-electric" />
-                        <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-electric hover:text-electric">Reset</button>
+                        <input
+                          name="password"
+                          type="password"
+                          minLength={10}
+                          required
+                          placeholder="New password"
+                          className="h-7 w-32 rounded-md border border-white/10 bg-white/5 px-2 text-xs outline-none focus:border-electric"
+                        />
+                        <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-electric hover:text-electric">
+                          Reset
+                        </button>
                       </form>
                     </div>
                   )}

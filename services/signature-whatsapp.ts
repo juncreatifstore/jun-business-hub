@@ -42,14 +42,16 @@ async function officialPdf(documentId: string, finalPdfKey: string | null) {
   });
   if (!doc) throw new Error("Document not found");
   const { renderDocumentPdf } = await import("@/services/pdf");
-  return Buffer.from(await renderDocumentPdf({
-    documentId: doc.documentId,
-    title: doc.title,
-    type: doc.type,
-    status: doc.status,
-    html: doc.versions[0]?.content ?? "",
-    clientName: doc.client ? `${doc.client.firstName} ${doc.client.lastName}` : null,
-  }));
+  return Buffer.from(
+    await renderDocumentPdf({
+      documentId: doc.documentId,
+      title: doc.title,
+      type: doc.type,
+      status: doc.status,
+      html: doc.versions[0]?.content ?? "",
+      clientName: doc.client ? `${doc.client.firstName} ${doc.client.lastName}` : null,
+    }),
+  );
 }
 
 async function defaultClientFields(documentId: string, finalPdfKey: string | null) {
@@ -63,7 +65,11 @@ async function defaultClientFields(documentId: string, finalPdfKey: string | nul
   ];
 }
 
-async function voidLegacyMockRequest(requestId: string, recipients: SignatureRecipient[], meta: ReturnType<typeof signatureRequestMeta>) {
+async function voidLegacyMockRequest(
+  requestId: string,
+  recipients: SignatureRecipient[],
+  meta: ReturnType<typeof signatureRequestMeta>,
+) {
   await prisma.signatureRequest.update({
     where: { id: requestId },
     data: {
@@ -125,14 +131,31 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
   });
 
   if (!doc) redirect("/app/documents?toast_error=Document not found");
-  if (doc.status !== "FINAL") redirect(documentPath(doc.id, "Finalize the document before requesting the client's signature by WhatsApp.", true));
+  if (doc.status !== "FINAL")
+    redirect(
+      documentPath(
+        doc.id,
+        "Finalize the document before requesting the client's signature by WhatsApp.",
+        true,
+      ),
+    );
   if (!doc.client) redirect(documentPath(doc.id, "This document is not linked to a client.", true));
-  if (await isClientCommunicationBanned(doc.client.id)) redirect(documentPath(doc.id, "Client banni — la demande de signature WhatsApp est bloquée.", true));
+  if (await isClientCommunicationBanned(doc.client.id))
+    redirect(documentPath(doc.id, "Client banni — la demande de signature WhatsApp est bloquée.", true));
 
   const to = String(doc.client.whatsapp || doc.client.phone || "").trim();
   if (!to) redirect(documentPath(doc.id, "Ajoutez d'abord un numéro WhatsApp au dossier du client.", true));
-  const clientEmail = String(doc.client.email || "").trim().toLowerCase();
-  if (!clientEmail) redirect(documentPath(doc.id, "Ajoutez aussi l'adresse e-mail du client. JUN Secure Sign utilise un code de vérification envoyé à cet e-mail avant d'afficher le document.", true));
+  const clientEmail = String(doc.client.email || "")
+    .trim()
+    .toLowerCase();
+  if (!clientEmail)
+    redirect(
+      documentPath(
+        doc.id,
+        "Ajoutez aussi l'adresse e-mail du client. JUN Secure Sign utilise un code de vérification envoyé à cet e-mail avant d'afficher le document.",
+        true,
+      ),
+    );
 
   const clientName = `${doc.client.firstName} ${doc.client.lastName}`.trim();
   let request: (typeof doc.signatures)[number] | null = doc.signatures.length > 0 ? doc.signatures[0] : null;
@@ -143,15 +166,45 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
     const existingMeta = signatureRequestMeta(request.recipients);
     if (request.provider === "MOCK") {
       await voidLegacyMockRequest(request.id, existingRecipients, existingMeta);
-      await audit({ userId: user.id, action: "SIGNATURE_LEGACY_MOCK_REPLACED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: doc.documentId, replacementChannel: "WHATSAPP" } }).catch(() => undefined);
+      await audit({
+        userId: user.id,
+        action: "SIGNATURE_LEGACY_MOCK_REPLACED",
+        resourceType: "SignatureRequest",
+        resourceId: request.id,
+        after: { documentId: doc.documentId, replacementChannel: "WHATSAPP" },
+      }).catch(() => undefined);
       request = null;
     } else if (request.provider !== "JUN_NATIVE" && request.status !== "READY_FOR_SIGNATURE") {
-      redirect(documentPath(doc.id, `An active ${request.provider} signature request already exists. Void or complete it before starting a WhatsApp signing request.`, true));
+      redirect(
+        documentPath(
+          doc.id,
+          `An active ${request.provider} signature request already exists. Void or complete it before starting a WhatsApp signing request.`,
+          true,
+        ),
+      );
     } else {
-      const clientRecipient = existingRecipients.find((recipient) => recipient.role === "CLIENT" || recipient.email.toLowerCase() === clientEmail);
-      if (!clientRecipient || existingRecipients.length !== 1) redirect(documentPath(doc.id, "The active signature request is not client-only. Void it first so JUN can create the new client-only WhatsApp request.", true));
-      if (!(clientRecipient.fields ?? []).some((field) => field.type === "SIGNATURE")) redirect(documentPath(doc.id, "The prepared client signer has no signature field. Open the signature request and place a Signature field first.", true));
-      const expiresAt = existingMeta.expiresAt ? new Date(existingMeta.expiresAt) : nativeSigningExpiry(request.sentAt ?? new Date());
+      const clientRecipient = existingRecipients.find(
+        (recipient) => recipient.role === "CLIENT" || recipient.email.toLowerCase() === clientEmail,
+      );
+      if (!clientRecipient || existingRecipients.length !== 1)
+        redirect(
+          documentPath(
+            doc.id,
+            "The active signature request is not client-only. Void it first so JUN can create the new client-only WhatsApp request.",
+            true,
+          ),
+        );
+      if (!(clientRecipient.fields ?? []).some((field) => field.type === "SIGNATURE"))
+        redirect(
+          documentPath(
+            doc.id,
+            "The prepared client signer has no signature field. Open the signature request and place a Signature field first.",
+            true,
+          ),
+        );
+      const expiresAt = existingMeta.expiresAt
+        ? new Date(existingMeta.expiresAt)
+        : nativeSigningExpiry(request.sentAt ?? new Date());
       if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
         await prisma.signatureRequest.update({ where: { id: request.id }, data: { status: "EXPIRED" } });
         request = null;
@@ -161,7 +214,15 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
 
   if (!request) {
     const fields = await defaultClientFields(doc.id, doc.finalPdfKey);
-    const recipient: SignatureRecipient = { name: clientName, email: clientEmail, order: 1, role: "CLIENT", signedAt: null, linkVersion: 1, fields };
+    const recipient: SignatureRecipient = {
+      name: clientName,
+      email: clientEmail,
+      order: 1,
+      role: "CLIENT",
+      signedAt: null,
+      linkVersion: 1,
+      fields,
+    };
     const expiresAt = nativeSigningExpiry(new Date());
     request = await prisma.signatureRequest.create({
       data: {
@@ -169,7 +230,10 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
         provider: "JUN_NATIVE",
         providerEnvelopeId: null,
         status: "READY_FOR_SIGNATURE",
-        recipients: signatureRecipientsPayload([recipient], { message: "Signature du client demandée par WhatsApp.", expiresAt: expiresAt.toISOString() }) as never,
+        recipients: signatureRecipientsPayload([recipient], {
+          message: "Signature du client demandée par WhatsApp.",
+          expiresAt: expiresAt.toISOString(),
+        }) as never,
         createdById: user.id,
       },
     });
@@ -177,29 +241,58 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
   }
 
   let recipients = signatureRecipients(request.recipients);
-  const recipientIndex = recipients.findIndex((recipient) => recipient.role === "CLIENT" || recipient.email.toLowerCase() === clientEmail);
+  const recipientIndex = recipients.findIndex(
+    (recipient) => recipient.role === "CLIENT" || recipient.email.toLowerCase() === clientEmail,
+  );
   if (recipientIndex < 0) {
-    if (newlyCreated) await prisma.signatureRequest.delete({ where: { id: request.id } }).catch(() => undefined);
+    if (newlyCreated)
+      await prisma.signatureRequest.delete({ where: { id: request.id } }).catch(() => undefined);
     redirect(documentPath(doc.id, "Client signer could not be prepared.", true));
   }
 
   const meta = signatureRequestMeta(request.recipients);
   const now = new Date();
-  const expiresAt = meta.expiresAt && new Date(meta.expiresAt).getTime() > Date.now() ? new Date(meta.expiresAt) : nativeSigningExpiry(now);
+  const expiresAt =
+    meta.expiresAt && new Date(meta.expiresAt).getTime() > Date.now()
+      ? new Date(meta.expiresAt)
+      : nativeSigningExpiry(now);
   await prisma.signatureRequest.update({
     where: { id: request.id },
-    data: { provider: "JUN_NATIVE", status: request.status === "READY_FOR_SIGNATURE" ? "SENT" : request.status, sentAt: request.sentAt ?? now, recipients: signatureRecipientsPayload(recipients, { ...meta, expiresAt: expiresAt.toISOString() }) as never },
+    data: {
+      provider: "JUN_NATIVE",
+      status: request.status === "READY_FOR_SIGNATURE" ? "SENT" : request.status,
+      sentAt: request.sentAt ?? now,
+      recipients: signatureRecipientsPayload(recipients, {
+        ...meta,
+        expiresAt: expiresAt.toISOString(),
+      }) as never,
+    },
   });
 
   const recipient = recipients[recipientIndex];
-  const signingUrl = await nativeSigningUrl(request.id, recipient.email, recipient.order, expiresAt, recipient.linkVersion ?? 1);
+  const signingUrl = await nativeSigningUrl(
+    request.id,
+    recipient.email,
+    recipient.order,
+    expiresAt,
+    recipient.linkVersion ?? 1,
+  );
   const reminder = request.status !== "READY_FOR_SIGNATURE";
   const message = [
-    `Bonjour ${doc.client.firstName},`, "",
-    reminder ? `Rappel : le document « ${doc.title} » (${doc.documentId}) attend votre signature électronique.` : `JUN CREATIF AND TRAVEL LLC vous invite à lire et signer électroniquement le document « ${doc.title} » (${doc.documentId}).`,
-    "", "Lien sécurisé de signature :", signingUrl, "",
-    "Pour votre sécurité, JUN vérifiera votre identité avant d'afficher le document. Le document officiel reste authentifiable en ligne grâce à son QR code, son identifiant et son empreinte d'intégrité.", "",
-    `Ce lien expire le ${expiresAt.toISOString().slice(0, 10)}.`, "", "JUN CREATIF AND TRAVEL LLC",
+    `Bonjour ${doc.client.firstName},`,
+    "",
+    reminder
+      ? `Rappel : le document « ${doc.title} » (${doc.documentId}) attend votre signature électronique.`
+      : `JUN CREATIF AND TRAVEL LLC vous invite à lire et signer électroniquement le document « ${doc.title} » (${doc.documentId}).`,
+    "",
+    "Lien sécurisé de signature :",
+    signingUrl,
+    "",
+    "Pour votre sécurité, JUN vérifiera votre identité avant d'afficher le document. Le document officiel reste authentifiable en ligne grâce à son QR code, son identifiant et son empreinte d'intégrité.",
+    "",
+    `Ce lien expire le ${expiresAt.toISOString().slice(0, 10)}.`,
+    "",
+    "JUN CREATIF AND TRAVEL LLC",
   ].join("\n");
 
   try {
@@ -235,19 +328,72 @@ export async function sendClientSignatureViaWhatsApp(documentId: string): Promis
       },
     });
 
-    await audit({ userId: user.id, action: reminder ? "SIGNATURE_WHATSAPP_REMINDER_ACCEPTED" : "SIGNATURE_WHATSAPP_ACCEPTED", resourceType: "SignatureRequest", resourceId: request.id, after: { documentId: doc.documentId, clientId: doc.client.id, to, messageId, provider: "JUN_NATIVE", signerRole: "CLIENT", deliveryMode: delivery.mode, template: delivery.template, mediaId: delivery.mediaId, expiresAt: expiresAt.toISOString() } });
-    await logActivity({ userId: user.id, type: "SIGNATURE_REQUESTED", message: `Client signature invitation for ${doc.documentId} accepted by Meta via ${delivery.mode}${messageId ? ` · ${messageId}` : ""}`, clientId: doc.client.id, caseId: doc.caseId, resourceType: "SignatureRequest", resourceId: request.id });
-    await recordOutgoingWhatsAppMessage({ phone: to, messageId, type: "document", text: `Demande de signature · ${doc.title} (${doc.documentId}) · ${signingUrl}`, clientId: doc.client.id, caseId: doc.caseId, userId: user.id }).catch(() => undefined);
+    await audit({
+      userId: user.id,
+      action: reminder ? "SIGNATURE_WHATSAPP_REMINDER_ACCEPTED" : "SIGNATURE_WHATSAPP_ACCEPTED",
+      resourceType: "SignatureRequest",
+      resourceId: request.id,
+      after: {
+        documentId: doc.documentId,
+        clientId: doc.client.id,
+        to,
+        messageId,
+        provider: "JUN_NATIVE",
+        signerRole: "CLIENT",
+        deliveryMode: delivery.mode,
+        template: delivery.template,
+        mediaId: delivery.mediaId,
+        expiresAt: expiresAt.toISOString(),
+      },
+    });
+    await logActivity({
+      userId: user.id,
+      type: "SIGNATURE_REQUESTED",
+      message: `Client signature invitation for ${doc.documentId} accepted by Meta via ${delivery.mode}${messageId ? ` · ${messageId}` : ""}`,
+      clientId: doc.client.id,
+      caseId: doc.caseId,
+      resourceType: "SignatureRequest",
+      resourceId: request.id,
+    });
+    await recordOutgoingWhatsAppMessage({
+      phone: to,
+      messageId,
+      type: "document",
+      text: `Demande de signature · ${doc.title} (${doc.documentId}) · ${signingUrl}`,
+      clientId: doc.client.id,
+      caseId: doc.caseId,
+      userId: user.id,
+    }).catch(() => undefined);
   } catch (error) {
-    if (newlyCreated) await prisma.signatureRequest.delete({ where: { id: request.id } }).catch(() => undefined);
-    else if (request.status === "READY_FOR_SIGNATURE") await prisma.signatureRequest.update({ where: { id: request.id }, data: { status: "READY_FOR_SIGNATURE", sentAt: request.sentAt } }).catch(() => undefined);
-    await audit({ userId: user.id, action: "SIGNATURE_WHATSAPP_SEND_FAILED", resourceType: "Document", resourceId: doc.id, after: { documentId: doc.documentId, clientId: doc.client.id, error: cleanError(error) } }).catch(() => undefined);
-    redirect(documentPath(doc.id, `WhatsApp n'a pas accepté la demande de signature : ${cleanError(error)}`, true));
+    if (newlyCreated)
+      await prisma.signatureRequest.delete({ where: { id: request.id } }).catch(() => undefined);
+    else if (request.status === "READY_FOR_SIGNATURE")
+      await prisma.signatureRequest
+        .update({
+          where: { id: request.id },
+          data: { status: "READY_FOR_SIGNATURE", sentAt: request.sentAt },
+        })
+        .catch(() => undefined);
+    await audit({
+      userId: user.id,
+      action: "SIGNATURE_WHATSAPP_SEND_FAILED",
+      resourceType: "Document",
+      resourceId: doc.id,
+      after: { documentId: doc.documentId, clientId: doc.client.id, error: cleanError(error) },
+    }).catch(() => undefined);
+    redirect(
+      documentPath(doc.id, `WhatsApp n'a pas accepté la demande de signature : ${cleanError(error)}`, true),
+    );
   }
 
   revalidatePath(`/app/documents/${doc.id}`);
   revalidatePath(`/app/signatures/${request.id}`);
   revalidatePath("/app/signatures");
   revalidatePath("/app/whatsapp/inbox");
-  redirect(documentPath(doc.id, `Invitation de signature acceptée par Meta pour ${clientName}. JUN suivra ensuite le statut Delivered / Read / Failed.`));
+  redirect(
+    documentPath(
+      doc.id,
+      `Invitation de signature acceptée par Meta pour ${clientName}. JUN suivra ensuite le statut Delivered / Read / Failed.`,
+    ),
+  );
 }

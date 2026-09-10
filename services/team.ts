@@ -9,7 +9,19 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { FormState } from "@/services/clients";
 
-const STAFF_ROLES = ["SUPER_ADMIN", "DIRECTOR", "ADMIN", "MANAGER", "FINANCE", "TRAVEL_AGENT", "DOCUMENT_AGENT", "LEGAL", "ACCOUNTANT", "AUDITOR", "VIEWER"] as const;
+const STAFF_ROLES = [
+  "SUPER_ADMIN",
+  "DIRECTOR",
+  "ADMIN",
+  "MANAGER",
+  "FINANCE",
+  "TRAVEL_AGENT",
+  "DOCUMENT_AGENT",
+  "LEGAL",
+  "ACCOUNTANT",
+  "AUDITOR",
+  "VIEWER",
+] as const;
 
 const userSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(80),
@@ -53,7 +65,13 @@ export async function createTeamMember(_prev: FormState, formData: FormData): Pr
     },
   });
 
-  await audit({ userId: actor.id, action: "USER_CREATE", resourceType: "User", resourceId: user.id, after: { email: user.email, role: user.role } });
+  await audit({
+    userId: actor.id,
+    action: "USER_CREATE",
+    resourceType: "User",
+    resourceId: user.id,
+    after: { email: user.email, role: user.role },
+  });
   revalidatePath("/app/team");
   redirect("/app/team?toast=Team member created");
 }
@@ -64,10 +82,18 @@ export async function setUserStatus(userId: string, status: string): Promise<voi
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) redirect("/app/team?toast_error=User not found");
   if (target.id === actor.id) redirect("/app/team?toast_error=You cannot change your own status");
-  if (target.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") redirect("/app/team?toast_error=Only a Super Admin can manage a Super Admin");
+  if (target.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN")
+    redirect("/app/team?toast_error=Only a Super Admin can manage a Super Admin");
 
   await prisma.user.update({ where: { id: userId }, data: { status: status as never } });
-  await audit({ userId: actor.id, action: "USER_STATUS_CHANGE", resourceType: "User", resourceId: userId, before: { status: target.status }, after: { status } });
+  await audit({
+    userId: actor.id,
+    action: "USER_STATUS_CHANGE",
+    resourceType: "User",
+    resourceId: userId,
+    before: { status: target.status },
+    after: { status },
+  });
   revalidatePath("/app/team");
   redirect(`/app/team?toast=Status updated to ${status.toLowerCase()}`);
 }
@@ -78,9 +104,13 @@ export async function resetUserPassword(userId: string, formData: FormData): Pro
   if (password.length < 10) redirect("/app/team?toast_error=Password must be at least 10 characters");
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) redirect("/app/team?toast_error=User not found");
-  if (target.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") redirect("/app/team?toast_error=Only a Super Admin can manage a Super Admin");
+  if (target.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN")
+    redirect("/app/team?toast_error=Only a Super Admin can manage a Super Admin");
 
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(password, 12) } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await bcrypt.hash(password, 12) },
+  });
   await audit({ userId: actor.id, action: "USER_PASSWORD_RESET", resourceType: "User", resourceId: userId });
   revalidatePath("/app/team");
   redirect("/app/team?toast=Password reset");

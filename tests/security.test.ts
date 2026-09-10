@@ -26,7 +26,9 @@ describe("secret encryption (AES-256-GCM)", () => {
 // Pure re-implementation of the refund cap rule (mirrors services/finance.ts) so it is
 // unit-testable without a database.
 function availableToRefund(paymentAmount: number, refunds: { amount: number; status: string }[]): number {
-  const committed = refunds.filter((r) => !["REJECTED", "CANCELLED"].includes(r.status)).reduce((s, r) => s + r.amount, 0);
+  const committed = refunds
+    .filter((r) => !["REJECTED", "CANCELLED"].includes(r.status))
+    .reduce((s, r) => s + r.amount, 0);
   return Math.round((paymentAmount - committed) * 100) / 100;
 }
 
@@ -36,11 +38,21 @@ describe("refund cap — amount ≤ available on the payment", () => {
   });
 
   it("subtracts active refunds (REQUESTED/APPROVED/PAID…)", () => {
-    expect(availableToRefund(1850, [{ amount: 300, status: "APPROVED" }, { amount: 100, status: "REQUESTED" }])).toBe(1450);
+    expect(
+      availableToRefund(1850, [
+        { amount: 300, status: "APPROVED" },
+        { amount: 100, status: "REQUESTED" },
+      ]),
+    ).toBe(1450);
   });
 
   it("ignores REJECTED and CANCELLED refunds", () => {
-    expect(availableToRefund(500, [{ amount: 500, status: "REJECTED" }, { amount: 200, status: "CANCELLED" }])).toBe(500);
+    expect(
+      availableToRefund(500, [
+        { amount: 500, status: "REJECTED" },
+        { amount: 200, status: "CANCELLED" },
+      ]),
+    ).toBe(500);
   });
 
   it("cent-accurate", () => {

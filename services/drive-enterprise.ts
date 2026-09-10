@@ -38,7 +38,8 @@ export async function saveDriveEnterpriseSettings(formData: FormData): Promise<v
   const retentionTrashDays = int(formData.get("retentionTrashDays"), current.retentionTrashDays, 1, 3650);
   const maxPublicLinkDays = int(formData.get("maxPublicLinkDays"), current.maxPublicLinkDays, 0, 3650);
   const policyRaw = String(formData.get("publicLinkPolicy") ?? "ALLOW");
-  const publicLinkPolicy: DriveEnterpriseSettings["publicLinkPolicy"] = policyRaw === "PASSWORD_REQUIRED" || policyRaw === "DISABLED" ? policyRaw : "ALLOW";
+  const publicLinkPolicy: DriveEnterpriseSettings["publicLinkPolicy"] =
+    policyRaw === "PASSWORD_REQUIRED" || policyRaw === "DISABLED" ? policyRaw : "ALLOW";
   const settings: DriveEnterpriseSettings = {
     quotaBytes: quotaGb * 1073741824,
     zipMaxFiles,
@@ -53,33 +54,47 @@ export async function saveDriveEnterpriseSettings(formData: FormData): Promise<v
     update: { value: JSON.stringify(settings) },
     create: { key: DRIVE_ENTERPRISE_SETTINGS_KEY, value: JSON.stringify(settings) },
   });
-  await audit({ userId: user.id, action: "DRIVE_ENTERPRISE_SETTINGS_UPDATE", resourceType: "Drive", before: current as any, after: settings as any });
+  await audit({
+    userId: user.id,
+    action: "DRIVE_ENTERPRISE_SETTINGS_UPDATE",
+    resourceType: "Drive",
+    before: current as any,
+    after: settings as any,
+  });
   revalidatePath("/app/drive");
   revalidatePath("/app/drive/enterprise");
   redirect(toast(returnTo, "toast", "Enterprise policies saved"));
 }
 
 async function cleanupFileMetadata(fileId: string) {
-  const rows = await prisma.appSetting.findMany({ where: { OR: [
-    { key: { endsWith: `.${fileId}` } },
-    { key: { startsWith: `drive.note.${fileId}` } },
-    { key: { startsWith: `drive.public.disabled.${fileId}` } },
-    { key: { startsWith: `drive.public.token.${fileId}` } },
-    { key: { startsWith: `drive.public.expires.${fileId}` } },
-    { key: { startsWith: `drive.public.password.${fileId}` } },
-    { key: { startsWith: `drive.intelligence.${fileId}` } },
-    { key: { startsWith: `drive.hash.${fileId}` } },
-    { key: { startsWith: `drive.tags.${fileId}` } },
-    { key: { startsWith: `drive.duplicate.${fileId}` } },
-    { key: { startsWith: `drive.expiry.${fileId}` } },
-    { key: { startsWith: `drive.collaboration.File.${fileId}` } },
-    { key: { startsWith: `${DRIVE_VERSION_PREFIX}${fileId}.` } },
-  ] }, select: { key: true, value: true } });
+  const rows = await prisma.appSetting.findMany({
+    where: {
+      OR: [
+        { key: { endsWith: `.${fileId}` } },
+        { key: { startsWith: `drive.note.${fileId}` } },
+        { key: { startsWith: `drive.public.disabled.${fileId}` } },
+        { key: { startsWith: `drive.public.token.${fileId}` } },
+        { key: { startsWith: `drive.public.expires.${fileId}` } },
+        { key: { startsWith: `drive.public.password.${fileId}` } },
+        { key: { startsWith: `drive.intelligence.${fileId}` } },
+        { key: { startsWith: `drive.hash.${fileId}` } },
+        { key: { startsWith: `drive.tags.${fileId}` } },
+        { key: { startsWith: `drive.duplicate.${fileId}` } },
+        { key: { startsWith: `drive.expiry.${fileId}` } },
+        { key: { startsWith: `drive.collaboration.File.${fileId}` } },
+        { key: { startsWith: `${DRIVE_VERSION_PREFIX}${fileId}.` } },
+      ],
+    },
+    select: { key: true, value: true },
+  });
   for (const row of rows) {
     if (!row.key.startsWith(`${DRIVE_VERSION_PREFIX}${fileId}.`)) continue;
     try {
       const meta = JSON.parse(row.value) as { storageKey?: string };
-      if (meta.storageKey) await storage().remove(meta.storageKey).catch(() => undefined);
+      if (meta.storageKey)
+        await storage()
+          .remove(meta.storageKey)
+          .catch(() => undefined);
     } catch {}
   }
   if (rows.length) await prisma.appSetting.deleteMany({ where: { key: { in: rows.map((r) => r.key) } } });
@@ -98,15 +113,28 @@ export async function runDriveRetentionMaintenance(formData?: FormData): Promise
   });
   let deleted = 0;
   for (const file of files) {
-    await storage().remove(file.storageKey).catch(() => undefined);
+    await storage()
+      .remove(file.storageKey)
+      .catch(() => undefined);
     await cleanupFileMetadata(file.id);
     await prisma.file.delete({ where: { id: file.id } }).catch(() => undefined);
     deleted++;
   }
-  await audit({ userId: user.id, action: "DRIVE_RETENTION_RUN", resourceType: "Drive", after: { cutoff: cutoff.toISOString(), deleted, batchLimit: 200 } });
+  await audit({
+    userId: user.id,
+    action: "DRIVE_RETENTION_RUN",
+    resourceType: "Drive",
+    after: { cutoff: cutoff.toISOString(), deleted, batchLimit: 200 },
+  });
   revalidatePath("/app/drive");
   revalidatePath("/app/drive/enterprise");
-  redirect(toast(returnTo, "toast", `Retention complete: ${deleted} file${deleted === 1 ? "" : "s"} permanently deleted`));
+  redirect(
+    toast(
+      returnTo,
+      "toast",
+      `Retention complete: ${deleted} file${deleted === 1 ? "" : "s"} permanently deleted`,
+    ),
+  );
 }
 
 export async function resetDriveEnterpriseSettings(formData?: FormData): Promise<void> {
@@ -117,7 +145,12 @@ export async function resetDriveEnterpriseSettings(formData?: FormData): Promise
     update: { value: JSON.stringify(DEFAULT_DRIVE_ENTERPRISE_SETTINGS) },
     create: { key: DRIVE_ENTERPRISE_SETTINGS_KEY, value: JSON.stringify(DEFAULT_DRIVE_ENTERPRISE_SETTINGS) },
   });
-  await audit({ userId: user.id, action: "DRIVE_ENTERPRISE_SETTINGS_RESET", resourceType: "Drive", after: DEFAULT_DRIVE_ENTERPRISE_SETTINGS as any });
+  await audit({
+    userId: user.id,
+    action: "DRIVE_ENTERPRISE_SETTINGS_RESET",
+    resourceType: "Drive",
+    after: DEFAULT_DRIVE_ENTERPRISE_SETTINGS as any,
+  });
   revalidatePath("/app/drive/enterprise");
   redirect(toast(returnTo, "toast", "Enterprise policies reset to safe defaults"));
 }

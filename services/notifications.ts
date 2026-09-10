@@ -26,7 +26,10 @@ export async function markNotificationUnread(notificationId: string): Promise<vo
 
 export async function markAllNotificationsRead(): Promise<void> {
   const user = await requireUser();
-  await prisma.notification.updateMany({ where: { userId: user.id, readAt: null }, data: { readAt: new Date() } });
+  await prisma.notification.updateMany({
+    where: { userId: user.id, readAt: null },
+    data: { readAt: new Date() },
+  });
   revalidatePath("/app/notifications");
   redirect("/app/notifications?toast=All notifications marked as read");
 }

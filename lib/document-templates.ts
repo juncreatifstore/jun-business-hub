@@ -47,7 +47,10 @@ export function extractTemplateVariableKeys(content: string): string[] {
   return [...keys];
 }
 
-export function mergeVariableDefinitions(content: string, defined: TemplateVariableDefinition[]): TemplateVariableDefinition[] {
+export function mergeVariableDefinitions(
+  content: string,
+  defined: TemplateVariableDefinition[],
+): TemplateVariableDefinition[] {
   const builtins = new Map<string, { key: string; label: string; automatic: boolean }>(
     BUILTIN_TEMPLATE_VARIABLES.map((v) => [v.key, v]),
   );
@@ -65,12 +68,33 @@ export function mergeVariableDefinitions(content: string, defined: TemplateVaria
   });
 }
 
-function esc(value: unknown) { return String(value ?? ""); }
+function esc(value: unknown) {
+  return String(value ?? "");
+}
 
-export async function buildAutomaticTemplateContext(args: { clientId?: string | null; caseId?: string | null; documentTitle: string }): Promise<Record<string, string>> {
+export async function buildAutomaticTemplateContext(args: {
+  clientId?: string | null;
+  caseId?: string | null;
+  documentTitle: string;
+}): Promise<Record<string, string>> {
   const [client, caseRow] = await Promise.all([
-    args.clientId ? prisma.client.findUnique({ where: { id: args.clientId }, select: { firstName: true, lastName: true, email: true, phone: true, address: true, country: true, nationality: true } }) : null,
-    args.caseId ? prisma.case.findUnique({ where: { id: args.caseId }, select: { caseNumber: true, title: true } }) : null,
+    args.clientId
+      ? prisma.client.findUnique({
+          where: { id: args.clientId },
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            address: true,
+            country: true,
+            nationality: true,
+          },
+        })
+      : null,
+    args.caseId
+      ? prisma.case.findUnique({ where: { id: args.caseId }, select: { caseNumber: true, title: true } })
+      : null,
   ]);
   return {
     "company.name": "JUN CREATIF AND TRAVEL LLC",
@@ -89,11 +113,17 @@ export async function buildAutomaticTemplateContext(args: { clientId?: string | 
   };
 }
 
-export function renderTemplateContent(content: string, values: Record<string, string>): { content: string; unresolved: string[] } {
+export function renderTemplateContent(
+  content: string,
+  values: Record<string, string>,
+): { content: string; unresolved: string[] } {
   const unresolved = new Set<string>();
   const rendered = content.replace(/\{\{\s*([a-zA-Z0-9_.-]{1,80})\s*\}\}/g, (_full, key: string) => {
     const value = values[key];
-    if (value === undefined || value === "") { unresolved.add(key); return `{{${key}}}`; }
+    if (value === undefined || value === "") {
+      unresolved.add(key);
+      return `{{${key}}}`;
+    }
     return value;
   });
   return { content: rendered, unresolved: [...unresolved] };

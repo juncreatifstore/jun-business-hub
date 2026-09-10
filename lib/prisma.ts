@@ -4,12 +4,7 @@ import { PrismaClient } from "@prisma/client";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function pickConnectionString() {
-  return (
-    process.env.POSTGRES_PRISMA_URL ||
-    process.env.POSTGRES_URL ||
-    process.env.DATABASE_URL ||
-    ""
-  );
+  return process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL || "";
 }
 
 function normalizeConnectionString(raw: string) {
@@ -20,8 +15,7 @@ function normalizeConnectionString(raw: string) {
   }
 
   const url = new URL(raw);
-  const isSupabaseTransactionPooler =
-    /\.pooler\.supabase\.com$/i.test(url.hostname) && url.port === "6543";
+  const isSupabaseTransactionPooler = /\.pooler\.supabase\.com$/i.test(url.hostname) && url.port === "6543";
 
   if (isSupabaseTransactionPooler) {
     if (!url.searchParams.has("pgbouncer")) url.searchParams.set("pgbouncer", "true");

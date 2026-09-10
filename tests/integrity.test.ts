@@ -71,9 +71,21 @@ describe("payment validation", () => {
   });
 
   it("refund requires a reason and a positive amount", () => {
-    const ok = refundSchema.safeParse({ clientId: "c1", amount: "300", currency: "USD", reason: "Hotel downgrade", installments: "2" });
+    const ok = refundSchema.safeParse({
+      clientId: "c1",
+      amount: "300",
+      currency: "USD",
+      reason: "Hotel downgrade",
+      installments: "2",
+    });
     expect(ok.success).toBe(true);
-    const noReason = refundSchema.safeParse({ clientId: "c1", amount: "300", currency: "USD", reason: "", installments: "2" });
+    const noReason = refundSchema.safeParse({
+      clientId: "c1",
+      amount: "300",
+      currency: "USD",
+      reason: "",
+      installments: "2",
+    });
     expect(noReason.success).toBe(false);
   });
 });

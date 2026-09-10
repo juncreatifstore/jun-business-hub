@@ -23,7 +23,8 @@ export async function saveSignaturePlacements(requestId: string, formData: FormD
   const user = await assertPermission("DOCUMENT_SIGN");
   const request = await prisma.signatureRequest.findUnique({ where: { id: requestId } });
   if (!request) redirect("/app/signatures?toast_error=Request not found");
-  if (request.status !== "READY_FOR_SIGNATURE") redirect(`/app/signatures/${request.id}?toast_error=Field placement can only be edited before sending`);
+  if (request.status !== "READY_FOR_SIGNATURE")
+    redirect(`/app/signatures/${request.id}?toast_error=Field placement can only be edited before sending`);
 
   const raw = String(formData.get("placements") ?? "");
   let parsed: unknown;
@@ -33,18 +34,21 @@ export async function saveSignaturePlacements(requestId: string, formData: FormD
     redirect(`/app/signatures/${request.id}/prepare?toast_error=Invalid field placement data`);
   }
 
-  if (!Array.isArray(parsed)) redirect(`/app/signatures/${request.id}/prepare?toast_error=Invalid field placement data`);
+  if (!Array.isArray(parsed))
+    redirect(`/app/signatures/${request.id}/prepare?toast_error=Invalid field placement data`);
 
   const recipients = signatureRecipients(request.recipients);
   const meta = signatureRequestMeta(request.recipients);
   const byEmail = new Map(recipients.map((r) => [r.email.toLowerCase(), r]));
-  recipients.forEach((r) => { r.fields = []; });
+  recipients.forEach((r) => {
+    r.fields = [];
+  });
 
   for (const item of parsed) {
     if (!item || typeof item !== "object") continue;
     const v = item as Record<string, unknown>;
     const email = typeof v.email === "string" ? v.email.toLowerCase() : "";
-    const type = typeof v.type === "string" ? v.type as SignatureField["type"] : "SIGNATURE";
+    const type = typeof v.type === "string" ? (v.type as SignatureField["type"]) : "SIGNATURE";
     const recipient = byEmail.get(email);
     if (!recipient || !FIELD_TYPES.has(type)) continue;
 
@@ -58,7 +62,9 @@ export async function saveSignaturePlacements(requestId: string, formData: FormD
   }
 
   if (recipients.some((r) => !(r.fields ?? []).some((f) => f.type === "SIGNATURE"))) {
-    redirect(`/app/signatures/${request.id}/prepare?toast_error=Each signer needs at least one Signature field`);
+    redirect(
+      `/app/signatures/${request.id}/prepare?toast_error=Each signer needs at least one Signature field`,
+    );
   }
 
   const fieldCount = recipients.reduce((n, r) => n + (r.fields?.length ?? 0), 0);

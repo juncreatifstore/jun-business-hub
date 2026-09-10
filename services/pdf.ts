@@ -3,7 +3,9 @@ import { isFormalRelationshipNotice, renderFormalNoticePdf } from "@/services/pd
 
 export * from "@/services/pdf/index";
 
-export async function renderDocumentPdf(input: Parameters<typeof renderLegacyDocumentPdf>[0]): Promise<Uint8Array> {
+export async function renderDocumentPdf(
+  input: Parameters<typeof renderLegacyDocumentPdf>[0],
+): Promise<Uint8Array> {
   if (isFormalRelationshipNotice(input.title, input.html)) {
     return renderFormalNoticePdf(input);
   }

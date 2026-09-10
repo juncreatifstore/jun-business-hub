@@ -12,19 +12,25 @@ const NAVY = rgb(0.055, 0.09, 0.16);
 const BLUE = rgb(0.16, 0.34, 0.63);
 const GOLD = rgb(0.78, 0.58, 0.16);
 const GRAY = rgb(0.43, 0.47, 0.55);
-const LIGHT = rgb(0.90, 0.92, 0.95);
+const LIGHT = rgb(0.9, 0.92, 0.95);
 const PALE = rgb(0.965, 0.972, 0.985);
 
 function wrap(text: string, font: PDFFont, size: number, maxWidth: number) {
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {
     const words = paragraph.trim().split(/\s+/).filter(Boolean);
-    if (!words.length) { lines.push(""); continue; }
+    if (!words.length) {
+      lines.push("");
+      continue;
+    }
     let line = "";
     for (const word of words) {
       const probe = line ? `${line} ${word}` : word;
       if (font.widthOfTextAtSize(probe, size) <= maxWidth) line = probe;
-      else { if (line) lines.push(line); line = word; }
+      else {
+        if (line) lines.push(line);
+        line = word;
+      }
     }
     if (line) lines.push(line);
   }
@@ -33,16 +39,33 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number) {
 
 async function imageFromStorage(pdf: PDFDocument, key: string, fallback?: string): Promise<PDFImage | null> {
   let bytes: Uint8Array | null = null;
-  if (key) { try { bytes = new Uint8Array(await storage().download(key)); } catch {} }
+  if (key) {
+    try {
+      bytes = new Uint8Array(await storage().download(key));
+    } catch {}
+  }
   if (!bytes && fallback) {
-    try { const res = await fetch(fallback, { cache: "no-store" }); if (res.ok) bytes = new Uint8Array(await res.arrayBuffer()); } catch {}
+    try {
+      const res = await fetch(fallback, { cache: "no-store" });
+      if (res.ok) bytes = new Uint8Array(await res.arrayBuffer());
+    } catch {}
   }
   if (!bytes) return null;
-  try { return await pdf.embedPng(bytes); } catch { try { return await pdf.embedJpg(bytes); } catch { return null; } }
+  try {
+    return await pdf.embedPng(bytes);
+  } catch {
+    try {
+      return await pdf.embedJpg(bytes);
+    } catch {
+      return null;
+    }
+  }
 }
 
 function clean(fragment: string) {
-  return htmlToText(normalizeDocumentHtmlInput(fragment)).replace(/\n{3,}/g, "\n\n").trim();
+  return htmlToText(normalizeDocumentHtmlInput(fragment))
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 type Block = { kind: "h1" | "h2" | "p" | "li"; text: string };
@@ -56,12 +79,18 @@ function parseBlocks(html: string): Block[] {
     if (text) blocks.push({ kind: match[1].toLowerCase() as Block["kind"], text });
   }
   if (blocks.length) return blocks;
-  return clean(normalized).split(/\n+/).map((text) => text.trim()).filter(Boolean).map((text) => ({ kind: "p" as const, text }));
+  return clean(normalized)
+    .split(/\n+/)
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .map((text) => ({ kind: "p" as const, text }));
 }
 
 export function isFormalRelationshipNotice(title: string, html = "") {
   const text = `${title} ${clean(html)}`.toLowerCase();
-  return /termination|end commercial relationship|fin de relation|fin nan relasyon|fen nan relasyon|relationship termination|cessation.*relation|avis final/.test(text);
+  return /termination|end commercial relationship|fin de relation|fin nan relasyon|fen nan relasyon|relationship termination|cessation.*relation|avis final/.test(
+    text,
+  );
 }
 
 export async function renderFormalNoticePdf(input: {
@@ -78,12 +107,26 @@ export async function renderFormalNoticePdf(input: {
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  const keys = ["company.name","company.tagline","company.website","company.mailing_address","company.po_box","company.phone","company.email","document.logo_key","document.seal_key"];
-  const rows = await prisma.appSetting.findMany({ where: { key: { in: keys } }, select: { key: true, value: true } }).catch(() => []);
+  const keys = [
+    "company.name",
+    "company.tagline",
+    "company.website",
+    "company.mailing_address",
+    "company.po_box",
+    "company.phone",
+    "company.email",
+    "document.logo_key",
+    "document.seal_key",
+  ];
+  const rows = await prisma.appSetting
+    .findMany({ where: { key: { in: keys } }, select: { key: true, value: true } })
+    .catch(() => []);
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   const company = s["company.name"] || "JUN CREATIF AND TRAVEL LLC";
   const tagline = s["company.tagline"] || "Travel · Documents · Business Services";
-  const website = (s["company.website"] || "www.juncreatif.org").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const website = (s["company.website"] || "www.juncreatif.org")
+    .replace(/^https?:\/\//, "")
+    .replace(/\/$/, "");
   const address = s["company.mailing_address"] || s["company.po_box"] || "PO Box 770064, Orlando, FL 32877";
   const phone = s["company.phone"] || "+1 480-954-1260";
   const email = s["company.email"] || "";
@@ -94,7 +137,9 @@ export async function renderFormalNoticePdf(input: {
   ]);
 
   const base = (process.env.NEXT_PUBLIC_APP_URL || "https://www.juncreatif.org").replace(/\/$/, "");
-  const qr = await pdf.embedPng(await QRCode.toBuffer(`${base}/verify/${input.documentId}`, { width: 260, margin: 0 }));
+  const qr = await pdf.embedPng(
+    await QRCode.toBuffer(`${base}/verify/${input.documentId}`, { width: 260, margin: 0 }),
+  );
   const date = new Date().toISOString().slice(0, 10);
   const blocks = parseBlocks(input.html).filter((b) => !/^siyati\s*:|^signature\s*:/i.test(b.text));
   let pageNo = 0;
@@ -109,7 +154,10 @@ export async function renderFormalNoticePdf(input: {
   };
 
   const addPage = (first = false) => {
-    if (pageNo > 0) { footer(page); page = pdf.addPage([W, H]); }
+    if (pageNo > 0) {
+      footer(page);
+      page = pdf.addPage([W, H]);
+    }
     pageNo++;
     if (first) {
       if (logo) {
@@ -122,69 +170,156 @@ export async function renderFormalNoticePdf(input: {
       page.drawText(tagline, { x: infoX, y: H - 78, size: 8.4, font, color: GRAY });
       page.drawText(address.slice(0, 86), { x: infoX, y: H - 92, size: 7.8, font, color: GRAY });
       const contact = [phone, email].filter(Boolean).join(" · ");
-      if (contact) page.drawText(contact.slice(0, 82), { x: infoX, y: H - 105, size: 7.8, font, color: GRAY });
+      if (contact)
+        page.drawText(contact.slice(0, 82), { x: infoX, y: H - 105, size: 7.8, font, color: GRAY });
 
       page.drawImage(qr, { x: W - M - 72, y: H - 116, width: 72, height: 72 });
       page.drawText("SCAN TO VERIFY", { x: W - M - 69, y: H - 127, size: 6.6, font: bold, color: GRAY });
-      page.drawLine({ start: { x: M, y: H - 141 }, end: { x: W - M, y: H - 141 }, thickness: 1.5, color: GOLD });
+      page.drawLine({
+        start: { x: M, y: H - 141 },
+        end: { x: W - M, y: H - 141 },
+        thickness: 1.5,
+        color: GOLD,
+      });
 
       y = H - 181;
-      page.drawRectangle({ x: M, y: y - 52, width: W - 2 * M, height: 52, color: PALE, borderColor: LIGHT, borderWidth: 0.7 });
+      page.drawRectangle({
+        x: M,
+        y: y - 52,
+        width: W - 2 * M,
+        height: 52,
+        color: PALE,
+        borderColor: LIGHT,
+        borderWidth: 0.7,
+      });
       const titleLines = wrap(input.title.toUpperCase(), bold, 16, W - 2 * M - 24);
-      titleLines.slice(0, 2).forEach((line, i) => page.drawText(line, { x: M + 12, y: y - 20 - i * 18, size: 16, font: bold, color: NAVY }));
+      titleLines
+        .slice(0, 2)
+        .forEach((line, i) =>
+          page.drawText(line, { x: M + 12, y: y - 20 - i * 18, size: 16, font: bold, color: NAVY }),
+        );
       y -= 70;
       const meta = `${input.documentId}  ·  ${date}  ·  ${input.type.replaceAll("_", " ")}  ·  ${input.status}`;
       page.drawText(meta, { x: M, y, size: 7.8, font: bold, color: BLUE });
       y -= 14;
-      if (input.clientName) { page.drawText(`Client: ${input.clientName}`, { x: M, y, size: 8.5, font, color: GRAY }); y -= 13; }
-      if (input.caseNumber) { page.drawText(`Case: ${input.caseNumber}`, { x: M, y, size: 8.5, font, color: GRAY }); y -= 13; }
+      if (input.clientName) {
+        page.drawText(`Client: ${input.clientName}`, { x: M, y, size: 8.5, font, color: GRAY });
+        y -= 13;
+      }
+      if (input.caseNumber) {
+        page.drawText(`Case: ${input.caseNumber}`, { x: M, y, size: 8.5, font, color: GRAY });
+        y -= 13;
+      }
       y -= 9;
     } else {
       page.drawText(company, { x: M, y: H - 50, size: 9.5, font: bold, color: NAVY });
-      page.drawText(input.documentId, { x: W - M - font.widthOfTextAtSize(input.documentId, 8), y: H - 50, size: 8, font, color: GRAY });
-      page.drawLine({ start: { x: M, y: H - 60 }, end: { x: W - M, y: H - 60 }, thickness: 0.6, color: GOLD });
+      page.drawText(input.documentId, {
+        x: W - M - font.widthOfTextAtSize(input.documentId, 8),
+        y: H - 50,
+        size: 8,
+        font,
+        color: GRAY,
+      });
+      page.drawLine({
+        start: { x: M, y: H - 60 },
+        end: { x: W - M, y: H - 60 },
+        thickness: 0.6,
+        color: GOLD,
+      });
       y = H - 86;
     }
   };
 
-  const ensure = (need: number) => { if (y < 84 + need) addPage(false); };
-  const drawTextBlock = (text: string, size: number, lineHeight: number, useBold = false, indent = 0, color = NAVY) => {
+  const ensure = (need: number) => {
+    if (y < 84 + need) addPage(false);
+  };
+  const drawTextBlock = (
+    text: string,
+    size: number,
+    lineHeight: number,
+    useBold = false,
+    indent = 0,
+    color = NAVY,
+  ) => {
     const f = useBold ? bold : font;
     const lines = wrap(text, f, size, W - 2 * M - indent);
     ensure(lines.length * lineHeight + 12);
-    for (const line of lines) { page.drawText(line, { x: M + indent, y, size, font: f, color }); y -= lineHeight; }
+    for (const line of lines) {
+      page.drawText(line, { x: M + indent, y, size, font: f, color });
+      y -= lineHeight;
+    }
   };
 
   addPage(true);
   for (const block of blocks) {
     if (block.kind === "h1") {
-      ensure(38); y -= 5; drawTextBlock(block.text, 13.2, 17, true); page.drawLine({ start: { x: M, y: y + 3 }, end: { x: M + 80, y: y + 3 }, thickness: 1.2, color: GOLD }); y -= 10;
+      ensure(38);
+      y -= 5;
+      drawTextBlock(block.text, 13.2, 17, true);
+      page.drawLine({ start: { x: M, y: y + 3 }, end: { x: M + 80, y: y + 3 }, thickness: 1.2, color: GOLD });
+      y -= 10;
     } else if (block.kind === "h2") {
-      ensure(32); y -= 4; drawTextBlock(block.text, 11.3, 15, true); y -= 5;
+      ensure(32);
+      y -= 4;
+      drawTextBlock(block.text, 11.3, 15, true);
+      y -= 5;
     } else if (block.kind === "li") {
-      ensure(24); page.drawCircle({ x: M + 4, y: y + 3, size: 1.7, color: BLUE }); drawTextBlock(block.text, 9.8, 14, false, 14); y -= 4;
+      ensure(24);
+      page.drawCircle({ x: M + 4, y: y + 3, size: 1.7, color: BLUE });
+      drawTextBlock(block.text, 9.8, 14, false, 14);
+      y -= 4;
     } else {
-      drawTextBlock(block.text, 9.8, 14.3); y -= 7;
+      drawTextBlock(block.text, 9.8, 14.3);
+      y -= 7;
     }
   }
 
   ensure(78);
   y -= 8;
-  page.drawRectangle({ x: M, y: y - 48, width: W - 2 * M, height: 48, color: PALE, borderColor: LIGHT, borderWidth: 0.7 });
+  page.drawRectangle({
+    x: M,
+    y: y - 48,
+    width: W - 2 * M,
+    height: 48,
+    color: PALE,
+    borderColor: LIGHT,
+    borderWidth: 0.7,
+  });
   page.drawText("ELECTRONIC AUTHENTICATION", { x: M + 12, y: y - 17, size: 8.8, font: bold, color: NAVY });
-  page.drawText("This official notice requires no handwritten signature.", { x: M + 12, y: y - 31, size: 8.2, font, color: GRAY });
-  page.drawText("Authenticity is established by the verification QR code, unique document ID and official JUN seal.", { x: M + 12, y: y - 43, size: 7.6, font, color: GRAY });
+  page.drawText("This official notice requires no handwritten signature.", {
+    x: M + 12,
+    y: y - 31,
+    size: 8.2,
+    font,
+    color: GRAY,
+  });
+  page.drawText(
+    "Authenticity is established by the verification QR code, unique document ID and official JUN seal.",
+    { x: M + 12, y: y - 43, size: 7.6, font, color: GRAY },
+  );
 
   if (seal) {
     const scale = Math.min(108 / seal.width, 108 / seal.height);
-    page.drawImage(seal, { x: W - M - seal.width * scale, y: 54, width: seal.width * scale, height: seal.height * scale, opacity: 0.95 });
+    page.drawImage(seal, {
+      x: W - M - seal.width * scale,
+      y: 54,
+      width: seal.width * scale,
+      height: seal.height * scale,
+      opacity: 0.95,
+    });
   }
 
   footer(page);
   const pages = pdf.getPages();
   pages.forEach((p, index) => {
     const pagination = `${index + 1}/${pages.length}`;
-    p.drawText(pagination, { x: W / 2 - font.widthOfTextAtSize(pagination, 7.2) / 2, y: 27, size: 7.2, font, color: GRAY });
+    p.drawText(pagination, {
+      x: W / 2 - font.widthOfTextAtSize(pagination, 7.2) / 2,
+      y: 27,
+      size: 7.2,
+      font,
+      color: GRAY,
+    });
   });
   return pdf.save();
 }

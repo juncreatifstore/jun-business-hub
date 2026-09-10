@@ -7,14 +7,39 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 const ALLOWED_KEYS = new Set([
-  "company.name", "company.trade_name", "company.tagline", "company.email", "company.finance_email",
-  "company.documents_email", "company.support_email", "company.phone", "company.phone_secondary", "company.whatsapp",
-  "company.po_box", "company.address", "company.mailing_address", "company.website", "company.registration",
-  "company.tax_id", "company.legal_representative", "company.representative_title", "company.registration_country",
-  "company.registration_state", "company.formation_date", "company.bank_details",
-  "brand.primary", "brand.secondary", "brand.accent",
-  "document.watermark_opacity", "document.seal_size", "document.footer_label",
-  "document.show_logo", "document.show_seal", "document.show_signature", "document.show_qr", "document.show_tax_id",
+  "company.name",
+  "company.trade_name",
+  "company.tagline",
+  "company.email",
+  "company.finance_email",
+  "company.documents_email",
+  "company.support_email",
+  "company.phone",
+  "company.phone_secondary",
+  "company.whatsapp",
+  "company.po_box",
+  "company.address",
+  "company.mailing_address",
+  "company.website",
+  "company.registration",
+  "company.tax_id",
+  "company.legal_representative",
+  "company.representative_title",
+  "company.registration_country",
+  "company.registration_state",
+  "company.formation_date",
+  "company.bank_details",
+  "brand.primary",
+  "brand.secondary",
+  "brand.accent",
+  "document.watermark_opacity",
+  "document.seal_size",
+  "document.footer_label",
+  "document.show_logo",
+  "document.show_seal",
+  "document.show_signature",
+  "document.show_qr",
+  "document.show_tax_id",
   "numbering.year_reset",
 ]);
 
@@ -48,13 +73,18 @@ async function handleAsset(formData: FormData, asset: AssetName) {
       update: { value: uploadedKey },
       create: { key: settingKey, value: uploadedKey },
     });
-    if (existing?.value && existing.value !== uploadedKey) await storage().remove(existing.value).catch(() => undefined);
+    if (existing?.value && existing.value !== uploadedKey)
+      await storage()
+        .remove(existing.value)
+        .catch(() => undefined);
     return { changed: true, action: "uploaded" as const };
   }
 
   if (shouldRemove && existing?.value) {
     await prisma.appSetting.deleteMany({ where: { key: settingKey } });
-    await storage().remove(existing.value).catch(() => undefined);
+    await storage()
+      .remove(existing.value)
+      .catch(() => undefined);
     return { changed: true, action: "removed" as const };
   }
   return { changed: false, action: "unchanged" as const };
@@ -73,16 +103,26 @@ export async function saveSettings(formData: FormData): Promise<void> {
     }
     if (key === "document.watermark_opacity" && value) {
       const n = Number(value);
-      if (!Number.isFinite(n) || n < 0.02 || n > 0.12) redirect(`/app/settings?toast_error=${encodeURIComponent("Watermark opacity must be between 0.02 and 0.12")}`);
+      if (!Number.isFinite(n) || n < 0.02 || n > 0.12)
+        redirect(
+          `/app/settings?toast_error=${encodeURIComponent("Watermark opacity must be between 0.02 and 0.12")}`,
+        );
     }
     if (key === "document.seal_size" && value) {
       const n = Number(value);
-      if (!Number.isFinite(n) || n < 40 || n > 120) redirect(`/app/settings?toast_error=${encodeURIComponent("Seal size must be between 40 and 120")}`);
+      if (!Number.isFinite(n) || n < 40 || n > 120)
+        redirect(`/app/settings?toast_error=${encodeURIComponent("Seal size must be between 40 and 120")}`);
     }
     updates.push({ key, value });
   }
 
-  for (const checkboxKey of ["document.show_logo", "document.show_seal", "document.show_signature", "document.show_qr", "document.show_tax_id"]) {
+  for (const checkboxKey of [
+    "document.show_logo",
+    "document.show_seal",
+    "document.show_signature",
+    "document.show_qr",
+    "document.show_tax_id",
+  ]) {
     if (!formData.has(checkboxKey)) updates.push({ key: checkboxKey, value: "off" });
   }
 
@@ -91,7 +131,11 @@ export async function saveSettings(formData: FormData): Promise<void> {
       if (u.value === "") {
         await prisma.appSetting.deleteMany({ where: { key: u.key } });
       } else {
-        await prisma.appSetting.upsert({ where: { key: u.key }, update: { value: u.value }, create: { key: u.key, value: u.value } });
+        await prisma.appSetting.upsert({
+          where: { key: u.key },
+          update: { value: u.value },
+          create: { key: u.key, value: u.value },
+        });
       }
     }
 
@@ -113,7 +157,9 @@ export async function saveSettings(formData: FormData): Promise<void> {
       },
     });
   } catch (error) {
-    redirect(`/app/settings?toast_error=${encodeURIComponent(error instanceof Error ? error.message : "Settings could not be saved")}`);
+    redirect(
+      `/app/settings?toast_error=${encodeURIComponent(error instanceof Error ? error.message : "Settings could not be saved")}`,
+    );
   }
 
   revalidatePath("/", "layout");

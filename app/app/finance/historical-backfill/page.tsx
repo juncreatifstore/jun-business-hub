@@ -6,7 +6,11 @@ import { HistoricalFinancialBackfillForm } from "@/components/app/historical-fin
 
 export const dynamic = "force-dynamic";
 
-export default async function HistoricalBackfillPage({ searchParams }: { searchParams: { clientId?: string } }) {
+export default async function HistoricalBackfillPage({
+  searchParams,
+}: {
+  searchParams: { clientId?: string };
+}) {
   await requirePermission("PAYMENT_APPROVE");
   await requirePermission("REFUND_APPROVE");
 
@@ -22,14 +26,25 @@ export default async function HistoricalBackfillPage({ searchParams }: { searchP
     }),
   ]);
 
-  return <div className="max-w-7xl space-y-5">
-    <PageHeader
-      title="Historical finance backfill"
-      subtitle="Enter old payments and refunds that happened before they were recorded in JUN — all in one audited batch."
-    />
-    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-      Use this page only for late historical entry. Payments entered here become <strong>CONFIRMED</strong> immediately and refunds that were already completed become <strong>PAID</strong> immediately, using the original transaction dates. This also works for inactive or archived clients because the action records past history rather than creating a new commercial transaction. The data becomes available to statements and JUN AI document drafting.
+  return (
+    <div className="max-w-7xl space-y-5">
+      <PageHeader
+        title="Historical finance backfill"
+        subtitle="Enter old payments and refunds that happened before they were recorded in JUN — all in one audited batch."
+      />
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+        Use this page only for late historical entry. Payments entered here become <strong>CONFIRMED</strong>{" "}
+        immediately and refunds that were already completed become <strong>PAID</strong> immediately, using
+        the original transaction dates. This also works for inactive or archived clients because the action
+        records past history rather than creating a new commercial transaction. The data becomes available to
+        statements and JUN AI document drafting.
+      </div>
+      <HistoricalFinancialBackfillForm
+        clients={clients}
+        cases={cases}
+        batchId={randomUUID()}
+        defaultClientId={searchParams.clientId}
+      />
     </div>
-    <HistoricalFinancialBackfillForm clients={clients} cases={cases} batchId={randomUUID()} defaultClientId={searchParams.clientId} />
-  </div>;
+  );
 }

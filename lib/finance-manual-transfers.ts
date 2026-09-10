@@ -75,7 +75,12 @@ export type ManualTransferOrder = {
 
 function parseReceiver(value: string): ManualTransferReceiver | null {
   try {
-    const raw = JSON.parse(value) as Partial<ManualTransferReceiver> & { id?: string; label?: string; rail?: ManualTransferRail; legalName?: string };
+    const raw = JSON.parse(value) as Partial<ManualTransferReceiver> & {
+      id?: string;
+      label?: string;
+      rail?: ManualTransferRail;
+      legalName?: string;
+    };
     if (!raw?.id || !raw.label || !raw.rail || !raw.legalName) return null;
     const firstName = String(raw.firstName || "").trim();
     const lastName = String(raw.lastName || "").trim();
@@ -85,7 +90,10 @@ function parseReceiver(value: string): ManualTransferReceiver | null {
       label: String(raw.label),
       rail: raw.rail,
       enabled: raw.enabled !== false,
-      receiverType: raw.receiverType === "INDIVIDUAL_BUSINESS_REPRESENTATIVE" ? "INDIVIDUAL_BUSINESS_REPRESENTATIVE" : "BUSINESS",
+      receiverType:
+        raw.receiverType === "INDIVIDUAL_BUSINESS_REPRESENTATIVE"
+          ? "INDIVIDUAL_BUSINESS_REPRESENTATIVE"
+          : "BUSINESS",
       firstName,
       lastName,
       legalName,
@@ -118,39 +126,65 @@ function parseReceiver(value: string): ManualTransferReceiver | null {
       createdAt: String(raw.createdAt || new Date().toISOString()),
       updatedAt: String(raw.updatedAt || raw.createdAt || new Date().toISOString()),
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function parseOrder(value: string): ManualTransferOrder | null {
   try {
     const o = JSON.parse(value) as ManualTransferOrder;
     return o?.id && o.orderNumber && o.receiverSnapshot ? o : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export async function getManualTransferReceivers(enabledOnly = false) {
-  const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: MANUAL_RECEIVER_PREFIX } }, orderBy: { updatedAt: "desc" }, select: { value: true } });
-  const values = rows.map((r) => parseReceiver(r.value)).filter((r): r is ManualTransferReceiver => Boolean(r));
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { startsWith: MANUAL_RECEIVER_PREFIX } },
+    orderBy: { updatedAt: "desc" },
+    select: { value: true },
+  });
+  const values = rows
+    .map((r) => parseReceiver(r.value))
+    .filter((r): r is ManualTransferReceiver => Boolean(r));
   return enabledOnly ? values.filter((r) => r.enabled) : values;
 }
 
 export async function getManualTransferReceiver(id: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: `${MANUAL_RECEIVER_PREFIX}${id}` }, select: { value: true } });
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${MANUAL_RECEIVER_PREFIX}${id}` },
+    select: { value: true },
+  });
   return row ? parseReceiver(row.value) : null;
 }
 
 export async function getManualTransferOrders() {
-  const rows = await prisma.appSetting.findMany({ where: { key: { startsWith: MANUAL_ORDER_PREFIX } }, orderBy: { updatedAt: "desc" }, take: 250, select: { value: true } });
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { startsWith: MANUAL_ORDER_PREFIX } },
+    orderBy: { updatedAt: "desc" },
+    take: 250,
+    select: { value: true },
+  });
   return rows.map((r) => parseOrder(r.value)).filter((o): o is ManualTransferOrder => Boolean(o));
 }
 
 export async function getManualTransferOrder(id: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: `${MANUAL_ORDER_PREFIX}${id}` }, select: { value: true } });
+  const row = await prisma.appSetting.findUnique({
+    where: { key: `${MANUAL_ORDER_PREFIX}${id}` },
+    select: { value: true },
+  });
   return row ? parseOrder(row.value) : null;
 }
 
-export function calculateManualTransfer(sendAmount: number, feePercent: number, feeFixed: number, exchangeRate: number) {
-  const feeAmount = Math.round((feeFixed + sendAmount * feePercent / 100) * 100) / 100;
+export function calculateManualTransfer(
+  sendAmount: number,
+  feePercent: number,
+  feeFixed: number,
+  exchangeRate: number,
+) {
+  const feeAmount = Math.round((feeFixed + (sendAmount * feePercent) / 100) * 100) / 100;
   const netAfterFees = Math.max(0, Math.round((sendAmount - feeAmount) * 100) / 100);
   const receiveAmount = Math.round(netAfterFees * exchangeRate * 100) / 100;
   return { feeAmount, netAfterFees, receiveAmount };
@@ -166,10 +200,114 @@ function detailLanguage(language = "English"): DetailLanguage {
 }
 
 const DETAIL_LABELS = {
-  FR: { beneficiary: "INFORMATIONS DU BÉNÉFICIAIRE", first: "Prénom", last: "Nom", legal: "Nom légal / commercial", phone: "Téléphone", email: "E-mail", street: "Rue / adresse", city: "Ville", state: "État / province", postal: "Code postal", country: "Pays", bank: "INFORMATIONS BANCAIRES", bankName: "Nom de la banque", bankStreet: "Rue / adresse de la banque", bankCity: "Ville de la banque", bankState: "État / province de la banque", bankPostal: "Code postal de la banque", bankCountry: "Pays de la banque", holder: "Titulaire du compte", account: "Numéro de compte", iban: "IBAN", swift: "SWIFT / BIC", routing: "Routing / ABA", clabe: "CLABE", branch: "Code agence" },
-  ES: { beneficiary: "INFORMACIÓN DEL BENEFICIARIO", first: "Nombre", last: "Apellido", legal: "Nombre legal / comercial", phone: "Teléfono", email: "Correo electrónico", street: "Calle / dirección", city: "Ciudad", state: "Estado / provincia", postal: "Código postal", country: "País", bank: "INFORMACIÓN BANCARIA", bankName: "Nombre del banco", bankStreet: "Calle / dirección del banco", bankCity: "Ciudad del banco", bankState: "Estado / provincia del banco", bankPostal: "Código postal del banco", bankCountry: "País del banco", holder: "Titular de la cuenta", account: "Número de cuenta", iban: "IBAN", swift: "SWIFT / BIC", routing: "Routing / ABA", clabe: "CLABE", branch: "Código de sucursal" },
-  HT: { beneficiary: "ENFÒMASYON BENEFISYÈ A", first: "Prenon", last: "Siyati", legal: "Non legal / non biznis", phone: "Telefòn", email: "Imèl", street: "Ri / adrès", city: "Vil", state: "Eta / pwovens", postal: "Kòd postal", country: "Peyi", bank: "ENFÒMASYON BANK LA", bankName: "Non bank la", bankStreet: "Ri / adrès bank la", bankCity: "Vil bank la", bankState: "Eta / pwovens bank la", bankPostal: "Kòd postal bank la", bankCountry: "Peyi bank la", holder: "Non moun ki sou kont lan", account: "Nimewo kont", iban: "IBAN", swift: "SWIFT / BIC", routing: "Routing / ABA", clabe: "CLABE", branch: "Kòd branch" },
-  EN: { beneficiary: "BENEFICIARY INFORMATION", first: "First name", last: "Last name", legal: "Legal / business name", phone: "Phone", email: "Email", street: "Street / address", city: "City", state: "State / province", postal: "Postal code", country: "Country", bank: "BANK INFORMATION", bankName: "Bank name", bankStreet: "Bank street / address", bankCity: "Bank city", bankState: "Bank state / province", bankPostal: "Bank postal code", bankCountry: "Bank country", holder: "Account holder", account: "Account number", iban: "IBAN", swift: "SWIFT / BIC", routing: "Routing / ABA", clabe: "CLABE", branch: "Branch code" },
+  FR: {
+    beneficiary: "INFORMATIONS DU BÉNÉFICIAIRE",
+    first: "Prénom",
+    last: "Nom",
+    legal: "Nom légal / commercial",
+    phone: "Téléphone",
+    email: "E-mail",
+    street: "Rue / adresse",
+    city: "Ville",
+    state: "État / province",
+    postal: "Code postal",
+    country: "Pays",
+    bank: "INFORMATIONS BANCAIRES",
+    bankName: "Nom de la banque",
+    bankStreet: "Rue / adresse de la banque",
+    bankCity: "Ville de la banque",
+    bankState: "État / province de la banque",
+    bankPostal: "Code postal de la banque",
+    bankCountry: "Pays de la banque",
+    holder: "Titulaire du compte",
+    account: "Numéro de compte",
+    iban: "IBAN",
+    swift: "SWIFT / BIC",
+    routing: "Routing / ABA",
+    clabe: "CLABE",
+    branch: "Code agence",
+  },
+  ES: {
+    beneficiary: "INFORMACIÓN DEL BENEFICIARIO",
+    first: "Nombre",
+    last: "Apellido",
+    legal: "Nombre legal / comercial",
+    phone: "Teléfono",
+    email: "Correo electrónico",
+    street: "Calle / dirección",
+    city: "Ciudad",
+    state: "Estado / provincia",
+    postal: "Código postal",
+    country: "País",
+    bank: "INFORMACIÓN BANCARIA",
+    bankName: "Nombre del banco",
+    bankStreet: "Calle / dirección del banco",
+    bankCity: "Ciudad del banco",
+    bankState: "Estado / provincia del banco",
+    bankPostal: "Código postal del banco",
+    bankCountry: "País del banco",
+    holder: "Titular de la cuenta",
+    account: "Número de cuenta",
+    iban: "IBAN",
+    swift: "SWIFT / BIC",
+    routing: "Routing / ABA",
+    clabe: "CLABE",
+    branch: "Código de sucursal",
+  },
+  HT: {
+    beneficiary: "ENFÒMASYON BENEFISYÈ A",
+    first: "Prenon",
+    last: "Siyati",
+    legal: "Non legal / non biznis",
+    phone: "Telefòn",
+    email: "Imèl",
+    street: "Ri / adrès",
+    city: "Vil",
+    state: "Eta / pwovens",
+    postal: "Kòd postal",
+    country: "Peyi",
+    bank: "ENFÒMASYON BANK LA",
+    bankName: "Non bank la",
+    bankStreet: "Ri / adrès bank la",
+    bankCity: "Vil bank la",
+    bankState: "Eta / pwovens bank la",
+    bankPostal: "Kòd postal bank la",
+    bankCountry: "Peyi bank la",
+    holder: "Non moun ki sou kont lan",
+    account: "Nimewo kont",
+    iban: "IBAN",
+    swift: "SWIFT / BIC",
+    routing: "Routing / ABA",
+    clabe: "CLABE",
+    branch: "Kòd branch",
+  },
+  EN: {
+    beneficiary: "BENEFICIARY INFORMATION",
+    first: "First name",
+    last: "Last name",
+    legal: "Legal / business name",
+    phone: "Phone",
+    email: "Email",
+    street: "Street / address",
+    city: "City",
+    state: "State / province",
+    postal: "Postal code",
+    country: "Country",
+    bank: "BANK INFORMATION",
+    bankName: "Bank name",
+    bankStreet: "Bank street / address",
+    bankCity: "Bank city",
+    bankState: "Bank state / province",
+    bankPostal: "Bank postal code",
+    bankCountry: "Bank country",
+    holder: "Account holder",
+    account: "Account number",
+    iban: "IBAN",
+    swift: "SWIFT / BIC",
+    routing: "Routing / ABA",
+    clabe: "CLABE",
+    branch: "Branch code",
+  },
 } as const;
 
 export function receiverPaymentDetails(r: ManualTransferReceiver, language = "English") {
@@ -182,14 +320,30 @@ export function receiverPaymentDetails(r: ManualTransferReceiver, language = "En
     r.legalName ? `${labels.legal}: ${r.legalName}` : `Name: ${receiverName}`,
     r.phone ? `${labels.phone}: ${r.phone}` : "",
     r.email ? `${labels.email}: ${r.email}` : "",
-    (r.receiverStreet || r.address) ? `${labels.street}: ${r.receiverStreet || r.address}` : "",
+    r.receiverStreet || r.address ? `${labels.street}: ${r.receiverStreet || r.address}` : "",
     r.city ? `${labels.city}: ${r.city}` : "",
     r.receiverState ? `${labels.state}: ${r.receiverState}` : "",
     r.receiverPostalCode ? `${labels.postal}: ${r.receiverPostalCode}` : "",
     r.country ? `${labels.country}: ${r.country}` : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-  const hasBankDetails = Boolean(r.bankName || r.accountNumber || r.iban || r.swiftBic || r.routingNumber || r.clabe || r.branchCode || r.bankAddress || r.bankStreet || r.bankCity || r.bankState || r.bankPostalCode || r.bankCountry);
+  const hasBankDetails = Boolean(
+    r.bankName ||
+    r.accountNumber ||
+    r.iban ||
+    r.swiftBic ||
+    r.routingNumber ||
+    r.clabe ||
+    r.branchCode ||
+    r.bankAddress ||
+    r.bankStreet ||
+    r.bankCity ||
+    r.bankState ||
+    r.bankPostalCode ||
+    r.bankCountry,
+  );
   if (!hasBankDetails) return beneficiary;
 
   const bank = [
@@ -202,12 +356,14 @@ export function receiverPaymentDetails(r: ManualTransferReceiver, language = "En
     r.routingNumber ? `${labels.routing}: ${r.routingNumber}` : "",
     r.clabe ? `${labels.clabe}: ${r.clabe}` : "",
     r.branchCode ? `${labels.branch}: ${r.branchCode}` : "",
-    (r.bankStreet || r.bankAddress) ? `${labels.bankStreet}: ${r.bankStreet || r.bankAddress}` : "",
+    r.bankStreet || r.bankAddress ? `${labels.bankStreet}: ${r.bankStreet || r.bankAddress}` : "",
     r.bankCity ? `${labels.bankCity}: ${r.bankCity}` : "",
     r.bankState ? `${labels.bankState}: ${r.bankState}` : "",
     r.bankPostalCode ? `${labels.bankPostal}: ${r.bankPostalCode}` : "",
     r.bankCountry ? `${labels.bankCountry}: ${r.bankCountry}` : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return `${beneficiary}\n\n${bank}`;
 }

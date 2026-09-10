@@ -11,7 +11,10 @@ const items = [
 export default function DocumentsLayout({ children }: { children: React.ReactNode }) {
   return (
     <section>
-      <nav aria-label="Documents" className="mb-5 flex flex-wrap items-center gap-2 border-b border-line pb-3">
+      <nav
+        aria-label="Documents"
+        className="mb-5 flex flex-wrap items-center gap-2 border-b border-line pb-3"
+      >
         {items.map((item) => (
           <Link
             key={item.href}

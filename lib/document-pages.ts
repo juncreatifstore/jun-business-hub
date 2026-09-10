@@ -43,11 +43,13 @@ export function parseDocumentPages(html: string): JunDocumentPage[] {
 
 export function serializeDocumentPages(pages: JunDocumentPage[]): string {
   const safe = pages.length ? pages : [{ id: pageId(), rotation: 0 as const, html: "<p></p>" }];
-  return safe.map((p) => {
-    const id = p.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) || pageId();
-    const meta = `${id}|${p.rotation}`;
-    return `<div data-jun-block="true" data-kind="page" data-text="${meta}">${meta}</div>${p.html || "<p></p>"}`;
-  }).join("");
+  return safe
+    .map((p) => {
+      const id = p.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) || pageId();
+      const meta = `${id}|${p.rotation}`;
+      return `<div data-jun-block="true" data-kind="page" data-text="${meta}">${meta}</div>${p.html || "<p></p>"}`;
+    })
+    .join("");
 }
 
 export function newBlankPage(): JunDocumentPage {
