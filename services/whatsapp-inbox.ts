@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/auth";
+import { requireUser, assertPermission } from "@/lib/auth";
+import { logActivity } from "@/lib/audit";
+import { nextNumber } from "@/lib/sequence";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppReadReceipt } from "@/lib/whatsapp";
 import { sendWhatsAppText } from "@/lib/whatsapp";
@@ -376,4 +379,70 @@ export async function replyWhatsAppConversation(phone: string, formData: FormDat
     }),
   ]);
   refreshInbox();
+}
+
+/* ───────────── Link / create client from a conversation ───────────── */
+
+async function attachConversationToClient(phone: string, clientId: string) {
+  await prisma.activity.updateMany({
+    where: { resourceType: "WhatsAppConversation", resourceId: phone, clientId: null },
+    data: { clientId },
+  });
+}
+
+/** Link an unknown number to an existing client (sets the client's WhatsApp number). */
+export async function linkWhatsAppConversationToClient(phone: string, formData: FormData) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const clientId = String(formData.get("clientId") || "");
+  if (!clientId) return;
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { id: true, whatsapp: true },
+  });
+  if (!client) return;
+  await prisma.client.update({
+    where: { id: client.id },
+    data: { whatsapp: client.whatsapp || `+${normalized}` },
+  });
+  await attachConversationToClient(normalized, client.id);
+  await logActivity({
+    type: "CLIENT_UPDATED",
+    message: `Numéro WhatsApp +${normalized} lié au client`,
+    userId: user.id,
+    clientId: client.id,
+  });
+  refreshInbox();
+  redirect(`/app/whatsapp/inbox?phone=${encodeURIComponent(normalized)}`);
+}
+
+/** Create a client from an unknown number, prefilled with the WhatsApp profile name. */
+export async function createClientFromWhatsApp(phone: string, formData: FormData) {
+  const user = await assertPermission("CLIENT_CREATE");
+  const normalized = cleanPhone(phone);
+  const firstName = String(formData.get("firstName") || "").trim();
+  const lastName = String(formData.get("lastName") || "").trim();
+  if (!firstName) return;
+  const internalId = await nextNumber("JUN-CLI");
+  const client = await prisma.client.create({
+    data: {
+      internalId,
+      firstName,
+      lastName: lastName || "—",
+      phone: `+${normalized}`,
+      whatsapp: `+${normalized}`,
+      status: "LEAD",
+      ownerId: user.id,
+    },
+  });
+  await attachConversationToClient(normalized, client.id);
+  await logActivity({
+    type: "CLIENT_CREATED",
+    message: `Client ${client.firstName} ${client.lastName} créé depuis WhatsApp`,
+    userId: user.id,
+    clientId: client.id,
+  });
+  refreshInbox();
+  redirect(`/app/whatsapp/inbox?phone=${encodeURIComponent(normalized)}`);
 }

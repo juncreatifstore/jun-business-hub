@@ -51,10 +51,12 @@ import {
   updateWhatsAppConversationTags,
   setWhatsAppConversationCase,
   setWhatsAppClientCommunicationBan,
+  linkWhatsAppConversationToClient,
+  createClientFromWhatsApp,
 } from "@/services/whatsapp-inbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/input";
+import { Textarea, Input, Select } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import { InboxLive } from "@/components/whatsapp/inbox-live";
 import { StatusBadge } from "@/components/ui/badge";
@@ -227,6 +229,15 @@ export default async function WhatsAppInboxPage({
   const urgentCount = allConversations.filter((c) => c.priority === "URGENT").length;
   const resolvedCount = allConversations.filter((c) => c.status === "RESOLVED").length;
   const clientSummary = selected?.clientId ? await loadClientSummary(selected.clientId) : null;
+  const linkableClients =
+    selected && !selected.clientId
+      ? await prisma.client.findMany({
+          where: { archivedAt: null },
+          select: { id: true, firstName: true, lastName: true, internalId: true },
+          orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+          take: 500,
+        })
+      : [];
   const ban = selected?.clientId ? await getClientCommunicationBan(selected.clientId) : { banned: false };
 
   return (
@@ -280,6 +291,7 @@ export default async function WhatsAppInboxPage({
             messages={messages}
             deliveryStatuses={deliveryStatuses}
             clientSummary={clientSummary}
+            linkableClients={linkableClients}
             ban={ban}
             backHref={mobileBackHref}
           />
@@ -656,6 +668,11 @@ export default async function WhatsAppInboxPage({
                     </>
                   ) : null}
 
+                  {!selected.clientId ? (
+                    <PanelSection title="Client" icon={<UserCog className="h-3.5 w-3.5" />}>
+                      <LinkClientForms selected={selected} clients={linkableClients} />
+                    </PanelSection>
+                  ) : null}
                   <PanelSection title="Gestion conversation" icon={<UserCog className="h-3.5 w-3.5" />}>
                     <div className="grid grid-cols-2 gap-2">
                       <form action={assignWhatsAppConversationToMe.bind(null, selected.phone)}>
@@ -1338,6 +1355,7 @@ function MobileInbox({
   messages,
   deliveryStatuses,
   clientSummary,
+  linkableClients,
   ban,
   backHref,
 }: {
@@ -1351,6 +1369,7 @@ function MobileInbox({
   messages: TimelineItem[];
   deliveryStatuses: Map<string, DeliveryInfo>;
   clientSummary: Awaited<ReturnType<typeof loadClientSummary>> | null;
+  linkableClients: LinkableClient[];
   ban: { banned: boolean; reason?: string | null };
   backHref: string;
 }) {
@@ -1397,7 +1416,12 @@ function MobileInbox({
               </>
             }
           >
-            <MobileContext selected={selected} clientSummary={clientSummary} ban={ban} />
+            <MobileContext
+              selected={selected}
+              clientSummary={clientSummary}
+              ban={ban}
+              clients={linkableClients}
+            />
           </Sheet>
           <span className="hidden">
             <InboxLive openPhone={selected.phone} unread={counts.unread} />
@@ -1680,10 +1704,12 @@ function MobileContext({
   selected,
   clientSummary,
   ban,
+  clients,
 }: {
   selected: Conversation;
   clientSummary: Awaited<ReturnType<typeof loadClientSummary>> | null;
   ban: { banned: boolean; reason?: string | null };
+  clients: LinkableClient[];
 }) {
   const link =
     "flex items-center justify-between rounded-lg border border-line bg-surface-1 px-3 py-3 text-[15px] text-ink active:bg-surface-2";
@@ -1703,6 +1729,13 @@ function MobileContext({
       {ban.banned ? (
         <div className="rounded-lg border border-danger/30 tint-danger px-3 py-2.5 text-sm text-danger">
           Communication bloquée{ban.reason ? ` · ${ban.reason}` : ""}
+        </div>
+      ) : null}
+
+      {!selected.clientId ? (
+        <div className="rounded-xl border border-line bg-surface-2/60 p-3">
+          <p className="mb-2 text-sm font-semibold text-ink">Numéro inconnu</p>
+          <LinkClientForms selected={selected} clients={clients} />
         </div>
       ) : null}
 
@@ -1868,4 +1901,49 @@ function previewText(payload: WhatsAppInboxPayload) {
   if (payload.type === "sticker") return "Autocollant";
   if (payload.type === "unsupported") return "Message non transmis par WhatsApp";
   return t;
+}
+
+type LinkableClient = { id: string; firstName: string; lastName: string; internalId: string };
+
+/** Two ways out of an unknown number: link to an existing client, or create one. */
+function LinkClientForms({ selected, clients }: { selected: Conversation; clients: LinkableClient[] }) {
+  const isPhoneName = /^\+?\d[\d\s]+$/.test(selected.name);
+  const parts = isPhoneName ? [] : selected.name.trim().split(/\s+/);
+  const firstName = parts[0] ?? "";
+  const lastName = parts.slice(1).join(" ");
+  return (
+    <div className="space-y-3">
+      <form action={linkWhatsAppConversationToClient.bind(null, selected.phone)} className="space-y-2">
+        <label className="block text-xs text-ink-3">Lier à un client existant</label>
+        <Select name="clientId" defaultValue="" required className="h-10">
+          <option value="" disabled>
+            Choisir un client…
+          </option>
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.lastName} {c.firstName} · {c.internalId}
+            </option>
+          ))}
+        </Select>
+        <Button variant="outline" size="sm" className="w-full">
+          Lier ce numéro
+        </Button>
+      </form>
+      <div className="flex items-center gap-2 text-2xs text-ink-3">
+        <span className="h-px flex-1 bg-line" />
+        ou
+        <span className="h-px flex-1 bg-line" />
+      </div>
+      <form action={createClientFromWhatsApp.bind(null, selected.phone)} className="space-y-2">
+        <label className="block text-xs text-ink-3">Créer un nouveau client (lead)</label>
+        <div className="grid grid-cols-2 gap-2">
+          <Input name="firstName" placeholder="Prénom" defaultValue={firstName} required className="h-10" />
+          <Input name="lastName" placeholder="Nom" defaultValue={lastName} className="h-10" />
+        </div>
+        <Button variant="primary" size="sm" className="w-full">
+          Créer le client · +{selected.phone}
+        </Button>
+      </form>
+    </div>
+  );
 }
