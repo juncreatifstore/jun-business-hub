@@ -54,6 +54,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
+import { Sheet } from "@/components/ui/sheet";
+import { StatusBadge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -227,9 +229,7 @@ export default async function WhatsAppInboxPage({
 
   return (
     <div className="space-y-4">
-      <div
-        className={`flex flex-wrap items-end justify-between gap-4 ${explicitConversation ? "hidden xl:flex" : "flex"}`}
-      >
+      <div className="hidden flex-wrap items-end justify-between gap-4 xl:flex">
         <div>
           <p className="text-xs uppercase tracking-[.18em] text-muted2">Communication · Premium workspace</p>
           <h1 className="mt-1 flex items-center gap-2 text-2xl font-semibold sm:text-3xl">
@@ -260,160 +260,208 @@ export default async function WhatsAppInboxPage({
           </CardContent>
         </Card>
       ) : (
-        <div className="grid min-h-[calc(100dvh-190px)] overflow-hidden rounded-2xl border border-line bg-white shadow-sm xl:min-h-[780px] xl:grid-cols-[350px_minmax(0,1fr)_330px]">
-          <aside
-            className={`${explicitConversation ? "hidden xl:block" : "block"} border-b border-line bg-white xl:border-b-0 xl:border-r`}
-          >
-            <div className="sticky top-0 z-10 border-b border-line bg-white p-3 sm:p-4">
-              <div className="mb-3 flex items-center justify-between sm:hidden">
-                <div>
-                  <div className="text-lg font-semibold">Messages</div>
-                  <div className="text-xs text-muted2">
-                    {unreadConversations} conversation{unreadConversations === 1 ? "" : "s"} non lue
-                    {unreadConversations === 1 ? "" : "s"}
+        <>
+          <MobileInbox
+            conversations={conversations}
+            allCount={allConversations.length}
+            counts={{
+              unread: unreadConversations,
+              waiting: waitingCount,
+              urgent: urgentCount,
+              resolved: resolvedCount,
+            }}
+            filter={filter}
+            query={searchParams.q || ""}
+            selected={explicitConversation ? (selected ?? null) : null}
+            selectedPhone={selectedPhone}
+            messages={messages}
+            deliveryStatuses={deliveryStatuses}
+            clientSummary={clientSummary}
+            ban={ban}
+            backHref={mobileBackHref}
+          />
+          <div className="hidden min-h-[780px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm xl:grid xl:grid-cols-[350px_minmax(0,1fr)_330px]">
+            <aside
+              className={`${explicitConversation ? "hidden xl:block" : "block"} border-b border-line bg-white xl:border-b-0 xl:border-r`}
+            >
+              <div className="sticky top-0 z-10 border-b border-line bg-white p-3 sm:p-4">
+                <div className="mb-3 flex items-center justify-between sm:hidden">
+                  <div>
+                    <div className="text-lg font-semibold">Messages</div>
+                    <div className="text-xs text-muted2">
+                      {unreadConversations} conversation{unreadConversations === 1 ? "" : "s"} non lue
+                      {unreadConversations === 1 ? "" : "s"}
+                    </div>
                   </div>
-                </div>
-                <Link
-                  href="/app/whatsapp"
-                  className="rounded-xl bg-electric px-3 py-2 text-xs font-semibold text-white"
-                >
-                  Nouveau
-                </Link>
-              </div>
-              <form method="get" className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2" />
-                  <input
-                    name="q"
-                    defaultValue={searchParams.q || ""}
-                    placeholder="Nom, téléphone, dossier, tag…"
-                    className="h-10 w-full rounded-xl border border-line bg-surface/40 pl-9 pr-3 text-sm outline-none focus:border-electric"
-                  />
-                </div>
-                <div className="grid grid-cols-5 gap-1 rounded-xl bg-surface p-1 text-[9px] font-medium sm:text-[10px]">
-                  {(
-                    [
-                      ["all", "Tous", allConversations.length],
-                      ["unread", "Non lus", unreadConversations],
-                      ["waiting", "Attente", waitingCount],
-                      ["urgent", "Urgent", urgentCount],
-                      ["resolved", "Résolus", resolvedCount],
-                    ] as const
-                  ).map(([key, label, count]) => (
-                    <button
-                      key={key}
-                      type="submit"
-                      name="filter"
-                      value={key}
-                      className={`rounded-lg px-1 py-2 ${filter === key ? "bg-white text-ink shadow-sm" : "text-muted2"}`}
-                    >
-                      <span className="block truncate">{label}</span>
-                      <span className="block opacity-70">{count}</span>
-                    </button>
-                  ))}
-                </div>
-              </form>
-            </div>
-            <div className="max-h-[calc(100dvh-315px)] overflow-y-auto xl:max-h-[710px]">
-              {conversations.map((c) => {
-                const params = new URLSearchParams();
-                params.set("phone", c.phone);
-                if (searchParams.q) params.set("q", searchParams.q);
-                if (filter !== "all") params.set("filter", filter);
-                return (
                   <Link
-                    key={c.phone}
-                    href={`/app/whatsapp/inbox?${params}`}
-                    className={`block border-b border-line/70 p-3.5 transition sm:p-4 ${c.phone === selectedPhone ? "bg-electric/[0.06]" : "hover:bg-surface/70"}`}
+                    href="/app/whatsapp"
+                    className="rounded-xl bg-electric px-3 py-2 text-xs font-semibold text-white"
                   >
-                    <div className="flex gap-3">
-                      <div
-                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${c.phone === selectedPhone ? "bg-electric text-white" : "bg-surface"}`}
-                      >
-                        {initials(c.name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex justify-between gap-2">
-                          <div className={`truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>
-                            {c.name}
-                          </div>
-                          <div className="text-[10px] text-muted2">{formatListWhen(c.lastAt)}</div>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          <ConversationStatusBadge status={c.status} compact />
-                          <PriorityBadge priority={c.priority} compact />
-                          {c.assignment ? (
-                            <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">
-                              {c.assignment.name.split(" ")[0]}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-1.5 flex items-center justify-between gap-2">
-                          <div className="truncate text-xs text-muted2">{c.preview}</div>
-                          {c.unread ? (
-                            <span className="rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-ink">
-                              {c.unread}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
+                    Nouveau
                   </Link>
-                );
-              })}
-            </div>
-          </aside>
-
-          <section
-            className={`${explicitConversation ? "flex" : "hidden xl:flex"} min-w-0 flex-col bg-surface-2`}
-          >
-            {selected ? (
-              <>
-                <div className="sticky top-0 z-20 border-b border-line bg-white px-3 py-3 sm:px-5 sm:py-3.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <Link
-                        href={mobileBackHref}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line text-muted2 xl:hidden"
+                </div>
+                <form method="get" className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2" />
+                    <input
+                      name="q"
+                      defaultValue={searchParams.q || ""}
+                      placeholder="Nom, téléphone, dossier, tag…"
+                      className="h-10 w-full rounded-xl border border-line bg-surface/40 pl-9 pr-3 text-sm outline-none focus:border-electric"
+                    />
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 rounded-xl bg-surface p-1 text-[9px] font-medium sm:text-[10px]">
+                    {(
+                      [
+                        ["all", "Tous", allConversations.length],
+                        ["unread", "Non lus", unreadConversations],
+                        ["waiting", "Attente", waitingCount],
+                        ["urgent", "Urgent", urgentCount],
+                        ["resolved", "Résolus", resolvedCount],
+                      ] as const
+                    ).map(([key, label, count]) => (
+                      <button
+                        key={key}
+                        type="submit"
+                        name="filter"
+                        value={key}
+                        className={`rounded-lg px-1 py-2 ${filter === key ? "bg-white text-ink shadow-sm" : "text-muted2"}`}
                       >
-                        <ArrowLeft className="h-4 w-4" />
-                      </Link>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-electric text-sm font-semibold text-white sm:h-11 sm:w-11">
-                        {initials(selected.name)}
+                        <span className="block truncate">{label}</span>
+                        <span className="block opacity-70">{count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </form>
+              </div>
+              <div className="max-h-[calc(100dvh-315px)] overflow-y-auto xl:max-h-[710px]">
+                {conversations.map((c) => {
+                  const params = new URLSearchParams();
+                  params.set("phone", c.phone);
+                  if (searchParams.q) params.set("q", searchParams.q);
+                  if (filter !== "all") params.set("filter", filter);
+                  return (
+                    <Link
+                      key={c.phone}
+                      href={`/app/whatsapp/inbox?${params}`}
+                      className={`block border-b border-line/70 p-3.5 transition sm:p-4 ${c.phone === selectedPhone ? "bg-electric/[0.06]" : "hover:bg-surface/70"}`}
+                    >
+                      <div className="flex gap-3">
+                        <div
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${c.phone === selectedPhone ? "bg-electric text-white" : "bg-surface"}`}
+                        >
+                          {initials(c.name)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex justify-between gap-2">
+                            <div className={`truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>
+                              {c.name}
+                            </div>
+                            <div className="text-[10px] text-muted2">{formatListWhen(c.lastAt)}</div>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            <ConversationStatusBadge status={c.status} compact />
+                            <PriorityBadge priority={c.priority} compact />
+                            {c.assignment ? (
+                              <span className="rounded-full bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">
+                                {c.assignment.name.split(" ")[0]}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <div className="truncate text-xs text-muted2">{c.preview}</div>
+                            {c.unread ? (
+                              <span className="rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-ink">
+                                {c.unread}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h2 className="truncate font-semibold">{selected.name}</h2>
-                          <span className="hidden sm:inline">
-                            <ConversationStatusBadge status={selected.status} />
-                          </span>
-                          <span className="hidden sm:inline">
-                            <PriorityBadge priority={selected.priority} />
-                          </span>
-                          {ban.banned ? (
-                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold text-red-700">
-                              BANNI
+                    </Link>
+                  );
+                })}
+              </div>
+            </aside>
+
+            <section
+              className={`${explicitConversation ? "flex" : "hidden xl:flex"} min-w-0 flex-col bg-surface-2`}
+            >
+              {selected ? (
+                <>
+                  <div className="sticky top-0 z-20 border-b border-line bg-white px-3 py-3 sm:px-5 sm:py-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Link
+                          href={mobileBackHref}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line text-muted2 xl:hidden"
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                        </Link>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-electric text-sm font-semibold text-white sm:h-11 sm:w-11">
+                          {initials(selected.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h2 className="truncate font-semibold">{selected.name}</h2>
+                            <span className="hidden sm:inline">
+                              <ConversationStatusBadge status={selected.status} />
                             </span>
-                          ) : null}
+                            <span className="hidden sm:inline">
+                              <PriorityBadge priority={selected.priority} />
+                            </span>
+                            {ban.banned ? (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-bold text-red-700">
+                                BANNI
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-0.5 truncate text-[11px] text-muted2">
+                            +{selected.phone}
+                            {selected.internalId ? ` · ${selected.internalId}` : ""}
+                          </div>
                         </div>
-                        <div className="mt-0.5 truncate text-[11px] text-muted2">
-                          +{selected.phone}
-                          {selected.internalId ? ` · ${selected.internalId}` : ""}
-                        </div>
+                      </div>
+                      <div className="hidden gap-2 md:flex">
+                        {selected.unread ? (
+                          <form action={markWhatsAppConversationRead.bind(null, selected.phone)}>
+                            <Button variant="outline" size="sm">
+                              <MailOpen className="h-4 w-4" /> Lu
+                            </Button>
+                          </form>
+                        ) : null}
+                        <form action={setWhatsAppConversationStatus.bind(null, selected.phone, "WAITING")}>
+                          <Button variant="outline" size="sm">
+                            En attente
+                          </Button>
+                        </form>
+                        <form
+                          action={setWhatsAppConversationStatus.bind(
+                            null,
+                            selected.phone,
+                            selected.status === "RESOLVED" ? "OPEN" : "RESOLVED",
+                          )}
+                        >
+                          <Button variant="outline" size="sm">
+                            {selected.status === "RESOLVED" ? "Rouvrir" : "Résoudre"}
+                          </Button>
+                        </form>
                       </div>
                     </div>
-                    <div className="hidden gap-2 md:flex">
+                    <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5 md:hidden">
+                      <ConversationStatusBadge status={selected.status} />
+                      <PriorityBadge priority={selected.priority} />
                       {selected.unread ? (
                         <form action={markWhatsAppConversationRead.bind(null, selected.phone)}>
-                          <Button variant="outline" size="sm">
-                            <MailOpen className="h-4 w-4" /> Lu
-                          </Button>
+                          <button className="whitespace-nowrap rounded-full border border-line px-2.5 py-1 text-[10px] font-medium">
+                            Marquer lu
+                          </button>
                         </form>
                       ) : null}
                       <form action={setWhatsAppConversationStatus.bind(null, selected.phone, "WAITING")}>
-                        <Button variant="outline" size="sm">
+                        <button className="whitespace-nowrap rounded-full border border-line px-2.5 py-1 text-[10px] font-medium">
                           En attente
-                        </Button>
+                        </button>
                       </form>
                       <form
                         action={setWhatsAppConversationStatus.bind(
@@ -422,404 +470,329 @@ export default async function WhatsAppInboxPage({
                           selected.status === "RESOLVED" ? "OPEN" : "RESOLVED",
                         )}
                       >
-                        <Button variant="outline" size="sm">
-                          {selected.status === "RESOLVED" ? "Rouvrir" : "Résoudre"}
-                        </Button>
-                      </form>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5 md:hidden">
-                    <ConversationStatusBadge status={selected.status} />
-                    <PriorityBadge priority={selected.priority} />
-                    {selected.unread ? (
-                      <form action={markWhatsAppConversationRead.bind(null, selected.phone)}>
                         <button className="whitespace-nowrap rounded-full border border-line px-2.5 py-1 text-[10px] font-medium">
-                          Marquer lu
+                          {selected.status === "RESOLVED" ? "Rouvrir" : "Résoudre"}
                         </button>
                       </form>
-                    ) : null}
-                    <form action={setWhatsAppConversationStatus.bind(null, selected.phone, "WAITING")}>
-                      <button className="whitespace-nowrap rounded-full border border-line px-2.5 py-1 text-[10px] font-medium">
-                        En attente
-                      </button>
-                    </form>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-line bg-white px-3 py-2 xl:hidden">
+                    <MobileClientSummary selected={selected} clientSummary={clientSummary} ban={ban} />
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 md:px-6">
+                    <div className="mx-auto max-w-4xl space-y-1.5">
+                      <Timeline messages={messages} deliveryStatuses={deliveryStatuses} />
+                    </div>
+                  </div>
+
+                  {ban.banned ? (
+                    <div className="sticky bottom-0 border-t border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:p-4">
+                      <div className="mx-auto max-w-4xl flex items-center gap-3">
+                        <Ban className="h-5 w-5" />
+                        <div>
+                          <div className="font-semibold">Communication bloquée globalement</div>
+                          <div className="text-xs">
+                            WhatsApp et email sortants sont désactivés.
+                            {ban.reason ? ` Motif : ${ban.reason}` : ""}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
                     <form
-                      action={setWhatsAppConversationStatus.bind(
-                        null,
-                        selected.phone,
-                        selected.status === "RESOLVED" ? "OPEN" : "RESOLVED",
-                      )}
+                      action={replyWhatsAppConversation.bind(null, selected.phone)}
+                      className="sticky bottom-0 z-10 border-t border-line bg-ink/95 px-2.5 py-2.5 backdrop-blur sm:px-4 sm:py-3"
                     >
-                      <button className="whitespace-nowrap rounded-full border border-line px-2.5 py-1 text-[10px] font-medium">
-                        {selected.status === "RESOLVED" ? "Rouvrir" : "Résoudre"}
-                      </button>
-                    </form>
-                  </div>
-                </div>
-
-                <div className="border-b border-line bg-white px-3 py-2 xl:hidden">
-                  <MobileClientSummary selected={selected} clientSummary={clientSummary} ban={ban} />
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 md:px-6">
-                  <div className="mx-auto max-w-4xl space-y-1.5">
-                    {messages.map(({ row, payload }, index) => {
-                      const previous = index > 0 ? messages[index - 1]?.payload : null;
-                      const showDate = !previous || dayKey(previous.timestamp) !== dayKey(payload.timestamp);
-                      const outbound = payload.direction === "OUTBOUND";
-                      const documentLike = payload.type === "document" || payload.filename;
-                      const delivery = outbound ? deliveryStatuses.get(payload.messageId) : null;
-                      return (
-                        <div key={row.id}>
-                          {showDate ? (
-                            <div className="my-3 flex items-center gap-3 text-[10px] uppercase text-muted2">
-                              <div className="h-px flex-1 bg-line" />
-                              <span>{formatDay(new Date(payload.timestamp))}</span>
-                              <div className="h-px flex-1 bg-line" />
-                            </div>
-                          ) : null}
-                          <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
-                            <div
-                              className={`min-w-[130px] max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[82%] md:max-w-[74%] ${outbound ? "rounded-br-md bg-surface-1 text-ink" : "rounded-bl-md border border-line bg-white"}`}
-                            >
-                              {payload.type !== "text" ? (
-                                <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70">
-                                  <Paperclip className="h-3 w-3" />
-                                  {payload.type}
-                                </div>
-                              ) : null}
-                              {documentLike ? (
-                                <div
-                                  className={`mb-2 flex items-center gap-2 rounded-xl p-2.5 ${outbound ? "bg-ink/10" : "bg-surface"}`}
-                                >
-                                  <FileText className="h-5 w-5" />
-                                  <div className="truncate text-xs font-semibold">
-                                    {payload.filename || "Document WhatsApp"}
-                                  </div>
-                                </div>
-                              ) : null}
-                              <div className="whitespace-pre-wrap break-words">{payload.text}</div>
-                              <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
-                                {formatTime(new Date(payload.timestamp))}
-                                {outbound ? <DeliveryReceipt delivery={delivery} /> : null}
-                                {outbound && row.user ? <span>· {row.user.firstName}</span> : null}
-                              </div>
-                              {delivery?.state === "FAILED" && delivery.reason ? (
-                                <div className="mt-2 rounded-lg border border-red-300/25 bg-red-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-red-100">
-                                  <strong>Échec WhatsApp :</strong> {delivery.reason}
-                                </div>
-                              ) : null}
-                            </div>
+                      <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-white shadow-sm">
+                        <Textarea
+                          name="message"
+                          rows={2}
+                          required
+                          maxLength={4096}
+                          placeholder="Écrire une réponse…"
+                          className="min-h-[56px] resize-none border-0 sm:min-h-[62px]"
+                        />
+                        <div className="flex items-center justify-between gap-2 border-t border-line px-2.5 py-2 sm:px-3">
+                          <div className="min-w-0 text-[10px] text-muted2 sm:text-[11px]">
+                            <span className="hidden sm:inline">
+                              <Link href="/app/whatsapp" className="mr-3">
+                                <FileText className="mr-1 inline h-3.5 w-3.5" />
+                                Modèles
+                              </Link>
+                              <Link href="/app/documents" className="mr-3">
+                                <Paperclip className="mr-1 inline h-3.5 w-3.5" />
+                                Documents
+                              </Link>
+                            </span>
+                            <span className="truncate">
+                              <Clock3 className="mr-1 inline h-3.5 w-3.5" />
+                              {serviceWindowLabel(selected.lastInboundAt)}
+                            </span>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {ban.banned ? (
-                  <div className="sticky bottom-0 border-t border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:p-4">
-                    <div className="mx-auto max-w-4xl flex items-center gap-3">
-                      <Ban className="h-5 w-5" />
-                      <div>
-                        <div className="font-semibold">Communication bloquée globalement</div>
-                        <div className="text-xs">
-                          WhatsApp et email sortants sont désactivés.
-                          {ban.reason ? ` Motif : ${ban.reason}` : ""}
+                          <Button variant="primary" type="submit" size="sm">
+                            <Send className="h-4 w-4" />
+                            <span className="hidden sm:inline"> Envoyer</span>
+                          </Button>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <form
-                    action={replyWhatsAppConversation.bind(null, selected.phone)}
-                    className="sticky bottom-0 z-10 border-t border-line bg-ink/95 px-2.5 py-2.5 backdrop-blur sm:px-4 sm:py-3"
-                  >
-                    <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-white shadow-sm">
-                      <Textarea
-                        name="message"
-                        rows={2}
-                        required
-                        maxLength={4096}
-                        placeholder="Écrire une réponse…"
-                        className="min-h-[56px] resize-none border-0 sm:min-h-[62px]"
-                      />
-                      <div className="flex items-center justify-between gap-2 border-t border-line px-2.5 py-2 sm:px-3">
-                        <div className="min-w-0 text-[10px] text-muted2 sm:text-[11px]">
-                          <span className="hidden sm:inline">
-                            <Link href="/app/whatsapp" className="mr-3">
-                              <FileText className="mr-1 inline h-3.5 w-3.5" />
-                              Modèles
-                            </Link>
-                            <Link href="/app/documents" className="mr-3">
-                              <Paperclip className="mr-1 inline h-3.5 w-3.5" />
-                              Documents
-                            </Link>
-                          </span>
-                          <span className="truncate">
-                            <Clock3 className="mr-1 inline h-3.5 w-3.5" />
-                            {serviceWindowLabel(selected.lastInboundAt)}
-                          </span>
-                        </div>
-                        <Button variant="primary" type="submit" size="sm">
-                          <Send className="h-4 w-4" />
-                          <span className="hidden sm:inline"> Envoyer</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </form>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-sm text-muted2">
-                Sélectionnez une conversation.
-              </div>
-            )}
-          </section>
-
-          <aside className="hidden border-l border-line bg-white xl:block">
-            {selected ? (
-              <div className="max-h-[780px] overflow-y-auto p-4">
-                <div className="rounded-2xl border border-line bg-surface/45 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-electric/10 text-sm font-semibold text-electric">
-                      {initials(selected.name)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold">{selected.name}</div>
-                      <div className="truncate text-xs text-muted2">+{selected.phone}</div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    <ConversationStatusBadge status={selected.status} />
-                    <PriorityBadge priority={selected.priority} />
-                    {selected.assignment ? <ContextTag label={selected.assignment.name} tone="blue" /> : null}
-                  </div>
-                  {selected.clientId ? (
-                    <Link
-                      href={`/app/clients/${selected.clientId}/dashboard`}
-                      className="mt-3 block text-xs font-medium text-electric"
-                    >
-                      Ouvrir Client 360 →
-                    </Link>
-                  ) : null}
-                </div>
-
-                {clientSummary ? (
-                  <>
-                    <PanelSection title="Finance" icon={<DollarSign className="h-3.5 w-3.5" />} defaultOpen>
-                      <div className="grid grid-cols-2 gap-2">
-                        <MiniStat
-                          label="Net reçu"
-                          value={formatMoney(clientSummary.netReceived, clientSummary.primaryCurrency)}
-                        />
-                        <MiniStat
-                          label="Remboursé"
-                          value={formatMoney(clientSummary.refundPaid, clientSummary.primaryCurrency)}
-                        />
-                        <MiniStat
-                          label="Dépenses"
-                          value={formatMoney(clientSummary.expensePaid, clientSummary.primaryCurrency)}
-                        />
-                        <MiniStat
-                          label="Profit"
-                          value={formatMoney(clientSummary.realizedProfit, clientSummary.primaryCurrency)}
-                        />
-                      </div>
-                      <Link
-                        href={`/app/clients/${selected.clientId}/finance`}
-                        className="mt-2 block text-xs font-medium text-electric"
-                      >
-                        Finance complète →
-                      </Link>
-                    </PanelSection>
-                    <PanelSection title="Dossier attaché" icon={<Briefcase className="h-3.5 w-3.5" />}>
-                      <form
-                        action={setWhatsAppConversationCase.bind(null, selected.phone)}
-                        className="space-y-2"
-                      >
-                        <select
-                          name="caseId"
-                          defaultValue={selected.attachedCaseId || ""}
-                          className="w-full rounded-lg border border-line bg-white px-2 py-2 text-xs"
-                        >
-                          <option value="">— Aucun dossier —</option>
-                          {clientSummary.cases.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.caseNumber} · {c.title}
-                            </option>
-                          ))}
-                        </select>
-                        <Button size="sm" variant="outline" className="w-full">
-                          Enregistrer
-                        </Button>
-                      </form>
-                    </PanelSection>
-                    <PanelSection title="Activité récente" icon={<Activity className="h-3.5 w-3.5" />}>
-                      <div className="space-y-2">
-                        {clientSummary.activities.length ? (
-                          clientSummary.activities.slice(0, 4).map((a) => (
-                            <div key={a.id} className="rounded-lg bg-surface p-2 text-xs">
-                              <div className="font-medium text-ink">{a.type.replaceAll("_", " ")}</div>
-                              <div className="mt-0.5 line-clamp-2 text-muted2">{a.message}</div>
-                              <div className="mt-1 text-[10px] text-muted2">{formatWhen(a.createdAt)}</div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-xs text-muted2">Aucune activité récente.</div>
-                        )}
-                      </div>
-                    </PanelSection>
-                    <PanelSection title="Indicateurs" icon={<WalletCards className="h-3.5 w-3.5" />}>
-                      <div className="grid grid-cols-3 gap-2">
-                        <MiniStat label="Dossiers" value={String(clientSummary.cases.length)} />
-                        <MiniStat label="Documents" value={String(clientSummary.documentCount)} />
-                        <MiniStat label="Paiements" value={String(clientSummary.paymentCount)} />
-                      </div>
-                    </PanelSection>
-                  </>
-                ) : null}
-
-                <PanelSection title="Gestion conversation" icon={<UserCog className="h-3.5 w-3.5" />}>
-                  <div className="grid grid-cols-2 gap-2">
-                    <form action={assignWhatsAppConversationToMe.bind(null, selected.phone)}>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <UserPlus className="h-3.5 w-3.5" /> À moi
-                      </Button>
                     </form>
-                    <form action={unassignWhatsAppConversation.bind(null, selected.phone)}>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <UserMinus className="h-3.5 w-3.5" /> Libérer
-                      </Button>
-                    </form>
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-1.5">
-                    {(["NORMAL", "HIGH", "URGENT"] as const).map((p) => (
-                      <form key={p} action={setWhatsAppConversationPriority.bind(null, selected.phone, p)}>
-                        <button
-                          className={`w-full rounded-lg border px-1 py-2 text-[9px] font-semibold ${selected.priority === p ? "border-electric bg-electric/5 text-electric" : "border-line text-muted2"}`}
-                        >
-                          {p === "NORMAL" ? "Normal" : p === "HIGH" ? "Haute" : "Urgente"}
-                        </button>
-                      </form>
-                    ))}
-                  </div>
-                </PanelSection>
-                <PanelSection title="Tags" icon={<Tag className="h-3.5 w-3.5" />}>
-                  <div className="mb-2 flex flex-wrap gap-1.5">
-                    {selected.tags.map((tag) => (
-                      <ContextTag key={tag} label={tag} tone="blue" />
-                    ))}
-                  </div>
-                  <form
-                    action={updateWhatsAppConversationTags.bind(null, selected.phone)}
-                    className="flex gap-2"
-                  >
-                    <input
-                      name="tags"
-                      defaultValue={selected.tags.join(", ")}
-                      className="min-w-0 flex-1 rounded-lg border border-line px-2 py-2 text-xs"
-                    />
-                    <Button size="sm" variant="outline">
-                      Sauver
-                    </Button>
-                  </form>
-                </PanelSection>
-                <PanelSection title="Actions rapides" icon={<ClipboardList className="h-3.5 w-3.5" />}>
-                  <div className="grid gap-2">
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-1 items-center justify-center text-sm text-muted2">
+                  Sélectionnez une conversation.
+                </div>
+              )}
+            </section>
+
+            <aside className="hidden border-l border-line bg-white xl:block">
+              {selected ? (
+                <div className="max-h-[780px] overflow-y-auto p-4">
+                  <div className="rounded-2xl border border-line bg-surface/45 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-electric/10 text-sm font-semibold text-electric">
+                        {initials(selected.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">{selected.name}</div>
+                        <div className="truncate text-xs text-muted2">+{selected.phone}</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      <ConversationStatusBadge status={selected.status} />
+                      <PriorityBadge priority={selected.priority} />
+                      {selected.assignment ? (
+                        <ContextTag label={selected.assignment.name} tone="blue" />
+                      ) : null}
+                    </div>
                     {selected.clientId ? (
-                      <QuickLink
+                      <Link
                         href={`/app/clients/${selected.clientId}/dashboard`}
-                        icon={<UserRound className="h-4 w-4" />}
-                        label="Client 360"
-                      />
+                        className="mt-3 block text-xs font-medium text-electric"
+                      >
+                        Ouvrir Client 360 →
+                      </Link>
                     ) : null}
-                    {selected.attachedCaseId ? (
-                      <QuickLink
-                        href={`/app/cases/${selected.attachedCaseId}/dashboard`}
-                        icon={<Briefcase className="h-4 w-4" />}
-                        label="Dossier attaché"
-                      />
-                    ) : null}
-                    <QuickLink
-                      href="/app/documents"
-                      icon={<FolderOpen className="h-4 w-4" />}
-                      label="Documents"
-                    />
-                    <QuickLink
-                      href="/app/finance/payments"
-                      icon={<CreditCard className="h-4 w-4" />}
-                      label="Paiements"
-                    />
                   </div>
-                </PanelSection>
-                <PanelSection title="Notes internes" icon={<StickyNote className="h-3.5 w-3.5" />}>
-                  <form action={addWhatsAppInternalNote.bind(null, selected.phone)} className="space-y-2">
-                    <textarea
-                      name="note"
-                      rows={3}
-                      maxLength={2000}
-                      placeholder="Note invisible au client…"
-                      className="w-full resize-none rounded-xl border border-line px-3 py-2 text-xs"
-                    />
-                    <Button size="sm" variant="outline">
-                      Ajouter
-                    </Button>
-                  </form>
-                  <div className="mt-3 space-y-2">
-                    {selected.notes.slice(0, 3).map((note) => (
-                      <div key={note.id} className="rounded-xl bg-surface p-3 text-xs">
-                        <div>{note.text}</div>
-                        <div className="mt-1 text-[10px] text-muted2">
-                          {note.author} · {formatWhen(new Date(note.createdAt))}
+
+                  {clientSummary ? (
+                    <>
+                      <PanelSection title="Finance" icon={<DollarSign className="h-3.5 w-3.5" />} defaultOpen>
+                        <div className="grid grid-cols-2 gap-2">
+                          <MiniStat
+                            label="Net reçu"
+                            value={formatMoney(clientSummary.netReceived, clientSummary.primaryCurrency)}
+                          />
+                          <MiniStat
+                            label="Remboursé"
+                            value={formatMoney(clientSummary.refundPaid, clientSummary.primaryCurrency)}
+                          />
+                          <MiniStat
+                            label="Dépenses"
+                            value={formatMoney(clientSummary.expensePaid, clientSummary.primaryCurrency)}
+                          />
+                          <MiniStat
+                            label="Profit"
+                            value={formatMoney(clientSummary.realizedProfit, clientSummary.primaryCurrency)}
+                          />
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </PanelSection>
-                <PanelSection title="Sécurité / Ban" icon={<Ban className="h-3.5 w-3.5" />}>
-                  {selected.clientId ? (
-                    ban.banned ? (
-                      <>
-                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-                          <div className="font-bold">CLIENT BANNI PARTOUT</div>
-                          <div className="mt-1">
-                            WhatsApp + Email bloqués.{ban.reason ? ` ${ban.reason}` : ""}
-                          </div>
-                        </div>
-                        <form
-                          action={setWhatsAppClientCommunicationBan.bind(null, selected.phone, false)}
-                          className="mt-2"
+                        <Link
+                          href={`/app/clients/${selected.clientId}/finance`}
+                          className="mt-2 block text-xs font-medium text-electric"
                         >
-                          <Button variant="outline" size="sm" className="w-full">
-                            <ShieldOff className="h-4 w-4" /> Lever le ban
+                          Finance complète →
+                        </Link>
+                      </PanelSection>
+                      <PanelSection title="Dossier attaché" icon={<Briefcase className="h-3.5 w-3.5" />}>
+                        <form
+                          action={setWhatsAppConversationCase.bind(null, selected.phone)}
+                          className="space-y-2"
+                        >
+                          <select
+                            name="caseId"
+                            defaultValue={selected.attachedCaseId || ""}
+                            className="w-full rounded-lg border border-line bg-white px-2 py-2 text-xs"
+                          >
+                            <option value="">— Aucun dossier —</option>
+                            {clientSummary.cases.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.caseNumber} · {c.title}
+                              </option>
+                            ))}
+                          </select>
+                          <Button size="sm" variant="outline" className="w-full">
+                            Enregistrer
                           </Button>
                         </form>
-                      </>
-                    ) : (
-                      <form
-                        action={setWhatsAppClientCommunicationBan.bind(null, selected.phone, true)}
-                        className="space-y-2"
-                      >
-                        <textarea
-                          name="reason"
-                          rows={2}
-                          placeholder="Motif…"
-                          className="w-full resize-none rounded-lg border border-line px-2 py-2 text-xs"
-                        />
+                      </PanelSection>
+                      <PanelSection title="Activité récente" icon={<Activity className="h-3.5 w-3.5" />}>
+                        <div className="space-y-2">
+                          {clientSummary.activities.length ? (
+                            clientSummary.activities.slice(0, 4).map((a) => (
+                              <div key={a.id} className="rounded-lg bg-surface p-2 text-xs">
+                                <div className="font-medium text-ink">{a.type.replaceAll("_", " ")}</div>
+                                <div className="mt-0.5 line-clamp-2 text-muted2">{a.message}</div>
+                                <div className="mt-1 text-[10px] text-muted2">{formatWhen(a.createdAt)}</div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-xs text-muted2">Aucune activité récente.</div>
+                          )}
+                        </div>
+                      </PanelSection>
+                      <PanelSection title="Indicateurs" icon={<WalletCards className="h-3.5 w-3.5" />}>
+                        <div className="grid grid-cols-3 gap-2">
+                          <MiniStat label="Dossiers" value={String(clientSummary.cases.length)} />
+                          <MiniStat label="Documents" value={String(clientSummary.documentCount)} />
+                          <MiniStat label="Paiements" value={String(clientSummary.paymentCount)} />
+                        </div>
+                      </PanelSection>
+                    </>
+                  ) : null}
+
+                  <PanelSection title="Gestion conversation" icon={<UserCog className="h-3.5 w-3.5" />}>
+                    <div className="grid grid-cols-2 gap-2">
+                      <form action={assignWhatsAppConversationToMe.bind(null, selected.phone)}>
                         <Button variant="outline" size="sm" className="w-full">
-                          <Ban className="h-4 w-4" /> Bannir partout
+                          <UserPlus className="h-3.5 w-3.5" /> À moi
                         </Button>
                       </form>
-                    )
-                  ) : (
-                    <div className="text-xs text-muted2">Le contact doit être lié à un client.</div>
-                  )}
-                </PanelSection>
-              </div>
-            ) : null}
-          </aside>
-        </div>
+                      <form action={unassignWhatsAppConversation.bind(null, selected.phone)}>
+                        <Button variant="outline" size="sm" className="w-full">
+                          <UserMinus className="h-3.5 w-3.5" /> Libérer
+                        </Button>
+                      </form>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-1.5">
+                      {(["NORMAL", "HIGH", "URGENT"] as const).map((p) => (
+                        <form key={p} action={setWhatsAppConversationPriority.bind(null, selected.phone, p)}>
+                          <button
+                            className={`w-full rounded-lg border px-1 py-2 text-[9px] font-semibold ${selected.priority === p ? "border-electric bg-electric/5 text-electric" : "border-line text-muted2"}`}
+                          >
+                            {p === "NORMAL" ? "Normal" : p === "HIGH" ? "Haute" : "Urgente"}
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+                  </PanelSection>
+                  <PanelSection title="Tags" icon={<Tag className="h-3.5 w-3.5" />}>
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {selected.tags.map((tag) => (
+                        <ContextTag key={tag} label={tag} tone="blue" />
+                      ))}
+                    </div>
+                    <form
+                      action={updateWhatsAppConversationTags.bind(null, selected.phone)}
+                      className="flex gap-2"
+                    >
+                      <input
+                        name="tags"
+                        defaultValue={selected.tags.join(", ")}
+                        className="min-w-0 flex-1 rounded-lg border border-line px-2 py-2 text-xs"
+                      />
+                      <Button size="sm" variant="outline">
+                        Sauver
+                      </Button>
+                    </form>
+                  </PanelSection>
+                  <PanelSection title="Actions rapides" icon={<ClipboardList className="h-3.5 w-3.5" />}>
+                    <div className="grid gap-2">
+                      {selected.clientId ? (
+                        <QuickLink
+                          href={`/app/clients/${selected.clientId}/dashboard`}
+                          icon={<UserRound className="h-4 w-4" />}
+                          label="Client 360"
+                        />
+                      ) : null}
+                      {selected.attachedCaseId ? (
+                        <QuickLink
+                          href={`/app/cases/${selected.attachedCaseId}/dashboard`}
+                          icon={<Briefcase className="h-4 w-4" />}
+                          label="Dossier attaché"
+                        />
+                      ) : null}
+                      <QuickLink
+                        href="/app/documents"
+                        icon={<FolderOpen className="h-4 w-4" />}
+                        label="Documents"
+                      />
+                      <QuickLink
+                        href="/app/finance/payments"
+                        icon={<CreditCard className="h-4 w-4" />}
+                        label="Paiements"
+                      />
+                    </div>
+                  </PanelSection>
+                  <PanelSection title="Notes internes" icon={<StickyNote className="h-3.5 w-3.5" />}>
+                    <form action={addWhatsAppInternalNote.bind(null, selected.phone)} className="space-y-2">
+                      <textarea
+                        name="note"
+                        rows={3}
+                        maxLength={2000}
+                        placeholder="Note invisible au client…"
+                        className="w-full resize-none rounded-xl border border-line px-3 py-2 text-xs"
+                      />
+                      <Button size="sm" variant="outline">
+                        Ajouter
+                      </Button>
+                    </form>
+                    <div className="mt-3 space-y-2">
+                      {selected.notes.slice(0, 3).map((note) => (
+                        <div key={note.id} className="rounded-xl bg-surface p-3 text-xs">
+                          <div>{note.text}</div>
+                          <div className="mt-1 text-[10px] text-muted2">
+                            {note.author} · {formatWhen(new Date(note.createdAt))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </PanelSection>
+                  <PanelSection title="Sécurité / Ban" icon={<Ban className="h-3.5 w-3.5" />}>
+                    {selected.clientId ? (
+                      ban.banned ? (
+                        <>
+                          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                            <div className="font-bold">CLIENT BANNI PARTOUT</div>
+                            <div className="mt-1">
+                              WhatsApp + Email bloqués.{ban.reason ? ` ${ban.reason}` : ""}
+                            </div>
+                          </div>
+                          <form
+                            action={setWhatsAppClientCommunicationBan.bind(null, selected.phone, false)}
+                            className="mt-2"
+                          >
+                            <Button variant="outline" size="sm" className="w-full">
+                              <ShieldOff className="h-4 w-4" /> Lever le ban
+                            </Button>
+                          </form>
+                        </>
+                      ) : (
+                        <form
+                          action={setWhatsAppClientCommunicationBan.bind(null, selected.phone, true)}
+                          className="space-y-2"
+                        >
+                          <textarea
+                            name="reason"
+                            rows={2}
+                            placeholder="Motif…"
+                            className="w-full resize-none rounded-lg border border-line px-2 py-2 text-xs"
+                          />
+                          <Button variant="outline" size="sm" className="w-full">
+                            <Ban className="h-4 w-4" /> Bannir partout
+                          </Button>
+                        </form>
+                      )
+                    ) : (
+                      <div className="text-xs text-muted2">Le contact doit être lié à un client.</div>
+                    )}
+                  </PanelSection>
+                </div>
+              ) : null}
+            </aside>
+          </div>
+        </>
       )}
     </div>
   );
@@ -1285,6 +1258,515 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-surface p-2.5">
       <div className="text-[9px] uppercase tracking-wide text-muted2">{label}</div>
       <div className="mt-1 truncate text-xs font-semibold text-ink">{value}</div>
+    </div>
+  );
+}
+
+type TimelineItem = { row: Row; payload: WhatsAppInboxPayload };
+
+function Timeline({
+  messages,
+  deliveryStatuses,
+}: {
+  messages: TimelineItem[];
+  deliveryStatuses: Map<string, DeliveryInfo>;
+}) {
+  return (
+    <>
+      {messages.map(({ row, payload }, index) => {
+        const previous = index > 0 ? messages[index - 1]?.payload : null;
+        const showDate = !previous || dayKey(previous.timestamp) !== dayKey(payload.timestamp);
+        const outbound = payload.direction === "OUTBOUND";
+        const documentLike = payload.type === "document" || payload.filename;
+        const delivery = outbound ? deliveryStatuses.get(payload.messageId) : null;
+        return (
+          <div key={row.id}>
+            {showDate ? (
+              <div className="my-3 flex items-center gap-3 text-[10px] uppercase text-muted2">
+                <div className="h-px flex-1 bg-line" />
+                <span>{formatDay(new Date(payload.timestamp))}</span>
+                <div className="h-px flex-1 bg-line" />
+              </div>
+            ) : null}
+            <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`min-w-[130px] max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[82%] md:max-w-[74%] ${outbound ? "rounded-br-md bg-surface-1 text-ink" : "rounded-bl-md border border-line bg-white"}`}
+              >
+                {payload.type !== "text" ? (
+                  <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70">
+                    <Paperclip className="h-3 w-3" />
+                    {payload.type}
+                  </div>
+                ) : null}
+                {documentLike ? (
+                  <div
+                    className={`mb-2 flex items-center gap-2 rounded-xl p-2.5 ${outbound ? "bg-ink/10" : "bg-surface"}`}
+                  >
+                    <FileText className="h-5 w-5" />
+                    <div className="truncate text-xs font-semibold">
+                      {payload.filename || "Document WhatsApp"}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="whitespace-pre-wrap break-words">{payload.text}</div>
+                <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                  {formatTime(new Date(payload.timestamp))}
+                  {outbound ? <DeliveryReceipt delivery={delivery} /> : null}
+                  {outbound && row.user ? <span>· {row.user.firstName}</span> : null}
+                </div>
+                {delivery?.state === "FAILED" && delivery.reason ? (
+                  <div className="mt-2 rounded-lg border border-red-300/25 bg-red-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-red-100">
+                    <strong>Échec WhatsApp :</strong> {delivery.reason}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+type Conversation = ReturnType<typeof groupConversations>[number] & {
+  status: ConversationStatus;
+  priority: ConversationPriority;
+  assignment: Assignment;
+  tags: string[];
+  notes: NoteItem[];
+  attachedCaseId: string | null;
+};
+
+function MobileInbox({
+  conversations,
+  allCount,
+  counts,
+  filter,
+  query,
+  selected,
+  selectedPhone,
+  messages,
+  deliveryStatuses,
+  clientSummary,
+  ban,
+  backHref,
+}: {
+  conversations: Conversation[];
+  allCount: number;
+  counts: { unread: number; waiting: number; urgent: number; resolved: number };
+  filter: FilterKey;
+  query: string;
+  selected: Conversation | null;
+  selectedPhone: string;
+  messages: TimelineItem[];
+  deliveryStatuses: Map<string, DeliveryInfo>;
+  clientSummary: Awaited<ReturnType<typeof loadClientSummary>> | null;
+  ban: { banned: boolean; reason?: string | null };
+  backHref: string;
+}) {
+  const chips = [
+    ["all", "Tous", allCount],
+    ["unread", "Non lus", counts.unread],
+    ["waiting", "En attente", counts.waiting],
+    ["urgent", "Urgentes", counts.urgent],
+    ["resolved", "Résolues", counts.resolved],
+  ] as const;
+
+  if (selected) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-canvas xl:hidden">
+        {/* Conversation header */}
+        <div className="flex items-center gap-2 border-b border-line bg-surface-1 px-2 pb-2 pt-[max(8px,env(safe-area-inset-top))]">
+          <Link
+            href={backHref}
+            aria-label="Retour aux messages"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 active:bg-surface-2"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <Sheet
+            title={selected.name}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg py-1 pr-2 text-left active:bg-surface-2"
+            trigger={
+              <>
+                <Avatar
+                  name={selected.name}
+                  unread={selected.unread > 0}
+                  priority={selected.priority}
+                  size="sm"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold text-ink">{selected.name}</span>
+                  <span className="block truncate text-xs text-ink-3">
+                    {statusLabel(selected.status)}
+                    {selected.priority !== "NORMAL" ? ` · ${priorityLabel(selected.priority)}` : ""}
+                    {ban.banned ? " · Bloqué" : ""}
+                    {selected.internalId ? ` · ${selected.internalId}` : ""}
+                  </span>
+                </span>
+              </>
+            }
+          >
+            <MobileContext selected={selected} clientSummary={clientSummary} ban={ban} />
+          </Sheet>
+          <Sheet
+            title="Actions"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 active:bg-surface-2"
+            trigger={<UserCog className="h-5 w-5" />}
+          >
+            <ConversationActions selected={selected} />
+          </Sheet>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-3 py-3">
+          <div className="space-y-1.5">
+            <Timeline messages={messages} deliveryStatuses={deliveryStatuses} />
+          </div>
+        </div>
+
+        {/* Composer */}
+        {ban.banned ? (
+          <div className="flex items-start gap-3 border-t border-danger/30 tint-danger px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] text-sm text-danger">
+            <Ban className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <div className="font-semibold">Communication bloquée</div>
+              <div className="text-xs">
+                WhatsApp et email sortants sont désactivés{ban.reason ? ` · ${ban.reason}` : ""}.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <form
+            action={replyWhatsAppConversation.bind(null, selected.phone)}
+            className="border-t border-line bg-surface-1 px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]"
+          >
+            <div className="flex items-end gap-1.5">
+              <Link
+                href="/app/documents"
+                aria-label="Joindre un document"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 active:bg-surface-2"
+              >
+                <Paperclip className="h-5 w-5" />
+              </Link>
+              <Textarea
+                name="message"
+                rows={1}
+                required
+                maxLength={4096}
+                placeholder="Message"
+                className="max-h-32 min-h-[40px] flex-1 resize-none rounded-[20px] py-2.5 text-[15px] leading-5"
+              />
+              <button
+                type="submit"
+                aria-label="Envoyer"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-fg shadow-card active:translate-y-px"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-1.5 truncate px-12 text-2xs text-ink-3">
+              <Clock3 className="mr-1 inline h-3 w-3" />
+              {serviceWindowLabel(selected.lastInboundAt)}
+            </p>
+          </form>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="-mx-4 -mt-4 xl:hidden sm:-mx-6 sm:-mt-6">
+      {/* List header */}
+      <div className="sticky top-16 z-20 border-b border-line bg-canvas/95 px-4 pb-3 pt-3 backdrop-blur-md">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h1 className="font-display text-[26px] font-medium leading-none tracking-tight text-ink">
+              Messages
+            </h1>
+            <p className="mt-1.5 text-xs text-ink-3">
+              {counts.unread === 0
+                ? "Tout est lu"
+                : `${counts.unread} conversation${counts.unread > 1 ? "s" : ""} non lue${counts.unread > 1 ? "s" : ""}`}
+            </p>
+          </div>
+          <Link
+            href="/app/whatsapp"
+            aria-label="Nouvel envoi"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-fg shadow-card"
+          >
+            <Send className="h-4 w-4" />
+          </Link>
+        </div>
+        <form method="get" className="mt-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
+            <input
+              name="q"
+              type="search"
+              defaultValue={query}
+              placeholder="Rechercher"
+              className="h-10 w-full rounded-full border border-line bg-surface-1 pl-9 pr-3 text-[15px] text-ink placeholder:text-ink-3 focus:border-accent focus:outline-none"
+            />
+          </div>
+          <div className="-mx-4 mt-2.5 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {chips.map(([key, label, count]) => {
+              const active = filter === key;
+              return (
+                <button
+                  key={key}
+                  type="submit"
+                  name="filter"
+                  value={key}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    active ? "border-ink bg-ink text-canvas" : "border-line bg-surface-1 text-ink-2"
+                  }`}
+                >
+                  {label}
+                  <span className={`tabular-nums ${active ? "text-canvas/70" : "text-ink-3"}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </form>
+      </div>
+
+      {/* Rows */}
+      <div className="divide-y divide-line bg-surface-1">
+        {conversations.map((c) => {
+          const params = new URLSearchParams();
+          params.set("phone", c.phone);
+          if (query) params.set("q", query);
+          if (filter !== "all") params.set("filter", filter);
+          const unread = c.unread > 0;
+          return (
+            <Link
+              key={c.phone}
+              href={`/app/whatsapp/inbox?${params}`}
+              className={`flex items-center gap-3 px-4 py-3 active:bg-surface-2 ${c.phone === selectedPhone ? "bg-surface-2/60" : ""}`}
+            >
+              <Avatar name={c.name} unread={unread} priority={c.priority} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span
+                    className={`truncate text-[15px] ${unread ? "font-semibold text-ink" : "font-medium text-ink"}`}
+                  >
+                    {c.name}
+                  </span>
+                  <span className={`shrink-0 text-2xs tabular-nums ${unread ? "text-accent" : "text-ink-3"}`}>
+                    {formatListWhen(c.lastAt)}
+                  </span>
+                </div>
+                <div className="mt-0.5 flex items-center justify-between gap-2">
+                  <span className={`truncate text-sm ${unread ? "text-ink-2" : "text-ink-3"}`}>
+                    {c.status === "WAITING" ? <span className="text-warning">En attente · </span> : null}
+                    {c.status === "RESOLVED" ? <span className="text-ink-3">Résolue · </span> : null}
+                    {c.preview}
+                  </span>
+                  {unread ? (
+                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-accent px-1.5 text-2xs font-bold text-accent-fg tabular-nums">
+                      {c.unread}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+        {conversations.length === 0 ? (
+          <div className="px-4 py-16 text-center">
+            <Inbox className="mx-auto h-8 w-8 text-ink-3" />
+            <p className="mt-3 text-sm text-ink-2">Aucune conversation pour ce filtre.</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function Avatar({
+  name,
+  unread,
+  priority,
+  size = "md",
+}: {
+  name: string;
+  unread: boolean;
+  priority: ConversationPriority;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "sm" ? "h-9 w-9 text-xs" : "h-11 w-11 text-sm";
+  return (
+    <span className="relative shrink-0">
+      <span
+        className={`flex ${dim} items-center justify-center rounded-full font-semibold ${
+          unread ? "bg-accent text-accent-fg" : "tint-accent text-accent"
+        }`}
+      >
+        {initials(name)}
+      </span>
+      {priority !== "NORMAL" ? (
+        <span
+          aria-label={priorityLabel(priority)}
+          className={`absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-surface-1 ${
+            priority === "URGENT" ? "bg-danger" : "bg-warning"
+          }`}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+function statusLabel(s: ConversationStatus) {
+  return s === "RESOLVED" ? "Résolue" : s === "WAITING" ? "En attente" : "Ouverte";
+}
+function priorityLabel(p: ConversationPriority) {
+  return p === "URGENT" ? "Urgente" : p === "HIGH" ? "Haute" : "Normale";
+}
+
+function ConversationActions({ selected }: { selected: Conversation }) {
+  const item =
+    "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-[15px] text-ink active:bg-surface-2";
+  return (
+    <div className="-mx-1 divide-y divide-line">
+      {selected.unread > 0 ? (
+        <form action={markWhatsAppConversationRead.bind(null, selected.phone)}>
+          <button className={item}>
+            <MailOpen className="h-5 w-5 text-ink-3" /> Marquer comme lue
+          </button>
+        </form>
+      ) : null}
+      {selected.status !== "WAITING" ? (
+        <form action={setWhatsAppConversationStatus.bind(null, selected.phone, "WAITING")}>
+          <button className={item}>
+            <Clock3 className="h-5 w-5 text-ink-3" /> Mettre en attente
+          </button>
+        </form>
+      ) : null}
+      <form
+        action={setWhatsAppConversationStatus.bind(
+          null,
+          selected.phone,
+          selected.status === "RESOLVED" ? "OPEN" : "RESOLVED",
+        )}
+      >
+        <button className={item}>
+          <CheckCheck className="h-5 w-5 text-ink-3" />{" "}
+          {selected.status === "RESOLVED" ? "Rouvrir" : "Résoudre"}
+        </button>
+      </form>
+      <div className="pt-2">
+        <p className="px-3 pb-1 text-xs text-ink-3">Priorité</p>
+        <div className="flex gap-2 px-3 pb-2">
+          {(["NORMAL", "HIGH", "URGENT"] as const).map((p) => (
+            <form
+              key={p}
+              action={setWhatsAppConversationPriority.bind(null, selected.phone, p)}
+              className="flex-1"
+            >
+              <button
+                className={`w-full rounded-full border px-3 py-2 text-xs font-medium ${
+                  selected.priority === p
+                    ? "border-ink bg-ink text-canvas"
+                    : "border-line bg-surface-1 text-ink-2"
+                }`}
+              >
+                {priorityLabel(p)}
+              </button>
+            </form>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileContext({
+  selected,
+  clientSummary,
+  ban,
+}: {
+  selected: Conversation;
+  clientSummary: Awaited<ReturnType<typeof loadClientSummary>> | null;
+  ban: { banned: boolean; reason?: string | null };
+}) {
+  const link =
+    "flex items-center justify-between rounded-lg border border-line bg-surface-1 px-3 py-3 text-[15px] text-ink active:bg-surface-2";
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Avatar name={selected.name} unread={false} priority={selected.priority} />
+        <div className="min-w-0">
+          <p className="truncate text-xs text-ink-3">+{selected.phone}</p>
+          <p className="truncate text-xs text-ink-2">
+            {statusLabel(selected.status)} · {priorityLabel(selected.priority)}
+            {selected.assignment ? ` · ${selected.assignment.name}` : ""}
+          </p>
+        </div>
+      </div>
+
+      {ban.banned ? (
+        <div className="rounded-lg border border-danger/30 tint-danger px-3 py-2.5 text-sm text-danger">
+          Communication bloquée{ban.reason ? ` · ${ban.reason}` : ""}
+        </div>
+      ) : null}
+
+      {clientSummary ? (
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line">
+          {[
+            ["Net reçu", clientSummary.netReceived],
+            ["Remboursé", clientSummary.refundPaid],
+            ["Dépenses", clientSummary.expensePaid],
+            ["Profit", clientSummary.realizedProfit],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="bg-surface-1 px-3 py-2.5">
+              <p className="text-xs text-ink-3">{label}</p>
+              <p className="mt-0.5 font-display text-lg font-medium tabular-nums text-ink">
+                {formatMoney(Number(value), clientSummary.primaryCurrency)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="space-y-2">
+        {selected.clientId ? (
+          <Link href={`/app/clients/${selected.clientId}/dashboard`} className={link}>
+            Client 360 <ExternalLink className="h-4 w-4 text-ink-3" />
+          </Link>
+        ) : null}
+        {selected.attachedCaseId ? (
+          <Link href={`/app/cases/${selected.attachedCaseId}/dashboard`} className={link}>
+            Dossier {selected.caseNumber ?? ""} <ExternalLink className="h-4 w-4 text-ink-3" />
+          </Link>
+        ) : null}
+        {selected.clientId ? (
+          <Link href={`/app/clients/${selected.clientId}/finance`} className={link}>
+            Finance complète <ExternalLink className="h-4 w-4 text-ink-3" />
+          </Link>
+        ) : null}
+      </div>
+
+      {clientSummary && clientSummary.cases.length ? (
+        <div>
+          <p className="mb-1.5 text-xs text-ink-3">Dossiers</p>
+          <div className="divide-y divide-line rounded-xl border border-line bg-surface-1">
+            {clientSummary.cases.slice(0, 5).map((c) => (
+              <Link
+                key={c.id}
+                href={`/app/cases/${c.id}/dashboard`}
+                className="flex items-center justify-between gap-3 px-3 py-2.5 active:bg-surface-2"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-mono text-sm text-ink">{c.caseNumber}</span>
+                  <span className="block truncate text-xs text-ink-3">{c.title}</span>
+                </span>
+                <StatusBadge status={c.status} />
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
