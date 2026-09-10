@@ -29,6 +29,7 @@ export type SafeRefundPayoutResult={
 export async function executeRefundInstallmentPayout(installmentId:string,userId:string):Promise<SafeRefundPayoutResult>{
   const initial=await prisma.refundInstallment.findUnique({where:{id:installmentId},include:{refund:true}});
   if(!initial)throw new Error("Refund installment not found");
+  if(initial.status==="CANCELLED")throw new Error("Cette tranche a été annulée ou remplacée. Rechargez la fiche.");
 
   // Idempotent retries must succeed before authorization or closed-period checks.
   if(initial.status==="PAID"){
@@ -69,9 +70,11 @@ export async function executeRefundInstallmentPayout(installmentId:string,userId
   });
 
   const result=await prisma.$transaction(async tx=>{
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`refund-plan:${initial.refundId}`}))`;
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`refund-installment:${installmentId}`}))`;
     const current=await tx.refundInstallment.findUnique({where:{id:installmentId},include:{refund:{include:{installments:true}}}});
     if(!current)throw new Error("Refund installment not found");
+    if(current.status==="CANCELLED")throw new Error("Cette tranche a été annulée ou remplacée. Rechargez la fiche.");
     if(current.status==="PAID")return{duplicate:true,current,newStatus:current.refund.status as RefundStatus,paidAt:current.paidAt||paidAt};
     if(!["APPROVED","PARTIALLY_PAID"].includes(current.refund.status))throw new Error("Refund is no longer payable");
 
