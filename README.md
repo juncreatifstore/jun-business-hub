@@ -33,6 +33,22 @@ Prettier (`.prettierrc`, 110 cols) + ESLint (`--max-warnings=0`) + `tsc --noEmit
 enforced in CI together with `npm audit --audit-level=high` and a gitleaks secret scan.
 Run `npm run format` before committing; `npm run check` runs every gate locally.
 
+A second CI job (`integration`) starts a real PostgreSQL, applies `prisma/migrations`,
+**fails on any drift between `schema.prisma` and the migrations** (`npm run db:check-drift`),
+runs the dev seed and then `npm run test:integration` (`tests/integration/`).
+
+## Observability
+
+- `GET /api/health` — readiness probe (DB round-trip, storage driver, rate-limit provider,
+  `AUTH_SECRET` strength). 200 `ok` / 503 `degraded`, never leaks configuration. Point Vercel
+  Checks or your uptime monitor at it.
+- Every request through the middleware gets an `x-request-id` (honoured if the proxy sends
+  one). It is returned to the client and available server-side via `requestLogger()`
+  in `lib/request-context.ts`.
+- `lib/logger.ts` emits one JSON object per line in production (`{ts, level, msg, ...}`),
+  redacts secret-looking keys, and serializes errors. `LOG_LEVEL=debug|info|warn|error|silent`.
+  Use `logger.info("domain.event", { fields })` — never `console.*` on the server.
+
 ## Local Development
 
 ```bash

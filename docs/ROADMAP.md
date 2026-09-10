@@ -15,18 +15,22 @@ ordonnées par ratio impact / risque.
       concurrency cancel-in-progress, Node piloté par `.nvmrc`.
 - [x] README réaligné sur le code réel (Prisma, WhatsApp, company funds, nombre de tests, Upstash).
 
-## Phase 2 — Fiabilité (1–2 semaines)
+## Phase 2 — Fiabilité (EN COURS, branche `improve/phase-2-reliability`)
 
-- [ ] **Tests d'intégration sur base réelle** : service Postgres dans la CI, `prisma migrate deploy`,
-      tests des server actions critiques (paiement, remboursement, échéancier, clôture mensuelle,
-      isolation portail client) via Vitest + un helper `withTestDb()`.
-- [ ] **Tests E2E Playwright** sur les parcours : login + MFA, création dossier → document → PDF → vérif QR,
-      paiement manuel → reçu, portail client (403 cross-client).
-- [ ] **Observabilité** : Sentry (ou équivalent) côté serveur + edge, `request-id` propagé dans les logs,
-      logs structurés JSON (`pino`) à la place de `console.*`.
-- [ ] **Health check** `/api/health` (DB, storage, providers) pour Vercel/uptime monitoring.
-- [ ] Migration Prisma vers `@prisma/adapter-pg` + `engineType = "client"` (la dépendance est déjà
-      présente mais inutilisée ; supprime le téléchargement de binaires en CI).
+- [x] **CI d'intégration sur Postgres réel** : `migrate deploy`, **détection de dérive schéma ↔ migrations**
+      (`npm run db:check-drift`, bloquant), exécution du seed, `tests/integration/` (schéma + seed).
+- [x] **Logs structurés** : `lib/logger.ts` (JSON lines, redaction des secrets, erreurs sérialisées,
+      niveaux, `child()`), zéro dépendance, compatible Edge. Tous les `console.*` serveur migrés.
+- [x] **Request ID** : `x-request-id` généré/propagé par le middleware sur `/app`, `/client`, `/api/*`,
+      `requestLogger()` pour le corréler côté serveur.
+- [x] **Health check** `GET /api/health` (DB, storage, rate-limit provider, AUTH_SECRET) → 200/503.
+- [ ] Tests d'intégration des **server actions critiques** (paiement, remboursement, échéancier,
+      clôture mensuelle, isolation portail client) — le socle CI est prêt, il reste à écrire les cas.
+- [ ] **Tests E2E Playwright** : login + MFA, dossier → document → PDF → vérif QR, paiement manuel → reçu,
+      portail client (403 cross-client).
+- [ ] **Sentry** (serveur + edge) branché sur le logger via `requestId`.
+- [ ] Unifier Prisma : le seed utilise déjà `@prisma/adapter-pg`, l'app utilise le moteur natif.
+      Migrer `lib/prisma.ts` vers l'adaptateur + `engineType = "client"` (plus de binaires en CI).
 
 ## Phase 3 — Architecture & dette (2–3 semaines)
 
