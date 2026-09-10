@@ -6,6 +6,7 @@ import { Header } from "./header";
 import { ContextBack } from "./context-back";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { ThemeProvider, useTheme } from "./theme";
+import { ResponsiveTables } from "./responsive-tables";
 import { Toaster } from "@/components/ui/toast";
 import type { Theme } from "@/lib/theme";
 
@@ -75,6 +76,7 @@ function ShellFrame({
         <main className="flex-1 px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:pb-8">
           <div className="mx-auto w-full max-w-[1720px]">
             <ContextBack />
+            <ResponsiveTables />
             {children}
           </div>
         </main>

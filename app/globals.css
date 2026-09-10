@@ -314,3 +314,62 @@ body {
 .doc-prose [data-jun-block="true"][data-kind="page"] {
   display: none !important;
 }
+
+/* ─── Stacked tables on phones (labels set by components/app/responsive-tables.tsx) ─── */
+@media (max-width: 767px) {
+  table.jun-stack {
+    display: block;
+    width: 100%;
+  }
+  table.jun-stack thead {
+    display: none;
+  }
+  table.jun-stack tbody,
+  table.jun-stack tr {
+    display: block;
+    width: 100%;
+  }
+  table.jun-stack tr {
+    padding: 0.625rem 0.25rem;
+    border-bottom: 1px solid hsl(var(--jun-line));
+  }
+  table.jun-stack tr:last-child {
+    border-bottom: 0;
+  }
+  table.jun-stack td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    border: 0;
+    text-align: right;
+    white-space: normal;
+  }
+  table.jun-stack td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    text-align: left;
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    color: hsl(var(--jun-ink-3));
+  }
+  table.jun-stack td[data-label=""]::before {
+    display: none;
+  }
+  table.jun-stack td[data-label=""] {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  table.jun-stack td:first-child {
+    padding-top: 0.15rem;
+  }
+  table.jun-stack td:first-child,
+  table.jun-stack td:first-child a {
+    font-weight: 600;
+    color: hsl(var(--jun-ink));
+  }
+  table.jun-stack td > * {
+    min-width: 0;
+  }
+}
