@@ -22,6 +22,7 @@ export async function markRefundInstallmentPaidAuthorized(installmentId:string):
   const inst=await prisma.refundInstallment.findUnique({where:{id:installmentId},include:{refund:true}});if(!inst)throw new Error("Refund installment not found");
   // A completed retry returns before creating a new authorization or touching a closed period.
   if(inst.status==="PAID")return;
+  if(inst.status==="CANCELLED")throw new Error("Cette tranche a été remplacée. Rechargez la fiche.");
   await requireAuthorization({resourceId:`installment:${inst.id}`,reference:`${inst.refund.refundNumber}-${inst.number}`,description:`Paiement remboursement ${inst.refund.refundNumber} · tranche ${inst.number}`,amount:Number(inst.amount),currency:inst.refund.currency,requestedById:user.id});
   const result=await executeRefundInstallmentPayout(installmentId,user.id);
   if(!result.duplicate){
