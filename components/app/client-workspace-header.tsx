@@ -86,12 +86,12 @@ export function ClientWorkspaceHeader({
   const since = new Date(client.createdAt).toLocaleDateString("fr-FR", { month: "short", year: "numeric" });
 
   return (
-    <section className="relative overflow-hidden rounded-[22px] border border-white/[0.075] bg-[radial-gradient(circle_at_85%_5%,rgba(59,130,246,.13),transparent_28%),linear-gradient(145deg,#0f1929,#0b1422_60%,#0a121f)] shadow-[0_22px_55px_rgba(0,0,0,.22)]">
+    <section className="relative overflow-hidden rounded-[22px] border border-line bg-[radial-gradient(circle_at_85%_5%,rgba(59,130,246,.13),transparent_28%),linear-gradient(145deg,#0f1929,#0b1422_60%,#0a121f)] shadow-card">
       <div className="relative px-4 pb-4 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex min-w-0 items-start gap-4">
             <div className="relative shrink-0">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-gradient-to-br from-blue-500/25 to-indigo-500/10 text-lg font-bold text-blue-100 shadow-lg shadow-blue-950/30 sm:h-16 sm:w-16 sm:text-xl">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-gradient-to-br from-blue-500/25 to-indigo-500/10 text-lg font-bold text-blue-100 shadow-card sm:h-16 sm:w-16 sm:text-xl">
                 {initials(client.firstName, client.lastName)}
               </div>
               <span
@@ -108,31 +108,29 @@ export function ClientWorkspaceHeader({
 
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-white sm:text-[28px]">
+                <h1 className="truncate text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">
                   {client.firstName} {client.lastName}
                 </h1>
                 <StatusBadge status={client.status} />
                 {isPartner ? (
-                  <Badge className="border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
+                  <Badge className="border border-emerald-400/20 bg-emerald-500/10 text-success">
                     PARTNER
                   </Badge>
                 ) : null}
                 {hasDebt ? (
-                  <Badge className="border border-amber-400/20 bg-amber-500/10 text-amber-300">
-                    SOLDE DÛ
-                  </Badge>
+                  <Badge className="border border-amber-400/20 bg-amber-500/10 text-warning">SOLDE DÛ</Badge>
                 ) : null}
                 {blocked ? (
-                  <Badge className="border border-red-400/20 bg-red-500/12 text-red-300">
+                  <Badge className="border border-red-400/20 bg-red-500/12 text-danger">
                     RELATION TERMINÉE
                   </Badge>
                 ) : null}
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400">
-                <span className="registry-id text-slate-300">{client.internalId}</span>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-3">
+                <span className="registry-id text-ink-2">{client.internalId}</span>
                 <span className="flex items-center gap-1.5">
-                  <CalendarDays className="h-3.5 w-3.5 text-slate-600" /> Client depuis {since}
+                  <CalendarDays className="h-3.5 w-3.5 text-ink-2" /> Client depuis {since}
                 </span>
                 {client.country ? <span>{client.country}</span> : null}
               </div>
@@ -141,7 +139,7 @@ export function ClientWorkspaceHeader({
                 {client.email ? (
                   <a
                     href={`mailto:${client.email}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.025] px-2.5 py-1.5 text-slate-400 transition hover:bg-white/[0.05] hover:text-slate-200"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-ink/[0.025] px-2.5 py-1.5 text-ink-3 transition hover:bg-ink/[0.05] hover:text-ink"
                   >
                     <Mail className="h-3.5 w-3.5" />{" "}
                     <span className="max-w-[220px] truncate">{client.email}</span>
@@ -150,7 +148,7 @@ export function ClientWorkspaceHeader({
                 {client.phone ? (
                   <a
                     href={`tel:${client.phone}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.025] px-2.5 py-1.5 text-slate-400 transition hover:bg-white/[0.05] hover:text-slate-200"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-ink/[0.025] px-2.5 py-1.5 text-ink-3 transition hover:bg-ink/[0.05] hover:text-ink"
                   >
                     <Phone className="h-3.5 w-3.5" /> {client.phone}
                   </a>
@@ -158,7 +156,7 @@ export function ClientWorkspaceHeader({
                 {client.whatsapp ? (
                   <Link
                     href={`${base}/whatsapp`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/10 bg-emerald-500/[0.06] px-2.5 py-1.5 text-emerald-300 transition hover:bg-emerald-500/10"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/10 bg-emerald-500/[0.06] px-2.5 py-1.5 text-success transition hover:bg-emerald-500/10"
                   >
                     <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
                   </Link>
@@ -168,7 +166,7 @@ export function ClientWorkspaceHeader({
               {tags.length ? (
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {tags.slice(0, 6).map((tag) => (
-                    <Badge key={tag.id} className="border border-white/[0.07] bg-white/[0.03] text-slate-400">
+                    <Badge key={tag.id} className="border border-line bg-ink/[0.03] text-ink-3">
                       {tag.tag}
                     </Badge>
                   ))}
@@ -181,14 +179,12 @@ export function ClientWorkspaceHeader({
             {newServicesAllowed ? (
               <Link
                 href={`/app/cases/new?clientId=${client.id}`}
-                className={
-                  buttonVariants({ variant: "primary" }) + " rounded-xl shadow-lg shadow-blue-950/25"
-                }
+                className={buttonVariants({ variant: "primary" }) + " rounded-xl shadow-card"}
               >
                 Nouveau dossier
               </Link>
             ) : (
-              <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/15 bg-amber-500/[0.07] px-3 text-xs font-medium text-amber-300">
+              <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/15 bg-amber-500/[0.07] px-3 text-xs font-medium text-warning">
                 <ShieldAlert className="h-4 w-4" /> Services bloqués
               </span>
             )}
@@ -221,7 +217,7 @@ export function ClientWorkspaceHeader({
                     aria-label="Fermer le menu"
                     onClick={() => setMoreOpen(false)}
                   />
-                  <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#111b2b]/98 py-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
+                  <div className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-2xl border border-line bg-surface-1 py-1.5 shadow-pop backdrop-blur-xl">
                     <Action
                       href={`${base}/statement`}
                       icon={ReceiptText}
@@ -248,7 +244,7 @@ export function ClientWorkspaceHeader({
                     />
                     {canUpdate ? (
                       <>
-                        <div className="my-1 border-t border-white/[0.06]" />
+                        <div className="my-1 border-t border-line" />
                         <Action
                           href={`${base}/edit`}
                           icon={Pencil}
@@ -265,7 +261,7 @@ export function ClientWorkspaceHeader({
         </div>
       </div>
 
-      <div className="border-t border-white/[0.06] bg-black/[0.06] px-2 sm:px-4">
+      <div className="border-t border-line bg-black/[0.06] px-2 sm:px-4">
         <nav
           className="flex min-w-0 gap-1 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Navigation du client"
@@ -279,12 +275,10 @@ export function ClientWorkspaceHeader({
                 href={href}
                 className={cn(
                   "relative flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium transition sm:text-[13px]",
-                  active
-                    ? "bg-blue-500/12 text-blue-200"
-                    : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-200",
+                  active ? "bg-blue-500/12 text-blue-200" : "text-ink-3 hover:bg-ink/[0.04] hover:text-ink",
                 )}
               >
-                <tab.icon className={cn("h-4 w-4", active ? "text-blue-400" : "text-slate-600")} />
+                <tab.icon className={cn("h-4 w-4", active ? "text-accent" : "text-ink-2")} />
                 {tab.label}
                 {active ? (
                   <span className="absolute inset-x-3 -bottom-2 h-0.5 rounded-full bg-blue-400" />
@@ -313,9 +307,9 @@ function Action({
     <Link
       href={href}
       onClick={onClick}
-      className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 transition hover:bg-white/[0.05] hover:text-white"
+      className="flex items-center gap-3 px-4 py-2.5 text-sm text-ink-2 transition hover:bg-ink/[0.05] hover:text-ink"
     >
-      <Icon className="h-4 w-4 text-slate-500" />
+      <Icon className="h-4 w-4 text-ink-3" />
       <span>{label}</span>
     </Link>
   );

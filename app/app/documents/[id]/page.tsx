@@ -105,7 +105,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
             ) : null}
             {canRequestSignature ? (
               <form action={sendClientSignatureViaWhatsApp.bind(null, doc.id)}>
-                <Button type="submit" className="bg-emerald-600 text-white hover:bg-emerald-500">
+                <Button type="submit" className="bg-emerald-600 text-ink hover:bg-emerald-500">
                   <MessageCircle className="h-4 w-4" />
                   Signature WhatsApp
                 </Button>
@@ -131,7 +131,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
           ) : null}
 
           <Card className="overflow-hidden">
-            <CardHeader className="border-b border-white/[0.06]">
+            <CardHeader className="border-b border-line">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle>{canEditDraft ? "Éditeur du document" : "Aperçu du document"}</CardTitle>
@@ -156,7 +156,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
                 />
               ) : (
                 <div
-                  className="doc-prose min-h-[640px] rounded-xl border border-slate-200 bg-white px-6 py-7 text-[15px] text-night shadow-[0_18px_45px_rgba(0,0,0,.15)] sm:px-9"
+                  className="doc-prose min-h-[640px] rounded-xl border border-slate-200 bg-white px-6 py-7 text-[15px] text-night shadow-card sm:px-9"
                   dangerouslySetInnerHTML={{ __html: latest?.content ?? "<p></p>" }}
                 />
               )}
@@ -169,7 +169,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
             <Card className="border-blue-400/15 bg-blue-500/[0.035]">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 text-blue-400" />
+                  <RefreshCw className="h-4 w-4 text-accent" />
                   Données client
                 </CardTitle>
               </CardHeader>
@@ -222,7 +222,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
               {canRequestSignature ? (
                 <form action={sendClientSignatureViaWhatsApp.bind(null, doc.id)}>
                   <Button
-                    className="w-full justify-start bg-emerald-600 text-white hover:bg-emerald-500"
+                    className="w-full justify-start bg-emerald-600 text-ink hover:bg-emerald-500"
                     type="submit"
                   >
                     <MessageCircle className="mr-2 h-4 w-4" />
@@ -273,7 +273,7 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
               ) : null}
               {can(user, "DOCUMENT_DELETE") && doc.status !== "ARCHIVED" ? (
                 <form action={archiveDocument.bind(null, doc.id)}>
-                  <Button className="w-full justify-start text-red-400" variant="ghost">
+                  <Button className="w-full justify-start text-danger" variant="ghost">
                     <Archive className="mr-2 h-4 w-4" />
                     Archiver
                   </Button>
@@ -285,14 +285,14 @@ export default async function DocumentDetailPage({ params }: { params: { id: str
           <Card className={sealed ? "border-emerald-400/15" : undefined}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                <ShieldCheck className="h-4 w-4 text-success" />
                 Intégrité & vérification
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.025] p-3">
+              <div className="rounded-xl border border-line bg-ink/[0.025] p-3">
                 <div className="text-muted2">Vérification publique</div>
-                <div className="mt-1 font-medium text-slate-300">/verify/{doc.documentId}</div>
+                <div className="mt-1 font-medium text-ink-2">/verify/{doc.documentId}</div>
               </div>
               <div className="flex items-start gap-2 text-muted2">
                 <Hash className="mt-0.5 h-3.5 w-3.5 shrink-0" />

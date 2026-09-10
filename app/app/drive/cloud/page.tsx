@@ -199,7 +199,7 @@ export default async function CloudDrivePage({
                 {workspaceReady ? "Workspace credentials configured" : "Workspace credentials missing"}
               </span>
               <span
-                className={`rounded-full px-2 py-1 ${workspaceStorageActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}
+                className={`rounded-full px-2 py-1 ${workspaceStorageActive ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-ink-2"}`}
               >
                 {workspaceStorageActive
                   ? "GOOGLE_WORKSPACE is active storage"
@@ -215,7 +215,7 @@ export default async function CloudDrivePage({
             </form>
           ) : null}
         </div>
-        <div className="mt-4 rounded-xl border border-blue-200 bg-white/70 p-4 text-sm leading-6 text-muted2">
+        <div className="mt-4 rounded-xl border border-blue-200 bg-ink/70 p-4 text-sm leading-6 text-muted2">
           <strong className="text-ink">Computer workflow:</strong> install Google Drive for desktop on the
           Super Admin computer, open the Shared Drive, and use the folder{" "}
           <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-xs text-ink">{syncFolder}</span>.

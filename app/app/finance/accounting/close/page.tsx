@@ -73,7 +73,7 @@ export default async function AccountingClosePage({
                 Closing a period prevents new automatic ledger postings dated inside that month. This action
                 is intentionally restrictive and should be performed only after review.
               </div>
-              <button className="w-fit rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">
+              <button className="w-fit rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink">
                 Synchronize & close period
               </button>
             </form>

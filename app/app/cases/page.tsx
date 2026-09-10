@@ -201,9 +201,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Params
                   <>
                     <StatusBadge status={c.status} />
                     <StatusBadge status={c.priority} />
-                    <Badge className="border border-white/[0.07] bg-white/[0.03] text-slate-400">
-                      {c.type}
-                    </Badge>
+                    <Badge className="border border-line bg-ink/[0.03] text-ink-3">{c.type}</Badge>
                   </>
                 }
                 footer={c.dueDate ? `Échéance ${formatDate(c.dueDate)}` : "Aucune échéance définie"}

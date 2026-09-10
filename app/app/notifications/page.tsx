@@ -97,7 +97,7 @@ export default async function NotificationsPage({
         <MetricCard label="WhatsApp" value={counts.whatsapp} icon={<MessageCircle className="h-4 w-4" />} />
         <MetricCard label="Finance" value={counts.finance} icon={<CreditCard className="h-4 w-4" />} />
       </div>
-      <div className="rounded-2xl border border-white/[0.07] bg-[#0e1624] p-3 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
         <form method="get" className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative min-w-0 flex-1 xl:max-w-xl">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2" />
@@ -105,7 +105,7 @@ export default async function NotificationsPage({
               name="q"
               defaultValue={searchParams.q || ""}
               placeholder="Rechercher une notification, un client, un paiement…"
-              className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-9 pr-3 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+              className="h-10 w-full rounded-xl border border-line bg-ink/[0.035] pl-9 pr-3 text-sm text-ink outline-none placeholder:text-ink-2 focus:border-blue-400/50"
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -125,7 +125,7 @@ export default async function NotificationsPage({
                 type="submit"
                 name="filter"
                 value={key}
-                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${filter === key ? "border-blue-400/40 bg-blue-500/10 text-blue-300" : "border-white/[0.08] bg-white/[0.025] text-slate-500 hover:bg-white/[0.05]"}`}
+                className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${filter === key ? "border-blue-400/40 bg-blue-500/10 text-accent" : "border-line bg-ink/[0.025] text-ink-3 hover:bg-ink/[0.05]"}`}
               >
                 {label} <span className="ml-1 opacity-60">{count}</span>
               </button>
@@ -140,7 +140,7 @@ export default async function NotificationsPage({
           description="Les messages WhatsApp, paiements, remboursements, dossiers et documents apparaîtront ici."
         />
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-white/[0.07] bg-[#0e1624] p-10 text-center text-sm text-muted2">
+        <div className="rounded-2xl border border-line bg-surface-1 p-10 text-center text-sm text-muted2">
           Aucune notification ne correspond à ce filtre.
         </div>
       ) : (
@@ -149,15 +149,15 @@ export default async function NotificationsPage({
             <section key={group.key}>
               <div className="mb-2 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[.12em] text-muted2">
                 <span>{group.label}</span>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <div className="h-px flex-1 bg-ink/[0.07]" />
               </div>
-              <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0e1624] shadow-sm">
+              <div className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm">
                 {group.items.map((n, index) => {
                   const meta = notificationMeta(n.type);
                   return (
                     <div
                       key={n.id}
-                      className={`relative flex gap-3 p-4 ${index ? "border-t border-white/[0.05]" : ""} ${n.readAt ? "bg-transparent" : "bg-blue-500/[0.04]"}`}
+                      className={`relative flex gap-3 p-4 ${index ? "border-t border-line" : ""} ${n.readAt ? "bg-transparent" : "bg-blue-500/[0.04]"}`}
                     >
                       {!n.readAt ? (
                         <span className="absolute left-0 top-4 h-10 w-1 rounded-r-full bg-blue-400" />
@@ -172,7 +172,7 @@ export default async function NotificationsPage({
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <h3
-                                className={`text-sm ${n.readAt ? "font-medium text-slate-300" : "font-semibold text-white"}`}
+                                className={`text-sm ${n.readAt ? "font-medium text-ink-2" : "font-semibold text-ink"}`}
                               >
                                 {n.title}
                               </h3>
@@ -182,7 +182,7 @@ export default async function NotificationsPage({
                                 {meta.label}
                               </span>
                               {!n.readAt ? (
-                                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[9px] font-semibold text-blue-300">
+                                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[9px] font-semibold text-accent">
                                   NOUVEAU
                                 </span>
                               ) : null}
@@ -202,19 +202,19 @@ export default async function NotificationsPage({
                           <div className="flex shrink-0 flex-wrap items-center gap-2">
                             <Link
                               href={n.href}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.08] px-2.5 text-xs font-medium text-slate-300 hover:bg-white/[0.04]"
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs font-medium text-ink-2 hover:bg-ink/[0.04]"
                             >
                               Ouvrir <ArrowUpRight className="h-3.5 w-3.5" />
                             </Link>
                             {n.readAt ? (
                               <form action={markNotificationUnread.bind(null, n.id)}>
-                                <button className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs text-muted2 hover:bg-white/[0.04] hover:text-white">
+                                <button className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs text-muted2 hover:bg-ink/[0.04] hover:text-ink">
                                   <CircleDot className="h-3.5 w-3.5" /> Non lue
                                 </button>
                               </form>
                             ) : (
                               <form action={markNotificationRead.bind(null, n.id)}>
-                                <button className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs text-muted2 hover:bg-white/[0.04] hover:text-white">
+                                <button className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs text-muted2 hover:bg-ink/[0.04] hover:text-ink">
                                   <Circle className="h-3.5 w-3.5" /> Marquer lue
                                 </button>
                               </form>
@@ -255,22 +255,22 @@ function notificationMeta(type: string) {
     return {
       label: "WhatsApp",
       icon: <MessageCircle className="h-4 w-4" />,
-      iconClass: "bg-emerald-500/10 text-emerald-400",
-      badgeClass: "bg-emerald-500/10 text-emerald-300",
+      iconClass: "bg-emerald-500/10 text-success",
+      badgeClass: "bg-emerald-500/10 text-success",
     };
   if (category === "finance") {
     if (type.toUpperCase().includes("REFUND"))
       return {
         label: "Remboursement",
         icon: <RotateCcw className="h-4 w-4" />,
-        iconClass: "bg-amber-500/10 text-amber-400",
-        badgeClass: "bg-amber-500/10 text-amber-300",
+        iconClass: "bg-amber-500/10 text-warning",
+        badgeClass: "bg-amber-500/10 text-warning",
       };
     return {
       label: "Finance",
       icon: <CreditCard className="h-4 w-4" />,
-      iconClass: "bg-blue-500/10 text-blue-400",
-      badgeClass: "bg-blue-500/10 text-blue-300",
+      iconClass: "bg-blue-500/10 text-accent",
+      badgeClass: "bg-blue-500/10 text-accent",
     };
   }
   if (category === "cases")
@@ -284,8 +284,8 @@ function notificationMeta(type: string) {
     return {
       label: "Document",
       icon: <FileText className="h-4 w-4" />,
-      iconClass: "bg-slate-500/10 text-slate-400",
-      badgeClass: "bg-slate-500/10 text-slate-300",
+      iconClass: "bg-slate-500/10 text-ink-3",
+      badgeClass: "bg-slate-500/10 text-ink-2",
     };
   if (/MAIL|EMAIL/.test(type.toUpperCase()))
     return {
@@ -304,8 +304,8 @@ function notificationMeta(type: string) {
   return {
     label: "Système",
     icon: <CheckCircle2 className="h-4 w-4" />,
-    iconClass: "bg-slate-500/10 text-slate-400",
-    badgeClass: "bg-slate-500/10 text-slate-300",
+    iconClass: "bg-slate-500/10 text-ink-3",
+    badgeClass: "bg-slate-500/10 text-ink-2",
   };
 }
 function groupByDay(
@@ -362,13 +362,13 @@ function MetricCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border p-4 shadow-sm ${emphasis ? "border-blue-400/25 bg-blue-500/[0.05]" : "border-white/[0.07] bg-[#101827]"}`}
+      className={`rounded-2xl border p-4 shadow-sm ${emphasis ? "border-blue-400/25 bg-blue-500/[0.05]" : "border-line bg-surface-1"}`}
     >
       <div className="flex items-center justify-between text-xs text-muted2">
         <span>{label}</span>
-        <span className={emphasis ? "text-blue-400" : "text-slate-500"}>{icon}</span>
+        <span className={emphasis ? "text-accent" : "text-ink-3"}>{icon}</span>
       </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
     </div>
   );
 }

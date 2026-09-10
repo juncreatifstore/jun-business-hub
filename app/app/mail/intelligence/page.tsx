@@ -37,13 +37,13 @@ const CATEGORIES = [
   ] as const,
   ESCALATIONS = ["ALL", "NONE", "WATCH", "HIGH", "CRITICAL"] as const;
 const PRIORITY_CLASS: Record<string, string> = {
-    LOW: "bg-slate-100 text-slate-700",
+    LOW: "bg-slate-100 text-ink-2",
     MEDIUM: "bg-blue-100 text-blue-800",
     HIGH: "bg-amber-100 text-amber-800",
     URGENT: "bg-red-100 text-red-700",
   },
   ESCALATION_CLASS: Record<string, string> = {
-    NONE: "bg-slate-100 text-slate-700",
+    NONE: "bg-slate-100 text-ink-2",
     WATCH: "bg-blue-100 text-blue-800",
     HIGH: "bg-amber-100 text-amber-800",
     CRITICAL: "bg-red-100 text-red-700",

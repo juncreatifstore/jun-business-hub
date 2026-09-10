@@ -107,13 +107,13 @@ export default async function BudgetDetailPage({
         <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
           <a
             href={`/api/finance/budgeting/${plan.id}/export.csv`}
-            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-line bg-white/[0.03] px-3 py-2 text-xs font-medium"
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-line bg-ink/[0.03] px-3 py-2 text-xs font-medium"
           >
             Exporter CSV
           </a>
           {can(user, "BUDGET_CREATE") ? (
             <form action={cloneBudgetPlanAction.bind(null, plan.id)}>
-              <button className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2 text-xs font-medium">
+              <button className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-line bg-ink/[0.03] px-3 py-2 text-xs font-medium">
                 <Copy className="h-4 w-4" />
                 Créer une révision
               </button>
@@ -136,7 +136,7 @@ export default async function BudgetDetailPage({
       <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr]">
         <div className="rounded-2xl border border-blue-400/20 bg-blue-500/[0.06] p-4">
           <div className="flex gap-3">
-            <CalendarRange className="h-5 w-5 shrink-0 text-blue-300" />
+            <CalendarRange className="h-5 w-5 shrink-0 text-accent" />
             <div className="min-w-0">
               <div className="font-semibold text-blue-100">Année budgétaire FY{plan.year}</div>
               <div className="mt-1 text-sm text-blue-100/80">
@@ -150,7 +150,7 @@ export default async function BudgetDetailPage({
         </div>
         <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.06] p-4">
           <div className="flex gap-3">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-300" />
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
             <div className="min-w-0">
               <div className="font-semibold text-emerald-100">Synchronisation Finance automatique</div>
               <div className="mt-1 break-words text-xs leading-relaxed text-emerald-100/75">
@@ -253,7 +253,7 @@ export default async function BudgetDetailPage({
           {editable ? (
             <form
               action={addBudgetProjectAction.bind(null, plan.id)}
-              className="grid gap-3 rounded-2xl border border-line bg-white/[0.025] p-4 md:grid-cols-4"
+              className="grid gap-3 rounded-2xl border border-line bg-ink/[0.025] p-4 md:grid-cols-4"
             >
               <label className="min-w-0 text-xs md:col-span-2">
                 Projet / dossier
@@ -315,7 +315,7 @@ export default async function BudgetDetailPage({
             <>
               <div className="space-y-3 md:hidden">
                 {projects.map((p) => (
-                  <div key={p.id} className="rounded-2xl border border-line bg-white/[0.025] p-4">
+                  <div key={p.id} className="rounded-2xl border border-line bg-ink/[0.025] p-4">
                     <div className="min-w-0">
                       <Link
                         href={`/app/cases/${p.caseId}`}
@@ -377,12 +377,12 @@ export default async function BudgetDetailPage({
                             />
                           </label>
                           <input type="hidden" name="projectNote" value={p.note} />
-                          <button className="col-span-2 min-h-10 rounded-lg border border-line bg-white/[0.03] px-3 text-xs font-medium">
+                          <button className="col-span-2 min-h-10 rounded-lg border border-line bg-ink/[0.03] px-3 text-xs font-medium">
                             Mettre à jour
                           </button>
                         </form>
                         <form action={removeBudgetProjectAction.bind(null, plan.id, p.id)} className="mt-2">
-                          <button className="min-h-10 w-full rounded-lg border border-red-400/20 bg-red-500/10 px-3 text-xs font-medium text-red-300">
+                          <button className="min-h-10 w-full rounded-lg border border-red-400/20 bg-red-500/10 px-3 text-xs font-medium text-danger">
                             Retirer du budget
                           </button>
                         </form>
@@ -429,7 +429,7 @@ export default async function BudgetDetailPage({
                         </td>
                         <td className="px-2 py-3 text-right">{formatMoney(p.plannedCosts, plan.currency)}</td>
                         <td
-                          className={`px-2 py-3 text-right font-semibold ${p.plannedProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                          className={`px-2 py-3 text-right font-semibold ${p.plannedProfit >= 0 ? "text-success" : "text-danger"}`}
                         >
                           {formatMoney(p.plannedProfit, plan.currency)}
                         </td>
@@ -438,7 +438,7 @@ export default async function BudgetDetailPage({
                         </td>
                         <td className="px-2 py-3 text-right">{formatMoney(p.actualCosts, plan.currency)}</td>
                         <td
-                          className={`px-2 py-3 text-right font-semibold ${p.actualProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                          className={`px-2 py-3 text-right font-semibold ${p.actualProfit >= 0 ? "text-success" : "text-danger"}`}
                         >
                           {formatMoney(p.actualProfit, plan.currency)}
                         </td>
@@ -472,9 +472,7 @@ export default async function BudgetDetailPage({
                                 </button>
                               </form>
                               <form action={removeBudgetProjectAction.bind(null, plan.id, p.id)}>
-                                <button className="text-xs font-medium text-red-400">
-                                  Retirer du budget
-                                </button>
+                                <button className="text-xs font-medium text-danger">Retirer du budget</button>
                               </form>
                             </div>
                           ) : (
@@ -530,7 +528,7 @@ export default async function BudgetDetailPage({
               const isRevenue = row.category === "REVENUE",
                 remainder = isRevenue ? row.actual - row.budget : row.budget - row.actual;
               return (
-                <div key={row.category} className="rounded-2xl border border-line bg-white/[0.025] p-4">
+                <div key={row.category} className="rounded-2xl border border-line bg-ink/[0.025] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="font-medium">{row.label}</div>
                     <StatusBadge status={row.status} />
@@ -576,7 +574,7 @@ export default async function BudgetDetailPage({
                         {formatMoney(row.actual, plan.currency)}
                       </td>
                       <td
-                        className={`px-2 py-3 text-right font-semibold ${remainder >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                        className={`px-2 py-3 text-right font-semibold ${remainder >= 0 ? "text-success" : "text-danger"}`}
                       >
                         {formatMoney(remainder, plan.currency)}
                       </td>
@@ -624,7 +622,7 @@ export default async function BudgetDetailPage({
                       {formatMoney(s.costs, plan.currency)}
                     </div>
                     <div
-                      className={`text-right font-semibold ${s.net >= 0 ? "text-emerald-400" : "text-red-400"}`}
+                      className={`text-right font-semibold ${s.net >= 0 ? "text-success" : "text-danger"}`}
                     >
                       <div className="text-[10px] text-muted2">Profit</div>
                       {formatMoney(s.net, plan.currency)}
@@ -648,14 +646,14 @@ export default async function BudgetDetailPage({
                     className="flex flex-col gap-3 rounded-xl border border-line p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
                       <div className="min-w-0">
                         <div className="break-words text-sm font-medium">{a.label}</div>
                         <div className="text-xs text-muted2">{statusText(a.status)}</div>
                       </div>
                     </div>
                     <div
-                      className={`${a.favorableVariance >= 0 ? "font-semibold text-emerald-400" : "font-semibold text-red-400"} sm:text-right`}
+                      className={`${a.favorableVariance >= 0 ? "font-semibold text-success" : "font-semibold text-danger"} sm:text-right`}
                     >
                       {formatMoney(a.favorableVariance, plan.currency)}
                     </div>
@@ -698,7 +696,7 @@ export default async function BudgetDetailPage({
                 />
               </label>
             </div>
-            <div className="rounded-xl border border-line bg-white/[0.015] p-2">
+            <div className="rounded-xl border border-line bg-ink/[0.015] p-2">
               <div className="mb-2 text-[11px] text-muted2 md:hidden">
                 Glissez horizontalement pour modifier les 12 mois.
               </div>
@@ -762,7 +760,7 @@ export default async function BudgetDetailPage({
           <CardContent className="grid gap-2 sm:flex sm:flex-wrap">
             {approver && plan.status === "DRAFT" ? (
               <form action={approveBudgetPlanAction.bind(null, plan.id)}>
-                <button className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white sm:w-auto">
+                <button className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-ink sm:w-auto">
                   <ShieldCheck className="h-4 w-4" />
                   Approuver
                 </button>
@@ -771,7 +769,7 @@ export default async function BudgetDetailPage({
             {approver && plan.status === "APPROVED" ? (
               <form action={setBudgetPlanStatusAction.bind(null, plan.id)}>
                 <input type="hidden" name="status" value="LOCKED" />
-                <button className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/[0.08] px-4 py-2 text-sm font-medium sm:w-auto">
+                <button className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink/[0.08] px-4 py-2 text-sm font-medium sm:w-auto">
                   <LockKeyhole className="h-4 w-4" />
                   Verrouiller
                 </button>
@@ -813,7 +811,7 @@ function Metric({
         ? "border-amber-400/20 bg-amber-500/[0.06]"
         : tone === "bad"
           ? "border-red-400/20 bg-red-500/[0.06]"
-          : "border-line bg-white/[0.025]";
+          : "border-line bg-ink/[0.025]";
   return (
     <div className={`min-w-0 rounded-xl border p-3 sm:p-4 ${s}`}>
       <div className="text-[11px] text-muted2 sm:text-xs">{label}</div>
@@ -835,7 +833,7 @@ function MiniStat({
     <div className="min-w-0">
       <div className="text-[10px] uppercase tracking-wide text-muted2">{label}</div>
       <div
-        className={`mt-1 break-words text-sm font-semibold ${tone === "good" ? "text-emerald-400" : tone === "bad" ? "text-red-400" : ""}`}
+        className={`mt-1 break-words text-sm font-semibold ${tone === "good" ? "text-success" : tone === "bad" ? "text-danger" : ""}`}
       >
         {value}
       </div>
@@ -853,10 +851,10 @@ function Explain({ title, text }: { title: string; text: string }) {
 function StatusBadge({ status }: { status: string }) {
   const s =
     status === "ON_TRACK"
-      ? "bg-emerald-500/10 text-emerald-300"
+      ? "bg-emerald-500/10 text-success"
       : status === "WATCH"
-        ? "bg-amber-500/10 text-amber-300"
-        : "bg-red-500/10 text-red-300";
+        ? "bg-amber-500/10 text-warning"
+        : "bg-red-500/10 text-danger";
   return (
     <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${s}`}>
       {statusText(status)}

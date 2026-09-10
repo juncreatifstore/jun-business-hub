@@ -65,7 +65,7 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
               <li key={c.id}>
                 <Link
                   href={`/app/ai?c=${c.id}`}
-                  className={`block truncate rounded-lg px-3 py-2 text-sm ${activeId === c.id ? "bg-electric/10 text-electric" : "text-muted2 hover:bg-white/5 hover:text-white"}`}
+                  className={`block truncate rounded-lg px-3 py-2 text-sm ${activeId === c.id ? "bg-electric/10 text-electric" : "text-muted2 hover:bg-ink/5 hover:text-ink"}`}
                 >
                   {c.title}
                 </Link>
@@ -88,7 +88,7 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
                   {messages.map((m) => (
                     <div
                       key={m.id}
-                      className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${m.role === "user" ? "ml-auto bg-electric/15" : "bg-white/[0.05]"}`}
+                      className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${m.role === "user" ? "ml-auto bg-electric/15" : "bg-ink/[0.05]"}`}
                     >
                       <p className="mb-1 text-[11px] uppercase tracking-wide text-muted2">
                         {m.role === "user" ? "You" : "JUN AI"} · {formatDateTime(m.createdAt)}
@@ -105,7 +105,7 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
                   required
                   maxLength={4000}
                   placeholder="Message JUN AI… (e.g. search clients Marie)"
-                  className="h-11 flex-1 rounded-lg border border-white/10 bg-white/5 px-4 text-sm outline-none focus:border-electric"
+                  className="h-11 flex-1 rounded-lg border border-line bg-ink/5 px-4 text-sm outline-none focus:border-electric"
                   autoComplete="off"
                 />
                 <Button type="submit" variant="primary">
@@ -129,7 +129,7 @@ export default async function AIPage({ searchParams }: { searchParams: { c?: str
                 ) : (
                   <ul className="space-y-3">
                     {actions.map((a) => (
-                      <li key={a.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                      <li key={a.id} className="rounded-lg border border-line bg-ink/[0.03] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <p className="font-medium">{a.tool.replaceAll("_", " ")}</p>

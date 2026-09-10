@@ -163,7 +163,7 @@ export default async function WhatsAppInboxPage({
   const user = await requireUser();
   if (user.role === "CLIENT")
     return (
-      <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 text-sm text-red-300">
+      <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-4 text-sm text-danger">
         WhatsApp Inbox est réservée au personnel JUN.
       </div>
     );
@@ -351,7 +351,7 @@ export default async function WhatsAppInboxPage({
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <div className="truncate text-xs text-muted2">{c.preview}</div>
                           {c.unread ? (
-                            <span className="rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
+                            <span className="rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-ink">
                               {c.unread}
                             </span>
                           ) : null}
@@ -365,7 +365,7 @@ export default async function WhatsAppInboxPage({
           </aside>
 
           <section
-            className={`${explicitConversation ? "flex" : "hidden xl:flex"} min-w-0 flex-col bg-[#f5f7f9]`}
+            className={`${explicitConversation ? "flex" : "hidden xl:flex"} min-w-0 flex-col bg-surface-2`}
           >
             {selected ? (
               <>
@@ -480,7 +480,7 @@ export default async function WhatsAppInboxPage({
                           ) : null}
                           <div className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
                             <div
-                              className={`min-w-[130px] max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[82%] md:max-w-[74%] ${outbound ? "rounded-br-md bg-[#142033] text-white" : "rounded-bl-md border border-line bg-white"}`}
+                              className={`min-w-[130px] max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[82%] md:max-w-[74%] ${outbound ? "rounded-br-md bg-surface-1 text-ink" : "rounded-bl-md border border-line bg-white"}`}
                             >
                               {payload.type !== "text" ? (
                                 <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70">
@@ -490,7 +490,7 @@ export default async function WhatsAppInboxPage({
                               ) : null}
                               {documentLike ? (
                                 <div
-                                  className={`mb-2 flex items-center gap-2 rounded-xl p-2.5 ${outbound ? "bg-white/10" : "bg-surface"}`}
+                                  className={`mb-2 flex items-center gap-2 rounded-xl p-2.5 ${outbound ? "bg-ink/10" : "bg-surface"}`}
                                 >
                                   <FileText className="h-5 w-5" />
                                   <div className="truncate text-xs font-semibold">
@@ -533,7 +533,7 @@ export default async function WhatsAppInboxPage({
                 ) : (
                   <form
                     action={replyWhatsAppConversation.bind(null, selected.phone)}
-                    className="sticky bottom-0 z-10 border-t border-line bg-white/95 px-2.5 py-2.5 backdrop-blur sm:px-4 sm:py-3"
+                    className="sticky bottom-0 z-10 border-t border-line bg-ink/95 px-2.5 py-2.5 backdrop-blur sm:px-4 sm:py-3"
                   >
                     <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-white shadow-sm">
                       <Textarea
@@ -1084,7 +1084,7 @@ function DeliveryReceipt({ delivery }: { delivery: DeliveryInfo | null | undefin
     );
   if (delivery.state === "FAILED")
     return (
-      <span className="inline-flex items-center gap-1 font-medium text-red-300">
+      <span className="inline-flex items-center gap-1 font-medium text-danger">
         <AlertTriangle className="h-3.5 w-3.5" />
         Échec
       </span>
@@ -1098,7 +1098,7 @@ function DeliveryReceipt({ delivery }: { delivery: DeliveryInfo | null | undefin
     );
   if (delivery.state === "DELIVERED")
     return (
-      <span className="inline-flex items-center gap-1 text-emerald-300">
+      <span className="inline-flex items-center gap-1 text-success">
         <CheckCheck className="h-3.5 w-3.5" />
         Livré
       </span>
@@ -1175,7 +1175,7 @@ function ConversationStatusBadge({
 }) {
   const s =
     status === "RESOLVED"
-      ? "bg-slate-100 text-slate-600"
+      ? "bg-slate-100 text-ink-2"
       : status === "WAITING"
         ? "bg-amber-50 text-amber-700"
         : "bg-emerald-50 text-emerald-700";
@@ -1218,7 +1218,7 @@ function ContextTag({
       : tone === "amber"
         ? "bg-amber-50 text-amber-700"
         : tone === "slate"
-          ? "bg-slate-100 text-slate-600"
+          ? "bg-slate-100 text-ink-2"
           : "bg-emerald-50 text-emerald-700";
   return <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${s}`}>{label}</span>;
 }

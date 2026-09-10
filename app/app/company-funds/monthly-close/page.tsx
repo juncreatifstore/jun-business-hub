@@ -165,7 +165,7 @@ export default async function MonthlyClosePage() {
             </label>
             <button
               disabled={!validation.canClose}
-              className="self-end rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="self-end rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-40"
             >
               Clôturer le mois
             </button>

@@ -49,12 +49,12 @@ export default async function AuditPage({ searchParams }: { searchParams: { q?: 
           name="q"
           defaultValue={q}
           placeholder="Search action or resource id…"
-          className="h-10 w-64 rounded-lg border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-electric"
+          className="h-10 w-64 rounded-lg border border-line bg-ink/5 px-3 text-sm outline-none focus:border-electric"
         />
         <select
           name="type"
           defaultValue={type}
-          className="h-10 rounded-lg border border-white/10 bg-night px-3 text-sm outline-none focus:border-electric"
+          className="h-10 rounded-lg border border-line bg-night px-3 text-sm outline-none focus:border-electric"
         >
           <option value="">All resources</option>
           {types.map((t) => (

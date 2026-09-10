@@ -63,7 +63,7 @@ function TBtn({
       title={title}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      className={`rounded-md p-2 text-sm transition ${active ? "bg-electric/15 text-electric" : "text-muted2 hover:bg-white/5 hover:text-white"}`}
+      className={`rounded-md p-2 text-sm transition ${active ? "bg-electric/15 text-electric" : "text-muted2 hover:bg-ink/5 hover:text-ink"}`}
     >
       {children}
     </button>
@@ -83,7 +83,7 @@ function Menu({
 }) {
   return (
     <details className="group relative">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium text-slate-200 transition hover:bg-white/5 hover:text-white [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium text-ink transition hover:bg-ink/5 hover:text-ink [&::-webkit-details-marker]:hidden">
         {icon}
         {label}
         <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
@@ -116,12 +116,12 @@ function MenuItem({
         onClick();
         (e.currentTarget.closest("details") as HTMLDetailsElement | null)?.removeAttribute("open");
       }}
-      className="flex w-full items-start gap-2 rounded-md px-2.5 py-2 text-left text-xs text-slate-200 hover:bg-white/10 hover:text-white"
+      className="flex w-full items-start gap-2 rounded-md px-2.5 py-2 text-left text-xs text-ink hover:bg-ink/10 hover:text-ink"
     >
-      {icon ? <span className="mt-0.5 text-slate-400">{icon}</span> : null}
+      {icon ? <span className="mt-0.5 text-ink-3">{icon}</span> : null}
       <span>
         <span className="block font-medium">{label}</span>
-        {hint ? <span className="mt-0.5 block text-[10px] text-slate-500">{hint}</span> : null}
+        {hint ? <span className="mt-0.5 block text-[10px] text-ink-3">{hint}</span> : null}
       </span>
     </button>
   );
@@ -129,7 +129,7 @@ function MenuItem({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+    <div className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-ink-3">
       {children}
     </div>
   );
@@ -177,7 +177,7 @@ export function DocumentEditor({
     editorProps: {
       attributes: {
         class:
-          "doc-prose min-h-[560px] rounded-b-xl border border-t-0 border-white/10 bg-white px-8 py-7 text-[15px] text-night outline-none",
+          "doc-prose min-h-[560px] rounded-b-xl border border-t-0 border-line bg-white px-8 py-7 text-[15px] text-night outline-none",
       },
     },
   });
@@ -351,7 +351,7 @@ export function DocumentEditor({
         .run();
   }
 
-  if (!editor) return <div className="min-h-[560px] rounded-xl border border-white/10 bg-white/5" />;
+  if (!editor) return <div className="min-h-[560px] rounded-xl border border-line bg-ink/5" />;
 
   const words = editor.getText().trim() ? editor.getText().trim().split(/\s+/).length : 0;
   const currentStyle = editor.isActive("heading", { level: 1 })
@@ -417,7 +417,7 @@ export function DocumentEditor({
 
       <div className="simple-doc-editor">
         {!readOnly ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-white/10 bg-night px-3 py-2 text-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-line bg-night px-3 py-2 text-white">
             <div className="flex flex-wrap items-center gap-0.5">
               <TBtn title="Undo" onClick={() => editor.chain().focus().undo().run()}>
                 <Undo2 className="h-4 w-4" />
@@ -425,13 +425,13 @@ export function DocumentEditor({
               <TBtn title="Redo" onClick={() => editor.chain().focus().redo().run()}>
                 <Redo2 className="h-4 w-4" />
               </TBtn>
-              <span className="mx-1 h-5 w-px bg-white/10" />
+              <span className="mx-1 h-5 w-px bg-ink/10" />
 
               <select
                 aria-label="Text style"
                 value={currentStyle}
                 onChange={(e) => setTextStyle(e.target.value)}
-                className="h-8 rounded-md border border-white/10 bg-white/5 px-2 text-xs text-slate-200 outline-none hover:bg-white/10"
+                className="h-8 rounded-md border border-line bg-ink/5 px-2 text-xs text-ink outline-none hover:bg-ink/10"
               >
                 <option value="paragraph" className="bg-slate-950">
                   Normal
@@ -447,7 +447,7 @@ export function DocumentEditor({
                 </option>
               </select>
 
-              <span className="mx-1 h-5 w-px bg-white/10" />
+              <span className="mx-1 h-5 w-px bg-ink/10" />
               <TBtn
                 title="Bold"
                 active={editor.isActive("bold")}
@@ -470,7 +470,7 @@ export function DocumentEditor({
                 <UnderlineIcon className="h-4 w-4" />
               </TBtn>
 
-              <span className="mx-1 h-5 w-px bg-white/10" />
+              <span className="mx-1 h-5 w-px bg-ink/10" />
               <TBtn
                 title="Bullet list"
                 active={editor.isActive("bulletList")}
@@ -507,7 +507,7 @@ export function DocumentEditor({
               <TBtn title="Link" active={editor.isActive("link")} onClick={setLink}>
                 <LinkIcon className="h-4 w-4" />
               </TBtn>
-              <span className="mx-1 h-5 w-px bg-white/10" />
+              <span className="mx-1 h-5 w-px bg-ink/10" />
 
               <Menu label="Insert" icon={<Plus className="h-4 w-4" />} wide>
                 <div className="grid grid-cols-2 gap-x-1">
@@ -582,14 +582,14 @@ export function DocumentEditor({
             </div>
 
             <div className="flex items-center gap-3 px-1 text-[11px]">
-              <span className="text-white/45">{words} words</span>
+              <span className="text-ink/45">{words} words</span>
               {dirty ? (
-                <span className="inline-flex items-center gap-1 text-amber-300">
+                <span className="inline-flex items-center gap-1 text-warning">
                   <AlertCircle className="h-3.5 w-3.5" />
                   Unsaved
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-emerald-300">
+                <span className="inline-flex items-center gap-1 text-success">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Saved
                 </span>

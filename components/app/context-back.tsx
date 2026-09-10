@@ -101,7 +101,7 @@ export function ContextBack() {
           if (window.history.length > 1) router.back();
           else router.push("/app");
         }}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] text-slate-500 transition hover:bg-white/[0.055] hover:text-slate-200"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-ink/[0.025] text-ink-3 transition hover:bg-ink/[0.055] hover:text-ink"
         aria-label="Retour"
         title="Retour"
       >
@@ -110,14 +110,11 @@ export function ContextBack() {
 
       <nav
         aria-label="Fil d’Ariane"
-        className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+        className="min-w-0 overflow-hidden rounded-xl border border-line bg-ink/[0.02] px-3 py-2"
       >
         <ol className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-xs">
           <li className="shrink-0">
-            <Link
-              href="/app"
-              className="flex items-center gap-1 text-slate-500 transition hover:text-blue-400"
-            >
+            <Link href="/app" className="flex items-center gap-1 text-ink-3 transition hover:text-accent">
               <Home className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Accueil</span>
             </Link>
@@ -126,15 +123,15 @@ export function ContextBack() {
             const last = index === crumbs.length - 1;
             return (
               <li key={`${crumb.href}-${index}`} className="flex min-w-0 items-center gap-1.5">
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-700" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-2" />
                 {last ? (
-                  <span className="max-w-[180px] truncate font-medium text-slate-300 sm:max-w-[280px]">
+                  <span className="max-w-[180px] truncate font-medium text-ink-2 sm:max-w-[280px]">
                     {crumb.label}
                   </span>
                 ) : (
                   <Link
                     href={crumb.href}
-                    className="max-w-[140px] truncate text-slate-500 transition hover:text-blue-400 sm:max-w-[220px]"
+                    className="max-w-[140px] truncate text-ink-3 transition hover:text-accent sm:max-w-[220px]"
                   >
                     {crumb.label}
                   </Link>

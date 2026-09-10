@@ -169,9 +169,9 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <p className="text-xs uppercase tracking-wider text-muted2">Actifs</p>
-              <FileText className="h-4 w-4 text-blue-400" />
+              <FileText className="h-4 w-4 text-accent" />
             </div>
-            <p className="mt-2 text-2xl font-semibold text-white">{totalActive}</p>
+            <p className="mt-2 text-2xl font-semibold text-ink">{totalActive}</p>
           </CardContent>
         </Card>
         <Link href={hrefWith(params, { status: "DRAFT", attention: undefined, recent: undefined })}>
@@ -181,7 +181,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
                 <p className="text-xs uppercase tracking-wider text-muted2">Brouillons</p>
                 <PenLine className="h-4 w-4 text-violet-400" />
               </div>
-              <p className="mt-2 text-2xl font-semibold text-white">{drafts}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{drafts}</p>
             </CardContent>
           </Card>
         </Link>
@@ -192,7 +192,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
                 <p className="text-xs uppercase tracking-wider text-muted2">À signer</p>
                 <ShieldCheck className="h-4 w-4 text-cyan-400" />
               </div>
-              <p className="mt-2 text-2xl font-semibold text-white">{ready}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{ready}</p>
             </CardContent>
           </Card>
         </Link>
@@ -201,9 +201,9 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs uppercase tracking-wider text-muted2">Signés</p>
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <CheckCircle2 className="h-4 w-4 text-success" />
               </div>
-              <p className="mt-2 text-2xl font-semibold text-white">{signed}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{signed}</p>
             </CardContent>
           </Card>
         </Link>
@@ -212,9 +212,9 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs uppercase tracking-wider text-muted2">À surveiller</p>
-                <AlertTriangle className="h-4 w-4 text-amber-400" />
+                <AlertTriangle className="h-4 w-4 text-warning" />
               </div>
-              <p className="mt-2 text-2xl font-semibold text-white">{needsAttention}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{needsAttention}</p>
             </CardContent>
           </Card>
         </Link>
@@ -223,14 +223,14 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <p className="text-xs uppercase tracking-wider text-muted2">Mis à jour 7j</p>
-                <Clock3 className="h-4 w-4 text-slate-400" />
+                <Clock3 className="h-4 w-4 text-ink-3" />
               </div>
-              <p className="mt-2 text-2xl font-semibold text-white">{recent}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{recent}</p>
             </CardContent>
           </Card>
         </Link>
       </div>
-      <div className="mb-5 rounded-2xl border border-white/[0.07] bg-[#0e1624] p-4 shadow-sm">
+      <div className="mb-5 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <form method="get" className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_180px_210px_auto]">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted2" />
@@ -238,13 +238,13 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
               name="q"
               defaultValue={params.q ?? ""}
               placeholder="Client, document, email, dossier..."
-              className="h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-9 pr-3 text-sm text-slate-200 outline-none placeholder:text-slate-600 focus:border-blue-400/50"
+              className="h-10 w-full rounded-xl border border-line bg-ink/[0.035] pl-9 pr-3 text-sm text-ink outline-none placeholder:text-ink-2 focus:border-blue-400/50"
             />
           </label>
           <select
             name="status"
             defaultValue={status}
-            className="h-10 rounded-xl border border-white/[0.08] bg-[#101827] px-3 text-sm text-slate-300"
+            className="h-10 rounded-xl border border-line bg-surface-1 px-3 text-sm text-ink-2"
           >
             {STATUS_FILTERS.map((s) => (
               <option key={s.key} value={s.key}>
@@ -255,7 +255,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
           <select
             name="type"
             defaultValue={type}
-            className="h-10 rounded-xl border border-white/[0.08] bg-[#101827] px-3 text-sm text-slate-300"
+            className="h-10 rounded-xl border border-line bg-surface-1 px-3 text-sm text-ink-2"
           >
             {TYPE_FILTERS.map((t) => (
               <option key={t} value={t}>
@@ -282,7 +282,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
             <Link
               key={s.key}
               href={hrefWith(params, { status: s.key, attention: undefined, recent: undefined })}
-              className={`rounded-full border px-3 py-1 text-xs ${status === s.key && !attentionOnly && !recentOnly ? "border-blue-400/40 bg-blue-500/10 text-blue-300" : "border-white/[0.08] text-slate-500 hover:bg-white/[0.04]"}`}
+              className={`rounded-full border px-3 py-1 text-xs ${status === s.key && !attentionOnly && !recentOnly ? "border-blue-400/40 bg-blue-500/10 text-accent" : "border-line text-ink-3 hover:bg-ink/[0.04]"}`}
             >
               {s.label}
             </Link>
@@ -299,9 +299,9 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
             actionLabel="Nouveau document"
           />
         ) : (
-          <div className="rounded-2xl border border-white/[0.07] bg-[#0e1624] p-10 text-center">
-            <FileText className="mx-auto h-8 w-8 text-slate-600" />
-            <p className="mt-3 font-medium text-white">Aucun document ne correspond</p>
+          <div className="rounded-2xl border border-line bg-surface-1 p-10 text-center">
+            <FileText className="mx-auto h-8 w-8 text-ink-2" />
+            <p className="mt-3 font-medium text-ink">Aucun document ne correspond</p>
             <p className="mt-1 text-sm text-muted2">Modifiez la recherche ou réinitialisez les filtres.</p>
             <Link href="/app/documents">
               <Button className="mt-4" variant="secondary">
@@ -345,7 +345,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
                           {d.title}
                         </Link>
                         {reason ? (
-                          <div className="mt-1 inline-flex items-center gap-1 text-xs text-amber-400">
+                          <div className="mt-1 inline-flex items-center gap-1 text-xs text-warning">
                             <AlertTriangle className="h-3 w-3" />
                             {reason}
                           </div>
@@ -412,7 +412,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
                   badges={
                     <>
                       <StatusBadge status={d.status} />
-                      <Badge className="border border-white/[0.07] bg-white/[0.03] text-slate-400">
+                      <Badge className="border border-line bg-ink/[0.03] text-ink-3">
                         {d.type.replaceAll("_", " ")}
                       </Badge>
                       {latestSignature ? <StatusBadge status={latestSignature.status} /> : null}
@@ -427,7 +427,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams?: S
                   <RecordField label="Dossier" value={d.case?.caseNumber ?? "—"} />
                   <RecordField label="Version" value={`v${d.versions[0]?.version ?? 1}`} />
                   {reason ? (
-                    <RecordField label="Attention" value={reason} valueClassName="text-amber-300" />
+                    <RecordField label="Attention" value={reason} valueClassName="text-warning" />
                   ) : null}
                 </RecordCard>
               );

@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
+import { parseTheme, THEME_COOKIE } from "@/lib/theme";
 import { prisma } from "@/lib/prisma";
 import { AppShell } from "@/components/app/shell";
 import { GeneratedDocumentWhatsAppShortcut } from "@/components/app/generated-document-whatsapp-shortcut";
@@ -8,8 +10,13 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const unread = await prisma.notification.count({ where: { userId: user.id, readAt: null } });
+  const theme = parseTheme(cookies().get(THEME_COOKIE)?.value);
   return (
-    <AppShell user={{ firstName: user.firstName, lastName: user.lastName, role: user.role }} unread={unread}>
+    <AppShell
+      user={{ firstName: user.firstName, lastName: user.lastName, role: user.role }}
+      unread={unread}
+      theme={theme}
+    >
       {children}
       <GeneratedDocumentWhatsAppShortcut />
     </AppShell>

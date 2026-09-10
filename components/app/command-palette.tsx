@@ -262,19 +262,19 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/72 p-0 backdrop-blur-sm sm:items-start sm:px-6 sm:pt-[9vh]"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-night/72 p-0 backdrop-blur-sm sm:items-start sm:px-6 sm:pt-[9vh]"
       onMouseDown={() => onOpenChange(false)}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Palette de commandes"
-        className="flex max-h-[min(88dvh,760px)] w-full flex-col overflow-hidden rounded-t-[22px] border border-white/[0.1] bg-[#0c1524]/98 pb-[env(safe-area-inset-bottom)] shadow-[0_35px_90px_rgba(0,0,0,.58)] ring-1 ring-black/30 sm:max-w-2xl sm:rounded-[22px] sm:pb-0"
+        className="flex max-h-[min(88dvh,760px)] w-full flex-col overflow-hidden rounded-t-[22px] border border-line bg-surface-1 pb-[env(safe-area-inset-bottom)] shadow-card ring-1 ring-black/30 sm:max-w-2xl sm:rounded-[22px] sm:pb-0"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-white/15 sm:hidden" />
-        <div className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] px-4 sm:px-5">
-          <Search className="h-5 w-5 shrink-0 text-blue-400" />
+        <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-ink/15 sm:hidden" />
+        <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 sm:px-5">
+          <Search className="h-5 w-5 shrink-0 text-accent" />
           <input
             ref={inputRef}
             value={query}
@@ -301,13 +301,13 @@ export function CommandPalette({
               }
             }}
             placeholder="Rechercher ou lancer une commande…"
-            className="h-14 min-w-0 flex-1 bg-transparent text-base text-slate-100 outline-none placeholder:text-slate-600 sm:h-16 sm:text-[15px]"
+            className="h-14 min-w-0 flex-1 bg-transparent text-base text-ink outline-none placeholder:text-ink-2 sm:h-16 sm:text-[15px]"
           />
           {query ? (
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="rounded-lg p-2 text-slate-600 hover:bg-white/[0.05] hover:text-slate-300"
+              className="rounded-lg p-2 text-ink-2 hover:bg-ink/[0.05] hover:text-ink-2"
               aria-label="Effacer"
             >
               <X className="h-4 w-4" />
@@ -316,12 +316,12 @@ export function CommandPalette({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="rounded-lg p-2 text-slate-500 sm:hidden"
+            className="rounded-lg p-2 text-ink-3 sm:hidden"
             aria-label="Fermer"
           >
             <X className="h-4 w-4" />
           </button>
-          <kbd className="hidden rounded-md border border-white/[0.08] bg-white/[0.035] px-2 py-1 text-[10px] text-slate-500 sm:block">
+          <kbd className="hidden rounded-md border border-line bg-ink/[0.035] px-2 py-1 text-[10px] text-ink-3 sm:block">
             ESC
           </kbd>
         </div>
@@ -336,35 +336,33 @@ export function CommandPalette({
                 onClick={() => openItem(item)}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition",
-                  activeIndex === index
-                    ? "bg-blue-500/12 text-white"
-                    : "text-slate-300 hover:bg-white/[0.045]",
+                  activeIndex === index ? "bg-blue-500/12 text-white" : "text-ink-2 hover:bg-ink/[0.045]",
                 )}
               >
                 <span
                   className={cn(
                     "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
                     activeIndex === index
-                      ? "border-blue-400/20 bg-blue-500/12 text-blue-300"
-                      : "border-white/[0.06] bg-white/[0.025] text-slate-500",
+                      ? "border-blue-400/20 bg-blue-500/12 text-accent"
+                      : "border-line bg-ink/[0.025] text-ink-3",
                   )}
                 >
                   <item.icon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{item.label}</span>
-                  <span className="mt-0.5 block truncate text-[11px] text-slate-600">{item.description}</span>
+                  <span className="mt-0.5 block truncate text-[11px] text-ink-2">{item.description}</span>
                 </span>
-                <span className="hidden shrink-0 text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-700 sm:block">
+                <span className="hidden shrink-0 text-[9px] font-semibold uppercase tracking-[0.15em] text-ink-2 sm:block">
                   {item.group}
                 </span>
               </button>
             ))
           ) : (
             <div className="px-4 py-10 text-center">
-              <Search className="mx-auto h-6 w-6 text-slate-700" />
-              <p className="mt-3 text-sm font-medium text-slate-300">Aucune commande correspondante</p>
-              <p className="mt-1 text-xs text-slate-600">Utilisez la recherche globale avec votre texte.</p>
+              <Search className="mx-auto h-6 w-6 text-ink-2" />
+              <p className="mt-3 text-sm font-medium text-ink-2">Aucune commande correspondante</p>
+              <p className="mt-1 text-xs text-ink-2">Utilisez la recherche globale avec votre texte.</p>
               {query.trim() ? (
                 <button
                   type="button"
@@ -388,7 +386,7 @@ export function CommandPalette({
           )}
         </div>
 
-        <div className="hidden shrink-0 flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] bg-black/[0.08] px-5 py-2.5 text-[10px] text-slate-600 sm:flex">
+        <div className="hidden shrink-0 flex-wrap items-center justify-between gap-2 border-t border-line bg-black/[0.08] px-5 py-2.5 text-[10px] text-ink-2 sm:flex">
           <span>↑↓ naviguer · ↵ ouvrir · esc fermer</span>
           <span>JUN Business Hub Command Center</span>
         </div>

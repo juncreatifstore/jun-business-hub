@@ -40,7 +40,7 @@ export default async function VaultPage({ searchParams }: { searchParams: { cat?
       <div className="mb-6 flex flex-wrap gap-2">
         <a
           href="/app/vault"
-          className={`rounded-full border px-3 py-1 text-sm ${!cat ? "border-gold text-gold" : "border-white/10 text-muted2 hover:text-white"}`}
+          className={`rounded-full border px-3 py-1 text-sm ${!cat ? "border-gold text-gold" : "border-line text-muted2 hover:text-ink"}`}
         >
           All
         </a>
@@ -48,7 +48,7 @@ export default async function VaultPage({ searchParams }: { searchParams: { cat?
           <a
             key={c}
             href={`/app/vault?cat=${encodeURIComponent(c)}`}
-            className={`rounded-full border px-3 py-1 text-sm ${cat === c ? "border-gold text-gold" : "border-white/10 text-muted2 hover:text-white"}`}
+            className={`rounded-full border px-3 py-1 text-sm ${cat === c ? "border-gold text-gold" : "border-line text-muted2 hover:text-ink"}`}
           >
             {c}
           </a>
@@ -113,7 +113,7 @@ export default async function VaultPage({ searchParams }: { searchParams: { cat?
                       href={`/api/files/${f.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-md p-2 text-muted2 hover:bg-white/5 hover:text-white"
+                      className="rounded-md p-2 text-muted2 hover:bg-ink/5 hover:text-ink"
                       title="Open"
                     >
                       <Download className="h-4 w-4" />
@@ -122,7 +122,7 @@ export default async function VaultPage({ searchParams }: { searchParams: { cat?
                       <form action={deleteFile.bind(null, f.id)}>
                         <button
                           type="submit"
-                          className="rounded-md p-2 text-muted2 hover:bg-red-500/10 hover:text-red-400"
+                          className="rounded-md p-2 text-muted2 hover:bg-red-500/10 hover:text-danger"
                           title="Delete"
                         >
                           <Trash2 className="h-4 w-4" />

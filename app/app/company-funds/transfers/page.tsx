@@ -150,7 +150,7 @@ export default async function TreasuryTransfersPage({ searchParams }: { searchPa
             <Input name="fxRate" label="Taux de change" type="number" defaultValue="1" required />
             <Input name="externalReference" label="Référence banque/provider" />
             <Input name="note" label="Note / motif" />
-            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white">
+            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
               Créer brouillon
             </button>
           </form>
@@ -294,7 +294,7 @@ export default async function TreasuryTransfersPage({ searchParams }: { searchPa
                               placeholder="Réf. finale"
                               className="w-28 rounded border border-line px-2 py-1 text-xs"
                             />
-                            <button className="rounded bg-ink px-2 py-1 text-xs text-white">
+                            <button className="rounded bg-ink px-2 py-1 text-xs text-ink">
                               Confirmer reçu
                             </button>
                           </form>

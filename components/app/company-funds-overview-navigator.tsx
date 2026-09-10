@@ -322,7 +322,7 @@ export function CompanyFundsOverviewNavigator() {
 
   return (
     <>
-      <div className="sticky top-[116px] z-20 -mt-2 rounded-xl border border-line bg-white/95 shadow-sm backdrop-blur md:top-[126px]">
+      <div className="sticky top-[116px] z-20 -mt-2 rounded-xl border border-line bg-ink/95 shadow-sm backdrop-blur md:top-[126px]">
         <div className="flex items-center gap-2 px-3 py-2">
           <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface text-muted2">
             <ListTree className="h-4 w-4" />
@@ -429,7 +429,7 @@ export function CompanyFundsOverviewNavigator() {
                   className={cn(
                     "inline-flex items-center rounded-lg transition",
                     activeId === section.id
-                      ? "bg-ink text-white"
+                      ? "bg-ink text-ink"
                       : "text-muted2 hover:bg-surface hover:text-ink",
                   )}
                 >
@@ -446,7 +446,7 @@ export function CompanyFundsOverviewNavigator() {
                     onClick={() => setOneCollapsed(section.id, !isCollapsed)}
                     className={cn(
                       "mr-1 inline-flex h-5 w-5 items-center justify-center rounded-md",
-                      activeId === section.id ? "hover:bg-white/15" : "hover:bg-white",
+                      activeId === section.id ? "hover:bg-ink/15" : "hover:bg-white",
                     )}
                     aria-label={isCollapsed ? `Développer ${section.label}` : `Réduire ${section.label}`}
                     title={isCollapsed ? "Développer" : "Réduire"}
@@ -573,7 +573,7 @@ export function CompanyFundsOverviewNavigator() {
                     key={section.id}
                     className={cn(
                       "flex items-center rounded-lg transition",
-                      activeId === section.id ? "bg-ink text-white" : "text-ink hover:bg-white",
+                      activeId === section.id ? "bg-ink text-ink" : "text-ink hover:bg-white",
                     )}
                   >
                     <button
@@ -585,7 +585,7 @@ export function CompanyFundsOverviewNavigator() {
                       <span
                         className={cn(
                           "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold",
-                          activeId === section.id ? "bg-white/15" : "bg-white text-muted2",
+                          activeId === section.id ? "bg-ink/15" : "bg-white text-muted2",
                         )}
                       >
                         {index + 1}
@@ -597,7 +597,7 @@ export function CompanyFundsOverviewNavigator() {
                       onClick={() => setOneCollapsed(section.id, !isCollapsed)}
                       className={cn(
                         "mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                        activeId === section.id ? "hover:bg-white/15" : "hover:bg-surface",
+                        activeId === section.id ? "hover:bg-ink/15" : "hover:bg-surface",
                       )}
                       aria-label={isCollapsed ? `Développer ${section.label}` : `Réduire ${section.label}`}
                     >
@@ -675,7 +675,7 @@ export function CompanyFundsOverviewNavigator() {
                       className={cn(
                         "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
                         section.id === activeId
-                          ? "bg-ink text-white"
+                          ? "bg-ink text-ink"
                           : "bg-white border border-line text-muted2",
                       )}
                     >

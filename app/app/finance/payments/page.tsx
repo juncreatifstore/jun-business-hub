@@ -268,7 +268,7 @@ export default async function PaymentsPage({
                           <>
                             <div>{formatMoney(expected, p.currency)}</div>
                             <div
-                              className={`text-[11px] ${balance && balance > 0 ? "text-amber-400" : "text-emerald-400"}`}
+                              className={`text-[11px] ${balance && balance > 0 ? "text-warning" : "text-success"}`}
                             >
                               {balance && balance > 0
                                 ? `${formatMoney(balance, p.currency)} dû`
@@ -282,9 +282,7 @@ export default async function PaymentsPage({
                       <TD className="text-muted2">{p.method.replaceAll("_", " ")}</TD>
                       <TD>
                         {p.files.length ? (
-                          <span className="text-xs font-medium text-emerald-400">
-                            {p.files.length} jointe(s)
-                          </span>
+                          <span className="text-xs font-medium text-success">{p.files.length} jointe(s)</span>
                         ) : (
                           <span className="text-xs text-muted2">Manquante</span>
                         )}
@@ -316,11 +314,11 @@ export default async function PaymentsPage({
                   badges={
                     <>
                       <StatusBadge status={p.status} />
-                      <Badge className="border border-white/[0.07] bg-white/[0.03] text-slate-400">
+                      <Badge className="border border-line bg-ink/[0.03] text-ink-3">
                         {p.method.replaceAll("_", " ")}
                       </Badge>
                       {p.files.length ? (
-                        <Badge className="border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
+                        <Badge className="border border-emerald-400/20 bg-emerald-500/10 text-success">
                           PREUVE ✓
                         </Badge>
                       ) : null}
@@ -331,7 +329,7 @@ export default async function PaymentsPage({
                   <RecordField
                     label="Net reçu"
                     value={formatMoney(netAmount, p.currency)}
-                    valueClassName="text-emerald-300"
+                    valueClassName="text-success"
                   />
                   {feeAmount > 0 ? (
                     <RecordField
@@ -353,7 +351,7 @@ export default async function PaymentsPage({
                             ? `${formatMoney(Math.abs(balance), p.currency)} trop-perçu`
                             : "Payé intégralement"
                       }
-                      valueClassName={balance > 0 ? "text-amber-300" : "text-emerald-300"}
+                      valueClassName={balance > 0 ? "text-warning" : "text-success"}
                     />
                   ) : null}
                 </RecordCard>

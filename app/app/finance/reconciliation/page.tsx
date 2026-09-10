@@ -41,7 +41,7 @@ export default async function ReconciliationPage({
         <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
           <a
             href="/api/finance/reconciliation/export.csv"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2 text-xs font-medium"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-ink/[0.03] px-3 py-2 text-xs font-medium"
           >
             <Download className="h-4 w-4" />
             Exporter CSV
@@ -55,7 +55,7 @@ export default async function ReconciliationPage({
           </Link>
           <Link
             href="/app/finance/reconciliation/close"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-white/[0.03] px-3 py-2 text-xs font-medium"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-ink/[0.03] px-3 py-2 text-xs font-medium"
           >
             <LockKeyhole className="h-4 w-4" />
             Clôture mensuelle
@@ -94,7 +94,7 @@ export default async function ReconciliationPage({
                     <Link
                       key={i.id}
                       href={`/app/finance/reconciliation/${i.id}`}
-                      className="block rounded-2xl border border-line bg-white/[0.025] p-4 transition hover:bg-white/[0.04] md:rounded-none md:border-0 md:bg-transparent md:px-4 md:py-3"
+                      className="block rounded-2xl border border-line bg-ink/[0.025] p-4 transition hover:bg-ink/[0.04] md:rounded-none md:border-0 md:bg-transparent md:px-4 md:py-3"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -115,7 +115,7 @@ export default async function ReconciliationPage({
                           <div className="text-[10px] text-muted2">résolu</div>
                         </div>
                       </div>
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink/[0.06]">
                         <div className="h-full rounded-full bg-electric" style={{ width: `${progress}%` }} />
                       </div>
                     </Link>
@@ -149,7 +149,7 @@ export default async function ReconciliationPage({
 }
 function Metric({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="min-w-0 rounded-xl border border-line bg-white/[0.025] p-3 sm:p-4">
+    <div className="min-w-0 rounded-xl border border-line bg-ink/[0.025] p-3 sm:p-4">
       <div className="text-[11px] text-muted2 sm:text-xs">{label}</div>
       <div className="mt-1 break-words text-xl font-semibold sm:text-2xl">{value}</div>
       <div className="mt-1 break-words text-[10px] leading-relaxed text-muted2 sm:text-xs">{hint}</div>
@@ -158,7 +158,7 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
 }
 function Status({ icon: Icon, label, value }: { icon: typeof CheckCircle2; label: string; value: number }) {
   return (
-    <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-line bg-white/[0.02] p-3">
+    <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-line bg-ink/[0.02] p-3">
       <div className="flex min-w-0 items-center gap-2 text-sm">
         <Icon className="h-4 w-4 shrink-0 text-muted2" />
         <span className="break-words">{label}</span>

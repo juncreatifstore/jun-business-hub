@@ -36,7 +36,7 @@ export function TaskForm({
         <Field label="Titre">
           <Input name="title" required maxLength={200} className="min-w-0" />
         </Field>
-        {err("title") ? <p className="mt-1 break-words text-xs text-red-400">{err("title")}</p> : null}
+        {err("title") ? <p className="mt-1 break-words text-xs text-danger">{err("title")}</p> : null}
       </div>
 
       <div className="min-w-0">
@@ -114,7 +114,7 @@ export function TaskForm({
       </div>
 
       {state.message ? (
-        <p className="break-words text-sm text-red-400 sm:col-span-2">{state.message}</p>
+        <p className="break-words text-sm text-danger sm:col-span-2">{state.message}</p>
       ) : null}
       <div className="sm:col-span-2">
         <Submit />

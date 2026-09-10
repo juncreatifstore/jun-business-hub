@@ -216,7 +216,7 @@ export default async function TemplateLibraryPage({
                     ACTIVE
                   </span>
                 ) : (
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">INACTIVE</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-ink-2">INACTIVE</span>
                 )}
               </TD>
               <TD className="text-muted2">{new Date(t.updatedAt).toLocaleDateString()}</TD>

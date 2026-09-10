@@ -488,7 +488,7 @@ export default async function DriveIntelligenceActionsPage({
             </p>
             <Link
               href={`/app/finance/receipts/${ctx.file.payment.id}`}
-              className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white"
+              className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink"
             >
               <ReceiptText className="h-4 w-4" />
               Open / create official receipt

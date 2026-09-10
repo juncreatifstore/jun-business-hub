@@ -110,9 +110,9 @@ export default async function ClientProfilePage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Profil</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">Fiche complète du client</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-2">Profil</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Fiche complète du client</h2>
+          <p className="mt-1 text-sm text-ink-3">
             Identité, coordonnées, préférences, responsable et état général du compte.
           </p>
         </div>
@@ -160,11 +160,11 @@ export default async function ClientProfilePage({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Identité & coordonnées</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">Données principales enregistrées dans le dossier.</p>
+              <p className="mt-1 text-xs text-ink-3">Données principales enregistrées dans le dossier.</p>
             </div>
           </CardHeader>
           <CardContent className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
@@ -184,23 +184,21 @@ export default async function ClientProfilePage({
               label="Date de naissance"
               value={client.birthDate ? formatDate(client.birthDate) : "—"}
             />
-            <div className="sm:col-span-2 rounded-xl border border-white/[0.055] bg-white/[0.018] p-3.5">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <div className="sm:col-span-2 rounded-xl border border-line bg-ink/[0.018] p-3.5">
+              <div className="flex items-center gap-1.5 text-xs text-ink-3">
                 <MapPin className="h-3.5 w-3.5" />
                 Adresse
               </div>
-              <div className="mt-1.5 whitespace-pre-wrap font-medium text-slate-200">
-                {client.address || "—"}
-              </div>
+              <div className="mt-1.5 whitespace-pre-wrap font-medium text-ink">{client.address || "—"}</div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Configuration du compte</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">Préférences et classification interne.</p>
+              <p className="mt-1 text-xs text-ink-3">Préférences et classification interne.</p>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -213,27 +211,24 @@ export default async function ClientProfilePage({
               label="Statut commercial"
               value={blocked ? "Relation terminée" : archived ? "Archivé" : "Actif / autorisé"}
             />
-            <div className="border-t border-white/[0.055] pt-4">
-              <div className="text-xs text-slate-500">Tags</div>
+            <div className="border-t border-line pt-4">
+              <div className="text-xs text-ink-3">Tags</div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {client.tags.length ? (
                   client.tags.map((tag) => (
-                    <Badge
-                      key={tag.id}
-                      className="border border-white/[0.06] bg-white/[0.025] text-slate-500"
-                    >
+                    <Badge key={tag.id} className="border border-line bg-ink/[0.025] text-ink-3">
                       {tag.tag}
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-sm text-slate-600">Aucun tag</span>
+                  <span className="text-sm text-ink-2">Aucun tag</span>
                 )}
               </div>
             </div>
             {client.notes ? (
-              <div className="rounded-xl border border-white/[0.055] bg-white/[0.018] p-3.5">
-                <div className="text-xs text-slate-500">Notes générales du profil</div>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{client.notes}</p>
+              <div className="rounded-xl border border-line bg-ink/[0.018] p-3.5">
+                <div className="text-xs text-ink-3">Notes générales du profil</div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink-2">{client.notes}</p>
               </div>
             ) : null}
           </CardContent>
@@ -241,11 +236,11 @@ export default async function ClientProfilePage({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Registre du client</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">Volume des éléments reliés à cette fiche.</p>
+              <p className="mt-1 text-xs text-ink-3">Volume des éléments reliés à cette fiche.</p>
             </div>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -288,37 +283,37 @@ export default async function ClientProfilePage({
           </CardContent>
         </Card>
 
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Dernières notes internes</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-ink-3">
                 Les notes complètes restent disponibles dans Historique.
               </p>
             </div>
             <Link
               href={`/app/clients/${client.id}/history`}
-              className="text-xs font-medium text-blue-400 hover:text-blue-300"
+              className="text-xs font-medium text-accent hover:text-accent"
             >
               Historique
             </Link>
           </CardHeader>
           <CardContent className="p-0">
             {client.clientNotes.length ? (
-              <div className="divide-y divide-white/[0.055]">
+              <div className="divide-y divide-line">
                 {client.clientNotes.map((note) => (
                   <div key={note.id} className="px-5 py-3.5">
-                    <p className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-slate-300">
+                    <p className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-ink-2">
                       {note.body}
                     </p>
-                    <p className="mt-1.5 text-[10px] text-slate-600">
+                    <p className="mt-1.5 text-[10px] text-ink-2">
                       {note.author.firstName} {note.author.lastName} · {formatDateTime(note.createdAt)}
                     </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="p-6 text-center text-sm text-slate-500">Aucune note interne.</p>
+              <p className="p-6 text-center text-sm text-ink-3">Aucune note interne.</p>
             )}
           </CardContent>
         </Card>
@@ -329,7 +324,7 @@ export default async function ClientProfilePage({
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
             <div>
               <p className="text-sm font-medium text-red-200">Archivage du client</p>
-              <p className="mt-1 text-xs text-red-300/55">
+              <p className="mt-1 text-xs text-danger/55">
                 L’archivage conserve l’historique complet mais retire le client des opérations actives.
               </p>
             </div>
@@ -357,20 +352,20 @@ function Metric({
   tone: "blue" | "green" | "amber" | "violet";
 }) {
   const tones = {
-    blue: "bg-blue-500/10 text-blue-400",
-    green: "bg-emerald-500/10 text-emerald-400",
-    amber: "bg-amber-500/10 text-amber-400",
+    blue: "bg-blue-500/10 text-accent",
+    green: "bg-emerald-500/10 text-success",
+    amber: "bg-amber-500/10 text-warning",
     violet: "bg-violet-500/10 text-violet-400",
   };
   return (
-    <Card className="bg-[#0e1624]">
+    <Card className="bg-surface-1">
       <CardContent className="p-4">
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}>
           <Icon className="h-4 w-4" />
         </span>
-        <div className="mt-3 text-xs text-slate-500">{label}</div>
-        <div className="mt-1 break-words text-lg font-semibold text-slate-100">{value}</div>
-        <div className="mt-1 text-[11px] text-slate-600">{hint}</div>
+        <div className="mt-3 text-xs text-ink-3">{label}</div>
+        <div className="mt-1 break-words text-lg font-semibold text-ink">{value}</div>
+        <div className="mt-1 text-[11px] text-ink-2">{hint}</div>
       </CardContent>
     </Card>
   );
@@ -379,20 +374,20 @@ function Metric({
 function Info({ icon: Icon, label, value }: { icon: typeof UserRound; label: string; value: string }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+      <div className="flex items-center gap-1.5 text-xs text-ink-3">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className="mt-1.5 break-words font-medium text-slate-200">{value}</div>
+      <div className="mt-1.5 break-words font-medium text-ink">{value}</div>
     </div>
   );
 }
 
 function Setting({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.05] bg-white/[0.015] px-3.5 py-3">
-      <span className="text-xs text-slate-500">{label}</span>
-      <strong className="text-sm font-medium text-slate-200">{value}</strong>
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-ink/[0.015] px-3.5 py-3">
+      <span className="text-xs text-ink-3">{label}</span>
+      <strong className="text-sm font-medium text-ink">{value}</strong>
     </div>
   );
 }
@@ -411,11 +406,11 @@ function Count({
   return (
     <Link
       href={href}
-      className="group rounded-xl border border-white/[0.055] bg-white/[0.015] p-3 transition hover:border-blue-400/20 hover:bg-blue-500/[0.04]"
+      className="group rounded-xl border border-line bg-ink/[0.015] p-3 transition hover:border-blue-400/20 hover:bg-blue-500/[0.04]"
     >
-      <Icon className="h-4 w-4 text-slate-600 transition group-hover:text-blue-400" />
-      <div className="mt-3 text-xl font-semibold text-slate-100">{value}</div>
-      <div className="mt-0.5 text-[11px] text-slate-600">{label}</div>
+      <Icon className="h-4 w-4 text-ink-2 transition group-hover:text-accent" />
+      <div className="mt-3 text-xl font-semibold text-ink">{value}</div>
+      <div className="mt-0.5 text-[11px] text-ink-2">{label}</div>
     </Link>
   );
 }

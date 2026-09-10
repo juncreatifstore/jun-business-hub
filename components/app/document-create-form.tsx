@@ -350,7 +350,7 @@ export function DocumentCreateForm({
           {pendingAI ? "Rédaction…" : "Générer le brouillon"}
         </Button>
         {aiError ? <p className="mt-2 break-words text-xs text-red-600">{aiError}</p> : null}
-        <div className="mt-5 min-w-0 rounded-xl border border-line bg-white/70 p-3 text-xs text-muted2">
+        <div className="mt-5 min-w-0 rounded-xl border border-line bg-ink/70 p-3 text-xs text-muted2">
           <p className="break-words">
             <strong>Langue :</strong> {LANGUAGES.find(([code]) => code === language)?.[1]}
           </p>

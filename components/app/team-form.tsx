@@ -47,15 +47,13 @@ export function TeamForm({
         <Field label="Prénom">
           <Input name="firstName" required autoComplete="given-name" className="min-w-0" />
         </Field>
-        {err("firstName") ? (
-          <p className="mt-1 break-words text-xs text-red-400">{err("firstName")}</p>
-        ) : null}
+        {err("firstName") ? <p className="mt-1 break-words text-xs text-danger">{err("firstName")}</p> : null}
       </div>
       <div className="min-w-0">
         <Field label="Nom">
           <Input name="lastName" required autoComplete="family-name" className="min-w-0" />
         </Field>
-        {err("lastName") ? <p className="mt-1 break-words text-xs text-red-400">{err("lastName")}</p> : null}
+        {err("lastName") ? <p className="mt-1 break-words text-xs text-danger">{err("lastName")}</p> : null}
       </div>
       <div className="min-w-0">
         <Field label="Email">
@@ -68,7 +66,7 @@ export function TeamForm({
             className="min-w-0"
           />
         </Field>
-        {err("email") ? <p className="mt-1 break-words text-xs text-red-400">{err("email")}</p> : null}
+        {err("email") ? <p className="mt-1 break-words text-xs text-danger">{err("email")}</p> : null}
       </div>
       <div className="min-w-0">
         <Field label="Téléphone (facultatif)">
@@ -85,7 +83,7 @@ export function TeamForm({
             ))}
           </Select>
         </Field>
-        {err("role") ? <p className="mt-1 break-words text-xs text-red-400">{err("role")}</p> : null}
+        {err("role") ? <p className="mt-1 break-words text-xs text-danger">{err("role")}</p> : null}
       </div>
       <div className="min-w-0">
         <Field label="Département (facultatif)">
@@ -99,7 +97,7 @@ export function TeamForm({
           </Select>
         </Field>
         {err("departmentId") ? (
-          <p className="mt-1 break-words text-xs text-red-400">{err("departmentId")}</p>
+          <p className="mt-1 break-words text-xs text-danger">{err("departmentId")}</p>
         ) : null}
       </div>
       <div className="min-w-0 sm:col-span-2">
@@ -116,7 +114,7 @@ export function TeamForm({
             className="min-w-0"
           />
         </Field>
-        {err("password") ? <p className="mt-1 break-words text-xs text-red-400">{err("password")}</p> : null}
+        {err("password") ? <p className="mt-1 break-words text-xs text-danger">{err("password")}</p> : null}
       </div>
       <div className="sm:col-span-2">
         <Submit />

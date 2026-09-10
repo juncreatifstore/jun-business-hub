@@ -151,7 +151,7 @@ export function DocumentPageManager({
                 </div>
                 <div className="relative aspect-[0.72] overflow-hidden rounded border border-line bg-white shadow-sm">
                   <div
-                    className="origin-center scale-[0.23] p-6 text-[14px] text-slate-700"
+                    className="origin-center scale-[0.23] p-6 text-[14px] text-ink-2"
                     style={{ width: "430%", transform: `scale(.23) rotate(${page.rotation}deg)` }}
                     dangerouslySetInnerHTML={{ __html: page.html }}
                   />

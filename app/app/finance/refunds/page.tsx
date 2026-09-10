@@ -97,11 +97,11 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
       {duplicateGroups > 0 ? (
         <div className="mb-5 rounded-2xl border border-amber-500/20 bg-amber-500/[0.08] p-4 text-sm">
           <div className="flex items-start gap-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-warning">
               <AlertTriangle className="h-4 w-4" />
             </span>
             <div>
-              <div className="font-medium text-amber-300">Rapprochement à vérifier</div>
+              <div className="font-medium text-warning">Rapprochement à vérifier</div>
               <div className="mt-1 text-amber-200/80">
                 {duplicateGroups} paiement(s) d’origine possèdent plusieurs demandes de remboursement actives.
               </div>
@@ -207,7 +207,7 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
                         </Link>
                         {possibleDuplicate ? (
                           <div className="mt-1">
-                            <Badge className="border border-red-500/20 bg-red-500/10 text-red-300">
+                            <Badge className="border border-red-500/20 bg-red-500/10 text-danger">
                               DOUBLON POSSIBLE
                             </Badge>
                           </div>
@@ -229,7 +229,7 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
                           </div>
                         ) : (
                           <div>
-                            <Badge className="border border-blue-500/20 bg-blue-500/10 text-blue-300">
+                            <Badge className="border border-blue-500/20 bg-blue-500/10 text-accent">
                               SOLDE GLOBAL
                             </Badge>
                             <div className="mt-1 text-[11px] text-muted2">Aucun lien paiement requis</div>
@@ -246,7 +246,7 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
                       <TD>
                         {next ? (
                           <div>
-                            <div className={late ? "font-medium text-amber-400" : "text-sm"}>
+                            <div className={late ? "font-medium text-warning" : "text-sm"}>
                               {formatDate(next.dueDate)}
                             </div>
                             <div className="text-xs text-muted2">
@@ -288,16 +288,14 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
                     <>
                       <StatusBadge status={r.status} />
                       {r.payment ? (
-                        <Badge className="border border-white/[0.07] bg-white/[0.03] text-slate-400">
-                          PAIEMENT LIÉ
-                        </Badge>
+                        <Badge className="border border-line bg-ink/[0.03] text-ink-3">PAIEMENT LIÉ</Badge>
                       ) : (
-                        <Badge className="border border-blue-500/20 bg-blue-500/10 text-blue-300">
+                        <Badge className="border border-blue-500/20 bg-blue-500/10 text-accent">
                           SOLDE GLOBAL
                         </Badge>
                       )}
                       {possibleDuplicate ? (
-                        <Badge className="border border-red-500/20 bg-red-500/10 text-red-300">
+                        <Badge className="border border-red-500/20 bg-red-500/10 text-danger">
                           DOUBLON POSSIBLE
                         </Badge>
                       ) : null}
@@ -309,17 +307,17 @@ export default async function RefundsPage({ searchParams }: { searchParams?: Par
                   <RecordField
                     label="Payé"
                     value={formatMoney(paid, r.currency)}
-                    valueClassName="text-emerald-300"
+                    valueClassName="text-success"
                   />
                   <RecordField
                     label="Restant"
                     value={formatMoney(remaining, r.currency)}
-                    valueClassName={remaining > 0 ? "text-amber-300" : "text-emerald-300"}
+                    valueClassName={remaining > 0 ? "text-warning" : "text-success"}
                   />
                   <RecordField
                     label="Prochaine échéance"
                     value={next ? `${formatDate(next.dueDate)}${late ? ` · ${late} retard` : ""}` : "—"}
-                    valueClassName={late ? "text-amber-300" : undefined}
+                    valueClassName={late ? "text-warning" : undefined}
                   />
                 </RecordCard>
               );

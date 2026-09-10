@@ -64,11 +64,11 @@ export default async function BankStatementImportPage({
                   name="statement"
                   required
                   accept=".csv,.ofx,.qfx,text/csv,application/x-ofx"
-                  className="h-auto py-2.5 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-white"
+                  className="h-auto py-2.5 file:mr-3 file:rounded-lg file:border-0 file:bg-ink/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-ink"
                 />
               </Field>
             </div>
-            <div className="md:col-span-2 rounded-2xl border border-line bg-white/[0.025] p-4 text-xs leading-5 text-muted2">
+            <div className="md:col-span-2 rounded-2xl border border-line bg-ink/[0.025] p-4 text-xs leading-5 text-muted2">
               Le CSV doit contenir Date + Description + Montant, ou Date + Description + Débit/Crédit. Les
               noms de colonnes bancaires courants sont détectés automatiquement. Taille maximale : 8 Mo.
             </div>

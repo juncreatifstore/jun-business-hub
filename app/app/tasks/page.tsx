@@ -69,7 +69,7 @@ export default async function TasksPage({
         <TaskMetric icon={Clock3} label="Actives" value={activeCount} />
         <TaskMetric icon={UsersRound} label="En retard" value={overdueCount} alert={overdueCount > 0} />
       </div>
-      <form className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-white/[0.07] bg-[#0e1624] p-3 shadow-sm">
+      <form className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
         <input type="hidden" name="view" value={searchParams.view ?? "list"} />
         <Select name="status" defaultValue={status ?? "ALL"} className="w-44">
           <option value="ALL">Tous les statuts</option>
@@ -102,7 +102,7 @@ export default async function TasksPage({
         <div className="space-y-6">
           {[...byAssignee.entries()].map(([name, list]) => (
             <div key={name}>
-              <h2 className="mb-2 text-sm font-semibold text-slate-200">
+              <h2 className="mb-2 text-sm font-semibold text-ink">
                 {name} <span className="text-muted2">({list.length})</span>
               </h2>
               <TaskList tasks={list} focus={searchParams.focus} canEdit={canEdit} />
@@ -128,32 +128,32 @@ function TaskMetric({
 }) {
   return (
     <div
-      className={`rounded-2xl border p-4 ${alert ? "border-rose-400/20 bg-rose-500/[0.035]" : "border-white/[0.07] bg-[#101827]"}`}
+      className={`rounded-2xl border p-4 ${alert ? "border-rose-400/20 bg-rose-500/[0.035]" : "border-line bg-surface-1"}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted2">{label}</span>
-        <Icon className={`h-4 w-4 ${alert ? "text-rose-400" : "text-blue-400"}`} />
+        <Icon className={`h-4 w-4 ${alert ? "text-rose-400" : "text-accent"}`} />
       </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-2 text-2xl font-semibold text-ink">{value}</div>
     </div>
   );
 }
 function TaskList({ tasks, focus, canEdit }: { tasks: any[]; focus?: string; canEdit: boolean }) {
   const now = new Date();
   return (
-    <ul className="divide-y divide-white/[0.05] overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0e1624] shadow-sm">
+    <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm">
       {tasks.map((t) => {
         const overdue = t.dueDate && new Date(t.dueDate) < now && !["DONE", "CANCELLED"].includes(t.status);
         return (
           <li
             key={t.id}
             className={cn(
-              "flex flex-wrap items-center gap-3 px-5 py-3.5 transition hover:bg-white/[0.025]",
+              "flex flex-wrap items-center gap-3 px-5 py-3.5 transition hover:bg-ink/[0.025]",
               focus === t.id && "bg-blue-500/[0.07]",
             )}
           >
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-200">{t.title}</p>
+              <p className="text-sm font-medium text-ink">{t.title}</p>
               <p className="mt-1 text-xs text-muted2">
                 {t.case ? (
                   <Link className="registry-id hover:text-electric" href={`/app/cases/${t.case.id}`}>

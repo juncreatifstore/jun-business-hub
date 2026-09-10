@@ -28,13 +28,13 @@ export default async function NewBudgetPage({ searchParams }: { searchParams: { 
       )}
       <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-4">
         <div className="flex items-start gap-3">
-          <CalendarRange className="mt-0.5 h-5 w-5 shrink-0 text-blue-300" />
+          <CalendarRange className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
           <div>
             <div className="font-semibold text-blue-100">Année budgétaire JUN</div>
             <div className="mt-1 text-sm text-blue-200">
               FY{year} : <strong>01 septembre {year - 1}</strong> au <strong>30 août {year}</strong>.
             </div>
-            <div className="mt-1 text-xs text-blue-300">
+            <div className="mt-1 text-xs text-accent">
               Les 12 colonnes du budget suivent l’ordre : Sep → Oct → Nov → Déc → Jan → … → Août.
             </div>
           </div>
@@ -65,7 +65,7 @@ export default async function NewBudgetPage({ searchParams }: { searchParams: { 
             <Field label="Devise" hint="Les devises ne sont pas mélangées.">
               <Input name="currency" maxLength={3} defaultValue="USD" required className="uppercase" />
             </Field>
-            <div className="md:col-span-2 rounded-2xl border border-line bg-white/[0.025] p-4 text-xs text-muted2">
+            <div className="md:col-span-2 rounded-2xl border border-line bg-ink/[0.025] p-4 text-xs text-muted2">
               <Info className="mr-1 inline h-4 w-4" />
               Après création, vous pourrez planifier les montants mois par mois et ajouter les dossiers JUN
               comme <strong>projets</strong> avec revenus, dépenses et profits propres.

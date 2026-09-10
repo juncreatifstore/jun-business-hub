@@ -28,7 +28,7 @@ export default async function ReportsPage() {
       <div className="mb-5 flex justify-end">
         <a
           href="/api/finance/export.csv"
-          className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#101827] px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/[0.05]"
+          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs font-medium text-ink-2 transition hover:bg-ink/[0.05]"
         >
           <Download className="h-4 w-4" />
           Exporter CSV finance
@@ -41,7 +41,7 @@ export default async function ReportsPage() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>{row.currency}</span>
-                <span className="rounded-full bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-300">
+                <span className="rounded-full bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-accent">
                   {row.paymentCount} paiement{row.paymentCount === 1 ? "" : "s"}
                 </span>
               </CardTitle>
@@ -50,7 +50,7 @@ export default async function ReportsPage() {
               <Line label="Encaissements" value={formatMoney(row.collected, row.currency)} />
               <Line label="Frais estimés" value={formatMoney(row.fees, row.currency)} />
               <Line label="Remboursements payés" value={formatMoney(row.refundsPaid, row.currency)} />
-              <div className="border-t border-white/[0.06] pt-3">
+              <div className="border-t border-line pt-3">
                 <Line label="Cash net" value={formatMoney(row.netCash, row.currency)} strong />
               </div>
             </CardContent>
@@ -66,11 +66,8 @@ export default async function ReportsPage() {
           <CardContent className="space-y-2">
             {data.monthCurrencies.length ? (
               data.monthCurrencies.map((row) => (
-                <div
-                  key={row.currency}
-                  className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
-                >
-                  <div className="mb-2 registry-id text-blue-300">{row.currency}</div>
+                <div key={row.currency} className="rounded-xl border border-line bg-ink/[0.025] p-3">
+                  <div className="mb-2 registry-id text-accent">{row.currency}</div>
                   <Line label="Encaissements après frais" value={formatMoney(row.collected, row.currency)} />
                   <Line label="Remboursements" value={formatMoney(row.refunds, row.currency)} />
                   <Line label="Mouvement net" value={formatMoney(row.net, row.currency)} strong />
@@ -88,16 +85,14 @@ export default async function ReportsPage() {
           <CardContent className="space-y-2">
             {data.methods.length ? (
               data.methods.map((row) => (
-                <div key={row.method} className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
+                <div key={row.method} className="rounded-xl border border-line bg-ink/[0.025] p-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-200">
-                      {row.method.replaceAll("_", " ")}
-                    </span>
+                    <span className="text-sm font-medium text-ink">{row.method.replaceAll("_", " ")}</span>
                     <span className="text-xs text-muted2">
                       {row.count} paiement{row.count === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <div className="mt-2 space-y-1 text-xs text-slate-400">
+                  <div className="mt-2 space-y-1 text-xs text-ink-3">
                     {Object.entries(row.amountByCurrency).map(([currency, amount]) => (
                       <div key={currency}>{formatMoney(amount, currency)}</div>
                     ))}
@@ -115,12 +110,12 @@ export default async function ReportsPage() {
 }
 function Metric({ icon: Icon, label, value }: { icon: typeof WalletCards; label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-[#101827] p-4">
+    <div className="rounded-2xl border border-line bg-surface-1 p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted2">{label}</span>
-        <Icon className="h-4 w-4 text-blue-400" />
+        <Icon className="h-4 w-4 text-accent" />
       </div>
-      <div className="mt-2 text-xl font-semibold text-white">{value}</div>
+      <div className="mt-2 text-xl font-semibold text-ink">{value}</div>
     </div>
   );
 }
@@ -128,7 +123,7 @@ function Line({ label, value, strong = false }: { label: string; value: string; 
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-muted2">{label}</span>
-      <span className={strong ? "font-semibold text-white" : "font-medium text-slate-300"}>{value}</span>
+      <span className={strong ? "font-semibold text-ink" : "font-medium text-ink-2"}>{value}</span>
     </div>
   );
 }

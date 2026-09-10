@@ -60,8 +60,8 @@ export default async function MailPage({
   return (
     <div className="space-y-3">
       <GmailStyleMailCenterV6 searchParams={{ ...searchParams, mailbox }} />
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.07] bg-[#0f1929] px-3 py-2">
-        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-slate-500">JUN tools</span>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2">
+        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-ink-3">JUN tools</span>
         <Link href="/app/mail/search">
           <Button size="sm" variant="ghost">
             Search

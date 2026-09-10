@@ -183,7 +183,7 @@ export function InvoiceEditForm({
                   type="button"
                   onClick={() => remove(r.id)}
                   disabled={rows.length === 1}
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line px-3 text-sm text-muted2 transition hover:border-red-500/30 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto md:w-10 md:px-0"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line px-3 text-sm text-muted2 transition hover:border-red-500/30 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto md:w-10 md:px-0"
                   aria-label="Supprimer cette ligne"
                 >
                   <Trash2 className="h-4 w-4" />

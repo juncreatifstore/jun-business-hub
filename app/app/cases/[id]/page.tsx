@@ -312,7 +312,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
                   </div>
                   <button
                     type="submit"
-                    className="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                    className="inline-flex w-full items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-ink hover:bg-red-700"
                   >
                     Delete service permanently
                   </button>

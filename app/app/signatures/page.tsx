@@ -175,7 +175,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
             <p className="text-xs uppercase tracking-wider text-muted2">Taux de signature</p>
             <div className="mt-2 flex items-end justify-between gap-3">
               <p className="text-3xl font-semibold">{signatureRate}%</p>
-              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+              <CheckCircle2 className="h-5 w-5 text-success" />
             </div>
             <p className="mt-1 text-xs text-muted2">
               {completed} signée(s) / {activated} activée(s)
@@ -190,7 +190,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
               <p className="text-xs uppercase tracking-wider text-muted2">À traiter</p>
               <div className="mt-2 flex items-end justify-between">
                 <p className="text-3xl font-semibold">{attentionCount}</p>
-                <AlertTriangle className="h-5 w-5 text-amber-400" />
+                <AlertTriangle className="h-5 w-5 text-warning" />
               </div>
               <p className="mt-1 text-xs text-muted2">Exceptions et demandes bloquées</p>
             </CardContent>
@@ -204,7 +204,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
               <p className="text-xs uppercase tracking-wider text-muted2">Expiration proche</p>
               <div className="mt-2 flex items-end justify-between">
                 <p className="text-3xl font-semibold">{expiringCount}</p>
-                <Clock3 className="h-5 w-5 text-amber-400" />
+                <Clock3 className="h-5 w-5 text-warning" />
               </div>
               <p className="mt-1 text-xs text-muted2">Échéance dans moins de 3 jours</p>
             </CardContent>
@@ -215,7 +215,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
             <p className="text-xs uppercase tracking-wider text-muted2">Demandes totales</p>
             <div className="mt-2 flex items-end justify-between">
               <p className="text-3xl font-semibold">{enriched.length}</p>
-              <FileSignature className="h-5 w-5 text-blue-400" />
+              <FileSignature className="h-5 w-5 text-accent" />
             </div>
             <p className="mt-1 text-xs text-muted2">500 demandes les plus récentes</p>
           </CardContent>
@@ -243,7 +243,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
       <form
         method="get"
         action="/app/signatures"
-        className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3"
+        className="mb-5 flex flex-wrap gap-2 rounded-2xl border border-line bg-ink/[0.025] p-3"
       >
         {status ? <input type="hidden" name="status" value={status} /> : null}
         {attentionOnly ? <input type="hidden" name="attention" value="1" /> : null}
@@ -254,7 +254,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
             name="q"
             defaultValue={params.q ?? ""}
             placeholder="Client, document, email du signataire…"
-            className="h-10 w-full rounded-xl border border-line bg-white/[0.025] pl-9 pr-3 text-sm outline-none focus:border-electric focus:ring-2 focus:ring-electric/20"
+            className="h-10 w-full rounded-xl border border-line bg-ink/[0.025] pl-9 pr-3 text-sm outline-none focus:border-electric focus:ring-2 focus:ring-electric/20"
           />
         </div>
         <Button type="submit" variant="secondary">
@@ -332,7 +332,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
                         </div>
                         <div className="mt-0.5 text-xs text-muted2">
                           {verified ? (
-                            <span className="mr-2 inline-flex items-center gap-1 text-emerald-400">
+                            <span className="mr-2 inline-flex items-center gap-1 text-success">
                               <MailCheck className="h-3 w-3" />
                               Vérifiée
                             </span>
@@ -359,7 +359,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
                       </TD>
                       <TD>
                         {attention ? (
-                          <span className="inline-flex max-w-[230px] items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.08] px-2 py-1 text-xs text-amber-300">
+                          <span className="inline-flex max-w-[230px] items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.08] px-2 py-1 text-xs text-warning">
                             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                             {attention}
                           </span>
@@ -393,7 +393,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
                     <>
                       <StatusBadge status={request.status} />
                       {verified ? (
-                        <Badge className="border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
+                        <Badge className="border border-emerald-400/20 bg-emerald-500/10 text-success">
                           IDENTITÉ VÉRIFIÉE
                         </Badge>
                       ) : null}
@@ -418,7 +418,7 @@ export default async function SignaturesPage({ searchParams }: { searchParams?: 
                   />
                   <RecordField label="Expiration" value={expiresAt ? formatDate(expiresAt) : "—"} />
                   {attention ? (
-                    <RecordField label="Attention" value={attention} valueClassName="text-amber-300" />
+                    <RecordField label="Attention" value={attention} valueClassName="text-warning" />
                   ) : null}
                 </RecordCard>
               );

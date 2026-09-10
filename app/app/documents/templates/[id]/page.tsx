@@ -70,7 +70,7 @@ export default async function TemplateDetailPage({ params }: { params: { id: str
           ) : template.isActive ? (
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">ACTIVE</span>
           ) : (
-            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">INACTIVE</span>
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-ink-2">INACTIVE</span>
           )}
         </div>
         <p className="mt-1 text-sm text-muted2">

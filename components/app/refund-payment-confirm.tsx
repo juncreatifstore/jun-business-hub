@@ -36,7 +36,7 @@ export function RefundPaymentConfirm({
       {state.message && (
         <p
           role={state.success ? "status" : "alert"}
-          className={`max-w-lg text-sm ${state.success ? "text-emerald-300" : "text-red-300"}`}
+          className={`max-w-lg text-sm ${state.success ? "text-success" : "text-danger"}`}
         >
           {state.message}
         </p>

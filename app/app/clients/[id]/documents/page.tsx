@@ -93,9 +93,9 @@ export default async function ClientDocumentsPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Documents</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">Documents officiels & Drive</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-2">Documents</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Documents officiels & Drive</h2>
+          <p className="mt-1 text-sm text-ink-3">
             Documents JUN, identité, preuves, pièces de voyage et fichiers liés aux dossiers.
           </p>
         </div>
@@ -162,15 +162,13 @@ export default async function ClientDocumentsPage({
       ) : null}
 
       {can(user, "FILE_UPLOAD") ? (
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Ajouter un fichier</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">
-                Le fichier sera automatiquement rattaché au client.
-              </p>
+              <p className="mt-1 text-xs text-ink-3">Le fichier sera automatiquement rattaché au client.</p>
             </div>
-            <UploadCloud className="h-4 w-4 text-blue-400" />
+            <UploadCloud className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
             <form action={uploadFile} className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -205,7 +203,7 @@ export default async function ClientDocumentsPage({
                 </Button>
               </div>
             </form>
-            <p className="mt-3 text-xs text-slate-600">
+            <p className="mt-3 text-xs text-ink-2">
               Utilisez un dossier lorsqu’un fichier appartient à une prestation précise. Les pièces d’identité
               générales peuvent rester au niveau du client.
             </p>
@@ -213,11 +211,11 @@ export default async function ClientDocumentsPage({
         </Card>
       ) : null}
 
-      <Card className="bg-[#0e1624]">
+      <Card className="bg-surface-1">
         <CardHeader>
           <div>
             <CardTitle>Inventaire par catégorie</CardTitle>
-            <p className="mt-1 text-xs text-slate-500">Aperçu rapide des pièces présentes dans le dossier.</p>
+            <p className="mt-1 text-xs text-ink-3">Aperçu rapide des pièces présentes dans le dossier.</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -230,7 +228,7 @@ export default async function ClientDocumentsPage({
                     className={
                       count
                         ? "border border-emerald-500/15 bg-emerald-500/[0.07] text-emerald-600"
-                        : "border border-white/[0.06] bg-white/[0.02] text-slate-600"
+                        : "border border-line bg-ink/[0.02] text-ink-2"
                     }
                   >
                     {cat.replaceAll("_", " ")} · {count}
@@ -242,18 +240,18 @@ export default async function ClientDocumentsPage({
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden bg-[#0e1624]">
+      <Card className="overflow-hidden bg-surface-1">
         <CardHeader>
           <div>
             <CardTitle>Documents officiels JUN</CardTitle>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-ink-3">
               Contrats, accords, factures, lettres et documents du registre.
             </p>
           </div>
           {can(user, "DOCUMENT_CREATE") ? (
             <Link
               href={`/app/documents/new?clientId=${client.id}`}
-              className="text-sm font-medium text-blue-400 hover:text-blue-300"
+              className="text-sm font-medium text-accent hover:text-accent"
             >
               Créer document
             </Link>
@@ -263,7 +261,7 @@ export default async function ClientDocumentsPage({
           {client.documents.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-white/[0.025] text-left text-[10px] uppercase tracking-[0.12em] text-slate-600">
+                <thead className="bg-ink/[0.025] text-left text-[10px] uppercase tracking-[0.12em] text-ink-2">
                   <tr>
                     <th className="p-3">Document</th>
                     <th className="p-3">Type</th>
@@ -274,50 +272,48 @@ export default async function ClientDocumentsPage({
                 </thead>
                 <tbody>
                   {client.documents.map((d) => (
-                    <tr key={d.id} className="border-t border-white/[0.055] transition hover:bg-white/[0.02]">
+                    <tr key={d.id} className="border-t border-line transition hover:bg-ink/[0.02]">
                       <td className="p-3">
                         <Link
                           href={`/app/documents/${d.id}`}
-                          className="font-medium text-slate-200 hover:text-blue-400"
+                          className="font-medium text-ink hover:text-accent"
                         >
                           {d.title}
                         </Link>
-                        <div className="registry-id mt-1 text-xs text-slate-600">{d.documentId}</div>
+                        <div className="registry-id mt-1 text-xs text-ink-2">{d.documentId}</div>
                       </td>
                       <td className="p-3">{d.type.replaceAll("_", " ")}</td>
                       <td className="p-3">
                         {d.case ? (
-                          <Link href={`/app/cases/${d.case.id}`} className="text-blue-400 hover:underline">
+                          <Link href={`/app/cases/${d.case.id}`} className="text-accent hover:underline">
                             {d.case.caseNumber}
                           </Link>
                         ) : (
-                          <span className="text-slate-600">Niveau client</span>
+                          <span className="text-ink-2">Niveau client</span>
                         )}
                       </td>
                       <td className="p-3">
                         <StatusBadge status={d.status} />
                       </td>
-                      <td className="p-3 text-slate-600">{formatDateTime(d.updatedAt)}</td>
+                      <td className="p-3 text-ink-2">{formatDateTime(d.updatedAt)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="p-6 text-center text-sm text-slate-500">Aucun document officiel lié à ce client.</p>
+            <p className="p-6 text-center text-sm text-ink-3">Aucun document officiel lié à ce client.</p>
           )}
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden bg-[#0e1624]">
+      <Card className="overflow-hidden bg-surface-1">
         <CardHeader>
           <div>
             <CardTitle>Fichiers Drive</CardTitle>
-            <p className="mt-1 text-xs text-slate-500">
-              Pièces téléversées, preuves et fichiers opérationnels.
-            </p>
+            <p className="mt-1 text-xs text-ink-3">Pièces téléversées, preuves et fichiers opérationnels.</p>
           </div>
-          <Link href="/app/drive" className="text-sm font-medium text-blue-400 hover:text-blue-300">
+          <Link href="/app/drive" className="text-sm font-medium text-accent hover:text-accent">
             Drive complet
           </Link>
         </CardHeader>
@@ -325,7 +321,7 @@ export default async function ClientDocumentsPage({
           {client.files.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-white/[0.025] text-left text-[10px] uppercase tracking-[0.12em] text-slate-600">
+                <thead className="bg-ink/[0.025] text-left text-[10px] uppercase tracking-[0.12em] text-ink-2">
                   <tr>
                     <th className="p-3">Fichier</th>
                     <th className="p-3">Catégorie</th>
@@ -337,36 +333,36 @@ export default async function ClientDocumentsPage({
                 </thead>
                 <tbody>
                   {client.files.map((f) => (
-                    <tr key={f.id} className="border-t border-white/[0.055] transition hover:bg-white/[0.02]">
+                    <tr key={f.id} className="border-t border-line transition hover:bg-ink/[0.02]">
                       <td className="p-3">
-                        <div className="font-medium text-slate-200">{f.name}</div>
-                        <div className="mt-1 text-xs text-slate-600">{f.mimeType}</div>
+                        <div className="font-medium text-ink">{f.name}</div>
+                        <div className="mt-1 text-xs text-ink-2">{f.mimeType}</div>
                       </td>
                       <td className="p-3">
-                        <Badge className="border border-white/[0.06] bg-white/[0.02] text-slate-500">
+                        <Badge className="border border-line bg-ink/[0.02] text-ink-3">
                           {f.category.replaceAll("_", " ")}
                         </Badge>
                       </td>
                       <td className="p-3">
                         {f.case ? (
-                          <Link href={`/app/cases/${f.case.id}`} className="text-blue-400 hover:underline">
+                          <Link href={`/app/cases/${f.case.id}`} className="text-accent hover:underline">
                             {f.case.caseNumber} · {f.case.title}
                           </Link>
                         ) : (
-                          <span className="text-amber-400">Dossier général client</span>
+                          <span className="text-warning">Dossier général client</span>
                         )}
                       </td>
-                      <td className="p-3 text-slate-600">{bytes(f.sizeBytes)}</td>
+                      <td className="p-3 text-ink-2">{bytes(f.sizeBytes)}</td>
                       <td className="p-3">
                         <div>{formatDate(f.createdAt)}</div>
-                        <div className="text-xs text-slate-600">
+                        <div className="text-xs text-ink-2">
                           {f.uploadedBy.firstName} {f.uploadedBy.lastName}
                         </div>
                       </td>
                       <td className="p-3">
                         <Link
                           href={`/app/drive?q=${encodeURIComponent(f.name)}`}
-                          className="text-blue-400 hover:underline"
+                          className="text-accent hover:underline"
                         >
                           Trouver dans Drive
                         </Link>
@@ -377,7 +373,7 @@ export default async function ClientDocumentsPage({
               </table>
             </div>
           ) : (
-            <p className="p-6 text-center text-sm text-slate-500">Aucun fichier Drive lié à ce client.</p>
+            <p className="p-6 text-center text-sm text-ink-3">Aucun fichier Drive lié à ce client.</p>
           )}
         </CardContent>
       </Card>
@@ -399,20 +395,20 @@ function Metric({
   tone: "blue" | "green" | "violet" | "amber";
 }) {
   const tones = {
-    blue: "bg-blue-500/10 text-blue-400",
-    green: "bg-emerald-500/10 text-emerald-400",
+    blue: "bg-blue-500/10 text-accent",
+    green: "bg-emerald-500/10 text-success",
     violet: "bg-violet-500/10 text-violet-400",
-    amber: "bg-amber-500/10 text-amber-400",
+    amber: "bg-amber-500/10 text-warning",
   };
   return (
-    <Card className="bg-[#0e1624]">
+    <Card className="bg-surface-1">
       <CardContent className="p-4">
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}>
           <Icon className="h-4 w-4" />
         </span>
-        <div className="mt-3 text-xs text-slate-500">{label}</div>
-        <div className="mt-1 text-xl font-semibold text-slate-100">{value}</div>
-        <div className="mt-1 text-[11px] text-slate-600">{hint}</div>
+        <div className="mt-3 text-xs text-ink-3">{label}</div>
+        <div className="mt-1 text-xl font-semibold text-ink">{value}</div>
+        <div className="mt-1 text-[11px] text-ink-2">{hint}</div>
       </CardContent>
     </Card>
   );

@@ -69,7 +69,7 @@ export default async function TeamPage() {
                   <p className="text-xs text-muted2">{m.email}</p>
                 </TD>
                 <TD>
-                  <Badge className="bg-white/10 text-white/80">{m.role.replaceAll("_", " ")}</Badge>
+                  <Badge className="bg-ink/10 text-ink/80">{m.role.replaceAll("_", " ")}</Badge>
                 </TD>
                 <TD className="text-muted2">{m.department?.label ?? "—"}</TD>
                 <TD>
@@ -83,13 +83,13 @@ export default async function TeamPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       {m.status === "ACTIVE" ? (
                         <form action={setUserStatus.bind(null, m.id, "SUSPENDED")}>
-                          <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-amber-400 hover:text-amber-400">
+                          <button className="rounded-md border border-line px-2 py-1 text-xs text-muted2 hover:border-amber-400 hover:text-warning">
                             Suspend
                           </button>
                         </form>
                       ) : (
                         <form action={setUserStatus.bind(null, m.id, "ACTIVE")}>
-                          <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-emerald-400 hover:text-emerald-400">
+                          <button className="rounded-md border border-line px-2 py-1 text-xs text-muted2 hover:border-emerald-400 hover:text-success">
                             Activate
                           </button>
                         </form>
@@ -101,9 +101,9 @@ export default async function TeamPage() {
                           minLength={10}
                           required
                           placeholder="New password"
-                          className="h-7 w-32 rounded-md border border-white/10 bg-white/5 px-2 text-xs outline-none focus:border-electric"
+                          className="h-7 w-32 rounded-md border border-line bg-ink/5 px-2 text-xs outline-none focus:border-electric"
                         />
-                        <button className="rounded-md border border-white/10 px-2 py-1 text-xs text-muted2 hover:border-electric hover:text-electric">
+                        <button className="rounded-md border border-line px-2 py-1 text-xs text-muted2 hover:border-electric hover:text-electric">
                           Reset
                         </button>
                       </form>

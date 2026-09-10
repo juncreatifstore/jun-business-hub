@@ -189,7 +189,7 @@ export function FileUploadForm({
                 ? undefined
                 : "audio/*,video/*,image/*,.pdf,.txt,.csv,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
             }
-            className="file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-1 file:text-sm file:text-white"
+            className="file:mr-3 file:rounded-md file:border-0 file:bg-ink/10 file:px-3 file:py-1 file:text-sm file:text-ink"
           />
         </Field>
         {!isVault ? (

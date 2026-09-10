@@ -43,7 +43,7 @@ export default async function AccountingLedgerPage({
           </Link>
           {can(user, "ACCOUNTING_POST") && (
             <form action={syncAccountingLedgerAction}>
-              <button className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-white">
+              <button className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-ink">
                 <RefreshCw className="h-4 w-4" />
                 Sync ledger
               </button>

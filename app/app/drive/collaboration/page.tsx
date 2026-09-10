@@ -102,7 +102,7 @@ export default async function DriveCollaborationPage({
                       placeholder="Optional approval note"
                       className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-white px-2 text-xs"
                     />
-                    <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 text-xs font-medium text-white">
+                    <button className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 text-xs font-medium text-ink">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Approve
                     </button>
                   </form>

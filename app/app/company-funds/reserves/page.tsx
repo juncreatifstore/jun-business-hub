@@ -190,7 +190,7 @@ export default async function FinancialReservesPage({ searchParams }: { searchPa
             <Input name="targetAmount" label="Objectif" type="number" required />
             <Input name="reservedAmount" label="Déjà réservé" type="number" defaultValue="0" required />
             <Input name="note" label="Note / politique" />
-            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white">
+            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
               Créer la réserve
             </button>
           </form>

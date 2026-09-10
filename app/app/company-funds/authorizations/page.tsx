@@ -102,7 +102,7 @@ export default async function FinancialAuthorizationsPage() {
                 </span>
               </span>
             </label>
-            <button className="self-end rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white">
+            <button className="self-end rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
               Enregistrer la politique
             </button>
           </form>

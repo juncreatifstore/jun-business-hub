@@ -55,7 +55,7 @@ export default async function EmailSettingsPage({
       {reconnectRequired ? (
         <div className="mb-6 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
             <div className="min-w-0 flex-1">
               <p className="font-semibold">Reconnexion Gmail requise</p>
               <p className="mt-1 break-words text-amber-100/75">
@@ -97,9 +97,9 @@ export default async function EmailSettingsPage({
             </>
           ) : (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-              <p className="font-medium text-amber-300">IDENTIFIANTS GOOGLE REQUIS</p>
+              <p className="font-medium text-warning">IDENTIFIANTS GOOGLE REQUIS</p>
               <p className="mt-1 text-muted2">Configurez les variables d’environnement suivantes :</p>
-              <pre className="registry-id mt-2 overflow-x-auto whitespace-pre-wrap break-all text-xs text-white/70">
+              <pre className="registry-id mt-2 overflow-x-auto whitespace-pre-wrap break-all text-xs text-ink/70">
                 GOOGLE_CLIENT_ID{"\n"}GOOGLE_CLIENT_SECRET{"\n"}GOOGLE_REDIRECT_URI =
                 https://www.juncreatif.org/api/google/oauth/callback
               </pre>
@@ -110,7 +110,7 @@ export default async function EmailSettingsPage({
       <Card className="mb-6 border-blue-400/20 bg-blue-500/[0.04]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-blue-300" />
+            <ShieldCheck className="h-4 w-4 text-accent" />
             Expéditeur OTP client
           </CardTitle>
         </CardHeader>
@@ -121,11 +121,11 @@ export default async function EmailSettingsPage({
           </p>
           {otpSender ? (
             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/[0.06] p-3">
-              <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
-              <span className="min-w-0 break-all font-medium text-slate-100">
+              <Star className="h-4 w-4 shrink-0 fill-amber-400 text-warning" />
+              <span className="min-w-0 break-all font-medium text-ink">
                 {otpSender.displayName || otpSender.email}
               </span>
-              <Badge className="bg-blue-500/15 text-blue-300">OTP / FAVORITE</Badge>
+              <Badge className="bg-blue-500/15 text-accent">OTP / FAVORITE</Badge>
               <span className="break-all text-xs text-muted2">{otpSender.email}</span>
             </div>
           ) : (
@@ -164,17 +164,17 @@ export default async function EmailSettingsPage({
                           <Badge
                             className={
                               needsReconnect
-                                ? "bg-amber-500/15 text-amber-300"
+                                ? "bg-amber-500/15 text-warning"
                                 : hasTokens
-                                  ? "bg-emerald-500/15 text-emerald-300"
-                                  : "bg-red-500/15 text-red-300"
+                                  ? "bg-emerald-500/15 text-success"
+                                  : "bg-red-500/15 text-danger"
                             }
                           >
                             {needsReconnect ? "RECONNEXION REQUISE" : hasTokens ? "CONNECTÉE" : "DÉCONNECTÉE"}
                           </Badge>
                           {isOtpSender ? (
-                            <Badge className="bg-blue-500/15 text-blue-300">
-                              <Star className="mr-1 h-3 w-3 fill-amber-400 text-amber-400" />
+                            <Badge className="bg-blue-500/15 text-accent">
+                              <Star className="mr-1 h-3 w-3 fill-amber-400 text-warning" />
                               OTP FAVORITE
                             </Badge>
                           ) : null}
@@ -193,7 +193,7 @@ export default async function EmailSettingsPage({
                         ) : null}
                         {isOtpSender ? (
                           <Button variant="secondary" size="sm" disabled className="w-full lg:w-auto">
-                            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                            <Star className="h-4 w-4 fill-amber-400 text-warning" />
                             OTP favorite
                           </Button>
                         ) : null}

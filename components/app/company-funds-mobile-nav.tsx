@@ -182,7 +182,7 @@ export function CompanyFundsMobileNav({ workQueue }: { workQueue: WorkQueue }) {
   return (
     <>
       <div
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-ink/95 px-2 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-1.5 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur md:hidden"
         aria-label="Navigation mobile Fonds de l’entreprise"
       >
         <div className="grid grid-cols-5 gap-1">
@@ -198,7 +198,7 @@ export function CompanyFundsMobileNav({ workQueue }: { workQueue: WorkQueue }) {
                 onClick={() => closeMenu(false)}
                 className={cn(
                   "relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",
-                  isCurrent ? "bg-ink text-white" : "text-muted2 active:bg-surface",
+                  isCurrent ? "bg-ink text-ink" : "text-muted2 active:bg-surface",
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -225,7 +225,7 @@ export function CompanyFundsMobileNav({ workQueue }: { workQueue: WorkQueue }) {
             aria-haspopup="dialog"
             className={cn(
               "relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition",
-              moreActive || open ? "bg-ink text-white" : "text-muted2 active:bg-surface",
+              moreActive || open ? "bg-ink text-ink" : "text-muted2 active:bg-surface",
             )}
           >
             <Menu className="h-4 w-4" />
@@ -326,14 +326,14 @@ export function CompanyFundsMobileNav({ workQueue }: { workQueue: WorkQueue }) {
                             className={cn(
                               "flex items-center gap-3 rounded-2xl border px-3 py-3 transition",
                               isCurrent
-                                ? "border-ink bg-ink text-white"
+                                ? "border-ink bg-ink text-ink"
                                 : "border-line bg-white text-ink active:bg-surface",
                             )}
                           >
                             <span
                               className={cn(
                                 "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                                isCurrent ? "bg-white/10" : "bg-surface",
+                                isCurrent ? "bg-ink/10" : "bg-surface",
                               )}
                             >
                               <Icon className="h-4 w-4" />
@@ -343,7 +343,7 @@ export function CompanyFundsMobileNav({ workQueue }: { workQueue: WorkQueue }) {
                               <span
                                 className={cn(
                                   "mt-0.5 block text-[11px]",
-                                  isCurrent ? "text-white/60" : "text-muted2",
+                                  isCurrent ? "text-ink/60" : "text-muted2",
                                 )}
                               >
                                 {group}

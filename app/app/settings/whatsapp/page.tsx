@@ -86,7 +86,7 @@ export default async function WhatsAppSettingsPage() {
                       : "Vérification impossible"}
               </div>
               {subscription.error ? (
-                <div className="mt-2 break-words text-xs text-red-300">{subscription.error}</div>
+                <div className="mt-2 break-words text-xs text-danger">{subscription.error}</div>
               ) : null}
               {subscription.subscribedApps.length ? (
                 <div className="mt-2 break-words text-xs text-muted2">
@@ -103,7 +103,7 @@ export default async function WhatsAppSettingsPage() {
                 Meta App ID ↔ application abonnée
               </div>
               <div
-                className={`mt-1 text-sm font-semibold ${subscription.appMatch === true ? "text-emerald-300" : subscription.appMatch === false ? "text-red-300" : "text-amber-300"}`}
+                className={`mt-1 text-sm font-semibold ${subscription.appMatch === true ? "text-success" : subscription.appMatch === false ? "text-danger" : "text-warning"}`}
               >
                 {subscription.appMatch === true
                   ? "MATCH"
@@ -133,7 +133,7 @@ export default async function WhatsAppSettingsPage() {
                 Phone Number ID ↔ WABA
               </div>
               <div
-                className={`mt-1 text-sm font-semibold ${phoneWabaMatch.ok && phoneWabaMatch.match ? "text-emerald-300" : phoneWabaMatch.configured ? "text-red-300" : "text-amber-300"}`}
+                className={`mt-1 text-sm font-semibold ${phoneWabaMatch.ok && phoneWabaMatch.match ? "text-success" : phoneWabaMatch.configured ? "text-danger" : "text-warning"}`}
               >
                 {!phoneWabaMatch.configured
                   ? "Configuration incomplète"
@@ -148,7 +148,7 @@ export default async function WhatsAppSettingsPage() {
                 </div>
               ) : null}
               {phoneWabaMatch.error ? (
-                <div className="mt-2 break-words text-xs text-red-300">{phoneWabaMatch.error}</div>
+                <div className="mt-2 break-words text-xs text-danger">{phoneWabaMatch.error}</div>
               ) : null}
             </div>
             <div className={`min-w-0 rounded-xl border p-4 ${diag(Boolean(heartbeat?.receivedAt))}`}>
@@ -310,20 +310,20 @@ export default async function WhatsAppSettingsPage() {
               <p className="font-semibold text-emerald-200">Template à créer dans Meta WhatsApp Manager</p>
               <div className="mt-3 grid gap-2 text-xs text-muted2">
                 <p>
-                  <strong className="text-slate-200">Nom :</strong> {GENERAL_DOCUMENT_TEMPLATE}
+                  <strong className="text-ink">Nom :</strong> {GENERAL_DOCUMENT_TEMPLATE}
                 </p>
                 <p>
-                  <strong className="text-slate-200">Catégorie :</strong> Utility
+                  <strong className="text-ink">Catégorie :</strong> Utility
                 </p>
                 <p>
-                  <strong className="text-slate-200">Langue :</strong> Français (fr)
+                  <strong className="text-ink">Langue :</strong> Français (fr)
                 </p>
                 <p>
-                  <strong className="text-slate-200">Header :</strong> Document · dynamique
+                  <strong className="text-ink">Header :</strong> Document · dynamique
                 </p>
                 <div>
-                  <strong className="text-slate-200">Body :</strong>
-                  <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-emerald-400/15 bg-black/20 p-3 text-xs text-slate-200">
+                  <strong className="text-ink">Body :</strong>
+                  <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-emerald-400/15 bg-black/20 p-3 text-xs text-ink">
                     Bonjour {"{{customer_name}}"}, Votre document {"{{document_type}}"} est maintenant
                     disponible. Référence : {"{{document_reference}}"}
                     JUN CREATIF AND TRAVEL LLC
@@ -349,12 +349,12 @@ export default async function WhatsAppSettingsPage() {
             </div>
           </CardContent>
         </Card>
-        <div className="sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 -mx-1 flex flex-col gap-2 rounded-2xl border border-white/[0.08] bg-night/95 p-3 shadow-2xl backdrop-blur sm:static sm:mx-0 sm:flex-row sm:items-center sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="sticky bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-20 -mx-1 flex flex-col gap-2 rounded-2xl border border-line bg-night/95 p-3 shadow-2xl backdrop-blur sm:static sm:mx-0 sm:flex-row sm:items-center sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
           <Button type="submit" variant="primary" className="w-full sm:w-auto">
             Enregistrer WhatsApp
           </Button>
           <span
-            className={`text-center text-sm sm:text-left ${cfg.tokenConfigured && cfg.phoneNumberId ? "text-emerald-400" : "text-amber-400"}`}
+            className={`text-center text-sm sm:text-left ${cfg.tokenConfigured && cfg.phoneNumberId ? "text-success" : "text-warning"}`}
           >
             {cfg.tokenConfigured && cfg.phoneNumberId
               ? "Configuration enregistrée"

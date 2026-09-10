@@ -25,7 +25,7 @@ export function GeneratedDocumentWhatsAppShortcut() {
   return (
     <Link
       href={`/app/whatsapp/share?type=${encodeURIComponent(item.type)}&id=${encodeURIComponent(item.id)}`}
-      className="fixed bottom-24 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 lg:bottom-6 lg:right-6 lg:px-5"
+      className="fixed bottom-24 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-ink shadow-lg shadow-emerald-950/30 transition hover:bg-emerald-500 lg:bottom-6 lg:right-6 lg:px-5"
       aria-label="Envoyer ce document par WhatsApp"
     >
       <span aria-hidden>◉</span>

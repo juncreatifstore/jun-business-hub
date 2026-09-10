@@ -57,7 +57,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
           <CardContent className="space-y-4">
             {row?.mfaEnabled ? (
               <>
-                <p className="flex items-center gap-2 text-sm text-emerald-400">
+                <p className="flex items-center gap-2 text-sm text-success">
                   <ShieldCheck className="h-4 w-4 shrink-0" /> MFA est activé sur votre compte.
                 </p>
                 <form
@@ -90,7 +90,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
                   <img
                     src={qrDataUrl}
                     alt="QR code MFA"
-                    className="h-auto w-full max-w-[220px] rounded-xl border border-white/10 bg-white p-2"
+                    className="h-auto w-full max-w-[220px] rounded-xl border border-line bg-white p-2"
                     width={220}
                     height={220}
                   />
@@ -134,7 +134,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
             <CardTitle>Sessions actives</CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="divide-y divide-white/5">
+            <ul className="divide-y divide-line">
               {sessions.map((s) => (
                 <li key={s.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="min-w-0">
@@ -146,7 +146,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
                     </p>
                   </div>
                   {s.tokenHash === currentHash ? (
-                    <span className="w-fit rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400">
+                    <span className="w-fit rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-success">
                       Session actuelle
                     </span>
                   ) : (

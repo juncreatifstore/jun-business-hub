@@ -203,14 +203,14 @@ export function RefundPaymentPlan({
           autorisation financière.
         </p>
         {!valid && (
-          <p className="text-sm text-amber-300">
+          <p className="text-sm text-warning">
             Saisissez des montants positifs dont le total correspond au solde restant.
           </p>
         )}
         {state.message && (
           <p
             role={state.success ? "status" : "alert"}
-            className={`text-sm ${state.success ? "text-emerald-300" : "text-red-300"}`}
+            className={`text-sm ${state.success ? "text-success" : "text-danger"}`}
           >
             {state.message}
           </p>

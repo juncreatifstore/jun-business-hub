@@ -5,11 +5,33 @@ import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { ContextBack } from "./context-back";
 import { MobileBottomNav } from "./mobile-bottom-nav";
+import { ThemeProvider, useTheme } from "./theme";
 import { Toaster } from "@/components/ui/toast";
+import type { Theme } from "@/lib/theme";
 
 const SIDEBAR_KEY = "jun.sidebar.collapsed";
 
 export function AppShell({
+  user,
+  unread,
+  theme,
+  children,
+}: {
+  user: { firstName: string; lastName: string; role: string };
+  unread: number;
+  theme: Theme;
+  children: React.ReactNode;
+}) {
+  return (
+    <ThemeProvider initial={theme}>
+      <ShellFrame user={user} unread={unread}>
+        {children}
+      </ShellFrame>
+    </ThemeProvider>
+  );
+}
+
+function ShellFrame({
   user,
   unread,
   children,
@@ -18,6 +40,7 @@ export function AppShell({
   unread: number;
   children: React.ReactNode;
 }) {
+  const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -38,7 +61,7 @@ export function AppShell({
   }
 
   return (
-    <div className="jun-app-dark flex min-h-screen bg-[#070c14] text-ink">
+    <div data-theme={theme} className="flex min-h-screen bg-canvas text-ink">
       <Sidebar
         open={open}
         onClose={() => setOpen(false)}
@@ -47,9 +70,9 @@ export function AppShell({
         onToggleCollapsed={toggleCollapsed}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top_right,rgba(37,99,235,.055),transparent_32%),#070c14]">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Header user={user} unread={unread} onMenu={() => setOpen(true)} />
-        <main className="flex-1 px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:pb-6">
+        <main className="flex-1 px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:pb-8">
           <div className="mx-auto w-full max-w-[1720px]">
             <ContextBack />
             {children}

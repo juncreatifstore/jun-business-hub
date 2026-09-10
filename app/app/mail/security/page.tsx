@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 const HEALTH_CLASS: Record<string, string> = {
   HEALTHY: "bg-emerald-100 text-emerald-800",
   REFRESHABLE: "bg-blue-100 text-blue-800",
-  DISCONNECTED: "bg-slate-100 text-slate-700",
+  DISCONNECTED: "bg-slate-100 text-ink-2",
   ERROR: "bg-red-100 text-red-700",
 };
 const EVENT_CLASS: Record<string, string> = {

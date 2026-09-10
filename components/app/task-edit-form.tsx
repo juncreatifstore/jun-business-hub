@@ -128,7 +128,7 @@ export function TaskEditForm({
       </div>
 
       {state.message ? (
-        <p className="break-words text-sm text-red-400 sm:col-span-2">{state.message}</p>
+        <p className="break-words text-sm text-danger sm:col-span-2">{state.message}</p>
       ) : null}
       <div className="sm:col-span-2">
         <Submit />

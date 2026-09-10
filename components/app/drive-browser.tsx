@@ -596,7 +596,7 @@ function FileActions({
         <button
           type="button"
           onClick={onCopy}
-          className={`rounded-md p-1.5 hover:bg-surface ${file.publicDisabled ? "text-red-400" : "text-muted2"}`}
+          className={`rounded-md p-1.5 hover:bg-surface ${file.publicDisabled ? "text-danger" : "text-muted2"}`}
         >
           <Link2 className="h-4 w-4" />
         </button>
@@ -717,8 +717,8 @@ function PreviewModal({ file, onClose }: { file: DriveBrowserFile; onClose: () =
             </div>
           ) : isAudio ? (
             <div className="flex h-full flex-col items-center justify-center gap-5 bg-slate-950 p-8 text-white">
-              <Music2 className="h-16 w-16 text-white/35" />
-              <div className="max-w-xl truncate text-sm text-white/70">{file.name}</div>
+              <Music2 className="h-16 w-16 text-ink/35" />
+              <div className="max-w-xl truncate text-sm text-ink/70">{file.name}</div>
               <audio src={src} controls preload="metadata" className="w-full max-w-2xl" />
             </div>
           ) : isFrame ? (

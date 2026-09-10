@@ -107,7 +107,7 @@ export default async function PaymentAccountsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold">{account.label}</h3>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${account.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${account.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-ink-2"}`}
                       >
                         {account.enabled ? "ACTIVE" : "DISABLED"}
                       </span>

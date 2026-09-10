@@ -285,7 +285,7 @@ export default async function DriveAutomationPage() {
                         <span className="font-medium">{rule.name}</span>
                         <Badge
                           className={
-                            rule.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                            rule.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-ink-2"
                           }
                         >
                           {rule.enabled ? "ACTIVE" : "PAUSED"}

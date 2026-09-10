@@ -1,51 +1,80 @@
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLES: Record<string, string> = {
-  OPEN: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  IN_PROGRESS: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
-  WAITING_CLIENT: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
-  WAITING_INTERNAL: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
-  WAITING: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
-  COMPLETED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  DONE: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  CANCELLED: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
-  ARCHIVED: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
-  TODO: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  PENDING: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
-  CONFIRMED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  REJECTED: "border border-red-500/20 bg-red-500/10 text-red-600",
-  REFUNDED: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
-  PARTIALLY_REFUNDED: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
-  REQUESTED: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  UNDER_REVIEW: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
-  APPROVED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  PARTIALLY_PAID: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
-  PAID: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  DRAFT: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
-  FINAL: "border border-blue-400/20 bg-blue-500/15 text-blue-300",
-  SIGNED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  VOIDED: "border border-red-500/20 bg-red-500/10 text-red-600",
-  ACTIVE: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  LEAD: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  INACTIVE: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
-  LOW: "border border-slate-500/15 bg-slate-500/10 text-slate-500",
-  MEDIUM: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  HIGH: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
-  URGENT: "border border-red-500/20 bg-red-500/10 text-red-600",
-  PROPOSED: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  EXECUTED: "border border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
-  FAILED: "border border-red-500/20 bg-red-500/10 text-red-600",
-  READY_FOR_SIGNATURE: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  SENT: "border border-blue-500/20 bg-blue-500/10 text-blue-400",
-  VIEWED: "border border-violet-500/20 bg-violet-500/10 text-violet-700",
-  PARTIALLY_SIGNED: "border border-amber-500/20 bg-amber-500/10 text-amber-600",
+/**
+ * Status vocabulary → five tones. Adding a status means picking a tone here,
+ * not inventing colours at the call site.
+ */
+export type Tone = "info" | "warning" | "success" | "danger" | "neutral" | "accent";
+
+const TONE_CLASS: Record<Tone, string> = {
+  info: "tint-info text-info border-info/25",
+  accent: "tint-accent text-accent border-accent/25",
+  warning: "tint-warning text-warning border-warning/25",
+  success: "tint-success text-success border-success/25",
+  danger: "tint-danger text-danger border-danger/25",
+  neutral: "tint-neutral text-neutral border-neutral/25",
 };
 
-export function Badge({ className, children, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+const STATUS_TONE: Record<string, Tone> = {
+  // Cases / tasks
+  OPEN: "info",
+  TODO: "info",
+  IN_PROGRESS: "warning",
+  WAITING: "accent",
+  WAITING_CLIENT: "accent",
+  WAITING_INTERNAL: "accent",
+  COMPLETED: "success",
+  DONE: "success",
+  CANCELLED: "neutral",
+  ARCHIVED: "neutral",
+  // Money
+  PENDING: "warning",
+  CONFIRMED: "success",
+  REJECTED: "danger",
+  REFUNDED: "neutral",
+  PARTIALLY_REFUNDED: "warning",
+  REQUESTED: "info",
+  UNDER_REVIEW: "warning",
+  APPROVED: "success",
+  PARTIALLY_PAID: "warning",
+  PAID: "success",
+  // Documents / signatures
+  DRAFT: "neutral",
+  FINAL: "info",
+  SIGNED: "success",
+  VOIDED: "danger",
+  READY_FOR_SIGNATURE: "info",
+  SENT: "info",
+  VIEWED: "accent",
+  PARTIALLY_SIGNED: "warning",
+  // Clients / priority / AI
+  ACTIVE: "success",
+  LEAD: "info",
+  INACTIVE: "neutral",
+  LOW: "neutral",
+  MEDIUM: "info",
+  HIGH: "warning",
+  URGENT: "danger",
+  PROPOSED: "info",
+  EXECUTED: "success",
+  FAILED: "danger",
+};
+
+export function toneFor(status: string): Tone {
+  return STATUS_TONE[status] ?? "neutral";
+}
+
+export function Badge({
+  className,
+  tone,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement> & { tone?: Tone }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em]",
+        "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-2xs font-semibold leading-4 tracking-wide",
+        tone ? TONE_CLASS[tone] : "border-line bg-surface-2 text-ink-2",
         className,
       )}
       {...props}
@@ -55,9 +84,9 @@ export function Badge({ className, children, ...props }: React.HTMLAttributes<HT
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
+export function StatusBadge({ status, className }: { status: string; className?: string }) {
   return (
-    <Badge className={STATUS_STYLES[status] ?? "border border-slate-500/15 bg-slate-500/10 text-slate-500"}>
+    <Badge tone={toneFor(status)} className={className}>
       {status.replaceAll("_", " ")}
     </Badge>
   );

@@ -56,7 +56,7 @@ export default async function AccountingStatementsPage({
             className="mt-1 block rounded-lg border border-line px-3 py-2 text-sm text-ink"
           />
         </label>
-        <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white">Apply</button>
+        <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink">Apply</button>
         <a
           href={`/api/finance/accounting/export.csv?from=${ymd(range.from)}&to=${ymd(range.to)}`}
           className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-medium"

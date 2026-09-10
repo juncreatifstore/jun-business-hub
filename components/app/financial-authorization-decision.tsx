@@ -10,7 +10,7 @@ function Decisions({ singleAdmin }: { singleAdmin: boolean }) {
         name="decision"
         value="APPROVE"
         disabled={pending}
-        className="min-h-11 rounded-lg bg-emerald-700 px-3 text-sm text-white disabled:opacity-50"
+        className="min-h-11 rounded-lg bg-emerald-700 px-3 text-sm text-ink disabled:opacity-50"
       >
         {pending ? "Enregistrement…" : "Approuver"}
       </button>
@@ -19,7 +19,7 @@ function Decisions({ singleAdmin }: { singleAdmin: boolean }) {
           name="decision"
           value="REJECT"
           disabled={pending}
-          className="min-h-11 rounded-lg bg-red-700 px-3 text-sm text-white disabled:opacity-50"
+          className="min-h-11 rounded-lg bg-red-700 px-3 text-sm text-ink disabled:opacity-50"
         >
           Rejeter
         </button>
@@ -44,7 +44,7 @@ export function FinancialAuthorizationDecision({
   });
   if (requester && !singleAdminAllowed)
     return (
-      <p className="max-w-xs text-xs leading-relaxed text-amber-300">
+      <p className="max-w-xs text-xs leading-relaxed text-warning">
         Vous êtes le demandeur. Un autre Super Admin doit approuver ou rejeter cette demande.
       </p>
     );
@@ -67,7 +67,7 @@ export function FinancialAuthorizationDecision({
         />
       </label>
       {requester && (
-        <label className="flex max-w-xs items-start gap-2 text-xs text-amber-300">
+        <label className="flex max-w-xs items-start gap-2 text-xs text-warning">
           <input type="checkbox" name="singleAdminConfirmation" required className="mt-1" />
           <span>
             Je confirme cette validation exceptionnelle en tant qu’unique Super Admin actif. Motif obligatoire
@@ -79,7 +79,7 @@ export function FinancialAuthorizationDecision({
       {state.message && (
         <p
           role={state.success ? "status" : "alert"}
-          className={`max-w-xs text-xs ${state.success ? "text-emerald-300" : "text-red-300"}`}
+          className={`max-w-xs text-xs ${state.success ? "text-success" : "text-danger"}`}
         >
           {state.message}
         </p>

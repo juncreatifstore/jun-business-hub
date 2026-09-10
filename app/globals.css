@@ -8,181 +8,261 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-/* Brand tokens as HSL channels — overridable at runtime (Settings > Branding
-   writes these on a <style> tag), so the palette can change without a rebuild. */
+/* ─────────────────────────────────────────────────────────────────────────
+   Design tokens — HSL channel triplets so Tailwind alpha works everywhere.
+   Brand tokens are fixed. Semantic tokens flip between the light theme
+   (default) and the dark theme ([data-theme="dark"], user preference).
+   Settings > Branding may override brand tokens on a <style> tag at runtime.
+   ───────────────────────────────────────────────────────────────────────── */
 :root {
+  /* Brand */
   --jun-night: 222 47% 11%;
   --jun-night-soft: 221 39% 17%;
   --jun-electric: 217 91% 60%;
   --jun-gold: 42 62% 58%;
-  --jun-surface: 210 25% 98%;
-  --jun-line: 214 20% 90%;
+
+  /* Light theme (default) — cool paper, never warm cream */
+  --jun-canvas: 216 24% 97%;
+  --jun-surface: 0 0% 100%;
+  --jun-surface-1: 0 0% 100%;
+  --jun-surface-2: 216 22% 95%;
+  --jun-surface-3: 0 0% 100%;
+  --jun-line: 216 18% 89%;
+  --jun-line-strong: 216 16% 78%;
   --jun-ink: 222 39% 14%;
-  --jun-muted: 218 12% 45%;
+  --jun-ink-2: 220 12% 38%;
+  --jun-ink-3: 218 10% 52%;
+
+  --jun-accent: 217 85% 50%;
+  --jun-accent-fg: 0 0% 100%;
+  --jun-accent-soft: 217 90% 95%;
+  --jun-success: 152 55% 34%;
+  --jun-success-soft: 150 60% 94%;
+  --jun-warning: 34 88% 40%;
+  --jun-warning-soft: 40 95% 93%;
+  --jun-danger: 0 68% 47%;
+  --jun-danger-soft: 0 85% 95%;
+  --jun-info: 217 85% 50%;
+  --jun-info-soft: 217 90% 95%;
+  --jun-neutral: 218 10% 46%;
+  --jun-neutral-soft: 216 20% 93%;
+
+  /* Sidebar: always night, in both themes */
+  --jun-nav: 222 47% 9%;
+  --jun-nav-fg: 210 40% 96%;
+  --jun-nav-muted: 218 14% 62%;
+  --jun-nav-line: 0 0% 100%;
+  --jun-nav-active: 217 91% 60%;
+
+  --jun-shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 1px rgb(15 23 42 / 0.03);
+  --jun-shadow-pop: 0 12px 32px rgb(15 23 42 / 0.14), 0 2px 6px rgb(15 23 42 / 0.06);
+
+  color-scheme: light;
 }
 
-/* Authenticated application theme. Public pages keep the light palette above. */
-.jun-app-dark {
-  --jun-night: 222 47% 7%;
-  --jun-night-soft: 218 35% 11%;
+[data-theme="dark"] {
+  --jun-canvas: 222 47% 6%;
   --jun-surface: 218 35% 10%;
-  --jun-line: 217 24% 18%;
+  --jun-surface-1: 218 35% 10%;
+  --jun-surface-2: 218 30% 13%;
+  --jun-surface-3: 219 32% 12%;
+  --jun-line: 217 24% 17%;
+  --jun-line-strong: 217 20% 26%;
   --jun-ink: 210 40% 96%;
-  --jun-muted: 215 16% 64%;
+  --jun-ink-2: 215 20% 72%;
+  --jun-ink-3: 215 16% 58%;
+
+  --jun-accent: 217 91% 62%;
+  --jun-accent-fg: 222 47% 6%;
+  --jun-accent-soft: 217 91% 62%;
+  --jun-success: 152 60% 55%;
+  --jun-success-soft: 152 60% 55%;
+  --jun-warning: 40 92% 60%;
+  --jun-warning-soft: 40 92% 60%;
+  --jun-danger: 0 80% 66%;
+  --jun-danger-soft: 0 80% 66%;
+  --jun-info: 217 91% 62%;
+  --jun-info-soft: 217 91% 62%;
+  --jun-neutral: 215 16% 62%;
+  --jun-neutral-soft: 215 16% 62%;
+
+  --jun-nav: 222 47% 5%;
+  --jun-nav-line: 0 0% 100%;
+
+  --jun-shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px rgb(0 0 0 / 0.28);
+  --jun-shadow-pop: 0 18px 48px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.3);
+
   color-scheme: dark;
 }
 
-.jun-app-dark input,
-.jun-app-dark textarea,
-.jun-app-dark select {
-  color: hsl(var(--jun-ink));
+/* In dark mode the *-soft tints are the status colour itself at low alpha,
+   so `bg-success-soft` needs an alpha. Utilities below give the same look in
+   both themes without the call site knowing which theme is active. */
+.tint-accent {
+  background-color: hsl(var(--jun-accent-soft) / var(--tint-a, 1));
 }
-.jun-app-dark input::placeholder,
-.jun-app-dark textarea::placeholder {
-  color: hsl(var(--jun-muted));
+.tint-success {
+  background-color: hsl(var(--jun-success-soft) / var(--tint-a, 1));
 }
-.jun-app-dark input[type="file"]::file-selector-button {
-  margin-right: 0.75rem;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  border-radius: 0.65rem;
-  background: rgb(255 255 255 / 0.04);
-  color: rgb(226 232 240);
-  padding: 0.45rem 0.7rem;
-  cursor: pointer;
+.tint-warning {
+  background-color: hsl(var(--jun-warning-soft) / var(--tint-a, 1));
 }
-.jun-app-dark input[type="file"]::file-selector-button:hover {
-  background: rgb(255 255 255 / 0.07);
+.tint-danger {
+  background-color: hsl(var(--jun-danger-soft) / var(--tint-a, 1));
+}
+.tint-info {
+  background-color: hsl(var(--jun-info-soft) / var(--tint-a, 1));
+}
+.tint-neutral {
+  background-color: hsl(var(--jun-neutral-soft) / var(--tint-a, 1));
+}
+[data-theme="dark"] {
+  --tint-a: 0.12;
 }
 
-/* Compatibility bridge while older operational screens are progressively
-   migrated to the premium dashboard design. This prevents hard-coded light
-   Tailwind utilities from flashing white inside the authenticated dark shell. */
-.jun-app-dark .bg-white {
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color: hsl(var(--jun-ink));
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: hsl(var(--jun-ink-3));
+}
+input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  border: 1px solid hsl(var(--jun-line));
+  border-radius: 0.5rem;
+  background: hsl(var(--jun-surface-2));
+  color: hsl(var(--jun-ink));
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+
+/* ─── Compatibility bridge (dark theme only) ─────────────────────────────
+   Screens not yet migrated to semantic tokens still use raw Tailwind palette
+   classes designed for a light background. Under the dark theme we repaint
+   them. Under the light theme they need nothing. Shrinks as screens migrate. */
+[data-theme="dark"] .bg-white {
   background-color: #0e1624 !important;
 }
-.jun-app-dark .bg-white\/95 {
+[data-theme="dark"] .bg-white\/95 {
   background-color: rgb(14 22 36 / 0.95) !important;
 }
-.jun-app-dark .bg-blue-50,
-.jun-app-dark .bg-blue-50\/60 {
+[data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-blue-50\/60 {
   background-color: rgb(59 130 246 / 0.08) !important;
 }
-.jun-app-dark .bg-emerald-50 {
+[data-theme="dark"] .bg-emerald-50 {
   background-color: rgb(16 185 129 / 0.08) !important;
 }
-.jun-app-dark .bg-amber-50 {
+[data-theme="dark"] .bg-amber-50 {
   background-color: rgb(245 158 11 / 0.08) !important;
 }
-.jun-app-dark .bg-red-50 {
+[data-theme="dark"] .bg-red-50 {
   background-color: rgb(244 63 94 / 0.08) !important;
 }
-.jun-app-dark .bg-violet-50 {
+[data-theme="dark"] .bg-violet-50 {
   background-color: rgb(139 92 246 / 0.08) !important;
 }
-.jun-app-dark .bg-cyan-50 {
+[data-theme="dark"] .bg-cyan-50 {
   background-color: rgb(6 182 212 / 0.08) !important;
 }
-.jun-app-dark .bg-slate-100 {
+[data-theme="dark"] .bg-slate-100 {
   background-color: rgb(148 163 184 / 0.08) !important;
 }
-.jun-app-dark .border-blue-200 {
+[data-theme="dark"] .border-blue-200 {
   border-color: rgb(96 165 250 / 0.22) !important;
 }
-.jun-app-dark .border-emerald-200 {
+[data-theme="dark"] .border-emerald-200 {
   border-color: rgb(52 211 153 / 0.22) !important;
 }
-.jun-app-dark .border-amber-200,
-.jun-app-dark .border-amber-300\/40 {
+[data-theme="dark"] .border-amber-200,
+[data-theme="dark"] .border-amber-300\/40 {
   border-color: rgb(251 191 36 / 0.22) !important;
 }
-.jun-app-dark .border-red-200 {
+[data-theme="dark"] .border-red-200 {
   border-color: rgb(251 113 133 / 0.22) !important;
 }
-.jun-app-dark .border-violet-200 {
+[data-theme="dark"] .border-violet-200 {
   border-color: rgb(167 139 250 / 0.22) !important;
 }
-.jun-app-dark .text-blue-900,
-.jun-app-dark .text-blue-800,
-.jun-app-dark .text-blue-700 {
+[data-theme="dark"] .text-blue-900,
+[data-theme="dark"] .text-blue-800,
+[data-theme="dark"] .text-blue-700 {
   color: rgb(147 197 253) !important;
 }
-.jun-app-dark .text-emerald-900,
-.jun-app-dark .text-emerald-800,
-.jun-app-dark .text-emerald-700,
-.jun-app-dark .text-emerald-600 {
+[data-theme="dark"] .text-emerald-900,
+[data-theme="dark"] .text-emerald-800,
+[data-theme="dark"] .text-emerald-700,
+[data-theme="dark"] .text-emerald-600 {
   color: rgb(110 231 183) !important;
 }
-.jun-app-dark .text-amber-900,
-.jun-app-dark .text-amber-800,
-.jun-app-dark .text-amber-700,
-.jun-app-dark .text-amber-600 {
+[data-theme="dark"] .text-amber-900,
+[data-theme="dark"] .text-amber-800,
+[data-theme="dark"] .text-amber-700,
+[data-theme="dark"] .text-amber-600 {
   color: rgb(252 211 77) !important;
 }
-.jun-app-dark .text-red-900,
-.jun-app-dark .text-red-800,
-.jun-app-dark .text-red-700,
-.jun-app-dark .text-red-600 {
+[data-theme="dark"] .text-red-900,
+[data-theme="dark"] .text-red-800,
+[data-theme="dark"] .text-red-700,
+[data-theme="dark"] .text-red-600 {
   color: rgb(253 164 175) !important;
 }
-.jun-app-dark .text-violet-700 {
+[data-theme="dark"] .text-violet-700 {
   color: rgb(196 181 253) !important;
 }
-.jun-app-dark .text-cyan-700 {
+[data-theme="dark"] .text-cyan-700 {
   color: rgb(103 232 249) !important;
 }
-.jun-app-dark .text-slate-700 {
+[data-theme="dark"] .text-slate-700 {
   color: rgb(203 213 225) !important;
 }
 
 /* Documents are intentionally rendered as white paper even inside the dark
    authenticated workspace. Keep editor/preview text and table rules readable. */
-.jun-app-dark .doc-prose {
+[data-theme="dark"] .doc-prose {
   background-color: #ffffff !important;
   color: #0f172a !important;
   color-scheme: light;
   caret-color: #0f172a;
 }
-.jun-app-dark .doc-prose :where(h1, h2, h3, h4, p, li, blockquote, pre, td, th) {
+[data-theme="dark"] .doc-prose :where(h1, h2, h3, h4, p, li, blockquote, pre, td, th) {
   color: #0f172a;
 }
-.jun-app-dark .doc-prose a {
+[data-theme="dark"] .doc-prose a {
   color: #1d4ed8 !important;
 }
-.jun-app-dark .doc-prose code {
+[data-theme="dark"] .doc-prose code {
   background: #f1f5f9;
   color: #0f172a;
 }
-.jun-app-dark .doc-prose td,
-.jun-app-dark .doc-prose th {
+[data-theme="dark"] .doc-prose td,
+[data-theme="dark"] .doc-prose th {
   border-color: #e2e8f0 !important;
 }
 
 /* Premium workspace polish shared by Drive, Company Funds and legacy admin panels. */
-.jun-app-dark .shadow-sm {
-  box-shadow: 0 16px 40px rgb(0 0 0 / 0.12);
-}
-.jun-app-dark .border-line {
-  border-color: rgb(255 255 255 / 0.075);
-}
-.jun-app-dark table tbody tr {
+[data-theme="dark"] table tbody tr {
   transition:
     background-color 0.16s ease,
     border-color 0.16s ease;
 }
-.jun-app-dark table tbody tr:hover {
+[data-theme="dark"] table tbody tr:hover {
   background-color: rgb(255 255 255 / 0.025);
 }
-.jun-app-dark code {
+[data-theme="dark"] code {
   border-radius: 0.4rem;
   background: rgb(255 255 255 / 0.05);
   padding: 0.1rem 0.32rem;
   color: rgb(147 197 253);
 }
-.jun-app-dark ::selection {
+[data-theme="dark"] ::selection {
   background: rgb(59 130 246 / 0.35);
   color: white;
 }
-.jun-app-dark * {
+[data-theme="dark"] * {
   scrollbar-color: rgb(71 85 105) transparent;
   scrollbar-width: thin;
 }
@@ -191,7 +271,13 @@ html {
   scroll-behavior: smooth;
 }
 body {
-  @apply bg-surface text-ink antialiased;
+  @apply bg-canvas text-ink antialiased;
+}
+
+/* Visible keyboard focus everywhere, quiet mouse focus. */
+:focus-visible {
+  outline: 2px solid hsl(var(--jun-accent));
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

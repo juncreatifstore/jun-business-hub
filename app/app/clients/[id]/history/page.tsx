@@ -177,9 +177,9 @@ export default async function ClientHistoryPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Historique</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">Timeline & notes</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-2">Historique</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Timeline & notes</h2>
+          <p className="mt-1 text-sm text-ink-3">
             Historique consolidé des services, finances, documents, fichiers et décisions internes.
           </p>
         </div>
@@ -216,11 +216,11 @@ export default async function ClientHistoryPage({
       </div>
 
       {can(user, "CLIENT_UPDATE") ? (
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Ajouter une note interne</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">Visible uniquement par l’équipe JUN.</p>
+              <p className="mt-1 text-xs text-ink-3">Visible uniquement par l’équipe JUN.</p>
             </div>
           </CardHeader>
           <CardContent>
@@ -240,48 +240,46 @@ export default async function ClientHistoryPage({
         </Card>
       ) : null}
 
-      <Card className="overflow-hidden bg-[#0e1624]">
+      <Card className="overflow-hidden bg-surface-1">
         <CardHeader>
           <div>
             <CardTitle>Timeline complète</CardTitle>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-ink-3">
               Toutes les activités importantes dans l’ordre chronologique.
             </p>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {items.length ? (
-            <div className="divide-y divide-white/[0.055]">
+            <div className="divide-y divide-line">
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="grid gap-3 px-5 py-4 transition hover:bg-white/[0.018] md:grid-cols-[150px_110px_minmax(0,1fr)_auto]"
+                  className="grid gap-3 px-5 py-4 transition hover:bg-ink/[0.018] md:grid-cols-[150px_110px_minmax(0,1fr)_auto]"
                 >
-                  <div className="text-xs text-slate-600">{formatDateTime(item.date)}</div>
+                  <div className="text-xs text-ink-2">{formatDateTime(item.date)}</div>
                   <div>
-                    <Badge className="border border-white/[0.06] bg-white/[0.025] text-slate-500">
-                      {item.kind}
-                    </Badge>
+                    <Badge className="border border-line bg-ink/[0.025] text-ink-3">{item.kind}</Badge>
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       {item.href ? (
-                        <Link href={item.href} className="font-medium text-slate-200 hover:text-blue-400">
+                        <Link href={item.href} className="font-medium text-ink hover:text-accent">
                           {item.title}
                         </Link>
                       ) : (
-                        <span className="font-medium text-slate-200">{item.title}</span>
+                        <span className="font-medium text-ink">{item.title}</span>
                       )}
                       {item.status ? <StatusBadge status={item.status} /> : null}
                     </div>
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">{item.description}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink-3">{item.description}</p>
                   </div>
-                  <div className="text-right font-medium text-slate-300">{item.amount || ""}</div>
+                  <div className="text-right font-medium text-ink-2">{item.amount || ""}</div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="p-6 text-center text-sm text-slate-500">Aucun événement pour le moment.</p>
+            <p className="p-6 text-center text-sm text-ink-3">Aucun événement pour le moment.</p>
           )}
         </CardContent>
       </Card>
@@ -301,19 +299,19 @@ function Metric({
   tone: "blue" | "violet" | "green" | "amber";
 }) {
   const tones = {
-    blue: "bg-blue-500/10 text-blue-400",
+    blue: "bg-blue-500/10 text-accent",
     violet: "bg-violet-500/10 text-violet-400",
-    green: "bg-emerald-500/10 text-emerald-400",
-    amber: "bg-amber-500/10 text-amber-400",
+    green: "bg-emerald-500/10 text-success",
+    amber: "bg-amber-500/10 text-warning",
   };
   return (
-    <Card className="bg-[#0e1624]">
+    <Card className="bg-surface-1">
       <CardContent className="p-4">
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}>
           <Icon className="h-4 w-4" />
         </span>
-        <div className="mt-3 text-xs text-slate-500">{label}</div>
-        <div className="mt-1 text-xl font-semibold text-slate-100">{value}</div>
+        <div className="mt-3 text-xs text-ink-3">{label}</div>
+        <div className="mt-1 text-xl font-semibold text-ink">{value}</div>
       </CardContent>
     </Card>
   );

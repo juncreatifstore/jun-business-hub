@@ -70,11 +70,9 @@ export default async function ClientWhatsAppPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-            Communications
-          </p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">WhatsApp client</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-2">Communications</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">WhatsApp client</h2>
+          <p className="mt-1 text-sm text-ink-3">
             Messages, notifications officielles et envoi sécurisé de documents via Meta WhatsApp Cloud API.
           </p>
         </div>
@@ -87,31 +85,31 @@ export default async function ClientWhatsAppPage({
       </div>
 
       {usesGeneralDocumentTemplate ? (
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Envoyer un document généré</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-ink-3">
                 Le PDF final est joint au message avec les informations du document.
               </p>
             </div>
-            <FileText className="h-4 w-4 text-blue-400" />
+            <FileText className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-ink-3">
               Choisissez un PDF finalisé pour ce client. JUN utilisera{" "}
-              <strong className="text-slate-300">{GENERAL_DOCUMENT_TEMPLATE}</strong> et remplira
-              automatiquement le nom, le type et la référence.
+              <strong className="text-ink-2">{GENERAL_DOCUMENT_TEMPLATE}</strong> et remplira automatiquement
+              le nom, le type et la référence.
             </p>
             {documents.length ? (
               documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-white/[0.018] p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-xl border border-line bg-ink/[0.018] p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <div className="font-medium text-slate-200">{doc.title}</div>
-                    <div className="mt-1 text-xs text-slate-600">
+                    <div className="font-medium text-ink">{doc.title}</div>
+                    <div className="mt-1 text-xs text-ink-2">
                       {doc.documentId} · {doc.type} · {doc.status}
                     </div>
                   </div>
@@ -141,13 +139,13 @@ export default async function ClientWhatsAppPage({
       ) : null}
 
       <form action={action} className="space-y-5">
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Destinataire</CardTitle>
-              <p className="mt-1 text-xs text-slate-500">Numéro utilisé pour cette communication.</p>
+              <p className="mt-1 text-xs text-ink-3">Numéro utilisé pour cette communication.</p>
             </div>
-            <MessageCircle className="h-4 w-4 text-emerald-400" />
+            <MessageCircle className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <Field label="Numéro WhatsApp" hint="Format international avec indicatif pays">
@@ -155,7 +153,7 @@ export default async function ClientWhatsAppPage({
             </Field>
           </CardContent>
         </Card>
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <CardTitle>Préparer le message</CardTitle>
           </CardHeader>
@@ -220,7 +218,7 @@ export default async function ClientWhatsAppPage({
             Envoyer sur WhatsApp
           </Button>
           {!cfg.tokenConfigured || !cfg.phoneNumberId ? (
-            <p className="text-sm text-amber-400">
+            <p className="text-sm text-warning">
               Configurez d’abord Meta WhatsApp dans Paramètres → WhatsApp.
             </p>
           ) : null}

@@ -186,8 +186,8 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
 
   if (activeThread && activeState) {
     return (
-      <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1726] text-slate-100">
-        <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-white/[0.07] px-3">
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface-1 text-ink">
+        <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-line px-3">
           <Link href={qp({ thread: undefined })}>
             <Button size="sm" variant="ghost">
               <ArrowLeft className="h-4 w-4" /> Back
@@ -239,28 +239,25 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               </Button>
             </form>
           ) : null}
-          <div className="ml-auto text-xs text-slate-500">{mailboxLabel}</div>
+          <div className="ml-auto text-xs text-ink-3">{mailboxLabel}</div>
         </div>
         <div className="px-4 py-5 md:px-7">
-          <h1 className="mb-5 text-xl font-medium text-white md:text-2xl">
+          <h1 className="mb-5 text-xl font-medium text-ink md:text-2xl">
             {activeThread.subject || "(no subject)"}
           </h1>
           {conversation.length ? (
             <div className="space-y-5">
               {conversation.map((m, i) => (
-                <article
-                  key={m.id}
-                  className="overflow-hidden rounded-xl border border-white/[0.07] bg-[#101c2d]"
-                >
-                  <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-4 py-3">
+                <article key={m.id} className="overflow-hidden rounded-xl border border-line bg-[#101c2d]">
+                  <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
                     <div>
-                      <p className="font-semibold text-slate-100">
+                      <p className="font-semibold text-ink">
                         {senderLabel(m.from)}{" "}
-                        <span className="font-normal text-slate-500">&lt;{senderEmail(m.from)}&gt;</span>
+                        <span className="font-normal text-ink-3">&lt;{senderEmail(m.from)}&gt;</span>
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">to {m.to.join(", ") || "me"}</p>
+                      <p className="mt-1 text-xs text-ink-3">to {m.to.join(", ") || "me"}</p>
                     </div>
-                    <span className="text-xs text-slate-500">{m.date.toLocaleString()}</span>
+                    <span className="text-xs text-ink-3">{m.date.toLocaleString()}</span>
                   </div>
                   <div className="bg-white p-2 text-slate-900 md:p-4">
                     {m.htmlBody ? (
@@ -272,7 +269,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
                     )}
                   </div>
                   {i === conversation.length - 1 ? (
-                    <div className="flex flex-wrap gap-2 border-t border-white/[0.07] px-4 py-3">
+                    <div className="flex flex-wrap gap-2 border-t border-line px-4 py-3">
                       <Link
                         href={`/app/mail/compose?mailbox=${activeThread.mailAccountId}&source=${activeThread.id}&mode=REPLY`}
                       >
@@ -294,7 +291,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               ))}
             </div>
           ) : (
-            <div className="py-10 text-sm text-slate-500">Conversation could not be loaded.</div>
+            <div className="py-10 text-sm text-ink-3">Conversation could not be loaded.</div>
           )}
         </div>
       </div>
@@ -302,8 +299,8 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
   }
 
   return (
-    <div className="grid min-h-[68vh] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1726] text-slate-200 lg:grid-cols-[190px_minmax(0,1fr)]">
-      <aside className="border-r border-white/[0.07] bg-[#0b1422] p-3">
+    <div className="grid min-h-[68vh] overflow-hidden rounded-2xl border border-line bg-surface-1 text-ink lg:grid-cols-[190px_minmax(0,1fr)]">
+      <aside className="border-r border-line bg-[#0b1422] p-3">
         {canDraft && accounts.length ? (
           <Link href={`/app/mail/compose?mailbox=${mailbox === "ALL" ? accounts[0]?.id || "" : mailbox}`}>
             <Button className="mb-4 w-full justify-start rounded-2xl py-5">Compose</Button>
@@ -314,14 +311,14 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <Link
               key={f.key}
               href={`/app/mail?mailbox=${encodeURIComponent(mailbox)}&folder=${f.key}${f.key === "INBOX" ? "&category=PRIMARY" : ""}`}
-              className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${folder === f.key ? "bg-blue-500/15 font-semibold text-blue-300 ring-1 ring-blue-400/15" : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-100"}`}
+              className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm transition ${folder === f.key ? "bg-blue-500/15 font-semibold text-accent ring-1 ring-blue-400/15" : "text-ink-3 hover:bg-ink/[0.05] hover:text-ink"}`}
             >
               <span className="flex items-center gap-2">
                 <f.icon className="h-4 w-4" />
                 {f.label}
               </span>
               {f.key === "INBOX" ? (
-                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-xs text-blue-300">
+                <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-xs text-accent">
                   {inboxUnread}
                 </span>
               ) : null}
@@ -329,8 +326,8 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
           ))}
         </nav>
       </aside>
-      <section className="min-w-0 bg-[#0f1929]">
-        <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-white/[0.07] px-3">
+      <section className="min-w-0 bg-surface-1">
+        <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-line px-3">
           {accounts.length ? (
             mailbox === "ALL" ? (
               <form action={syncAllMailboxesV2}>
@@ -351,12 +348,12 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <input type="hidden" name="folder" value={folder} />
             {folder === "INBOX" ? <input type="hidden" name="category" value={category} /> : null}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-ink-3" />
               <Input
                 name="q"
                 defaultValue={searchParams.q}
                 placeholder="Search these 20 emails"
-                className="h-9 rounded-full border-white/[0.08] bg-white/[0.05] pl-9 text-slate-100 placeholder:text-slate-600"
+                className="h-9 rounded-full border-line bg-ink/[0.05] pl-9 text-ink placeholder:text-ink-2"
               />
             </div>
           </form>
@@ -377,12 +374,12 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
           ) : null}
         </div>
         {folder === "INBOX" ? (
-          <div className="grid grid-cols-2 border-b border-white/[0.07] md:grid-cols-4">
+          <div className="grid grid-cols-2 border-b border-line md:grid-cols-4">
             {CATEGORIES.map((c) => (
               <Link
                 key={c.key}
                 href={`/app/mail?mailbox=${encodeURIComponent(mailbox)}&folder=INBOX&category=${c.key}`}
-                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm transition ${category === c.key ? "border-blue-500 bg-blue-500/[0.05] font-semibold text-blue-300" : "border-transparent text-slate-500 hover:bg-white/[0.035] hover:text-slate-200"}`}
+                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm transition ${category === c.key ? "border-blue-500 bg-blue-500/[0.05] font-semibold text-accent" : "border-transparent text-ink-3 hover:bg-ink/[0.035] hover:text-ink"}`}
               >
                 <c.icon className="h-4 w-4" />
                 {c.label}
@@ -390,7 +387,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             ))}
           </div>
         ) : null}
-        <div className="border-b border-white/[0.07] px-4 py-2 text-xs text-slate-500">
+        <div className="border-b border-line px-4 py-2 text-xs text-ink-3">
           Showing maximum {LIMIT} most recent conversations · {mailboxLabel}
         </div>
         <div>
@@ -400,16 +397,16 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               return (
                 <div
                   key={t.id}
-                  className={`grid grid-cols-[32px_150px_minmax(0,1fr)_90px] items-center gap-2 border-b border-white/[0.06] px-3 py-2 text-sm transition hover:bg-white/[0.055] ${s.isRead ? "bg-[#0f1929] text-slate-300" : "bg-blue-500/[0.07] font-semibold text-slate-100"}`}
+                  className={`grid grid-cols-[32px_150px_minmax(0,1fr)_90px] items-center gap-2 border-b border-line px-3 py-2 text-sm transition hover:bg-ink/[0.055] ${s.isRead ? "bg-surface-1 text-ink-2" : "bg-blue-500/[0.07] font-semibold text-ink"}`}
                 >
                   <form action={toggleMailThreadStar.bind(null, t.id, folder)}>
                     <button
                       type="submit"
-                      className="rounded-md p-1 hover:bg-white/[0.06]"
+                      className="rounded-md p-1 hover:bg-ink/[0.06]"
                       title={s.starred ? "Unstar" : "Star"}
                     >
                       <Star
-                        className={`h-4 w-4 ${s.starred ? "fill-amber-400 text-amber-500" : "text-slate-600"}`}
+                        className={`h-4 w-4 ${s.starred ? "fill-amber-400 text-amber-500" : "text-ink-2"}`}
                       />
                     </button>
                   </form>
@@ -418,16 +415,16 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
                   </Link>
                   <Link href={qp({ thread: t.id })} className="min-w-0 truncate">
                     <span>{t.subject || "(no subject)"}</span>
-                    <span className="font-normal text-slate-500"> — {t.snippet || ""}</span>
+                    <span className="font-normal text-ink-3"> — {t.snippet || ""}</span>
                   </Link>
-                  <Link href={qp({ thread: t.id })} className="text-right text-xs text-slate-500">
+                  <Link href={qp({ thread: t.id })} className="text-right text-xs text-ink-3">
                     {shortDate(t.lastMessageAt)}
                   </Link>
                 </div>
               );
             })
           ) : (
-            <div className="py-16 text-center text-sm text-slate-500">
+            <div className="py-16 text-center text-sm text-ink-3">
               No message in the current 20-email window. Click Sync 20.
             </div>
           )}

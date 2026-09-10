@@ -490,7 +490,7 @@ function Metric({
 }
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-lg bg-white/70 p-2">
+    <div className="min-w-0 rounded-lg bg-ink/70 p-2">
       <div className="truncate text-[9px] text-muted2 sm:text-[10px]">{label}</div>
       <div className="mt-0.5 truncate text-[11px] font-medium sm:text-xs">{value}</div>
     </div>

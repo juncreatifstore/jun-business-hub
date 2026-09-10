@@ -52,7 +52,7 @@ export function FinanceWorkspaceNav() {
   const secondaryActive = secondary.some(({ href }) => isActive(pathname, href));
 
   return (
-    <div className="relative z-30 mb-4 rounded-2xl border border-line bg-white/95 p-2 shadow-sm backdrop-blur sm:mb-5">
+    <div className="relative z-30 mb-4 rounded-2xl border border-line bg-ink/95 p-2 shadow-sm backdrop-blur sm:mb-5">
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex w-max items-center gap-1 sm:gap-2">

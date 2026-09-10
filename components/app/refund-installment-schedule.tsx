@@ -164,7 +164,7 @@ export async function RefundInstallmentSchedule({
         </div>
         <div className="rounded-xl border border-line p-3">
           <p className="text-xs text-muted2">Déjà versé</p>
-          <p className="font-semibold text-emerald-300">{formatMoney(paid / 100, currency)}</p>
+          <p className="font-semibold text-success">{formatMoney(paid / 100, currency)}</p>
         </div>
         <div className="rounded-xl border border-line p-3">
           <p className="text-xs text-muted2">Reste à payer</p>
@@ -304,7 +304,7 @@ export async function RefundInstallmentSchedule({
             </div>
             {payable ? (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
-                <p className={`text-xs ${ready ? "text-emerald-300" : "text-amber-300"}`}>
+                <p className={`text-xs ${ready ? "text-success" : "text-warning"}`}>
                   {ready
                     ? "Prêt à confirmer ce versement."
                     : "Méthode, référence et justificatif obligatoires pour ce versement."}

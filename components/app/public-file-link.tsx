@@ -23,7 +23,7 @@ export function PublicFileLink({ fileId }: { fileId: string }) {
         href={path}
         target="_blank"
         rel="noreferrer"
-        className="rounded-md p-2 text-muted2 hover:bg-white/5 hover:text-white"
+        className="rounded-md p-2 text-muted2 hover:bg-ink/5 hover:text-ink"
         title="Open public viewer"
       >
         <ExternalLink className="h-4 w-4" />

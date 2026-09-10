@@ -1,10 +1,12 @@
 import { cn } from "@/lib/utils";
 
+/** Surface-1 container. Radius and shadow are the same for every card:
+ *  hierarchy comes from placement and content, not from decoration. */
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       data-slot="card"
-      className={cn("rounded-2xl border border-line bg-surface shadow-sm", className)}
+      className={cn("rounded-xl border border-line bg-surface-1 shadow-card", className)}
       {...props}
     />
   );
@@ -13,7 +15,7 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
   return (
     <div
       data-slot="card-header"
-      className={cn("flex items-center justify-between gap-3 border-b border-line px-5 py-4", className)}
+      className={cn("flex items-center justify-between gap-3 border-b border-line px-5 py-3.5", className)}
       {...props}
     />
   );

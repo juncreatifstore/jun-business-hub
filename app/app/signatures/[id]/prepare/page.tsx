@@ -72,7 +72,7 @@ export default async function SignaturePreparePage({ params }: { params: { id: s
       />
       <div className="rounded-2xl border border-blue-400/15 bg-blue-500/[0.04] p-3 text-xs leading-5 text-muted2 sm:p-4">
         <div className="flex items-start gap-2">
-          <Move className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+          <Move className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
           <p>
             <strong className="text-ink">Conseil mobile :</strong> choisissez le signataire et le type de
             champ, puis touchez le PDF pour placer le champ. Le déplacement et le redimensionnement restent

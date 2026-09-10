@@ -218,7 +218,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
         <Card className="mb-5 border-emerald-500/20 bg-emerald-500/[0.035]">
           <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="flex items-center gap-2 font-semibold text-emerald-300">
+              <div className="flex items-center gap-2 font-semibold text-success">
                 <CheckCircle2 className="h-5 w-5" />
                 Dossier signé terminé
               </div>
@@ -261,7 +261,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                 </p>
               </div>
             </CardHeader>
-            <CardContent className="divide-y divide-white/[0.055] p-0">
+            <CardContent className="divide-y divide-line p-0">
               {recipients.length === 0 ? (
                 <p className="p-5 text-sm text-muted2">Aucun signataire enregistré.</p>
               ) : (
@@ -282,22 +282,22 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.045] text-xs font-semibold text-slate-300">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink/[0.045] text-xs font-semibold text-ink-2">
                               {s.order}
                             </span>
                             <p className="font-semibold">{s.name}</p>
                             {s.role ? (
-                              <span className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-2 py-1 text-[10px] uppercase tracking-wide text-muted2">
+                              <span className="rounded-lg border border-line bg-ink/[0.03] px-2 py-1 text-[10px] uppercase tracking-wide text-muted2">
                                 {s.role.replaceAll("_", " ")}
                               </span>
                             ) : null}
                             {isCurrent ? (
-                              <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                              <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-success">
                                 Signataire actuel
                               </span>
                             ) : null}
                             {s.verifiedAt ? (
-                              <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                              <span className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-success">
                                 Email vérifié
                               </span>
                             ) : null}
@@ -325,7 +325,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                               </span>
                             ) : null}
                             {s.verifiedAt ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-400">
+                              <span className="inline-flex items-center gap-1 text-success">
                                 <ShieldCheck className="h-3.5 w-3.5" />
                                 Vérifié {formatDateTime(new Date(s.verifiedAt))}
                               </span>
@@ -340,12 +340,12 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                         </div>
                         <div className="shrink-0">
                           {s.signedAt ? (
-                            <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-400">
+                            <span className="inline-flex items-center gap-2 text-sm font-medium text-success">
                               <CheckCircle2 className="h-4 w-4" />
                               Signé {formatDateTime(new Date(s.signedAt))}
                             </span>
                           ) : s.declinedAt ? (
-                            <span className="inline-flex items-center gap-2 text-sm font-medium text-red-400">
+                            <span className="inline-flex items-center gap-2 text-sm font-medium text-danger">
                               <XCircle className="h-4 w-4" />
                               Refusé
                             </span>
@@ -370,21 +370,21 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                       </div>
 
                       {s.declineReason ? (
-                        <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3 text-sm text-red-300">
+                        <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3 text-sm text-danger">
                           <strong>Motif :</strong> {s.declineReason}
                         </div>
                       ) : null}
 
                       {(s.fields ?? []).length ? (
                         <div className="mt-4">
-                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-2">
                             Champs PDF
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {(s.fields ?? []).map((f, fieldIndex) => (
                               <span
                                 key={`${f.type}-${fieldIndex}`}
-                                className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-1.5 text-xs text-muted2"
+                                className="inline-flex items-center gap-1 rounded-lg border border-line bg-ink/[0.025] px-2.5 py-1.5 text-xs text-muted2"
                               >
                                 <MapPin className="h-3 w-3" />
                                 {f.type.replaceAll("_", " ")} · page {f.page}
@@ -395,7 +395,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                       ) : null}
 
                       {nativeActive && !s.signedAt && !s.declinedAt && canSign ? (
-                        <div className="mt-4 rounded-xl border border-white/[0.07] bg-black/[0.08] p-3">
+                        <div className="mt-4 rounded-xl border border-line bg-black/[0.08] p-3">
                           <div className="flex flex-wrap items-center gap-2">
                             {signingLink ? (
                               <>
@@ -435,7 +435,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                           </div>
                           {isCurrent && !s.verifiedAt ? (
                             <details className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3">
-                              <summary className="cursor-pointer text-xs font-semibold text-amber-300">
+                              <summary className="cursor-pointer text-xs font-semibold text-warning">
                                 <ShieldCheck className="mr-1 inline h-3.5 w-3.5" />
                                 Vérification interne
                               </summary>
@@ -518,7 +518,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-0 border-l border-white/[0.08] pl-5">
+              <div className="space-y-0 border-l border-line pl-5">
                 {timelineRows(request, recipients, expiresAt).map((row, index) => (
                   <div key={`${row.label}-${index}`} className="relative pb-5 last:pb-0">
                     <span className="absolute -left-[25px] top-1.5 h-2 w-2 rounded-full bg-blue-400 ring-4 ring-[#101827]" />
@@ -555,11 +555,11 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                         {log.user ? `${log.user.firstName} ${log.user.lastName}` : "Système / signataire"}
                       </p>
                       {details.length ? (
-                        <div className="mt-3 grid gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-xs sm:grid-cols-2">
+                        <div className="mt-3 grid gap-2 rounded-xl border border-line bg-ink/[0.02] p-3 text-xs sm:grid-cols-2">
                           {details.map((item) => (
                             <div key={item.label} className="min-w-0">
                               <span className="text-muted2">{item.label}</span>
-                              <p className="mt-0.5 break-words font-medium text-slate-200">{item.value}</p>
+                              <p className="mt-0.5 break-words font-medium text-ink">{item.value}</p>
                             </div>
                           ))}
                         </div>
@@ -609,7 +609,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                 <Info label="MAJ WhatsApp" value={formatDateTime(new Date(meta.whatsappDeliveryUpdatedAt))} />
               ) : null}
               {meta.whatsappFailureReason ? (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-300">
+                <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-danger">
                   <strong>Échec WhatsApp</strong>
                   <p className="mt-1 text-red-200/80">{meta.whatsappFailureReason}</p>
                 </div>
@@ -645,7 +645,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
               ) : null}
               <Link
                 href={`/verify/${request.document.documentId}`}
-                className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 hover:text-emerald-300"
+                className="inline-flex items-center gap-1 text-xs font-medium text-success hover:text-success"
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Vérification publique
@@ -693,7 +693,7 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
                 </form>
                 <div className="border-t border-line pt-4">
                   <form action={cancelNativeSignatureRequest.bind(null, request.id)}>
-                    <label className="text-sm font-medium text-red-400">Annuler la demande</label>
+                    <label className="text-sm font-medium text-danger">Annuler la demande</label>
                     <textarea
                       name="reason"
                       required
@@ -737,10 +737,10 @@ export default async function SignatureDetailPage({ params }: { params: { id: st
 function Notice({ tone, title, text }: { tone: "amber" | "emerald" | "red"; title: string; text: string }) {
   const cls =
     tone === "emerald"
-      ? "border-emerald-500/20 bg-emerald-500/[0.05] text-emerald-300"
+      ? "border-emerald-500/20 bg-emerald-500/[0.05] text-success"
       : tone === "red"
-        ? "border-red-500/20 bg-red-500/[0.05] text-red-300"
-        : "border-amber-500/20 bg-amber-500/[0.05] text-amber-300";
+        ? "border-red-500/20 bg-red-500/[0.05] text-danger"
+        : "border-amber-500/20 bg-amber-500/[0.05] text-warning";
   return (
     <div className={`mb-5 rounded-xl border px-4 py-3 text-sm ${cls}`}>
       <strong>{title}.</strong>
@@ -772,9 +772,9 @@ function historyLabel(action: string) {
 
 function historyTone(action: string) {
   if (action.includes("FAILED") || action.includes("LOCKED") || action.includes("DELIVERY_FAILED"))
-    return "text-red-300";
-  if (action.includes("VERIFIED") || action.includes("OTP_SENT")) return "text-emerald-300";
-  return "text-slate-200";
+    return "text-danger";
+  if (action.includes("VERIFIED") || action.includes("OTP_SENT")) return "text-success";
+  return "text-ink";
 }
 
 function auditDetails(value: unknown): Array<{ label: string; value: string }> {

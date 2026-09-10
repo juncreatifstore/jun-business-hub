@@ -148,7 +148,7 @@ export default async function Client360Page({
             </div>
             <Link
               href={`/app/clients/${client.id}/relationship`}
-              className="text-sm font-medium text-red-300 hover:text-red-200"
+              className="text-sm font-medium text-danger hover:text-red-200"
             >
               Voir le dossier de clôture →
             </Link>
@@ -159,14 +159,14 @@ export default async function Client360Page({
       <section>
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-2">
               Situation actuelle
             </p>
-            <h2 className="mt-1 text-sm font-semibold text-slate-200">Vue opérationnelle et financière</h2>
+            <h2 className="mt-1 text-sm font-semibold text-ink">Vue opérationnelle et financière</h2>
           </div>
           <Link
             href={`/app/clients/${client.id}/statement`}
-            className="hidden items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300 sm:flex"
+            className="hidden items-center gap-1 text-xs font-medium text-accent hover:text-accent sm:flex"
           >
             Relevé complet <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
@@ -223,15 +223,15 @@ export default async function Client360Page({
           <CardContent className="p-0">
             <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-400">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-danger">
                   <AlertTriangle className="h-5 w-5" />
                 </span>
                 <div>
                   <h3 className="text-sm font-semibold text-red-100">
                     Solde dû — nouvelles prestations bloquées
                   </h3>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-                    Le client doit actuellement <strong className="text-red-300">{debtDisplay}</strong> après
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-3">
+                    Le client doit actuellement <strong className="text-danger">{debtDisplay}</strong> après
                     les coûts et remboursements engagés. Le solde doit être réglé ou régularisé avant
                     l’ouverture d’une nouvelle prestation.
                   </p>
@@ -255,21 +255,18 @@ export default async function Client360Page({
       ) : null}
 
       {needsAttention.length ? (
-        <Card className="border-amber-400/10 bg-[#0e1624]">
+        <Card className="border-amber-400/10 bg-surface-1">
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-warning">
               <CheckCircle2 className="h-4 w-4" />
             </span>
             <div className="mr-2">
-              <p className="text-sm font-medium text-slate-200">Profil à compléter</p>
-              <p className="text-xs text-slate-500">Certaines informations essentielles manquent.</p>
+              <p className="text-sm font-medium text-ink">Profil à compléter</p>
+              <p className="text-xs text-ink-3">Certaines informations essentielles manquent.</p>
             </div>
             <div className="flex flex-1 flex-wrap gap-1.5">
               {needsAttention.map((x) => (
-                <Badge
-                  key={x.label}
-                  className="border border-amber-400/15 bg-amber-500/[0.07] text-amber-300"
-                >
+                <Badge key={x.label} className="border border-amber-400/15 bg-amber-500/[0.07] text-warning">
                   {x.label}
                 </Badge>
               ))}
@@ -277,7 +274,7 @@ export default async function Client360Page({
             {can(user, "CLIENT_UPDATE") ? (
               <Link
                 href={`/app/clients/${client.id}/edit`}
-                className="text-sm font-medium text-blue-400 hover:text-blue-300"
+                className="text-sm font-medium text-accent hover:text-accent"
               >
                 Compléter le profil →
               </Link>
@@ -287,16 +284,16 @@ export default async function Client360Page({
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Identité & contact</CardTitle>
-              <p className="mt-0.5 text-xs text-slate-500">Informations essentielles du dossier client</p>
+              <p className="mt-0.5 text-xs text-ink-3">Informations essentielles du dossier client</p>
             </div>
             {can(user, "CLIENT_UPDATE") ? (
               <Link
                 href={`/app/clients/${client.id}/edit`}
-                className="text-xs font-medium text-blue-400 hover:text-blue-300"
+                className="text-xs font-medium text-accent hover:text-accent"
               >
                 Modifier
               </Link>
@@ -320,19 +317,19 @@ export default async function Client360Page({
                 label="Date de naissance"
                 value={client.birthDate ? formatDate(client.birthDate) : "—"}
               />
-              <div className="sm:col-span-2 rounded-xl border border-white/[0.055] bg-white/[0.018] p-3">
-                <div className="text-xs text-slate-500">Adresse</div>
-                <div className="mt-1 font-medium text-slate-200">{client.address || "—"}</div>
+              <div className="sm:col-span-2 rounded-xl border border-line bg-ink/[0.018] p-3">
+                <div className="text-xs text-ink-3">Adresse</div>
+                <div className="mt-1 font-medium text-ink">{client.address || "—"}</div>
               </div>
             </dl>
           </CardContent>
         </Card>
 
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Actions rapides</CardTitle>
-              <p className="mt-0.5 text-xs text-slate-500">Les opérations les plus fréquentes</p>
+              <p className="mt-0.5 text-xs text-ink-3">Les opérations les plus fréquentes</p>
             </div>
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2">
@@ -381,61 +378,61 @@ export default async function Client360Page({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="overflow-hidden bg-[#0e1624]">
+        <Card className="overflow-hidden bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Services en cours</CardTitle>
-              <p className="mt-0.5 text-xs text-slate-500">Dossiers actifs ou en attente</p>
+              <p className="mt-0.5 text-xs text-ink-3">Dossiers actifs ou en attente</p>
             </div>
             <Link
               href={`/app/clients/${client.id}/services`}
-              className="text-xs font-medium text-blue-400 hover:text-blue-300"
+              className="text-xs font-medium text-accent hover:text-accent"
             >
               Voir tout
             </Link>
           </CardHeader>
           <CardContent className="p-0">
             {activeCases.length ? (
-              <div className="divide-y divide-white/[0.055]">
+              <div className="divide-y divide-line">
                 {activeCases.slice(0, 6).map((c) => (
                   <Link
                     key={c.id}
                     href={`/app/cases/${c.id}`}
-                    className="group flex items-center justify-between gap-4 px-5 py-3.5 transition hover:bg-white/[0.025]"
+                    className="group flex items-center justify-between gap-4 px-5 py-3.5 transition hover:bg-ink/[0.025]"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-slate-200 transition group-hover:text-blue-300">
+                      <div className="truncate text-sm font-medium text-ink transition group-hover:text-accent">
                         {c.title}
                       </div>
-                      <div className="registry-id mt-1 text-[10px] text-slate-600">{c.caseNumber}</div>
+                      <div className="registry-id mt-1 text-[10px] text-ink-2">{c.caseNumber}</div>
                     </div>
                     <StatusBadge status={c.status} />
                   </Link>
                 ))}
               </div>
             ) : (
-              <p className="p-6 text-center text-sm text-slate-500">Aucune prestation active.</p>
+              <p className="p-6 text-center text-sm text-ink-3">Aucune prestation active.</p>
             )}
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden bg-[#0e1624]">
+        <Card className="overflow-hidden bg-surface-1">
           <CardHeader>
             <div>
               <CardTitle>Activité récente</CardTitle>
-              <p className="mt-0.5 text-xs text-slate-500">Dernières actions enregistrées sur ce client</p>
+              <p className="mt-0.5 text-xs text-ink-3">Dernières actions enregistrées sur ce client</p>
             </div>
-            <Activity className="h-4 w-4 text-blue-400" />
+            <Activity className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent className="p-0">
             {client.activities.length ? (
-              <div className="divide-y divide-white/[0.055]">
+              <div className="divide-y divide-line">
                 {client.activities.slice(0, 8).map((a) => (
                   <div key={a.id} className="flex gap-3 px-5 py-3.5">
                     <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,.45)]" />
                     <div className="min-w-0">
-                      <div className="text-sm leading-5 text-slate-300">{a.message}</div>
-                      <div className="mt-1 text-[10px] text-slate-600">
+                      <div className="text-sm leading-5 text-ink-2">{a.message}</div>
+                      <div className="mt-1 text-[10px] text-ink-2">
                         {a.user ? `${a.user.firstName} ${a.user.lastName} · ` : ""}
                         {formatDateTime(a.createdAt)}
                       </div>
@@ -444,12 +441,12 @@ export default async function Client360Page({
                 ))}
               </div>
             ) : (
-              <p className="p-6 text-center text-sm text-slate-500">L’activité apparaîtra ici.</p>
+              <p className="p-6 text-center text-sm text-ink-3">L’activité apparaîtra ici.</p>
             )}
-            <div className="border-t border-white/[0.055] p-3 text-center">
+            <div className="border-t border-line p-3 text-center">
               <Link
                 href={`/app/clients/${client.id}/history`}
-                className="text-xs font-medium text-blue-400 hover:text-blue-300"
+                className="text-xs font-medium text-accent hover:text-accent"
               >
                 Ouvrir l’historique complet →
               </Link>
@@ -475,23 +472,23 @@ function Metric({
   tone: "blue" | "green" | "violet" | "amber" | "red";
 }) {
   const tones = {
-    blue: "bg-blue-500/10 text-blue-400 ring-blue-500/15",
-    green: "bg-emerald-500/10 text-emerald-400 ring-emerald-500/15",
+    blue: "bg-blue-500/10 text-accent ring-blue-500/15",
+    green: "bg-emerald-500/10 text-success ring-emerald-500/15",
     violet: "bg-violet-500/10 text-violet-400 ring-violet-500/15",
-    amber: "bg-amber-500/10 text-amber-400 ring-amber-500/15",
-    red: "bg-red-500/10 text-red-400 ring-red-500/15",
+    amber: "bg-amber-500/10 text-warning ring-amber-500/15",
+    red: "bg-red-500/10 text-danger ring-red-500/15",
   };
   return (
-    <Card className="group bg-[#0e1624] transition hover:-translate-y-0.5 hover:border-white/[0.11]">
+    <Card className="group bg-surface-1 transition hover:-translate-y-0.5 hover:border-line">
       <CardContent className="p-4">
         <span
           className={`flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset ${tones[tone]}`}
         >
           <Icon className="h-4 w-4" />
         </span>
-        <div className="mt-3 text-[11px] font-medium text-slate-500">{label}</div>
-        <div className="mt-1 break-words text-lg font-semibold tracking-tight text-slate-100">{value}</div>
-        <div className="mt-1 text-[10px] leading-4 text-slate-600">{hint}</div>
+        <div className="mt-3 text-[11px] font-medium text-ink-3">{label}</div>
+        <div className="mt-1 break-words text-lg font-semibold tracking-tight text-ink">{value}</div>
+        <div className="mt-1 text-[10px] leading-4 text-ink-2">{hint}</div>
       </CardContent>
     </Card>
   );
@@ -500,11 +497,11 @@ function Metric({
 function Info({ icon: Icon, label, value }: { icon: typeof UserRound; label: string; value: string }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+      <div className="flex items-center gap-1.5 text-xs text-ink-3">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className="mt-1.5 break-words font-medium text-slate-200">{value}</div>
+      <div className="mt-1.5 break-words font-medium text-ink">{value}</div>
     </div>
   );
 }
@@ -523,14 +520,14 @@ function Quick({
   return (
     <Link
       href={href}
-      className="group flex gap-3 rounded-xl border border-white/[0.06] bg-white/[0.018] p-3.5 transition hover:border-blue-400/20 hover:bg-blue-500/[0.045]"
+      className="group flex gap-3 rounded-xl border border-line bg-ink/[0.018] p-3.5 transition hover:border-blue-400/20 hover:bg-blue-500/[0.045]"
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.035] text-slate-500 transition group-hover:bg-blue-500/10 group-hover:text-blue-400">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink/[0.035] text-ink-3 transition group-hover:bg-blue-500/10 group-hover:text-accent">
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-slate-200">{title}</span>
-        <span className="mt-0.5 block text-[11px] leading-4 text-slate-600">{text}</span>
+        <span className="block text-sm font-medium text-ink">{title}</span>
+        <span className="mt-0.5 block text-[11px] leading-4 text-ink-2">{text}</span>
       </span>
     </Link>
   );

@@ -78,9 +78,9 @@ export default async function ClientServicesPage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Services</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">Prestations & dossiers</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-2">Services</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Prestations & dossiers</h2>
+          <p className="mt-1 text-sm text-ink-3">
             Vue opérationnelle et financière de chaque prestation gérée pour ce client.
           </p>
         </div>
@@ -123,10 +123,10 @@ export default async function ClientServicesPage({
       </div>
 
       {services.length === 0 ? (
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardContent className="p-8 text-center">
-            <BriefcaseBusiness className="mx-auto h-8 w-8 text-slate-700" />
-            <p className="mt-3 text-sm text-slate-500">
+            <BriefcaseBusiness className="mx-auto h-8 w-8 text-ink-2" />
+            <p className="mt-3 text-sm text-ink-3">
               Aucune prestation ou dossier n’a encore été créé pour ce client.
             </p>
             {!blocked && !archived ? (
@@ -139,20 +139,20 @@ export default async function ClientServicesPage({
       ) : (
         <div className="space-y-4">
           {services.map((service) => (
-            <Card key={service.caseId} className="overflow-hidden bg-[#0e1624]">
-              <CardHeader className="bg-white/[0.012]">
+            <Card key={service.caseId} className="overflow-hidden bg-surface-1">
+              <CardHeader className="bg-ink/[0.012]">
                 <div className="flex w-full flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/app/cases/${service.caseId}`}
-                        className="text-lg font-semibold text-slate-100 hover:text-blue-400"
+                        className="text-lg font-semibold text-ink hover:text-accent"
                       >
                         {service.title}
                       </Link>
                       <StatusBadge status={service.status} />
                     </div>
-                    <p className="registry-id mt-1 text-slate-600">
+                    <p className="registry-id mt-1 text-ink-2">
                       {service.caseNumber} · {service.type}
                     </p>
                   </div>
@@ -184,13 +184,13 @@ export default async function ClientServicesPage({
                   <Info label="Documents" value={String(service.documentCount)} />
                 </div>
                 {service.currencies.length === 0 ? (
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.018] p-4 text-sm text-slate-500">
+                  <div className="rounded-xl border border-line bg-ink/[0.018] p-4 text-sm text-ink-3">
                     Aucune activité financière liée à cette prestation.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
+                  <div className="overflow-x-auto rounded-xl border border-line">
                     <table className="w-full min-w-[900px] text-sm">
-                      <thead className="bg-white/[0.025] text-left text-[10px] uppercase tracking-[0.12em] text-slate-600">
+                      <thead className="bg-ink/[0.025] text-left text-[10px] uppercase tracking-[0.12em] text-ink-2">
                         <tr>
                           <th className="px-3 py-3">Devise</th>
                           <th className="px-3 py-3">Facturé</th>
@@ -207,23 +207,23 @@ export default async function ClientServicesPage({
                         {service.currencies.map((c) => (
                           <tr
                             key={c.currency}
-                            className="border-t border-white/[0.055] transition hover:bg-white/[0.02]"
+                            className="border-t border-line transition hover:bg-ink/[0.02]"
                           >
-                            <td className="px-3 py-3 font-medium text-slate-200">{c.currency}</td>
+                            <td className="px-3 py-3 font-medium text-ink">{c.currency}</td>
                             <td className="px-3 py-3">{formatMoney(c.billed, c.currency)}</td>
                             <td className="px-3 py-3">{formatMoney(c.invoicePaid, c.currency)}</td>
                             <td className="px-3 py-3 font-medium">
                               {formatMoney(c.netReceived, c.currency)}
                             </td>
-                            <td className="px-3 py-3 text-slate-500">
+                            <td className="px-3 py-3 text-ink-3">
                               {formatMoney(c.transferFees, c.currency)}
                             </td>
                             <td className="px-3 py-3">{formatMoney(c.actualCost, c.currency)}</td>
-                            <td className="px-3 py-3 text-slate-500">
+                            <td className="px-3 py-3 text-ink-3">
                               {formatMoney(c.committedCost, c.currency)}
                             </td>
                             <td
-                              className={`px-3 py-3 font-semibold ${c.profit < 0 ? "text-red-400" : c.profit > 0 ? "text-emerald-400" : ""}`}
+                              className={`px-3 py-3 font-semibold ${c.profit < 0 ? "text-danger" : c.profit > 0 ? "text-success" : ""}`}
                             >
                               {formatMoney(c.profit, c.currency)}
                             </td>
@@ -236,7 +236,7 @@ export default async function ClientServicesPage({
                     </table>
                   </div>
                 )}
-                <div className="flex flex-wrap gap-4 border-t border-white/[0.05] pt-3 text-xs text-slate-600">
+                <div className="flex flex-wrap gap-4 border-t border-line pt-3 text-xs text-ink-2">
                   <span>
                     <FileText className="mr-1 inline h-3.5 w-3.5" />
                     {service.invoiceCount} facture(s)
@@ -273,29 +273,29 @@ function Metric({
   tone: "blue" | "green" | "amber" | "violet";
 }) {
   const tones = {
-    blue: "bg-blue-500/10 text-blue-400",
-    green: "bg-emerald-500/10 text-emerald-400",
-    amber: "bg-amber-500/10 text-amber-400",
+    blue: "bg-blue-500/10 text-accent",
+    green: "bg-emerald-500/10 text-success",
+    amber: "bg-amber-500/10 text-warning",
     violet: "bg-violet-500/10 text-violet-400",
   };
   return (
-    <Card className="bg-[#0e1624]">
+    <Card className="bg-surface-1">
       <CardContent className="p-4">
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}>
           <Icon className="h-4 w-4" />
         </span>
-        <p className="mt-3 text-xs text-slate-500">{label}</p>
-        <p className="mt-1 break-words text-lg font-semibold text-slate-100">{value}</p>
-        <p className="mt-1 text-[11px] text-slate-600">{hint}</p>
+        <p className="mt-3 text-xs text-ink-3">{label}</p>
+        <p className="mt-1 break-words text-lg font-semibold text-ink">{value}</p>
+        <p className="mt-1 text-[11px] text-ink-2">{hint}</p>
       </CardContent>
     </Card>
   );
 }
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.05] bg-white/[0.015] p-3">
-      <div className="text-xs text-slate-600">{label}</div>
-      <div className="mt-1 font-medium text-slate-200">{value}</div>
+    <div className="rounded-xl border border-line bg-ink/[0.015] p-3">
+      <div className="text-xs text-ink-2">{label}</div>
+      <div className="mt-1 font-medium text-ink">{value}</div>
     </div>
   );
 }

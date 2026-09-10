@@ -6,7 +6,7 @@ export function ListCount({ shown, total, label }: { shown: number; total: numbe
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted2">
       <span>
-        <strong className="font-semibold text-slate-300">{total}</strong> {label}
+        <strong className="font-semibold text-ink-2">{total}</strong> {label}
         {total === 1 ? "" : "s"}
       </span>
       {shown !== total ? (
@@ -46,12 +46,12 @@ export function Pagination({
 
   return (
     <nav
-      className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4"
+      className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4"
       aria-label="Pagination"
     >
       <p className="text-xs text-muted2">
-        Page <strong className="text-slate-300">{page}</strong> sur{" "}
-        <strong className="text-slate-300">{totalPages}</strong>
+        Page <strong className="text-ink-2">{page}</strong> sur{" "}
+        <strong className="text-ink-2">{totalPages}</strong>
       </p>
       <div className="flex items-center gap-1.5">
         <Link
@@ -59,7 +59,7 @@ export function Pagination({
           tabIndex={page <= 1 ? -1 : undefined}
           href={page <= 1 ? "#" : hrefWith(basePath, params, page - 1)}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] text-slate-400 transition hover:bg-white/[0.055] hover:text-white",
+            "flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-ink/[0.025] text-ink-3 transition hover:bg-ink/[0.055] hover:text-ink",
             page <= 1 && "pointer-events-none opacity-35",
           )}
         >
@@ -68,15 +68,15 @@ export function Pagination({
         {pages.map((p, index) => (
           <span key={p} className="contents">
             {index > 0 && p - pages[index - 1] > 1 ? (
-              <span className="px-1 text-xs text-slate-600">…</span>
+              <span className="px-1 text-xs text-ink-2">…</span>
             ) : null}
             <Link
               href={hrefWith(basePath, params, p)}
               className={cn(
                 "flex h-9 min-w-9 items-center justify-center rounded-xl border px-2 text-xs font-medium transition",
                 p === page
-                  ? "border-blue-400/30 bg-blue-500/12 text-blue-300"
-                  : "border-white/[0.07] bg-white/[0.025] text-slate-500 hover:bg-white/[0.055] hover:text-white",
+                  ? "border-blue-400/30 bg-blue-500/12 text-accent"
+                  : "border-line bg-ink/[0.025] text-ink-3 hover:bg-ink/[0.055] hover:text-ink",
               )}
             >
               {p}
@@ -88,7 +88,7 @@ export function Pagination({
           tabIndex={page >= totalPages ? -1 : undefined}
           href={page >= totalPages ? "#" : hrefWith(basePath, params, page + 1)}
           className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] text-slate-400 transition hover:bg-white/[0.055] hover:text-white",
+            "flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-ink/[0.025] text-ink-3 transition hover:bg-ink/[0.055] hover:text-ink",
             page >= totalPages && "pointer-events-none opacity-35",
           )}
         >
@@ -121,8 +121,8 @@ export function RecordCard({
   const card = (
     <article
       className={cn(
-        "rounded-2xl border border-white/[0.07] bg-[#0d1624]/80 p-4 shadow-[0_12px_28px_rgba(0,0,0,.14)] transition",
-        href && "hover:border-blue-400/20 hover:bg-[#101b2c]",
+        "rounded-2xl border border-line bg-surface-1 p-4 shadow-card transition",
+        href && "hover:border-blue-400/20 hover:bg-surface-1",
         className,
       )}
     >
@@ -131,20 +131,16 @@ export function RecordCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-slate-100">{title}</div>
-              {subtitle ? <div className="mt-1 text-xs text-slate-500">{subtitle}</div> : null}
+              <div className="truncate text-sm font-semibold text-ink">{title}</div>
+              {subtitle ? <div className="mt-1 text-xs text-ink-3">{subtitle}</div> : null}
             </div>
-            {href ? <MoreHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" /> : null}
+            {href ? <MoreHorizontal className="mt-0.5 h-4 w-4 shrink-0 text-ink-2" /> : null}
           </div>
           {badges ? <div className="mt-2 flex flex-wrap gap-1.5">{badges}</div> : null}
         </div>
       </div>
-      {children ? (
-        <div className="mt-4 grid gap-2 border-t border-white/[0.055] pt-3 text-xs">{children}</div>
-      ) : null}
-      {footer ? (
-        <div className="mt-3 border-t border-white/[0.055] pt-3 text-xs text-slate-500">{footer}</div>
-      ) : null}
+      {children ? <div className="mt-4 grid gap-2 border-t border-line pt-3 text-xs">{children}</div> : null}
+      {footer ? <div className="mt-3 border-t border-line pt-3 text-xs text-ink-3">{footer}</div> : null}
     </article>
   );
   return href ? (
@@ -167,8 +163,8 @@ export function RecordField({
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <span className="text-slate-600">{label}</span>
-      <span className={cn("max-w-[68%] text-right font-medium text-slate-300", valueClassName)}>{value}</span>
+      <span className="text-ink-2">{label}</span>
+      <span className={cn("max-w-[68%] text-right font-medium text-ink-2", valueClassName)}>{value}</span>
     </div>
   );
 }

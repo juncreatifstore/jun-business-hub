@@ -149,18 +149,18 @@ export function Sidebar({
   return (
     <>
       {open ? (
-        <div className="fixed inset-0 z-40 bg-slate-950/75 backdrop-blur-sm lg:hidden" onClick={onClose} />
+        <div className="fixed inset-0 z-40 bg-night/70 backdrop-blur-sm lg:hidden" onClick={onClose} />
       ) : null}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[286px] flex-col border-r border-white/[0.07] bg-[#08101d] text-white shadow-2xl shadow-black/25 transition-[width,transform] duration-200 lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-[286px] flex-col border-r border-nav-line/[0.08] bg-nav text-nav-fg transition-[width,transform] duration-200 lg:static lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
           collapsed ? "lg:w-[84px]" : "lg:w-[262px]",
         )}
       >
         <div
           className={cn(
-            "flex h-[72px] items-center border-b border-white/[0.06] px-4",
+            "flex h-16 items-center border-b border-nav-line/[0.08] px-4",
             collapsed ? "lg:justify-center lg:px-3" : "justify-between",
           )}
         >
@@ -170,21 +170,19 @@ export function Sidebar({
             onClick={onClose}
             title="JUN Business Hub"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 text-lg font-bold shadow-lg shadow-blue-950/45 ring-1 ring-white/10">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-electric font-display text-lg font-semibold text-white">
               J
             </span>
             <span className={cn("min-w-0", collapsed && "lg:hidden")}>
-              <span className="block truncate text-[15px] font-semibold tracking-tight text-white">
+              <span className="block truncate text-[15px] font-semibold tracking-tight text-nav-fg">
                 JUN Business Hub
               </span>
-              <span className="block text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                Business OS
-              </span>
+              <span className="block truncate text-xs text-nav-muted">JUN Créatif & Travel</span>
             </span>
           </Link>
 
           <button
-            className="rounded-lg p-2 text-slate-400 hover:bg-white/[0.06] hover:text-white lg:hidden"
+            className="rounded-lg p-2 text-nav-muted hover:bg-nav-line/[0.08] hover:text-nav-fg lg:hidden"
             onClick={onClose}
             aria-label="Fermer le menu"
           >
@@ -193,10 +191,7 @@ export function Sidebar({
         </div>
 
         <nav
-          className={cn(
-            "flex-1 overflow-y-auto py-4 [scrollbar-width:thin] [scrollbar-color:#243044_transparent]",
-            collapsed ? "lg:px-2" : "px-3",
-          )}
+          className={cn("flex-1 overflow-y-auto py-3 [scrollbar-width:thin]", collapsed ? "lg:px-2" : "px-3")}
         >
           {sections.map((section, i) => {
             const items = section.items.filter((item) => !item.superAdminOnly || role === "SUPER_ADMIN");
@@ -206,7 +201,7 @@ export function Sidebar({
                 {section.label ? (
                   <p
                     className={cn(
-                      "px-3 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.22em] text-slate-600",
+                      "px-3 pb-1.5 text-xs font-medium text-nav-muted/70",
                       collapsed && "lg:hidden",
                     )}
                   >
@@ -214,7 +209,7 @@ export function Sidebar({
                   </p>
                 ) : null}
                 {collapsed && section.label ? (
-                  <div className="mx-auto mb-2 hidden h-px w-7 bg-white/[0.06] lg:block" />
+                  <div className="mx-auto mb-2 hidden h-px w-7 bg-nav-line/[0.1] lg:block" />
                 ) : null}
 
                 <div className="space-y-1">
@@ -234,30 +229,30 @@ export function Sidebar({
                         onClick={onClose}
                         title={collapsed ? item.label : undefined}
                         className={cn(
-                          "group relative flex items-center rounded-xl py-2.5 text-[13px] font-medium transition-all",
+                          "group relative flex items-center rounded-lg py-2 text-[13px] font-medium transition-colors",
                           collapsed ? "lg:justify-center lg:px-2" : "gap-3 px-3",
                           active
-                            ? "bg-blue-500/15 text-blue-100 shadow-[inset_0_0_0_1px_rgba(59,130,246,.12)]"
-                            : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-100",
+                            ? "bg-nav-line/[0.08] text-nav-fg"
+                            : "text-nav-muted hover:bg-nav-line/[0.05] hover:text-nav-fg",
                         )}
                       >
-                        {active ? <span className="absolute left-0 h-5 w-0.5 rounded-r bg-blue-400" /> : null}
+                        {active ? (
+                          <span className="absolute left-0 h-5 w-0.5 rounded-r bg-nav-active" />
+                        ) : null}
                         <span
                           className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition",
-                            active
-                              ? "bg-blue-500/15 text-blue-400"
-                              : "text-slate-500 group-hover:text-slate-300",
+                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+                            active ? "text-nav-active" : "text-nav-muted group-hover:text-nav-fg",
                           )}
                         >
-                          <item.icon className="h-[17px] w-[17px]" />
+                          <item.icon className="h-4 w-4" />
                         </span>
                         <span className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
                           <span className="block truncate">{item.label}</span>
                           {isCompanyFundsRoot &&
                           !insideCompanyFunds &&
                           lastCompanyFundsHref !== "/app/company-funds" ? (
-                            <span className="mt-0.5 block truncate text-[9px] font-normal text-slate-600">
+                            <span className="mt-0.5 block truncate text-2xs font-normal text-nav-muted/80">
                               Reprendre · {companyFundsLabels[lastCompanyFundsHref] || "dernière section"}
                             </span>
                           ) : null}
@@ -271,12 +266,12 @@ export function Sidebar({
           })}
         </nav>
 
-        <div className="border-t border-white/[0.06] p-3">
+        <div className="border-t border-nav-line/[0.08] p-3">
           <button
             type="button"
             onClick={onToggleCollapsed}
             className={cn(
-              "mb-2 hidden w-full items-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-slate-400 transition hover:bg-white/[0.055] hover:text-white lg:flex",
+              "mb-2 hidden w-full items-center rounded-lg text-nav-muted transition hover:bg-nav-line/[0.06] hover:text-nav-fg lg:flex",
               collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
             )}
             title={collapsed ? "Déployer la navigation" : "Réduire la navigation"}
@@ -293,19 +288,17 @@ export function Sidebar({
 
           <div
             className={cn(
-              "flex items-center rounded-xl border border-white/[0.06] bg-white/[0.025]",
+              "flex items-center rounded-lg border border-nav-line/[0.08]",
               collapsed ? "lg:justify-center lg:p-2.5" : "gap-3 p-3",
             )}
             title="JUN Créatif & Travel"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-nav-line/[0.08] text-nav-muted">
               <BriefcaseBusiness className="h-4 w-4" />
             </span>
             <span className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
-              <span className="block truncate text-xs font-semibold text-slate-200">
-                JUN Créatif & Travel
-              </span>
-              <span className="block truncate text-[10px] text-slate-500">Compte principal</span>
+              <span className="block truncate text-xs font-semibold text-nav-fg">JUN Créatif & Travel</span>
+              <span className="block truncate text-2xs text-nav-muted">Compte principal</span>
             </span>
           </div>
         </div>

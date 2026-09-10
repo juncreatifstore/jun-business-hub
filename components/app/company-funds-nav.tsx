@@ -312,7 +312,7 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
   return (
     <>
       <div
-        className="sticky top-0 z-30 -mx-4 border-b border-line bg-white/95 px-4 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] backdrop-blur md:-mx-6 md:px-6"
+        className="sticky top-0 z-30 -mx-4 border-b border-line bg-ink/95 px-4 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] backdrop-blur md:-mx-6 md:px-6"
         aria-live="polite"
       >
         {busy ? (
@@ -438,7 +438,7 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
                     className={cn(
                       "group inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition",
                       active
-                        ? "bg-ink text-white shadow-sm"
+                        ? "bg-ink text-ink shadow-sm"
                         : "text-muted2 hover:bg-white hover:text-ink hover:shadow-sm",
                     )}
                   >

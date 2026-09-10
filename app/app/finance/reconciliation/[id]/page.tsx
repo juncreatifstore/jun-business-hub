@@ -174,7 +174,7 @@ export default async function ReconciliationImportPage({
                               placeholder="Optional note"
                             />
                           </label>
-                          <button className="rounded-lg bg-ink px-3 py-2 text-xs font-medium text-white">
+                          <button className="rounded-lg bg-ink px-3 py-2 text-xs font-medium text-ink">
                             Confirm match
                           </button>
                         </form>
@@ -210,7 +210,7 @@ function Status({ status }: { status: string }) {
       : status === "SUGGESTED"
         ? "bg-blue-100 text-blue-800"
         : status === "IGNORED"
-          ? "bg-slate-100 text-slate-700"
+          ? "bg-slate-100 text-ink-2"
           : "bg-amber-100 text-amber-800";
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{status}</span>;
 }

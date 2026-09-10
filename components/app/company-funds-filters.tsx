@@ -84,7 +84,7 @@ export function CompanyFundsFilters({ countries, currencies }: Props) {
           <Filter className="h-4 w-4" />
           Filtres globaux
           {activeCount > 0 ? (
-            <span className="rounded-full bg-ink px-1.5 py-0.5 text-[10px] text-white">{activeCount}</span>
+            <span className="rounded-full bg-ink px-1.5 py-0.5 text-[10px] text-ink">{activeCount}</span>
           ) : null}
         </div>
         <label className="min-w-[150px] flex-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">

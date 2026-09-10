@@ -133,7 +133,7 @@ export function DocumentFillPreview({
       field.el.append(label);
       if (field.help) {
         const help = document.createElement("p");
-        help.className = "mb-2 text-xs text-slate-500";
+        help.className = "mb-2 text-xs text-ink-3";
         help.textContent = field.help;
         field.el.append(help);
       }

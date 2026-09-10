@@ -47,8 +47,8 @@ export function DriveMediaPreview({
           </div>
         ) : isAudio ? (
           <div className="flex min-h-[180px] flex-col items-center justify-center gap-4 bg-slate-950 p-6 text-white">
-            <Music2 className="h-10 w-10 text-white/50" />
-            <div className="max-w-full truncate text-sm text-white/70">{name}</div>
+            <Music2 className="h-10 w-10 text-ink/50" />
+            <div className="max-w-full truncate text-sm text-ink/70">{name}</div>
             <audio src={src} controls preload="metadata" className="w-full max-w-xl" />
           </div>
         ) : (

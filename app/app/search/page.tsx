@@ -226,7 +226,7 @@ function ResultCard({ title, children }: { title: string; children: React.ReactN
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>
-      <CardContent className="divide-y divide-white/[0.055]">{children}</CardContent>
+      <CardContent className="divide-y divide-line">{children}</CardContent>
     </Card>
   );
 }

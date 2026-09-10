@@ -149,7 +149,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Para
                       </Link>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {c.tags.slice(0, 3).map((t) => (
-                          <Badge key={t.id} className="border border-line bg-white/[0.03] text-muted2">
+                          <Badge key={t.id} className="border border-line bg-ink/[0.03] text-muted2">
                             {t.tag}
                           </Badge>
                         ))}
@@ -186,7 +186,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Para
                 title={`${c.firstName} ${c.lastName}`}
                 subtitle={<span className="registry-id">{c.internalId}</span>}
                 leading={
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-sm font-bold text-blue-300">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-sm font-bold text-accent">
                     {initials(c.firstName, c.lastName)}
                   </span>
                 }
@@ -194,7 +194,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Para
                   <>
                     <StatusBadge status={c.status} />
                     {c.tags.slice(0, 2).map((t) => (
-                      <Badge key={t.id} className="border border-white/[0.07] bg-white/[0.03] text-slate-400">
+                      <Badge key={t.id} className="border border-line bg-ink/[0.03] text-ink-3">
                         {t.tag}
                       </Badge>
                     ))}

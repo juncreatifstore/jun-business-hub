@@ -37,7 +37,7 @@ export default async function DepartmentsPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{d.label}</CardTitle>
-                  <Badge className="bg-white/10 text-white/70">
+                  <Badge className="bg-ink/10 text-ink/70">
                     {d.users.length} member{d.users.length === 1 ? "" : "s"}
                   </Badge>
                 </div>

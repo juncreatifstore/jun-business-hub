@@ -58,7 +58,7 @@ export default async function NewSignatureRequestPage() {
 
       {!docusignReady ? (
         <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">
-          <span className="font-medium text-amber-300">DocuSign is not configured.</span>
+          <span className="font-medium text-warning">DocuSign is not configured.</span>
           <span className="text-muted2">
             {" "}
             You can still prepare the request, signers, routing order, message and PDF field positions.
@@ -123,7 +123,7 @@ export default async function NewSignatureRequestPage() {
             {[1, 2, 3, 4].map((i) => {
               const agency = i === 2;
               return (
-                <div key={i} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <div key={i} className="rounded-xl border border-line bg-ink/[0.02] p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="font-medium">Signer {i}</p>
                     <span className="text-xs text-muted2">Routing order {i}</span>
@@ -185,7 +185,7 @@ export default async function NewSignatureRequestPage() {
                     </div>
 
                     <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                      <div className="rounded-lg border border-white/10 p-3">
+                      <div className="rounded-lg border border-line p-3">
                         <label className="flex items-center gap-2 text-sm">
                           <input type="checkbox" name={`signer${i}AddName`} defaultChecked /> Add signer name
                         </label>
@@ -200,7 +200,7 @@ export default async function NewSignatureRequestPage() {
                           />
                         </div>
                       </div>
-                      <div className="rounded-lg border border-white/10 p-3">
+                      <div className="rounded-lg border border-line p-3">
                         <label className="flex items-center gap-2 text-sm">
                           <input type="checkbox" name={`signer${i}AddDate`} defaultChecked /> Add date signed
                         </label>
@@ -215,7 +215,7 @@ export default async function NewSignatureRequestPage() {
                           />
                         </div>
                       </div>
-                      <div className="rounded-lg border border-white/10 p-3">
+                      <div className="rounded-lg border border-line p-3">
                         <label className="flex items-center gap-2 text-sm">
                           <input type="checkbox" name={`signer${i}AddInitials`} /> Add initials
                         </label>
@@ -264,7 +264,7 @@ export default async function NewSignatureRequestPage() {
                 defaultValue="Please review the attached document and complete your signature at your earliest convenience. If you have any questions, contact JUN CREATIF AND TRAVEL LLC before signing."
               />
             </Field>
-            <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 text-sm text-muted2">
+            <div className="rounded-lg border border-line bg-ink/[0.02] p-4 text-sm text-muted2">
               {docusignReady
                 ? "Sending creates a tracked DocuSign envelope. JUN records signer order, field placements, timestamps and audit events."
                 : "Preparing stores the full request in JUN with status READY FOR SIGNATURE. It will not contact any signer until DocuSign is configured and you explicitly send it."}

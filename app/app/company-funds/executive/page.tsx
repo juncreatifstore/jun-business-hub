@@ -162,7 +162,7 @@ export default async function ExecutiveTreasuryPage({ searchParams }: { searchPa
                             <Kpi label="Prêts à échéance" value={formatMoney(r.loanDue, currency)} />
                           </div>
                           {r.reserveDeficit > 0 ? (
-                            <div className="mt-2 rounded-lg bg-white/70 p-2 text-xs font-medium text-red-700">
+                            <div className="mt-2 rounded-lg bg-ink/70 p-2 text-xs font-medium text-red-700">
                               Déficit potentiel de sécurité : {formatMoney(r.reserveDeficit, currency)}
                             </div>
                           ) : null}

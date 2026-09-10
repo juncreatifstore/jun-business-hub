@@ -28,7 +28,7 @@ export default async function BudgetingPage() {
         {can(user, "BUDGET_CREATE") && (
           <Link
             href="/app/finance/budgeting/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-white"
+            className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-ink"
           >
             <Plus className="h-4 w-4" />
             Nouveau budget

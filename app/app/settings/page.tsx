@@ -45,10 +45,10 @@ export default async function SettingsPage() {
       <div className="mb-5 grid gap-3 sm:mb-7 md:grid-cols-3">
         <a
           href="/app/settings/security"
-          className="group rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 transition hover:border-blue-400/30 hover:bg-white/[0.04]"
+          className="group rounded-2xl border border-line bg-ink/[0.025] p-4 transition hover:border-blue-400/30 hover:bg-ink/[0.04]"
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-accent">
               <ShieldCheck className="h-5 w-5" />
             </span>
             <div className="min-w-0">
@@ -59,7 +59,7 @@ export default async function SettingsPage() {
         </a>
         <a
           href="/app/settings/email"
-          className="group rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 transition hover:border-cyan-400/30 hover:bg-white/[0.04]"
+          className="group rounded-2xl border border-line bg-ink/[0.025] p-4 transition hover:border-cyan-400/30 hover:bg-ink/[0.04]"
         >
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
@@ -76,7 +76,7 @@ export default async function SettingsPage() {
           className="group rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 transition hover:border-emerald-400/40 hover:bg-emerald-500/[0.07]"
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-success">
               <MessageCircle className="h-5 w-5" />
             </span>
             <div className="min-w-0">
@@ -95,7 +95,7 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader className="p-4 pb-0 sm:p-5 sm:pb-0">
             <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-blue-400" />
+              <Building2 className="h-4 w-4 text-accent" />
               Identité officielle de l’entreprise
             </CardTitle>
           </CardHeader>
@@ -253,7 +253,7 @@ export default async function SettingsPage() {
                 name="company.bank_details"
                 defaultValue={s["company.bank_details"] ?? ""}
                 rows={5}
-                className="w-full resize-y rounded-xl border border-line bg-white/[0.025] px-3 py-2 text-sm outline-none focus:border-electric"
+                className="w-full resize-y rounded-xl border border-line bg-ink/[0.025] px-3 py-2 text-sm outline-none focus:border-electric"
                 placeholder="Informations autorisées pouvant apparaître sur les documents financiers."
               />
             </div>
@@ -273,10 +273,7 @@ export default async function SettingsPage() {
               ["document.seal", "Sceau de l’entreprise", sealUrl, "Current company seal"],
               ["document.signature", "Signature officielle", signatureUrl, "Current official signature"],
             ].map(([name, label, url, alt]) => (
-              <div
-                key={String(name)}
-                className="min-w-0 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"
-              >
+              <div key={String(name)} className="min-w-0 rounded-2xl border border-line bg-ink/[0.02] p-4">
                 <p className="text-sm font-semibold">{String(label)}</p>
                 <p className="mt-1 text-xs text-muted2">PNG transparent recommandé · JPG/WEBP accepté.</p>
                 <div className="mt-4 flex min-h-28 items-center justify-center rounded-xl border border-dashed border-line bg-black/10 p-4 sm:min-h-32">
@@ -338,7 +335,7 @@ export default async function SettingsPage() {
             ].map(([name, label, fallback]) => (
               <label
                 key={String(name)}
-                className="flex min-h-12 items-center gap-3 rounded-xl border border-line bg-white/[0.02] p-3 text-sm"
+                className="flex min-h-12 items-center gap-3 rounded-xl border border-line bg-ink/[0.02] p-3 text-sm"
               >
                 <input
                   type="checkbox"
@@ -359,7 +356,7 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader className="p-4 pb-0 sm:p-5 sm:pb-0">
             <CardTitle className="flex items-center gap-2">
-              <Palette className="h-4 w-4 text-amber-400" />
+              <Palette className="h-4 w-4 text-warning" />
               Branding de l’interface
             </CardTitle>
           </CardHeader>
@@ -386,7 +383,7 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader className="p-4 pb-0 sm:p-5 sm:pb-0">
             <CardTitle className="flex items-center gap-2">
-              <Hash className="h-4 w-4 text-blue-400" />
+              <Hash className="h-4 w-4 text-accent" />
               Numérotation
             </CardTitle>
           </CardHeader>
@@ -403,7 +400,7 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-30 -mx-2 rounded-2xl border border-white/10 bg-night/90 p-2 shadow-2xl backdrop-blur-xl sm:bottom-4 sm:mx-0 sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-none">
+        <div className="sticky bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-30 -mx-2 rounded-2xl border border-line bg-night/90 p-2 shadow-2xl backdrop-blur-xl sm:bottom-4 sm:mx-0 sm:flex sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-none">
           <Button type="submit" variant="primary" className="w-full sm:w-auto">
             <Save className="mr-2 h-4 w-4" />
             Enregistrer les paramètres

@@ -67,9 +67,9 @@ export default async function ClientFinancePage({
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">Finance</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-100">Position financière du client</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-2">Finance</p>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Position financière du client</h2>
+          <p className="mt-1 text-sm text-ink-3">
             Factures, paiements, frais, dépenses, soldes, rentabilité et remboursements.
           </p>
         </div>
@@ -84,22 +84,22 @@ export default async function ClientFinancePage({
       </div>
 
       {finance.summaries.length === 0 ? (
-        <Card className="bg-[#0e1624]">
-          <CardContent className="p-6 text-center text-sm text-slate-500">
+        <Card className="bg-surface-1">
+          <CardContent className="p-6 text-center text-sm text-ink-3">
             Aucune activité financière enregistrée pour ce client.
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
           {finance.summaries.map((s) => (
-            <Card key={s.currency} className="bg-[#0e1624]">
+            <Card key={s.currency} className="bg-surface-1">
               <CardHeader>
                 <div className="flex w-full items-center justify-between gap-3">
                   <div>
                     <CardTitle>Position {s.currency}</CardTitle>
-                    <p className="mt-1 text-xs text-slate-500">Base nette après frais et engagements</p>
+                    <p className="mt-1 text-xs text-ink-3">Base nette après frais et engagements</p>
                   </div>
-                  <Badge className="border border-blue-500/15 bg-blue-500/[0.07] text-blue-400">
+                  <Badge className="border border-blue-500/15 bg-blue-500/[0.07] text-accent">
                     NET BASIS
                   </Badge>
                 </div>
@@ -147,49 +147,47 @@ export default async function ClientFinancePage({
                     value={formatMoney(s.receivable, s.currency)}
                   />
                 </div>
-                <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 border-t border-white/[0.055] pt-3 text-xs text-slate-500">
+                <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 border-t border-line pt-3 text-xs text-ink-3">
                   <span>
-                    Facturé: <strong className="text-slate-200">{formatMoney(s.billed, s.currency)}</strong>
+                    Facturé: <strong className="text-ink">{formatMoney(s.billed, s.currency)}</strong>
                   </span>
                   <span>
                     Factures payées:{" "}
-                    <strong className="text-slate-200">{formatMoney(s.invoicePaid, s.currency)}</strong>
+                    <strong className="text-ink">{formatMoney(s.invoicePaid, s.currency)}</strong>
                   </span>
                   <span>
                     Appliqué:{" "}
-                    <strong className="text-slate-200">{formatMoney(s.appliedToInvoices, s.currency)}</strong>
+                    <strong className="text-ink">{formatMoney(s.appliedToInvoices, s.currency)}</strong>
                   </span>
                   <span>
                     Non appliqué:{" "}
-                    <strong className="text-slate-200">{formatMoney(s.unappliedFunds, s.currency)}</strong>
+                    <strong className="text-ink">{formatMoney(s.unappliedFunds, s.currency)}</strong>
                   </span>
                   <span>
                     Dépenses en attente:{" "}
-                    <strong className="text-slate-200">
-                      {formatMoney(s.expensePendingApproval, s.currency)}
-                    </strong>
+                    <strong className="text-ink">{formatMoney(s.expensePendingApproval, s.currency)}</strong>
                   </span>
                   <span>
                     Coûts approuvés restants:{" "}
-                    <strong className="text-slate-200">{formatMoney(s.expenseRemaining, s.currency)}</strong>
+                    <strong className="text-ink">{formatMoney(s.expenseRemaining, s.currency)}</strong>
                   </span>
                   <span>
                     Remboursements approuvés:{" "}
-                    <strong className="text-slate-200">{formatMoney(s.approvedRefunds, s.currency)}</strong>
+                    <strong className="text-ink">{formatMoney(s.approvedRefunds, s.currency)}</strong>
                   </span>
                   <span>
                     Remboursements payés:{" "}
-                    <strong className="text-slate-200">{formatMoney(s.refundPaid, s.currency)}</strong>
+                    <strong className="text-ink">{formatMoney(s.refundPaid, s.currency)}</strong>
                   </span>
                   <span>
                     Marge réalisée:{" "}
-                    <strong className="text-slate-200">
+                    <strong className="text-ink">
                       {s.realizedMarginPercent == null ? "—" : `${s.realizedMarginPercent.toFixed(2)}%`}
                     </strong>
                   </span>
                   <span>
                     Marge prévisionnelle:{" "}
-                    <strong className="text-slate-200">
+                    <strong className="text-ink">
                       {s.forecastMarginPercent == null ? "—" : `${s.forecastMarginPercent.toFixed(2)}%`}
                     </strong>
                   </span>
@@ -201,7 +199,7 @@ export default async function ClientFinancePage({
       )}
 
       {alertCount > 0 ? (
-        <Card className="bg-[#0e1624]">
+        <Card className="bg-surface-1">
           <CardHeader>
             <CardTitle>Points d’attention finance</CardTitle>
           </CardHeader>
@@ -235,13 +233,13 @@ export default async function ClientFinancePage({
         </Card>
       ) : null}
 
-      <Card className="bg-[#0e1624]">
+      <Card className="bg-surface-1">
         <CardHeader>
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <CardTitle>Factures</CardTitle>
             <Link
               href={`/app/finance/invoices/new?clientId=${id}`}
-              className="text-sm font-medium text-blue-400 hover:text-blue-300"
+              className="text-sm font-medium text-accent hover:text-accent"
             >
               Créer une facture
             </Link>
@@ -249,7 +247,7 @@ export default async function ClientFinancePage({
         </CardHeader>
         <CardContent className="p-0">
           {finance.invoices.length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">Aucune facture pour ce client.</p>
+            <p className="p-5 text-sm text-ink-3">Aucune facture pour ce client.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -310,13 +308,13 @@ export default async function ClientFinancePage({
         </CardContent>
       </Card>
 
-      <Card className="bg-[#0e1624]">
+      <Card className="bg-surface-1">
         <CardHeader>
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <CardTitle>Paiements</CardTitle>
             <Link
               href={`/app/finance/payments/new?clientId=${id}`}
-              className="text-sm font-medium text-blue-400 hover:text-blue-300"
+              className="text-sm font-medium text-accent hover:text-accent"
             >
               Enregistrer paiement
             </Link>
@@ -324,7 +322,7 @@ export default async function ClientFinancePage({
         </CardHeader>
         <CardContent className="p-0">
           {finance.payments.length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">Aucun paiement enregistré.</p>
+            <p className="p-5 text-sm text-ink-3">Aucun paiement enregistré.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -381,13 +379,13 @@ export default async function ClientFinancePage({
         </CardContent>
       </Card>
 
-      <Card className="bg-[#0e1624]">
+      <Card className="bg-surface-1">
         <CardHeader>
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <CardTitle>Dépenses</CardTitle>
             <Link
               href={`/app/finance/expenses/new?clientId=${id}`}
-              className="text-sm font-medium text-blue-400 hover:text-blue-300"
+              className="text-sm font-medium text-accent hover:text-accent"
             >
               Enregistrer dépense
             </Link>
@@ -395,7 +393,7 @@ export default async function ClientFinancePage({
         </CardHeader>
         <CardContent className="p-0">
           {finance.expenses.length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">Aucune dépense liée à ce client.</p>
+            <p className="p-5 text-sm text-ink-3">Aucune dépense liée à ce client.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -454,13 +452,13 @@ export default async function ClientFinancePage({
         </CardContent>
       </Card>
 
-      <Card className="bg-[#0e1624]">
+      <Card className="bg-surface-1">
         <CardHeader>
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <CardTitle>Remboursements</CardTitle>
             <Link
               href={`/app/finance/refunds/new?clientId=${id}`}
-              className="text-sm font-medium text-blue-400 hover:text-blue-300"
+              className="text-sm font-medium text-accent hover:text-accent"
             >
               Nouveau remboursement
             </Link>
@@ -468,7 +466,7 @@ export default async function ClientFinancePage({
         </CardHeader>
         <CardContent className="p-0">
           {finance.refunds.length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">Aucun remboursement pour ce client.</p>
+            <p className="p-5 text-sm text-ink-3">Aucun remboursement pour ce client.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -511,7 +509,7 @@ export default async function ClientFinancePage({
         </CardContent>
       </Card>
 
-      <Card className="bg-[#0e1624]">
+      <Card className="bg-surface-1">
         <CardHeader>
           <CardTitle>Règles financières appliquées</CardTitle>
         </CardHeader>
@@ -548,10 +546,10 @@ function Metric({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.055] bg-white/[0.018] p-3">
-      <Icon className="mb-2 h-4 w-4 text-blue-400" />
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 break-words font-semibold text-slate-200">{value}</div>
+    <div className="rounded-xl border border-line bg-ink/[0.018] p-3">
+      <Icon className="mb-2 h-4 w-4 text-accent" />
+      <div className="text-xs text-ink-3">{label}</div>
+      <div className="mt-1 break-words font-semibold text-ink">{value}</div>
     </div>
   );
 }
@@ -561,30 +559,30 @@ function AlertBox({ title, count, text }: { title: string; count: number; text: 
       className={
         count
           ? "rounded-xl border border-amber-400/15 bg-amber-500/[0.06] p-4"
-          : "rounded-xl border border-white/[0.055] bg-white/[0.018] p-4"
+          : "rounded-xl border border-line bg-ink/[0.018] p-4"
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="font-medium text-slate-200">{title}</div>
+        <div className="font-medium text-ink">{title}</div>
         <Badge
           className={
             count
               ? "border border-amber-400/15 bg-amber-500/10 text-amber-600"
-              : "border border-white/[0.06] bg-white/[0.02] text-slate-500"
+              : "border border-line bg-ink/[0.02] text-ink-3"
           }
         >
           {count}
         </Badge>
       </div>
-      <div className="mt-1 text-xs text-slate-500">{text}</div>
+      <div className="mt-1 text-xs text-ink-3">{text}</div>
     </div>
   );
 }
 function Rule({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.055] bg-white/[0.015] p-4">
-      <div className="font-medium text-slate-200">{title}</div>
-      <div className="mt-1 text-xs leading-5 text-slate-500">{text}</div>
+    <div className="rounded-xl border border-line bg-ink/[0.015] p-4">
+      <div className="font-medium text-ink">{title}</div>
+      <div className="mt-1 text-xs leading-5 text-ink-3">{text}</div>
     </div>
   );
 }

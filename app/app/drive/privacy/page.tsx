@@ -123,7 +123,7 @@ export default async function DrivePrivacyPage({
                 <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
                   <span>{file.name}</span>
                   <span
-                    className={`ml-2 rounded-full px-2 py-0.5 text-[10px] ${custom ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}
+                    className={`ml-2 rounded-full px-2 py-0.5 text-[10px] ${custom ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-ink-2"}`}
                   >
                     {custom ? "CUSTOM POLICY" : "GLOBAL POLICY"}
                   </span>
