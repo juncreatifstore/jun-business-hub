@@ -229,7 +229,7 @@ export function Sidebar({
                         onClick={onClose}
                         title={collapsed ? item.label : undefined}
                         className={cn(
-                          "group relative flex items-center rounded-lg py-2 text-[13px] font-medium transition-colors",
+                          "group relative flex items-center rounded-lg py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-nav-active/50",
                           collapsed ? "lg:justify-center lg:px-2" : "gap-3 px-3",
                           active
                             ? "bg-nav-line/[0.08] text-nav-fg"
