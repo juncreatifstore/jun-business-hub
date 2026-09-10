@@ -1,42 +1,149 @@
+/**
+ * Rate limiting.
+ *
+ * Two providers:
+ *  - UPSTASH (Redis REST): distributed, correct on Vercel/serverless. REQUIRED in
+ *    production for security-critical limits (login, MFA, password reset).
+ *  - MEMORY: per-process Map. Fine for local dev. On serverless it is almost
+ *    useless (one counter per instance, reset on every cold start), so it is
+ *    only accepted in production for non-security limits, with a warning.
+ *
+ * Policy:
+ *  - `critical: true` limits FAIL CLOSED: if the provider is unavailable or
+ *    misconfigured, the request is denied. Better to block a login for a minute
+ *    than to let a credential-stuffing run through.
+ *  - Non-critical limits fail open (UX features like AI drafts, Gmail sync).
+ */
+
 type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
+const MAX_MEMORY_BUCKETS = 10_000;
 
-function memoryLimit(key: string, limit: number, windowMs: number): boolean {
+export type RateLimitOptions = {
+  /** Security-sensitive limit: requires a distributed provider in production and fails closed. */
+  critical?: boolean;
+};
+
+export type RateLimitResult = {
+  ok: boolean;
+  /** Remaining requests in the window (best effort, -1 if unknown). */
+  remaining: number;
+  /** Which provider answered. */
+  provider: "UPSTASH" | "MEMORY" | "DENIED";
+};
+
+const isProd = process.env.NODE_ENV === "production";
+let memoryWarned = false;
+
+function memoryLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
+  if (buckets.size > MAX_MEMORY_BUCKETS) {
+    for (const [k, b] of buckets) if (b.resetAt < now) buckets.delete(k);
+  }
   const b = buckets.get(key);
   if (!b || b.resetAt < now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
+    return { ok: true, remaining: limit - 1, provider: "MEMORY" };
   }
-  if (b.count >= limit) return false;
+  if (b.count >= limit) return { ok: false, remaining: 0, provider: "MEMORY" };
   b.count += 1;
-  return true;
+  return { ok: true, remaining: limit - b.count, provider: "MEMORY" };
 }
 
-export function rateLimit(key: string, limit: number, windowMs: number): boolean {
-  return memoryLimit(key, limit, windowMs);
+function upstashConfig(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (process.env.RATE_LIMIT_PROVIDER === "UPSTASH" && url && token) return { url, token };
+  return null;
 }
 
-export async function rateLimitAsync(key: string, limit: number, windowMs: number): Promise<boolean> {
-  if (process.env.RATE_LIMIT_PROVIDER === "UPSTASH") {
-    const url = process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-    if (url && token) {
-      try {
-        const res = await fetch(`${url}/pipeline`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify([["INCR", `rl:${key}`], ["PEXPIRE", `rl:${key}`, String(windowMs), "NX"]]),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { result: number }[];
-          return Number(data?.[0]?.result ?? 0) <= limit;
-        }
-      } catch (e) {
-        console.error("rate-limit provider error (failing open):", e);
-      }
-      return true;
+async function upstashLimit(
+  cfg: { url: string; token: string },
+  key: string,
+  limit: number,
+  windowMs: number,
+): Promise<RateLimitResult | null> {
+  try {
+    const res = await fetch(`${cfg.url}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify([
+        ["INCR", `rl:${key}`],
+        ["PEXPIRE", `rl:${key}`, String(windowMs), "NX"],
+      ]),
+      signal: AbortSignal.timeout(2_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { result: number }[];
+    const count = Number(data?.[0]?.result ?? NaN);
+    if (!Number.isFinite(count)) return null;
+    return { ok: count <= limit, remaining: Math.max(0, limit - count), provider: "UPSTASH" };
+  } catch (e) {
+    console.error("rate-limit: Upstash unreachable", e);
+    return null;
+  }
+}
+
+/**
+ * Check and consume one unit of `key`'s budget.
+ * Returns the full result; use `checkRateLimit(...).ok` or the `rateLimitAsync` boolean shortcut.
+ */
+export async function checkRateLimit(
+  key: string,
+  limit: number,
+  windowMs: number,
+  opts: RateLimitOptions = {},
+): Promise<RateLimitResult> {
+  const cfg = upstashConfig();
+
+  if (cfg) {
+    const result = await upstashLimit(cfg, key, limit, windowMs);
+    if (result) return result;
+    if (opts.critical) {
+      console.error(`rate-limit: provider failure on critical key "${key}" — failing closed`);
+      return { ok: false, remaining: 0, provider: "DENIED" };
+    }
+    return memoryLimit(key, limit, windowMs);
+  }
+
+  if (isProd) {
+    if (opts.critical) {
+      console.error(
+        `rate-limit: critical limit "${key}" requested in production without a distributed provider. ` +
+          "Set RATE_LIMIT_PROVIDER=UPSTASH, UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN. Denying request.",
+      );
+      return { ok: false, remaining: 0, provider: "DENIED" };
+    }
+    if (!memoryWarned) {
+      memoryWarned = true;
+      console.warn(
+        "rate-limit: MEMORY provider in production is per-instance and resets on cold start. Configure Upstash.",
+      );
     }
   }
+
   return memoryLimit(key, limit, windowMs);
+}
+
+/** Boolean shortcut kept for existing call sites. */
+export async function rateLimitAsync(
+  key: string,
+  limit: number,
+  windowMs: number,
+  opts: RateLimitOptions = {},
+): Promise<boolean> {
+  return (await checkRateLimit(key, limit, windowMs, opts)).ok;
+}
+
+/**
+ * @deprecated Synchronous, memory-only. Use `rateLimitAsync` so the distributed
+ * provider is honoured. Kept for backwards compatibility.
+ */
+export function rateLimit(key: string, limit: number, windowMs: number): boolean {
+  return memoryLimit(key, limit, windowMs).ok;
+}
+
+/** Test helper. */
+export function _resetRateLimitMemory() {
+  buckets.clear();
 }

@@ -21,13 +21,14 @@ function safeRuntimeCode(error: unknown): string {
   if (/timeout|timed out/i.test(msg)) return "DB_TIMEOUT";
   if (/prepared statement|pgbouncer/i.test(msg)) return "DB_POOLER";
   if (/AUTH_SECRET is required/i.test(msg)) return "AUTH_SECRET_MISSING";
-  if (/Prisma/i.test(msg) || /Prisma/i.test(String(e?.name ?? ""))) return `PRISMA${e?.code ? `_${e.code}` : ""}`;
+  if (/Prisma/i.test(msg) || /Prisma/i.test(String(e?.name ?? "")))
+    return `PRISMA${e?.code ? `_${e.code}` : ""}`;
   return `SERVER${e?.code ? `_${e.code}` : ""}`;
 }
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const ip = headers().get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!(await rateLimitAsync(`login:${ip}`, 10, 60_000))) {
+  if (!(await rateLimitAsync(`login:${ip}`, 10, 60_000, { critical: true }))) {
     return { error: "Too many attempts. Wait a minute and try again." };
   }
 
@@ -43,7 +44,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: `Login service unavailable (${code}).` };
   }
 
-  const ok = user && user.status === "ACTIVE" && (await bcrypt.compare(parsed.data.password, user.passwordHash));
+  const ok =
+    user && user.status === "ACTIVE" && (await bcrypt.compare(parsed.data.password, user.passwordHash));
   if (!ok || !user) return { error: "Email or password is incorrect." };
 
   if (user.mfaEnabled && user.mfaSecret) {
