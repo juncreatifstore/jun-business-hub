@@ -236,8 +236,8 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               {actions}
             </Sheet>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            <h1 className="font-display text-[22px] font-medium leading-tight text-ink">
+          <div className="flex-1 overflow-y-auto px-3 py-4">
+            <h1 className="px-1 font-display text-[22px] font-medium leading-tight text-ink">
               {activeThread.subject || "(sans objet)"}
             </h1>
             <div className="mt-4 space-y-4">
@@ -588,11 +588,11 @@ function MessageCard({
         <span className="shrink-0 text-xs text-ink-3">{m.date.toLocaleString("fr-FR")}</span>
       </div>
       {/* Email bodies are rendered as light paper regardless of theme. */}
-      <div className="bg-white p-2 text-slate-900 md:p-4" data-theme="light">
+      <div className="overflow-hidden bg-white p-0 text-slate-900 md:p-3" data-theme="light">
         {m.htmlBody ? (
           <EmailHtmlFrame html={m.htmlBody} title={m.subject} />
         ) : (
-          <div className="mx-auto max-w-5xl whitespace-pre-wrap break-words text-[15px] leading-7">
+          <div className="whitespace-pre-wrap break-words px-4 py-3 text-[15px] leading-7 md:px-2">
             {m.body || m.snippet || "Aucun contenu lisible."}
           </div>
         )}
