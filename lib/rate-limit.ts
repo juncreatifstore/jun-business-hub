@@ -15,6 +15,8 @@
  *  - Non-critical limits fail open (UX features like AI drafts, Gmail sync).
  */
 
+import { logger } from "@/lib/logger";
+
 type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
 const MAX_MEMORY_BUCKETS = 10_000;
@@ -79,7 +81,7 @@ async function upstashLimit(
     if (!Number.isFinite(count)) return null;
     return { ok: count <= limit, remaining: Math.max(0, limit - count), provider: "UPSTASH" };
   } catch (e) {
-    console.error("rate-limit: Upstash unreachable", e);
+    logger.error("rate_limit.provider_unreachable", { provider: "UPSTASH", err: e });
     return null;
   }
 }
@@ -100,7 +102,7 @@ export async function checkRateLimit(
     const result = await upstashLimit(cfg, key, limit, windowMs);
     if (result) return result;
     if (opts.critical) {
-      console.error(`rate-limit: provider failure on critical key "${key}" — failing closed`);
+      logger.error("rate_limit.fail_closed", { key, reason: "provider_failure" });
       return { ok: false, remaining: 0, provider: "DENIED" };
     }
     return memoryLimit(key, limit, windowMs);
@@ -108,17 +110,18 @@ export async function checkRateLimit(
 
   if (isProd) {
     if (opts.critical) {
-      console.error(
-        `rate-limit: critical limit "${key}" requested in production without a distributed provider. ` +
-          "Set RATE_LIMIT_PROVIDER=UPSTASH, UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN. Denying request.",
-      );
+      logger.error("rate_limit.fail_closed", {
+        key,
+        reason: "no_distributed_provider",
+        hint: "Set RATE_LIMIT_PROVIDER=UPSTASH, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN",
+      });
       return { ok: false, remaining: 0, provider: "DENIED" };
     }
     if (!memoryWarned) {
       memoryWarned = true;
-      console.warn(
-        "rate-limit: MEMORY provider in production is per-instance and resets on cold start. Configure Upstash.",
-      );
+      logger.warn("rate_limit.memory_in_production", {
+        hint: "MEMORY provider is per-instance and resets on cold start; configure Upstash",
+      });
     }
   }
 
