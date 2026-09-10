@@ -7,7 +7,14 @@ import { nextNumber } from "@/lib/sequence";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppReadReceipt } from "@/lib/whatsapp";
-import { sendWhatsAppText, sendWhatsAppTemplate } from "@/lib/whatsapp";
+import {
+  sendWhatsAppText,
+  sendWhatsAppTemplate,
+  sendWhatsAppMedia,
+  uploadWhatsAppMedia,
+  whatsAppMediaKind,
+} from "@/lib/whatsapp";
+import { storage } from "@/lib/storage";
 import {
   decodeWhatsAppInboxPayload,
   encodeWhatsAppInboxPayload,
@@ -477,6 +484,71 @@ export async function replyWhatsAppTemplate(phone: string, formData: FormData) {
         messageId,
         type: "template",
         text: preview || `Modèle ${template}`,
+        timestamp: new Date().toISOString(),
+      }),
+      userId: user.id,
+      clientId: origin?.clientId ?? undefined,
+      caseId: origin?.caseId ?? undefined,
+      resourceType: "WhatsAppConversation",
+      resourceId: normalized,
+    },
+  });
+  refreshInbox();
+}
+
+const MAX_WA_MEDIA = 16 * 1024 * 1024;
+
+/** Send a photo, video, voice note or file from the inbox composer. */
+export async function replyWhatsAppMedia(phone: string, formData: FormData) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Aucun fichier");
+  if (file.size > MAX_WA_MEDIA) throw new Error("Fichier trop volumineux (max 16 Mo)");
+  const mime = (file.type || "application/octet-stream").split(";")[0];
+  const kind = whatsAppMediaKind(mime);
+  if (!kind) {
+    throw new Error(
+      mime.startsWith("image/")
+        ? "WhatsApp n’accepte que les photos JPEG ou PNG (pas HEIC/WebP). Convertissez la photo puis réessayez."
+        : `Format non accepté par WhatsApp (${mime}).`,
+    );
+  }
+  const origin = await conversationClient(normalized);
+  if (origin?.clientId && (await isClientCommunicationBanned(origin.clientId))) {
+    throw new Error("Client banni — aucun message WhatsApp ne peut être envoyé");
+  }
+  const caption = String(formData.get("caption") || "").trim();
+  const filename = file.name || (kind === "audio" ? "vocal.m4a" : "fichier");
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const mediaId = await uploadWhatsAppMedia(bytes, mime, filename);
+  const result = await sendWhatsAppMedia(normalized, kind, mediaId, { caption, filename });
+  const messageId = String(result.messages?.[0]?.id || `local-${Date.now()}`);
+  // Keep our own copy so the timeline can render it after Meta's retention window.
+  storage()
+    .upload(`whatsapp/media/${mediaId}`, bytes, mime)
+    .catch(() => {});
+  await prisma.activity.create({
+    data: {
+      type: "WHATSAPP_OUTBOUND_REPLY",
+      message: encodeWhatsAppInboxPayload({
+        direction: "OUTBOUND",
+        phone: normalized,
+        messageId,
+        type: kind,
+        text:
+          caption ||
+          (kind === "audio"
+            ? "Message vocal"
+            : kind === "image"
+              ? "Photo"
+              : kind === "video"
+                ? "Vidéo"
+                : filename),
+        mediaId,
+        filename: kind === "document" ? filename : undefined,
+        caption: caption || undefined,
         timestamp: new Date().toISOString(),
       }),
       userId: user.id,

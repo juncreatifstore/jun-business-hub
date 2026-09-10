@@ -60,6 +60,7 @@ import { Textarea, Input, Select } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import { InboxLive } from "@/components/whatsapp/inbox-live";
 import { TemplateComposer } from "@/components/whatsapp/template-composer";
+import { MediaComposer } from "@/components/whatsapp/media-composer";
 import { listApprovedWhatsAppTemplates, type ApprovedTemplate } from "@/lib/whatsapp";
 import { StatusBadge } from "@/components/ui/badge";
 
@@ -571,10 +572,9 @@ export default async function WhatsAppInboxPage({
                                   windowClosed={false}
                                 />
                               </Sheet>
-                              <Link href="/app/documents" className="mr-3">
-                                <Paperclip className="mr-1 inline h-3.5 w-3.5" />
-                                Documents
-                              </Link>
+                              <span className="mr-3 inline-flex">
+                                <MediaComposer phone={selected.phone} variant="button" />
+                              </span>
                             </span>
                             <span className="truncate">
                               <Clock3 className="mr-1 inline h-3.5 w-3.5" />
@@ -1523,13 +1523,7 @@ function MobileInbox({
             className="border-t border-line bg-surface-1 px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]"
           >
             <div className="flex items-end gap-1.5">
-              <Link
-                href="/app/documents"
-                aria-label="Joindre un document"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 active:bg-surface-2"
-              >
-                <Paperclip className="h-5 w-5" />
-              </Link>
+              <MediaComposer phone={selected.phone} />
               <Textarea
                 name="message"
                 rows={1}

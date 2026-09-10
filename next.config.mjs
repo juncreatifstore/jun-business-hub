@@ -7,6 +7,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
+  "media-src 'self' blob:",
   "connect-src 'self' https://*.supabase.co https://*.storage.supabase.co https://www.googleapis.com https://*.googleapis.com",
   "frame-src 'self'",
   "frame-ancestors 'self'",
@@ -30,6 +31,8 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   optimizeFonts: false,
+  // WhatsApp media replies (photos, voice notes, files) go through a server action.
+  experimental: { serverActions: { bodySizeLimit: "16mb" } },
 
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];

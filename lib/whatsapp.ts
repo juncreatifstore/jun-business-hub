@@ -338,3 +338,52 @@ export async function listApprovedWhatsAppTemplates(force = false): Promise<Appr
     return templateCache?.items ?? [];
   }
 }
+
+export type OutboundMediaKind = "image" | "video" | "audio" | "document";
+
+/** Send an already-uploaded media object. */
+export async function sendWhatsAppMedia(
+  to: string,
+  kind: OutboundMediaKind,
+  mediaId: string,
+  opts: { caption?: string; filename?: string } = {},
+) {
+  if (!mediaId) throw new Error("WhatsApp media ID is required");
+  const body: Record<string, unknown> = { id: mediaId };
+  if (opts.caption && kind !== "audio") body.caption = opts.caption.slice(0, 1024);
+  if (kind === "document" && opts.filename) body.filename = opts.filename.slice(0, 240);
+  return send({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: normalizePhone(to),
+    type: kind,
+    [kind]: body,
+  });
+}
+
+/** Which WhatsApp media type a browser file maps to, or null when Meta won't accept it. */
+export function whatsAppMediaKind(mime: string): OutboundMediaKind | null {
+  const m = mime.toLowerCase();
+  if (m === "image/jpeg" || m === "image/png") return "image";
+  if (m === "video/mp4" || m === "video/3gpp") return "video";
+  if (
+    ["audio/aac", "audio/mp4", "audio/x-m4a", "audio/mpeg", "audio/amr", "audio/ogg"].includes(
+      m.split(";")[0],
+    )
+  )
+    return "audio";
+  if (
+    [
+      "application/pdf",
+      "text/plain",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ].includes(m)
+  )
+    return "document";
+  return null;
+}
