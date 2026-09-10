@@ -18,6 +18,7 @@ import {
   MailOpen,
   MessageCircle,
   Paperclip,
+  Mic,
   Search,
   Send,
   ShieldOff,
@@ -985,7 +986,7 @@ function groupConversations(rows: Row[]) {
         internalId: row.client?.internalId || null,
         caseId: row.case?.id || null,
         caseNumber: row.case?.caseNumber || null,
-        preview: payload.text,
+        preview: previewText(payload),
         lastAt: row.createdAt,
         lastInboundAt: inbound ? new Date(payload.timestamp) : null,
         unread: row.type === "WHATSAPP_INBOUND_UNREAD" ? 1 : 0,
@@ -1278,7 +1279,6 @@ function Timeline({
         const previous = index > 0 ? messages[index - 1]?.payload : null;
         const showDate = !previous || dayKey(previous.timestamp) !== dayKey(payload.timestamp);
         const outbound = payload.direction === "OUTBOUND";
-        const documentLike = payload.type === "document" || payload.filename;
         const delivery = outbound ? deliveryStatuses.get(payload.messageId) : null;
         return (
           <div key={row.id}>
@@ -1293,23 +1293,10 @@ function Timeline({
               <div
                 className={`min-w-[130px] max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[82%] md:max-w-[74%] ${outbound ? "rounded-br-md bg-surface-1 text-ink" : "rounded-bl-md border border-line bg-white"}`}
               >
-                {payload.type !== "text" ? (
-                  <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70">
-                    <Paperclip className="h-3 w-3" />
-                    {payload.type}
-                  </div>
+                <MediaBubble payload={payload} outbound={outbound} />
+                {humanText(payload) ? (
+                  <div className="whitespace-pre-wrap break-words">{humanText(payload)}</div>
                 ) : null}
-                {documentLike ? (
-                  <div
-                    className={`mb-2 flex items-center gap-2 rounded-xl p-2.5 ${outbound ? "bg-ink/10" : "bg-surface"}`}
-                  >
-                    <FileText className="h-5 w-5" />
-                    <div className="truncate text-xs font-semibold">
-                      {payload.filename || "Document WhatsApp"}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="whitespace-pre-wrap break-words">{payload.text}</div>
                 <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
                   {formatTime(new Date(payload.timestamp))}
                   {outbound ? <DeliveryReceipt delivery={delivery} /> : null}
@@ -1771,4 +1758,108 @@ function MobileContext({
       ) : null}
     </div>
   );
+}
+
+const PLACEHOLDERS: Record<string, string> = {
+  "Audio received": "Message vocal",
+  "Image received": "Photo",
+  "Video received": "Vidéo",
+  "Sticker received": "Autocollant",
+  "Document received": "Document",
+  "Contact card received": "Fiche contact",
+  "Location received": "Position partagée",
+  "unsupported received": "",
+};
+
+/** Text to print in the bubble. Media placeholders are replaced by the media itself. */
+function humanText(payload: WhatsAppInboxPayload) {
+  const t = String(payload.text || "").trim();
+  if (t in PLACEHOLDERS) return PLACEHOLDERS[t];
+  if (payload.type === "document" && payload.filename && t === payload.filename) return "";
+  if (["audio", "image", "video", "sticker"].includes(payload.type) && payload.mediaId)
+    return payload.caption || "";
+  return t;
+}
+
+function MediaBubble({ payload, outbound }: { payload: WhatsAppInboxPayload; outbound: boolean }) {
+  const src = payload.mediaId ? `/api/whatsapp/media/${payload.mediaId}` : null;
+  const type = payload.type;
+  if (type === "unsupported") {
+    return (
+      <div
+        className={`mb-1 rounded-lg px-2.5 py-2 text-xs ${outbound ? "bg-ink/10" : "tint-warning text-warning"}`}
+      >
+        <div className="font-semibold">Message non transmis par WhatsApp</div>
+        <div className="mt-0.5 opacity-90">
+          Sondage, vue unique, réponse à un statut ou format non pris en charge par l’API. Demandez au client
+          de le renvoyer en texte, photo ou vocal.
+        </div>
+      </div>
+    );
+  }
+  if (!src) {
+    if (type === "text") return null;
+    return (
+      <div className="mb-1.5 flex items-center gap-1 text-[10px] font-semibold uppercase opacity-70">
+        <Paperclip className="h-3 w-3" />
+        {type}
+      </div>
+    );
+  }
+  if (type === "audio") {
+    return (
+      <div className="mb-1 flex items-center gap-2">
+        <Mic className="h-4 w-4 shrink-0 opacity-70" />
+        <audio controls preload="none" src={src} className="h-9 w-[220px] max-w-full sm:w-[260px]" />
+      </div>
+    );
+  }
+  if (type === "image" || type === "sticker") {
+    return (
+      <a href={src} target="_blank" rel="noreferrer" className="mb-1 block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={payload.caption || "Photo reçue"}
+          loading="lazy"
+          className={`max-h-80 w-auto max-w-full rounded-lg ${type === "sticker" ? "max-h-40" : ""}`}
+        />
+      </a>
+    );
+  }
+  if (type === "video") {
+    return (
+      <video
+        controls
+        preload="metadata"
+        src={src}
+        className="mb-1 max-h-80 w-full max-w-[320px] rounded-lg"
+      />
+    );
+  }
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noreferrer"
+      className={`mb-1.5 flex items-center gap-2 rounded-lg p-2.5 ${outbound ? "bg-ink/10" : "bg-surface-2"}`}
+    >
+      <FileText className="h-5 w-5 shrink-0" />
+      <span className="truncate text-xs font-semibold underline-offset-2 hover:underline">
+        {payload.filename || "Document WhatsApp"}
+      </span>
+    </a>
+  );
+}
+
+/** Conversation-list preview: French placeholders for media, works for rows stored before the rename. */
+function previewText(payload: WhatsAppInboxPayload) {
+  const t = String(payload.text || "").trim();
+  if (t in PLACEHOLDERS) return PLACEHOLDERS[t] || "Message non transmis par WhatsApp";
+  if (payload.type === "audio") return "Message vocal";
+  if (payload.type === "image") return payload.caption ? `Photo · ${payload.caption}` : "Photo";
+  if (payload.type === "video") return "Vidéo";
+  if (payload.type === "sticker") return "Autocollant";
+  if (payload.type === "unsupported") return "Message non transmis par WhatsApp";
+  return t;
 }

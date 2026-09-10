@@ -48,18 +48,19 @@ function incomingText(message: any) {
         "Interactive reply",
     ).trim();
   if (type === "document")
-    return String(message?.document?.caption || message?.document?.filename || "Document received").trim();
-  if (type === "image") return String(message?.image?.caption || "Image received").trim();
-  if (type === "video") return String(message?.video?.caption || "Video received").trim();
-  if (type === "audio") return "Audio received";
-  if (type === "sticker") return "Sticker received";
+    return String(message?.document?.caption || message?.document?.filename || "Document").trim();
+  if (type === "image") return String(message?.image?.caption || "Photo").trim();
+  if (type === "video") return String(message?.video?.caption || "Vidéo").trim();
+  if (type === "audio") return "Message vocal";
+  if (type === "sticker") return "Autocollant";
   if (type === "location") {
-    const name = String(message?.location?.name || "Location received");
+    const name = String(message?.location?.name || "Position partagée");
     const address = String(message?.location?.address || "");
     return [name, address].filter(Boolean).join(" · ");
   }
-  if (type === "contacts") return "Contact card received";
-  return `${type.replaceAll("_", " ")} received`;
+  if (type === "contacts") return "Fiche contact";
+  if (type === "unsupported") return "Message non transmis par WhatsApp";
+  return `${type.replaceAll("_", " ")} reçu`;
 }
 
 function incomingMedia(message: any) {

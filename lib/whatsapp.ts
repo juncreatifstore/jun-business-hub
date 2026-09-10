@@ -261,3 +261,24 @@ export async function sendWhatsAppDocument(to: string, mediaId: string, filename
     },
   });
 }
+
+/**
+ * Download an inbound media object (voice note, image, document…) from Meta.
+ * Media is only retained by Meta for ~30 days; callers should cache it.
+ */
+export async function fetchWhatsAppMedia(mediaId: string): Promise<{ bytes: Buffer; mimeType: string }> {
+  const c = await credentials();
+  const meta = await fetch(`https://graph.facebook.com/${c.graphVersion}/${encodeURIComponent(mediaId)}`, {
+    headers: { Authorization: `Bearer ${c.token}` },
+    cache: "no-store",
+  });
+  const info = (await meta.json().catch(() => ({}))) as { url?: string; mime_type?: string; error?: unknown };
+  if (!meta.ok || !info.url)
+    throw new Error(`Meta WhatsApp media lookup ${meta.status}: ${JSON.stringify(info)}`);
+  const bin = await fetch(info.url, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store" });
+  if (!bin.ok) throw new Error(`Meta WhatsApp media download ${bin.status}`);
+  return {
+    bytes: Buffer.from(await bin.arrayBuffer()),
+    mimeType: info.mime_type || "application/octet-stream",
+  };
+}
