@@ -2,7 +2,7 @@
 
 Internal operations platform + public website for **JUN CREATIF AND TRAVEL LLC** — https://www.juncreatif.org
 
-Next.js 14 (App Router) · TypeScript strict · Tailwind · Prisma 6 (pg driver adapter, WASM engine) · PostgreSQL (Supabase) · Zod · Vercel.
+Next.js 14 (App Router) · TypeScript strict · Tailwind · Prisma 6 · PostgreSQL (Supabase) · Zod · Vercel.
 
 ---
 
@@ -26,6 +26,12 @@ Every server action and API route re-checks permissions server-side
 first line of defense. Client-portal users are hard-scoped to their own
 `ClientAccount.clientId` — cross-client access returns 403 (covered by tests
 and verified end-to-end).
+
+## Code quality
+
+Prettier (`.prettierrc`, 110 cols) + ESLint (`--max-warnings=0`) + `tsc --noEmit` + Vitest, all
+enforced in CI together with `npm audit --audit-level=high` and a gitleaks secret scan.
+Run `npm run format` before committing; `npm run check` runs every gate locally.
 
 ## Local Development
 
@@ -55,8 +61,9 @@ generated password once, and never writes it anywhere. Sign in, enable MFA
 immediately (Settings → Security), then change the password.
 
 ```bash
-npm run test    # Vitest (39 tests): RBAC, XSS sanitization, crypto, SHA-256,
-                # numbering formats, refund cap, installment math, payment validation
+npm run check   # format:check + lint + typecheck + test — same gates as CI
+npm run test    # Vitest (90+ tests): RBAC, isolation, XSS sanitization, crypto,
+                # rate limiting, refunds, installments, signatures, authorizations
 npm run build   # prisma generate && next build — must be green before any deploy
 ```
 
@@ -89,9 +96,8 @@ Versioned migrations live in `prisma/migrations/` (initial:
 npx prisma migrate deploy   # never use `db push` against production
 ```
 
-The client uses `engineType = "client"` (WASM query compiler) + the pg driver
-adapter: **no native Prisma engine is downloaded at build or runtime** — ideal
-for Vercel/CI. `prisma.config.ts` routes CLI migrations through the same adapter.
+The client uses Prisma's standard query engine (`lib/prisma.ts`). Migrating to
+the pg driver adapter + WASM engine is on the roadmap (see `docs/ROADMAP.md`).
 
 ## Storage
 
@@ -196,7 +202,8 @@ Server-side RBAC everywhere · revocable sessions · MFA TOTP + hashed recovery
 codes · strict server-side HTML sanitization (whitelist; script/iframe/object/
 embed/event-handlers/javascript: stripped; tested) · CSP, HSTS (prod),
 X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy · rate
-limiting (MEMORY default, UPSTASH provider ready) on login, MFA, AI, Gmail sync
+limiting on login, MFA, password reset (critical: Upstash **required** in
+production, fail-closed), AI, Gmail sync (fail-open)
 · IDOR guards on every `[id]` surface (files, PDFs, notifications, AI
 conversations, portal) · append-only audit log for login, MFA, downloads, Vault
 access, payments, refunds, signatures, mailbox events, AI executions · secrets
