@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getFinancialAuthorizationPolicy, listFinancialAuthorizations } from "@/lib/company-funds-approvals";
 import { formatDateTime, formatMoney } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, CheckCircle2, XCircle, Clock3, AlertTriangle } from "lucide-react";
 import { updateFinancialAuthorizationPolicyAction } from "@/services/company-funds-approvals";
@@ -22,16 +24,10 @@ export default async function FinancialAuthorizationsPage() {
     rejected = items.filter((a) => a.status === "REJECTED");
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-muted2">
-          Super Admin · Gouvernance financière
-        </p>
-        <h1 className="mt-1 text-3xl font-semibold">Autorisations financières</h1>
-        <p className="mt-1 max-w-4xl text-sm text-muted2">
-          Contrôle des grosses sorties, double approbation, séparation demandeur/approbateur et protection des
-          réserves avant exécution.
-        </p>
-      </div>
+      <PageHeader
+        title="Autorisations financières"
+        subtitle="Contrôle des grosses sorties, double approbation, séparation demandeur/approbateur et protection des réserves avant exécution."
+      />
       <div className="grid gap-3 md:grid-cols-4">
         <Metric icon={Clock3} label="En attente" value={String(pending.length)} hint="Décisions requises" />
         <Metric
@@ -54,27 +50,27 @@ export default async function FinancialAuthorizationsPage() {
         </CardHeader>
         <CardContent>
           <form action={updateFinancialAuthorizationPolicyAction} className="grid gap-3 md:grid-cols-4">
-            <label className="text-xs">
+            <label className="text-xs font-medium text-ink">
               Seuil approbation simple
               <input
                 name="singleApprovalThreshold"
                 type="number"
                 step="0.01"
                 defaultValue={policy.singleApprovalThreshold}
-                className="mt-1 w-full rounded-lg border border-line px-3 py-2"
+                className="mt-1 h-9 w-full rounded-lg border border-line-strong bg-surface-1 px-3 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
               />
             </label>
-            <label className="text-xs">
+            <label className="text-xs font-medium text-ink">
               Seuil double approbation
               <input
                 name="dualApprovalThreshold"
                 type="number"
                 step="0.01"
                 defaultValue={policy.dualApprovalThreshold}
-                className="mt-1 w-full rounded-lg border border-line px-3 py-2"
+                className="mt-1 h-9 w-full rounded-lg border border-line-strong bg-surface-1 px-3 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
               />
             </label>
-            <label className="flex items-center gap-2 self-end rounded-lg border border-line px-3 py-2 text-xs">
+            <label className="flex h-9 items-center gap-2 self-end rounded-lg border border-line bg-surface-1 px-3 text-xs text-ink">
               <input
                 name="reserveOverrideAlwaysDual"
                 type="checkbox"
@@ -82,7 +78,7 @@ export default async function FinancialAuthorizationsPage() {
               />
               Double approbation si réserve protégée touchée
             </label>
-            <label className="flex items-start gap-2 rounded-lg border border-line p-3 text-xs md:col-span-4">
+            <label className="flex items-start gap-2 rounded-lg border border-line bg-surface-2/60 p-3 text-xs text-ink md:col-span-4">
               <input
                 name="singleAdminMode"
                 type="checkbox"
@@ -102,7 +98,7 @@ export default async function FinancialAuthorizationsPage() {
                 </span>
               </span>
             </label>
-            <button className="self-end rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
+            <button className="h-9 self-end rounded-lg bg-accent px-4 text-sm font-medium text-accent-fg shadow-card hover:bg-accent/90">
               Enregistrer la politique
             </button>
           </form>
@@ -118,9 +114,9 @@ export default async function FinancialAuthorizationsPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1250px] text-sm">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-xs text-muted2">
+                <tr className="border-b border-line bg-surface-2 text-left text-xs font-medium text-ink-2">
                   <th className="p-2">Référence</th>
                   <th className="p-2">Type</th>
                   <th className="p-2 text-right">Montant</th>
@@ -140,11 +136,11 @@ export default async function FinancialAuthorizationsPage() {
                         <div className="text-[10px] text-muted2">{formatDateTime(a.createdAt)}</div>
                       </td>
                       <td className="p-2">
-                        <span className="rounded bg-surface px-2 py-1 text-[10px] font-semibold">
+                        <span className="rounded-md bg-surface-2 px-2 py-0.5 text-2xs font-semibold text-ink-2">
                           {a.type}
                         </span>
                         {a.reserveImpact ? (
-                          <div className="mt-1 text-[10px] font-semibold text-red-700">IMPACT RÉSERVE</div>
+                          <div className="mt-1 text-2xs font-semibold text-danger">Impact réserve</div>
                         ) : null}
                       </td>
                       <td className="p-2 text-right font-semibold">{formatMoney(a.amount, a.currency)}</td>
@@ -166,11 +162,21 @@ export default async function FinancialAuthorizationsPage() {
                         </div>
                       </td>
                       <td className="p-2">
-                        <span
-                          className={`rounded-full px-2 py-1 text-[10px] font-semibold ${a.status === "APPROVED" ? "bg-emerald-50 text-emerald-700" : a.status === "REJECTED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}
+                        <Badge
+                          tone={
+                            a.status === "APPROVED"
+                              ? "success"
+                              : a.status === "REJECTED"
+                                ? "danger"
+                                : "warning"
+                          }
                         >
-                          {a.status}
-                        </span>
+                          {a.status === "APPROVED"
+                            ? "Approuvée"
+                            : a.status === "REJECTED"
+                              ? "Rejetée"
+                              : "En attente"}
+                        </Badge>
                       </td>
                       <td className="p-2">
                         {a.status === "PENDING" ? (
@@ -185,7 +191,7 @@ export default async function FinancialAuthorizationsPage() {
                             alreadyDecided={a.decisions.some((d) => d.userId === user.id)}
                           />
                         ) : (
-                          <span className="text-xs text-muted2">Décision finale</span>
+                          <span className="text-xs text-ink-3">—</span>
                         )}
                       </td>
                     </tr>

@@ -294,7 +294,7 @@ export default async function CompanyFundsPage({ searchParams }: { searchParams?
               </select>
             </label>
             <Input name="note" label="Note / hypothèse" />
-            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
+            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-canvas">
               Ajouter à la prévision
             </button>
           </form>
@@ -490,7 +490,7 @@ export default async function CompanyFundsPage({ searchParams }: { searchParams?
               Mise à jour quotidienne requise
             </label>
             <Input name="note" label="Note" />
-            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
+            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-canvas">
               Ajouter le compte
             </button>
           </form>
@@ -693,7 +693,7 @@ export default async function CompanyFundsPage({ searchParams }: { searchParams?
                 </select>
               </label>
               <Input name="note" label="Note" />
-              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-ink">Ajouter</button>
+              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-canvas">Ajouter</button>
             </form>
             {store.sources.slice(0, 8).map((s) => (
               <Row
@@ -727,7 +727,7 @@ export default async function CompanyFundsPage({ searchParams }: { searchParams?
               <Input name="ownershipPercent" label="% propriété" type="number" defaultValue="0" />
               <Input name="profitSharePercent" label="% partage profit" type="number" defaultValue="0" />
               <Input name="note" label="Conditions / notes" />
-              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-ink">Ajouter</button>
+              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-canvas">Ajouter</button>
             </form>
             {store.partners.map((p) => (
               <Row
@@ -762,7 +762,7 @@ export default async function CompanyFundsPage({ searchParams }: { searchParams?
               <Input name="guarantor" label="Garant" />
               <Input name="purpose" label="Objet du prêt" />
               <Input name="note" label="Conditions complètes" />
-              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-ink">Ajouter le prêt</button>
+              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-canvas">Ajouter le prêt</button>
             </form>
             {store.loans.map((l) => (
               <Row
@@ -807,7 +807,7 @@ export default async function CompanyFundsPage({ searchParams }: { searchParams?
                 </select>
               </label>
               <Input name="note" label="Stratégie / conditions" />
-              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-ink">Ajouter</button>
+              <button className="rounded-lg bg-ink px-3 py-2 text-sm text-canvas">Ajouter</button>
             </form>
             {store.investments.map((i) => (
               <Row
@@ -855,7 +855,7 @@ export default async function CompanyFundsPage({ searchParams }: { searchParams?
               </select>
             </label>
             <Input name="apiKey" label="Clé API secrète (20+ caractères)" required />
-            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
+            <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-canvas">
               Connecter le projet
             </button>
           </form>

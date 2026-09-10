@@ -172,7 +172,7 @@ export default async function TreasuryReconciliationPage({
                   </div>
                 </div>
                 <form action={acceptTreasurySuggestedMatchAction.bind(null, s.finance.id, s.bank.id)}>
-                  <button className="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-ink">
+                  <button className="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-canvas">
                     Confirmer
                   </button>
                 </form>

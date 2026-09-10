@@ -174,7 +174,7 @@ export default async function ReconciliationImportPage({
                               placeholder="Optional note"
                             />
                           </label>
-                          <button className="rounded-lg bg-ink px-3 py-2 text-xs font-medium text-ink">
+                          <button className="rounded-lg bg-ink px-3 py-2 text-xs font-medium text-canvas">
                             Confirm match
                           </button>
                         </form>

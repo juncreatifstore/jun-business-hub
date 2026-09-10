@@ -236,7 +236,7 @@ export function DriveIntelligencePanel({ fileId, returnTo }: { fileId: string; r
                 </div>
                 <a
                   href={`/app/drive/intelligence-actions/${encodeURIComponent(fileId)}`}
-                  className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-ink hover:opacity-90"
+                  className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-xs font-medium text-canvas hover:opacity-90"
                 >
                   Create from analysis <ArrowRight className="h-3.5 w-3.5" />
                 </a>

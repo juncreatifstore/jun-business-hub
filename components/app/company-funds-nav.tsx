@@ -312,250 +312,157 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
   return (
     <>
       <div
-        className="sticky top-0 z-30 -mx-4 border-b border-line bg-ink/95 px-4 py-3 shadow-[0_4px_18px_rgba(15,23,42,0.04)] backdrop-blur md:-mx-6 md:px-6"
+        className="sticky top-16 z-30 -mx-4 border-b border-line bg-canvas/90 px-4 py-2.5 backdrop-blur-md md:-mx-6 md:px-6"
         aria-live="polite"
       >
         {busy ? (
-          <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-surface">
-            <div className="h-full w-1/3 animate-pulse bg-electric" />
+          <div className="absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-line">
+            <div className="h-full w-1/3 animate-pulse bg-accent" />
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[11px] text-muted2">
-              <button
-                type="button"
-                onClick={() => go("/app/company-funds")}
-                className="font-medium hover:text-ink"
-              >
-                Fonds de l’entreprise
-              </button>
-              <span>/</span>
-              <span>{current.group}</span>
-              <span>/</span>
-              <span className="truncate font-semibold text-ink">{current.label}</span>
-              <button
-                type="button"
-                onClick={() => toggleFavorite(current.href)}
-                className="ml-1 rounded-md p-1 text-muted2 transition hover:bg-surface hover:text-amber-600"
-                aria-label={favorites.includes(current.href) ? "Retirer des favoris" : "Ajouter aux favoris"}
-                title={favorites.includes(current.href) ? "Retirer des favoris" : "Ajouter aux favoris"}
-              >
-                <Star
-                  className={cn(
-                    "h-3.5 w-3.5",
-                    favorites.includes(current.href) && "fill-amber-400 text-amber-500",
-                  )}
-                />
-              </button>
-            </div>
-
-            <div className="mt-2 flex items-center gap-2">
-              <button
-                type="button"
-                disabled={!previous || busy}
-                onClick={() => previous && go(previous.href)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted2 transition hover:border-ink/20 hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                aria-label="Section précédente"
-                title={previous ? `Précédent : ${previous.label}` : "Aucune section précédente"}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-
-              <div className="relative min-w-0 flex-1 sm:max-w-[340px]">
-                <select
-                  aria-label="Aller à une section des fonds de l’entreprise"
-                  value={current.href}
-                  disabled={busy}
-                  onChange={(event) => go(event.target.value)}
-                  className="h-9 w-full appearance-none rounded-lg border border-line bg-white px-3 pr-9 text-sm font-semibold text-ink outline-none transition focus:border-electric disabled:opacity-60"
-                >
-                  {items.map((item) => (
-                    <option key={item.href} value={item.href}>
-                      {item.group} — {item.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2" />
-              </div>
-
-              <button
-                type="button"
-                disabled={!next || busy}
-                onClick={() => next && go(next.href)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted2 transition hover:border-ink/20 hover:bg-surface hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                aria-label="Section suivante"
-                title={next ? `Suivant : ${next.label}` : "Aucune section suivante"}
-              >
-                <ArrowRight className="h-4 w-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaletteOpen(true)}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-muted2 transition hover:border-ink/20 hover:bg-surface hover:text-ink sm:w-auto sm:gap-2 sm:px-3"
-                title="Recherche rapide — Cmd/Ctrl + K"
-                aria-label="Rechercher une section Finance"
-              >
-                <Search className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Aller à…</span>
-                <kbd className="hidden rounded border border-line bg-surface px-1.5 py-0.5 text-[10px] md:inline">
-                  Ctrl/⌘ K
-                </kbd>
-              </button>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:max-w-[68%]">
-            <nav
-              aria-label="Navigation rapide Fonds de l’entreprise"
-              className="flex min-w-max items-center gap-1 rounded-xl border border-line bg-surface/60 p-1"
-            >
-              {items.map((item) => {
-                const active = isActive(pathname, item.href);
-                const Icon = item.icon;
-                const count = itemCount(item.href, workQueue);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    prefetch={false}
-                    data-company-funds-active={active ? "true" : undefined}
-                    aria-current={active ? "page" : undefined}
-                    title={item.label}
-                    onClick={(event) => {
-                      if (
-                        !active &&
-                        event.button === 0 &&
-                        !event.metaKey &&
-                        !event.ctrlKey &&
-                        !event.shiftKey &&
-                        !event.altKey
-                      )
-                        setNavigatingTo(item.href);
-                    }}
-                    className={cn(
-                      "group inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-medium transition",
-                      active
-                        ? "bg-ink text-ink shadow-sm"
-                        : "text-muted2 hover:bg-white hover:text-ink hover:shadow-sm",
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5 shrink-0" />
-                    <span>{item.short}</span>
-                    {count > 0 ? (
-                      <span
-                        className={cn(
-                          "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold",
-                          active ? "bg-white text-ink" : "bg-red-100 text-red-700",
-                        )}
-                      >
-                        {count > 99 ? "99+" : count}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
-
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-muted2">
-          <span>{busy ? "Chargement…" : `${currentIndex + 1} / ${items.length}`}</span>
-          <div className="flex items-center gap-3">
-            <span className="hidden md:inline">Ctrl/⌘ + ← → pour naviguer</span>
-            {previous ? <span className="hidden sm:inline">← {previous.short}</span> : null}
-            {next ? <span>{next.short} →</span> : null}
-          </div>
-        </div>
-
-        {favoriteItems.length > 0 || recentItems.length > 1 ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-3">
-            {favoriteItems.length > 0 ? (
-              <>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">
-                  <Star className="h-3 w-3" />
-                  Favoris
-                </span>
-                {favoriteItems.map((item) => (
-                  <button
-                    type="button"
-                    key={`fav-${item.href}`}
-                    onClick={() => go(item.href)}
-                    className="inline-flex h-7 items-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
-                  >
-                    {item.short}
-                  </button>
-                ))}
-              </>
-            ) : null}
-            {recentItems.length > 1 ? (
-              <>
-                <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">
-                  <Clock3 className="h-3 w-3" />
-                  Récents
-                </span>
-                {recentItems
-                  .filter((item) => item.href !== current.href)
-                  .slice(0, 3)
-                  .map((item) => (
-                    <button
-                      type="button"
-                      key={`recent-${item.href}`}
-                      onClick={() => go(item.href)}
-                      className="inline-flex h-7 items-center rounded-lg border border-line bg-white px-2.5 text-[11px] font-medium text-muted2 hover:bg-surface hover:text-ink"
-                    >
-                      {item.short}
-                    </button>
-                  ))}
-              </>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto border-t border-line pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div
-            className={cn(
-              "inline-flex h-8 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-semibold",
-              workQueue.total > 0 ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800",
-            )}
-          >
-            {workQueue.total > 0 ? (
-              <AlertTriangle className="h-3.5 w-3.5" />
-            ) : (
-              <CheckCircle2 className="h-3.5 w-3.5" />
-            )}
-            {workQueue.total > 0 ? `${workQueue.total} à traiter` : "Tout est à jour"}
-          </div>
-          {quickItems.map((item) => (
+        {/* Row 1: where am I + jump */}
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-ink-3">
             <button
               type="button"
-              key={item.href}
-              onClick={() => go(item.href)}
-              className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-line bg-white px-3 text-xs font-medium text-ink transition hover:border-ink/25 hover:bg-surface"
+              onClick={() => go("/app/company-funds")}
+              className="shrink-0 hover:text-ink"
             >
-              <span>{item.label}</span>
-              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700">
-                {item.count}
-              </span>
+              Fonds de l’entreprise
             </button>
-          ))}
+            <span className="text-ink-3/60">/</span>
+            <span className="shrink-0">{current.group}</span>
+            <span className="text-ink-3/60">/</span>
+            <span className="truncate font-medium text-ink">{current.label}</span>
+            <button
+              type="button"
+              onClick={() => toggleFavorite(current.href)}
+              className="ml-0.5 rounded-md p-1 text-ink-3 transition hover:bg-surface-2 hover:text-warning"
+              aria-label={favorites.includes(current.href) ? "Retirer des favoris" : "Ajouter aux favoris"}
+              title={favorites.includes(current.href) ? "Retirer des favoris" : "Ajouter aux favoris"}
+            >
+              <Star
+                className={cn("h-3.5 w-3.5", favorites.includes(current.href) && "fill-warning text-warning")}
+              />
+            </button>
+          </div>
+          <div className="hidden items-center gap-2 text-xs text-ink-3 sm:flex">
+            {workQueue.total > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full tint-warning px-2.5 py-1 font-medium text-warning">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {workQueue.total} à traiter
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-success">
+                <CheckCircle2 className="h-3.5 w-3.5" />À jour
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={refreshQueue}
+              disabled={isQueueRefreshing}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-3 transition hover:bg-surface-2 hover:text-ink disabled:opacity-50"
+              title={`Actualiser les compteurs${queueRefreshLabel ? ` · ${queueRefreshLabel}` : ""}`}
+              aria-label="Actualiser les compteurs financiers"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isQueueRefreshing && "animate-spin")} />
+            </button>
+          </div>
           <button
             type="button"
-            onClick={refreshQueue}
-            disabled={isQueueRefreshing}
-            className="ml-auto inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-[11px] font-medium text-muted2 transition hover:bg-surface hover:text-ink disabled:opacity-50"
-            title="Actualiser les compteurs financiers"
-            aria-label="Actualiser les compteurs financiers"
+            onClick={() => setPaletteOpen(true)}
+            className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-line bg-surface-1 px-2.5 text-xs text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+            title="Aller à une section — Ctrl/⌘ K"
+            aria-label="Rechercher une section Finance"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", isQueueRefreshing && "animate-spin")} />
-            <span>{isQueueRefreshing ? "Actualisation…" : "Actualiser"}</span>
-            {queueRefreshLabel ? (
-              <span className="hidden text-[10px] text-muted2/70 sm:inline">· {queueRefreshLabel}</span>
-            ) : null}
+            <Search className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Aller à…</span>
+            <kbd className="hidden rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-2xs text-ink-3 md:inline">
+              ⌘K
+            </kbd>
           </button>
         </div>
+
+        {/* Row 2: sections */}
+        <div className="-mx-4 mt-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:-mx-6 md:px-6">
+          <nav aria-label="Sections Fonds de l’entreprise" className="flex min-w-max items-center gap-1">
+            {items.map((item) => {
+              const active = isActive(pathname, item.href);
+              const Icon = item.icon;
+              const count = itemCount(item.href, workQueue);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  data-company-funds-active={active ? "true" : undefined}
+                  aria-current={active ? "page" : undefined}
+                  title={item.label}
+                  onClick={(event) => {
+                    if (
+                      !active &&
+                      event.button === 0 &&
+                      !event.metaKey &&
+                      !event.ctrlKey &&
+                      !event.shiftKey &&
+                      !event.altKey
+                    )
+                      setNavigatingTo(item.href);
+                  }}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition",
+                    active
+                      ? "border-ink bg-ink text-canvas"
+                      : "border-line bg-surface-1 text-ink-2 hover:bg-surface-2 hover:text-ink",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span>{item.short}</span>
+                  {count > 0 ? (
+                    <span
+                      className={cn(
+                        "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-2xs font-bold tabular-nums",
+                        active ? "bg-canvas/20 text-canvas" : "bg-danger text-white",
+                      )}
+                    >
+                      {count > 99 ? "99+" : count}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {favoriteItems.length > 0 || quickItems.length > 0 ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            {quickItems.map((item) => (
+              <button
+                type="button"
+                key={item.href}
+                onClick={() => go(item.href)}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full tint-warning px-2.5 font-medium text-warning transition hover:opacity-80"
+              >
+                {item.label}
+                <span className="tabular-nums">{item.count}</span>
+              </button>
+            ))}
+            {favoriteItems
+              .filter((item) => item.href !== current.href)
+              .map((item) => (
+                <button
+                  type="button"
+                  key={`fav-${item.href}`}
+                  onClick={() => go(item.href)}
+                  className="inline-flex h-7 items-center gap-1 rounded-full border border-line bg-surface-1 px-2.5 text-ink-2 hover:bg-surface-2 hover:text-ink"
+                >
+                  <Star className="h-3 w-3 fill-warning text-warning" />
+                  {item.short}
+                </button>
+              ))}
+          </div>
+        ) : null}
       </div>
 
       {paletteOpen ? (
@@ -564,7 +471,7 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
           onMouseDown={() => setPaletteOpen(false)}
         >
           <div
-            className="w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-white shadow-2xl"
+            className="w-full max-w-xl overflow-hidden rounded-2xl border border-line bg-surface-3 shadow-pop"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <div className="flex items-center gap-3 border-b border-line px-4 py-3">
@@ -614,9 +521,9 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
                         key={`palette-fav-${item.href}`}
                         type="button"
                         onClick={() => go(item.href)}
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-surface"
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-surface-2"
                       >
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg tint-warning text-warning">
                           <Icon className="h-4 w-4" />
                         </span>
                         <span className="flex-1 text-sm font-semibold text-ink">{item.label}</span>
@@ -641,9 +548,9 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
                           key={`palette-recent-${item.href}`}
                           type="button"
                           onClick={() => go(item.href)}
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-surface"
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-surface-2"
                         >
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-surface">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2">
                             <Icon className="h-4 w-4" />
                           </span>
                           <span className="flex-1 text-sm font-semibold text-ink">{item.label}</span>
@@ -667,7 +574,7 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
                     onMouseEnter={() => setPaletteIndex(index)}
                     className={cn(
                       "group flex items-center gap-1 rounded-xl",
-                      selected ? "bg-surface" : "hover:bg-surface",
+                      selected ? "bg-surface-2" : "hover:bg-surface-2",
                     )}
                   >
                     <button
@@ -699,7 +606,7 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
                     <button
                       type="button"
                       onClick={() => toggleFavorite(item.href)}
-                      className="mr-2 rounded-lg p-2 text-muted2 hover:bg-white hover:text-amber-600"
+                      className="mr-2 rounded-lg p-2 text-muted2 hover:bg-white hover:text-warning"
                       aria-label={favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
                     >
                       <Star className={cn("h-4 w-4", favorite && "fill-amber-400 text-amber-500")} />
@@ -711,7 +618,7 @@ export function CompanyFundsNav({ workQueue }: { workQueue: WorkQueue }) {
                 <div className="px-4 py-8 text-center text-sm text-muted2">Aucune option trouvée.</div>
               ) : null}
             </div>
-            <div className="flex items-center justify-between border-t border-line bg-surface/50 px-4 py-2 text-[10px] text-muted2">
+            <div className="flex items-center justify-between border-t border-line bg-surface-2/60 px-4 py-2 text-[10px] text-muted2">
               <span>↑ ↓ naviguer · Entrée ouvrir</span>
               <span>Ctrl/⌘ K · Échap fermer</span>
             </div>

@@ -143,7 +143,7 @@ export default async function FinancialExecutionEvidencePage() {
                       />
                     </label>
                     <div className="md:col-span-5">
-                      <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-ink">
+                      <button className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-canvas">
                         Enregistrer preuve execution
                       </button>
                     </div>

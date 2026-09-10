@@ -76,76 +76,67 @@ export function CompanyFundsFilters({ countries, currencies }: Props) {
 
   return (
     <div
-      className="rounded-xl border border-line bg-white p-3 shadow-sm"
+      className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-card"
       aria-label="Filtres globaux Fonds de l’entreprise"
+      title="Ces filtres restent mémorisés pendant la navigation Finance et s’appliquent aux écrans compatibles."
     >
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="mr-1 flex min-w-[150px] items-center gap-2 self-center text-xs font-semibold text-ink">
-          <Filter className="h-4 w-4" />
-          Filtres globaux
-          {activeCount > 0 ? (
-            <span className="rounded-full bg-ink px-1.5 py-0.5 text-[10px] text-ink">{activeCount}</span>
-          ) : null}
-        </div>
-        <label className="min-w-[150px] flex-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">
-          Pays
-          <select
-            value={country}
-            onChange={(event) => replaceFilters({ country: event.target.value })}
-            className="mt-1 h-9 w-full rounded-lg border border-line bg-white px-2.5 text-xs font-medium normal-case tracking-normal text-ink outline-none focus:border-electric"
-          >
-            <option value="">Tous les pays</option>
-            {countries.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="min-w-[135px] flex-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">
-          Devise
-          <select
-            value={currency}
-            onChange={(event) => replaceFilters({ currency: event.target.value })}
-            className="mt-1 h-9 w-full rounded-lg border border-line bg-white px-2.5 text-xs font-medium normal-case tracking-normal text-ink outline-none focus:border-electric"
-          >
-            <option value="">Toutes les devises</option>
-            {currencies.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="min-w-[170px] flex-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">
-          Période
-          <select
-            value={period}
-            onChange={(event) => replaceFilters({ period: event.target.value })}
-            className="mt-1 h-9 w-full rounded-lg border border-line bg-white px-2.5 text-xs font-medium normal-case tracking-normal text-ink outline-none focus:border-electric"
-          >
-            {periods.map((item) => (
-              <option key={item.value || "all"} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <span className="mr-1 inline-flex items-center gap-1.5 text-xs font-medium text-ink-2">
+        <Filter className="h-4 w-4 text-ink-3" />
+        Filtres
         {activeCount > 0 ? (
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-xs font-semibold text-muted2 transition hover:bg-surface hover:text-ink"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Réinitialiser
-          </button>
+          <span className="rounded-full bg-ink px-1.5 py-0.5 text-2xs font-semibold text-canvas">
+            {activeCount}
+          </span>
         ) : null}
-      </div>
-      <p className="mt-2 text-[10px] text-muted2">
-        Ces filtres restent mémorisés pendant la navigation Finance. Les écrans compatibles appliquent
-        réellement le pays, la devise et la période aux données affichées.
-      </p>
+      </span>
+      <select
+        aria-label="Pays"
+        value={country}
+        onChange={(event) => replaceFilters({ country: event.target.value })}
+        className="h-9 w-full rounded-lg border border-line-strong bg-surface-1 px-2.5 text-sm text-ink outline-none transition focus:border-accent md:w-auto md:min-w-[160px]"
+      >
+        <option value="">Tous les pays</option>
+        {countries.map((value) => (
+          <option key={value} value={value}>
+            {value}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="Devise"
+        value={currency}
+        onChange={(event) => replaceFilters({ currency: event.target.value })}
+        className="h-9 w-full rounded-lg border border-line-strong bg-surface-1 px-2.5 text-sm text-ink outline-none transition focus:border-accent md:w-auto md:min-w-[160px]"
+      >
+        <option value="">Toutes les devises</option>
+        {currencies.map((value) => (
+          <option key={value} value={value}>
+            {value}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="Période"
+        value={period}
+        onChange={(event) => replaceFilters({ period: event.target.value })}
+        className="h-9 w-full rounded-lg border border-line-strong bg-surface-1 px-2.5 text-sm text-ink outline-none transition focus:border-accent md:w-auto md:min-w-[160px]"
+      >
+        {periods.map((item) => (
+          <option key={item.value || "all"} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+      {activeCount > 0 ? (
+        <button
+          type="button"
+          onClick={reset}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Réinitialiser
+        </button>
+      ) : null}
     </div>
   );
 }

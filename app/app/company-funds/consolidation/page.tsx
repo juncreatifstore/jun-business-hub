@@ -124,7 +124,7 @@ export default async function ConsolidationPage({
           </p>
         </div>
         <form action={syncCompanyFinanceNowAction}>
-          <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink">
+          <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-canvas">
             <RefreshCw className="mr-2 inline h-4 w-4" />
             Synchroniser maintenant
           </button>

@@ -118,7 +118,7 @@ export default async function BankReconciliationClosePage({
               />
             </label>
             <div className="md:col-span-2">
-              <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-ink">
+              <button className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-canvas">
                 Close reconciliation period
               </button>
             </div>

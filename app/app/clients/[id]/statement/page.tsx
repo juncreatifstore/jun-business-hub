@@ -175,7 +175,7 @@ export default async function ClientStatementPage({
             href={`/api/clients/${client.id}/statement.pdf?lang=${language}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center rounded-lg bg-ink px-3 py-2 text-xs font-medium text-ink"
+            className="inline-flex items-center rounded-lg bg-ink px-3 py-2 text-xs font-medium text-canvas"
           >
             Open PDF
           </a>

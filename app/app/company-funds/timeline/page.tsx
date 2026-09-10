@@ -305,7 +305,7 @@ export default async function CompanyFundsTimelinePage({ searchParams }: { searc
           </select>
         </label>
         <div className="flex items-end gap-2">
-          <button className="h-10 rounded-lg bg-ink px-4 text-sm font-semibold text-ink">Filtrer</button>
+          <button className="h-10 rounded-lg bg-ink px-4 text-sm font-semibold text-canvas">Filtrer</button>
           {q || selectedKind ? (
             <Link
               href={resetHref}
