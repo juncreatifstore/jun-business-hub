@@ -59,6 +59,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea, Input, Select } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import { InboxLive } from "@/components/whatsapp/inbox-live";
+import { TemplateComposer } from "@/components/whatsapp/template-composer";
+import { listApprovedWhatsAppTemplates, type ApprovedTemplate } from "@/lib/whatsapp";
 import { StatusBadge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -229,6 +231,11 @@ export default async function WhatsAppInboxPage({
   const urgentCount = allConversations.filter((c) => c.priority === "URGENT").length;
   const resolvedCount = allConversations.filter((c) => c.status === "RESOLVED").length;
   const clientSummary = selected?.clientId ? await loadClientSummary(selected.clientId) : null;
+  const approvedTemplates = selected ? await listApprovedWhatsAppTemplates() : [];
+  const windowClosed = !selected?.lastInboundAt || Date.now() - selected.lastInboundAt.getTime() > 86_400_000;
+  const templateDefaults = selected
+    ? [/^\+?\d/.test(selected.name) ? "" : selected.name.split(/\s+/)[0], selected.caseNumber || ""]
+    : [];
   const linkableClients =
     selected && !selected.clientId
       ? await prisma.client.findMany({
@@ -292,6 +299,9 @@ export default async function WhatsAppInboxPage({
             deliveryStatuses={deliveryStatuses}
             clientSummary={clientSummary}
             linkableClients={linkableClients}
+            approvedTemplates={approvedTemplates}
+            templateDefaults={templateDefaults}
+            windowClosed={windowClosed}
             ban={ban}
             backHref={mobileBackHref}
           />
@@ -515,6 +525,17 @@ export default async function WhatsAppInboxPage({
                         </div>
                       </div>
                     </div>
+                  ) : windowClosed ? (
+                    <div className="sticky bottom-0 z-10 border-t border-line bg-canvas px-2.5 py-2.5 sm:px-4 sm:py-3">
+                      <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
+                        <TemplateComposer
+                          phone={selected.phone}
+                          templates={approvedTemplates}
+                          defaults={templateDefaults}
+                          windowClosed
+                        />
+                      </div>
+                    </div>
                   ) : (
                     <form
                       key={`compose-${selected.phone}-${messages.length}-${messages[messages.length - 1]?.row.id ?? ""}`}
@@ -533,10 +554,23 @@ export default async function WhatsAppInboxPage({
                         <div className="flex items-center justify-between gap-2 border-t border-line px-2.5 py-2 sm:px-3">
                           <div className="min-w-0 text-[10px] text-muted2 sm:text-[11px]">
                             <span className="hidden sm:inline">
-                              <Link href="/app/whatsapp" className="mr-3">
-                                <FileText className="mr-1 inline h-3.5 w-3.5" />
-                                Modèles
-                              </Link>
+                              <Sheet
+                                title="Envoyer un modèle approuvé"
+                                className="mr-3 inline-flex items-center hover:text-ink"
+                                trigger={
+                                  <>
+                                    <FileText className="mr-1 inline h-3.5 w-3.5" />
+                                    Modèles
+                                  </>
+                                }
+                              >
+                                <TemplateComposer
+                                  phone={selected.phone}
+                                  templates={approvedTemplates}
+                                  defaults={templateDefaults}
+                                  windowClosed={false}
+                                />
+                              </Sheet>
                               <Link href="/app/documents" className="mr-3">
                                 <Paperclip className="mr-1 inline h-3.5 w-3.5" />
                                 Documents
@@ -1356,6 +1390,9 @@ function MobileInbox({
   deliveryStatuses,
   clientSummary,
   linkableClients,
+  approvedTemplates,
+  templateDefaults,
+  windowClosed,
   ban,
   backHref,
 }: {
@@ -1370,6 +1407,9 @@ function MobileInbox({
   deliveryStatuses: Map<string, DeliveryInfo>;
   clientSummary: Awaited<ReturnType<typeof loadClientSummary>> | null;
   linkableClients: LinkableClient[];
+  approvedTemplates: ApprovedTemplate[];
+  templateDefaults: string[];
+  windowClosed: boolean;
   ban: { banned: boolean; reason?: string | null };
   backHref: string;
 }) {
@@ -1452,6 +1492,29 @@ function MobileInbox({
                 WhatsApp et email sortants sont désactivés{ban.reason ? ` · ${ban.reason}` : ""}.
               </div>
             </div>
+          </div>
+        ) : windowClosed ? (
+          <div className="border-t border-line bg-surface-1 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+            <p className="mb-2 text-xs text-warning">
+              Plus de 24 h sans message du client : seul un modèle approuvé peut être envoyé.
+            </p>
+            <Sheet
+              title="Envoyer un modèle approuvé"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-accent text-[15px] font-medium text-accent-fg shadow-card"
+              trigger={
+                <>
+                  <FileText className="h-4 w-4" /> Choisir un modèle
+                </>
+              }
+            >
+              <TemplateComposer
+                phone={selected.phone}
+                templates={approvedTemplates}
+                defaults={templateDefaults}
+                windowClosed
+                compact
+              />
+            </Sheet>
           </div>
         ) : (
           <form

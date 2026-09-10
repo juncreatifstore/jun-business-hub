@@ -7,7 +7,7 @@ import { nextNumber } from "@/lib/sequence";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppReadReceipt } from "@/lib/whatsapp";
-import { sendWhatsAppText } from "@/lib/whatsapp";
+import { sendWhatsAppText, sendWhatsAppTemplate } from "@/lib/whatsapp";
 import {
   decodeWhatsAppInboxPayload,
   encodeWhatsAppInboxPayload,
@@ -445,4 +445,46 @@ export async function createClientFromWhatsApp(phone: string, formData: FormData
   });
   refreshInbox();
   redirect(`/app/whatsapp/inbox?phone=${encodeURIComponent(normalized)}`);
+}
+
+/** Send an approved template from the inbox (required once the 24h window is closed). */
+export async function replyWhatsAppTemplate(phone: string, formData: FormData) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  const normalized = cleanPhone(phone);
+  const template = String(formData.get("template") || "").trim();
+  const language = String(formData.get("language") || "fr").trim();
+  if (!template) throw new Error("Aucun modèle sélectionné");
+  const params: string[] = [];
+  for (let i = 1; i <= 10; i++) {
+    const v = formData.get(`p${i}`);
+    if (v === null) break;
+    params.push(String(v).trim());
+  }
+  const origin = await conversationClient(normalized);
+  if (origin?.clientId && (await isClientCommunicationBanned(origin.clientId))) {
+    throw new Error("Client banni — aucun message WhatsApp ne peut être envoyé");
+  }
+  const preview = String(formData.get("preview") || "").trim();
+  const result = await sendWhatsAppTemplate(normalized, template, language, params);
+  const messageId = String(result.messages?.[0]?.id || `local-${Date.now()}`);
+  await prisma.activity.create({
+    data: {
+      type: "WHATSAPP_OUTBOUND_REPLY",
+      message: encodeWhatsAppInboxPayload({
+        direction: "OUTBOUND",
+        phone: normalized,
+        messageId,
+        type: "template",
+        text: preview || `Modèle ${template}`,
+        timestamp: new Date().toISOString(),
+      }),
+      userId: user.id,
+      clientId: origin?.clientId ?? undefined,
+      caseId: origin?.caseId ?? undefined,
+      resourceType: "WhatsAppConversation",
+      resourceId: normalized,
+    },
+  });
+  refreshInbox();
 }

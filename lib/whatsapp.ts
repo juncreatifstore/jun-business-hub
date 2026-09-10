@@ -292,3 +292,49 @@ export async function sendWhatsAppReadReceipt(messageId: string) {
     /* receipts are cosmetic; never surface to the user */
   }
 }
+
+/* ───────────── Approved templates ───────────── */
+
+export type ApprovedTemplate = {
+  name: string;
+  language: string;
+  category: string;
+  /** Body text with {{1}} placeholders. */
+  body: string;
+  paramCount: number;
+};
+
+let templateCache: { at: number; items: ApprovedTemplate[] } | null = null;
+
+/** Approved templates from Meta WhatsApp Manager (cached 10 min per instance). */
+export async function listApprovedWhatsAppTemplates(force = false): Promise<ApprovedTemplate[]> {
+  if (!force && templateCache && Date.now() - templateCache.at < 10 * 60_000) return templateCache.items;
+  const s = await rows();
+  const wabaId = String(s["whatsapp.business_account_id"] || "").trim();
+  const enc = s["whatsapp.access_token_enc"];
+  if (!wabaId || !enc) return [];
+  const token = decryptSecret(enc);
+  const version = s["whatsapp.graph_version"] || "v23.0";
+  const url = `https://graph.facebook.com/${version}/${encodeURIComponent(wabaId)}/message_templates?status=APPROVED&fields=name,language,category,components&limit=100`;
+  try {
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    const data = (await r.json().catch(() => ({}))) as {
+      data?: {
+        name: string;
+        language: string;
+        category: string;
+        components?: { type: string; text?: string }[];
+      }[];
+    };
+    if (!r.ok) return templateCache?.items ?? [];
+    const items: ApprovedTemplate[] = (data.data ?? []).map((t) => {
+      const body = t.components?.find((c) => c.type === "BODY")?.text ?? "";
+      const params = new Set(Array.from(body.matchAll(/\{\{(\d+)\}\}/g)).map((m) => Number(m[1])));
+      return { name: t.name, language: t.language, category: t.category, body, paramCount: params.size };
+    });
+    templateCache = { at: Date.now(), items };
+    return items;
+  } catch {
+    return templateCache?.items ?? [];
+  }
+}
