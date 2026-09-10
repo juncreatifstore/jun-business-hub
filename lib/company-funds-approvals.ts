@@ -10,14 +10,14 @@ const POLICY_KEY="company.funds.authorization.policy";
 
 export type FinancialAuthorizationStatus="PENDING"|"APPROVED"|"REJECTED"|"CANCELLED";
 export type FinancialAuthorizationType="TRANSFER"|"EXPENSE"|"REFUND"|"INVESTMENT"|"LOAN"|"RESERVE_OVERRIDE"|"OTHER";
-export type FinancialApprovalDecision={userId:string;decision:"APPROVE"|"REJECT";note:string;decidedAt:string};
+export type FinancialApprovalDecision={userId:string;decision:"APPROVE"|"REJECT";note:string;decidedAt:string;singleAdminException?:boolean};
 export type FinancialAuthorization={
   id:string;type:FinancialAuthorizationType;resourceId:string;reference:string;description:string;
   amount:number;currency:string;requestedById:string;requiredApprovals:number;reason:string;
   reserveImpact:boolean;status:FinancialAuthorizationStatus;decisions:FinancialApprovalDecision[];
   createdAt:string;updatedAt:string;approvedAt:string|null;rejectedAt:string|null;
 };
-export type FinancialAuthorizationPolicy={singleApprovalThreshold:number;dualApprovalThreshold:number;reserveOverrideAlwaysDual:boolean};
+export type FinancialAuthorizationPolicy={singleApprovalThreshold:number;dualApprovalThreshold:number;reserveOverrideAlwaysDual:boolean;singleAdminMode?:boolean};
 
 const DEFAULT_POLICY:FinancialAuthorizationPolicy={singleApprovalThreshold:1000,dualApprovalThreshold:5000,reserveOverrideAlwaysDual:true};
 function round(v:number){return Math.round((Number(v||0)+Number.EPSILON)*100)/100}
@@ -25,7 +25,7 @@ function parse(value:string):FinancialAuthorization|null{try{const v=JSON.parse(
 function resourceLock(type:FinancialAuthorizationType,resourceId:string){return `financial-authorization:${type}:${resourceId}`}
 function idLock(id:string){return `financial-authorization-id:${id}`}
 
-export async function getFinancialAuthorizationPolicy(){const row=await prisma.appSetting.findUnique({where:{key:POLICY_KEY},select:{value:true}});if(!row)return DEFAULT_POLICY;try{const p=JSON.parse(row.value) as Partial<FinancialAuthorizationPolicy>;return{singleApprovalThreshold:Math.max(0,Number(p.singleApprovalThreshold??DEFAULT_POLICY.singleApprovalThreshold)),dualApprovalThreshold:Math.max(0,Number(p.dualApprovalThreshold??DEFAULT_POLICY.dualApprovalThreshold)),reserveOverrideAlwaysDual:p.reserveOverrideAlwaysDual!==false}}catch{return DEFAULT_POLICY}}
+export async function getFinancialAuthorizationPolicy(){const row=await prisma.appSetting.findUnique({where:{key:POLICY_KEY},select:{value:true}});if(!row)return DEFAULT_POLICY;try{const p=JSON.parse(row.value) as Partial<FinancialAuthorizationPolicy>;return{singleApprovalThreshold:Math.max(0,Number(p.singleApprovalThreshold??DEFAULT_POLICY.singleApprovalThreshold)),dualApprovalThreshold:Math.max(0,Number(p.dualApprovalThreshold??DEFAULT_POLICY.dualApprovalThreshold)),reserveOverrideAlwaysDual:p.reserveOverrideAlwaysDual!==false,singleAdminMode:p.singleAdminMode===true}}catch{return DEFAULT_POLICY}}
 export async function saveFinancialAuthorizationPolicy(policy:FinancialAuthorizationPolicy){const value=JSON.stringify(policy);await prisma.appSetting.upsert({where:{key:POLICY_KEY},create:{key:POLICY_KEY,value},update:{value}});invalidateCompanyFundsWorkQueue();return policy}
 export async function listFinancialAuthorizations(limit=1000){const rows=await prisma.appSetting.findMany({where:{key:{startsWith:REQUEST_PREFIX}},orderBy:{updatedAt:"desc"},take:limit,select:{value:true}});return rows.map(r=>parse(r.value)).filter((v):v is FinancialAuthorization=>Boolean(v))}
 export async function getFinancialAuthorization(id:string){const row=await prisma.appSetting.findUnique({where:{key:`${REQUEST_PREFIX}${id}`},select:{value:true}});return row?parse(row.value):null}
@@ -57,19 +57,29 @@ export async function createFinancialAuthorization(input:{type:FinancialAuthoriz
   return authorization;
 }
 
-export async function decideFinancialAuthorization(id:string,userId:string,decision:"APPROVE"|"REJECT",note:string){
+export async function decideFinancialAuthorization(id:string,userId:string,decision:"APPROVE"|"REJECT",note:string,singleAdminConfirmed=false){
   const authorization=await prisma.$transaction(async tx=>{
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${idLock(id)}))`;
     const row=await tx.appSetting.findUnique({where:{key:`${REQUEST_PREFIX}${id}`},select:{value:true}});
     const a=row?parse(row.value):null;
     if(!a)throw new Error("Authorization not found");
     if(a.status!=="PENDING")throw new Error("Authorization is no longer pending");
-    if(a.requestedById===userId)throw new Error("Requester cannot approve their own financial authorization");
+    let singleAdminException = false;
+    if(a.requestedById===userId){
+      const policyRow=await tx.appSetting.findUnique({where:{key:POLICY_KEY},select:{value:true}});
+      const enabled=policyRow ? JSON.parse(policyRow.value).singleAdminMode===true : false;
+      const admins=await tx.user.findMany({where:{role:"SUPER_ADMIN",status:"ACTIVE"},select:{id:true}});
+      if(!enabled || admins.length!==1 || admins[0].id!==userId || a.requiredApprovals!==1 || decision!=="APPROVE")
+        throw new Error("Requester cannot approve their own financial authorization");
+      if(!singleAdminConfirmed || note.trim().length<10)throw new Error("Single admin confirmation and reason required");
+      singleAdminException=true;
+    }
     if(a.decisions.some(d=>d.userId===userId))throw new Error("You already decided this authorization");
     const now=new Date().toISOString();
-    a.decisions.push({userId,decision,note:note.trim().slice(0,1000),decidedAt:now});
+    a.decisions.push({userId,decision,note:note.trim().slice(0,1000),decidedAt:now,...(singleAdminException?{singleAdminException:true}:{})});
     if(decision==="REJECT"){a.status="REJECTED";a.rejectedAt=now}else{const approvals=a.decisions.filter(d=>d.decision==="APPROVE").length;if(approvals>=a.requiredApprovals){a.status="APPROVED";a.approvedAt=now}}
     a.updatedAt=now;
+    if(singleAdminException) await tx.auditLog.create({data:{userId,action:"FINANCIAL_AUTH_SINGLE_ADMIN_EXCEPTION",resourceType:"FinancialAuthorization",resourceId:id,after:{amount:a.amount,currency:a.currency,reason:note.trim().slice(0,1000),requiredApprovals:a.requiredApprovals,activeSuperAdmins:1,confirmed:true}}});
     await tx.appSetting.update({where:{key:`${REQUEST_PREFIX}${id}`},data:{value:JSON.stringify(a)}});
     return a;
   },{isolationLevel:"Serializable"});
