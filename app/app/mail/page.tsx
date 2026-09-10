@@ -60,21 +60,21 @@ export default async function MailPage({
   return (
     <div className="space-y-3">
       <GmailStyleMailCenterV6 searchParams={{ ...searchParams, mailbox }} />
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2">
-        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-ink-3">JUN tools</span>
+      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2">
+        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-ink-3">Outils</span>
         <Link href="/app/mail/search">
           <Button size="sm" variant="ghost">
-            Search
+            Recherche avancée
           </Button>
         </Link>
         <Link href="/app/mail/analytics">
           <Button size="sm" variant="ghost">
-            Analytics
+            Statistiques
           </Button>
         </Link>
         <Link href="/app/mail/operations">
           <Button size="sm" variant="ghost">
-            Operations & SLA
+            Opérations et SLA
           </Button>
         </Link>
         <Link href="/app/mail/intelligence">
@@ -84,13 +84,13 @@ export default async function MailPage({
         </Link>
         <Link href="/app/mail/approvals">
           <Button size="sm" variant="ghost">
-            AI approvals
+            Validations IA
           </Button>
         </Link>
         {can(user, "EMAIL_MANAGE") ? (
           <Link href="/app/mail/security">
             <Button size="sm" variant="ghost">
-              Security
+              Sécurité
             </Button>
           </Link>
         ) : null}
