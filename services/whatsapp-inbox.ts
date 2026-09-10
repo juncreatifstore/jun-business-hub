@@ -16,6 +16,12 @@ import {
 } from "@/lib/whatsapp";
 import { storage } from "@/lib/storage";
 import {
+  transcribeWhatsAppAudio,
+  translateWhatsAppMessage,
+  draftWhatsAppReply,
+  translateDraftForClient,
+} from "@/lib/whatsapp-ai";
+import {
   decodeWhatsAppInboxPayload,
   encodeWhatsAppInboxPayload,
   normalizeWhatsAppPhone,
@@ -559,4 +565,33 @@ export async function replyWhatsAppMedia(phone: string, formData: FormData) {
     },
   });
   refreshInbox();
+}
+
+/* ───────────── AI ───────────── */
+
+export async function transcribeWhatsAppVoice(mediaId: string) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  if (!/^[0-9]{5,40}$/.test(mediaId)) return null;
+  const r = await transcribeWhatsAppAudio(mediaId);
+  refreshInbox();
+  return r;
+}
+
+export async function translateWhatsAppInbound(messageId: string, text: string) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  return translateWhatsAppMessage(messageId, text.slice(0, 4000));
+}
+
+export async function aiDraftWhatsAppReply(phone: string, instruction?: string) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  return draftWhatsAppReply(cleanPhone(phone), instruction?.slice(0, 500));
+}
+
+export async function aiTranslateDraft(phone: string, draft: string) {
+  const user = await requireUser();
+  assertStaff(user.role);
+  return translateDraftForClient(cleanPhone(phone), draft.slice(0, 4000));
 }

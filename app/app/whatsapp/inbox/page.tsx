@@ -61,6 +61,9 @@ import { Sheet } from "@/components/ui/sheet";
 import { InboxLive } from "@/components/whatsapp/inbox-live";
 import { TemplateComposer } from "@/components/whatsapp/template-composer";
 import { MediaComposer } from "@/components/whatsapp/media-composer";
+import { ReplyAssistant, TranscribeButton, TranslateButton } from "@/components/whatsapp/ai-bits";
+import { getQuickReplies, type QuickReply } from "@/lib/whatsapp-quick-replies";
+import { whatsAppAIEnabled, type Transcript } from "@/lib/whatsapp-ai";
 import { listApprovedWhatsAppTemplates, type ApprovedTemplate } from "@/lib/whatsapp";
 import { StatusBadge } from "@/components/ui/badge";
 
@@ -233,6 +236,22 @@ export default async function WhatsAppInboxPage({
   const resolvedCount = allConversations.filter((c) => c.status === "RESOLVED").length;
   const clientSummary = selected?.clientId ? await loadClientSummary(selected.clientId) : null;
   const approvedTemplates = selected ? await listApprovedWhatsAppTemplates() : [];
+  const quickReplies = selected ? await getQuickReplies() : [];
+  const aiEnabled = whatsAppAIEnabled();
+  const audioIds = messages
+    .map((m) => (m.payload.type === "audio" ? m.payload.mediaId : null))
+    .filter(Boolean) as string[];
+  const transcriptRows = audioIds.length
+    ? await prisma.appSetting.findMany({
+        where: { key: { in: audioIds.map((id) => `whatsapp.ai.transcript.${id}`) } },
+      })
+    : [];
+  const transcripts = new Map<string, Transcript>();
+  for (const r of transcriptRows) {
+    try {
+      transcripts.set(r.key.replace("whatsapp.ai.transcript.", ""), JSON.parse(r.value) as Transcript);
+    } catch {}
+  }
   const windowClosed = !selected?.lastInboundAt || Date.now() - selected.lastInboundAt.getTime() > 86_400_000;
   const templateDefaults = selected
     ? [/^\+?\d/.test(selected.name) ? "" : selected.name.split(/\s+/)[0], selected.caseNumber || ""]
@@ -303,6 +322,9 @@ export default async function WhatsAppInboxPage({
             approvedTemplates={approvedTemplates}
             templateDefaults={templateDefaults}
             windowClosed={windowClosed}
+            quickReplies={quickReplies}
+            aiEnabled={aiEnabled}
+            transcripts={transcripts}
             ban={ban}
             backHref={mobileBackHref}
           />
@@ -509,7 +531,12 @@ export default async function WhatsAppInboxPage({
 
                   <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 md:px-6">
                     <div className="mx-auto max-w-4xl space-y-1.5">
-                      <Timeline messages={messages} deliveryStatuses={deliveryStatuses} />
+                      <Timeline
+                        messages={messages}
+                        deliveryStatuses={deliveryStatuses}
+                        transcripts={transcripts}
+                        aiEnabled={aiEnabled}
+                      />
                     </div>
                   </div>
 
@@ -574,6 +601,13 @@ export default async function WhatsAppInboxPage({
                               </Sheet>
                               <span className="mr-3 inline-flex">
                                 <MediaComposer phone={selected.phone} variant="button" />
+                              </span>
+                              <span className="mr-3 inline-flex">
+                                <ReplyAssistant
+                                  phone={selected.phone}
+                                  quickReplies={quickReplies}
+                                  aiEnabled={aiEnabled}
+                                />
                               </span>
                             </span>
                             <span className="truncate">
@@ -1322,9 +1356,13 @@ type TimelineItem = { row: Row; payload: WhatsAppInboxPayload };
 function Timeline({
   messages,
   deliveryStatuses,
+  transcripts,
+  aiEnabled,
 }: {
   messages: TimelineItem[];
   deliveryStatuses: Map<string, DeliveryInfo>;
+  transcripts?: Map<string, Transcript>;
+  aiEnabled?: boolean;
 }) {
   return (
     <>
@@ -1347,6 +1385,22 @@ function Timeline({
                 className={`min-w-[130px] max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[82%] md:max-w-[74%] ${outbound ? "rounded-br-md bg-surface-1 text-ink" : "rounded-bl-md border border-line bg-white"}`}
               >
                 <MediaBubble payload={payload} outbound={outbound} />
+                {payload.type === "audio" && payload.mediaId ? (
+                  transcripts?.get(payload.mediaId) ? (
+                    <div className="mb-1 text-xs">
+                      <p className="whitespace-pre-wrap text-ink-2">
+                        {transcripts.get(payload.mediaId)!.text}
+                      </p>
+                      {transcripts.get(payload.mediaId)!.french ? (
+                        <p className="mt-1 whitespace-pre-wrap border-t border-line/60 pt-1 italic text-ink-2">
+                          {transcripts.get(payload.mediaId)!.french}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : aiEnabled && !outbound ? (
+                    <TranscribeButton mediaId={payload.mediaId} />
+                  ) : null
+                ) : null}
                 {humanText(payload) ? (
                   <div className="whitespace-pre-wrap break-words">{humanText(payload)}</div>
                 ) : null}
@@ -1393,6 +1447,9 @@ function MobileInbox({
   approvedTemplates,
   templateDefaults,
   windowClosed,
+  quickReplies,
+  aiEnabled,
+  transcripts,
   ban,
   backHref,
 }: {
@@ -1410,6 +1467,9 @@ function MobileInbox({
   approvedTemplates: ApprovedTemplate[];
   templateDefaults: string[];
   windowClosed: boolean;
+  quickReplies: QuickReply[];
+  aiEnabled: boolean;
+  transcripts: Map<string, Transcript>;
   ban: { banned: boolean; reason?: string | null };
   backHref: string;
 }) {
@@ -1478,7 +1538,12 @@ function MobileInbox({
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <div className="space-y-1.5">
-            <Timeline messages={messages} deliveryStatuses={deliveryStatuses} />
+            <Timeline
+              messages={messages}
+              deliveryStatuses={deliveryStatuses}
+              transcripts={transcripts}
+              aiEnabled={aiEnabled}
+            />
           </div>
         </div>
 
@@ -1524,6 +1589,12 @@ function MobileInbox({
           >
             <div className="flex items-end gap-1.5">
               <MediaComposer phone={selected.phone} />
+              <ReplyAssistant
+                phone={selected.phone}
+                quickReplies={quickReplies}
+                aiEnabled={aiEnabled}
+                variant="icon"
+              />
               <Textarea
                 name="message"
                 rows={1}

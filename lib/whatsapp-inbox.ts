@@ -249,6 +249,13 @@ export async function recordIncomingWhatsAppMessage(input: { message: any; conta
     });
   // Archive media now: Meta only keeps it ~30 days, and nobody may open the
   // conversation before then. Bounded so a slow download never blocks the webhook.
-  if (media.mediaId) await archiveWhatsAppMedia(media.mediaId, 8_000);
+  if (media.mediaId) {
+    const archived = await archiveWhatsAppMedia(media.mediaId, 8_000);
+    // Voice notes: transcribe right away so the agent reads instead of listens.
+    if (type === "audio" && archived !== "failed" && process.env.OPENAI_API_KEY) {
+      const id = media.mediaId;
+      void import("@/lib/whatsapp-ai").then((m) => m.transcribeWhatsAppAudio(id)).catch(() => {});
+    }
+  }
   return activity;
 }
