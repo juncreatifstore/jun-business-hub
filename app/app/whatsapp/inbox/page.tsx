@@ -502,6 +502,7 @@ export default async function WhatsAppInboxPage({
                     </div>
                   ) : (
                     <form
+                      key={`compose-${selected.phone}-${messages.length}-${messages[messages.length - 1]?.row.id ?? ""}`}
                       action={replyWhatsAppConversation.bind(null, selected.phone)}
                       className="sticky bottom-0 z-10 border-t border-line bg-ink/95 px-2.5 py-2.5 backdrop-blur sm:px-4 sm:py-3"
                     >
@@ -1438,6 +1439,7 @@ function MobileInbox({
           </div>
         ) : (
           <form
+            key={`compose-${selected.phone}-${messages.length}-${messages[messages.length - 1]?.row.id ?? ""}`}
             action={replyWhatsAppConversation.bind(null, selected.phone)}
             className="border-t border-line bg-surface-1 px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]"
           >
