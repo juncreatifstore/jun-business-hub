@@ -68,16 +68,18 @@ export function EmailHtmlFrame({ html, title }: { html: string; title: string })
 
   const css = `
     html,body{margin:0;padding:0;background:#fff;color:#0f172a;overflow-x:hidden;-webkit-text-size-adjust:100%}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5}
     #jun-root{min-width:0}
-    img,video,iframe{max-width:100% !important;height:auto}
-    table{max-width:100% !important;border-collapse:collapse}
-    table[width],td[width],th[width],div[style*="width"],table[style*="width"]{max-width:100% !important}
-    *[style*="min-width"]{min-width:0 !important}
-    *[style*="white-space: nowrap"],*[style*="white-space:nowrap"]{white-space:normal !important}
+    /* Only images and top-level containers are constrained; inner cells keep their
+       intended widths so nowrap labels and letter-spaced headings don't break apart.
+       Anything still wider than the screen is scaled down by the script. */
+    img,video{max-width:100% !important;height:auto}
+    #jun-root > table,#jun-root > div,#jun-root > center{max-width:100% !important}
     pre{white-space:pre-wrap}
     a{color:#1d4ed8}
     blockquote{margin:0 0 0 .5em;padding-left:.75em;border-left:2px solid #e2e8f0;color:#475569}
+    /* Preheader text hidden by mail clients but exposed once <style> blocks are stripped. */
+    [style*="max-height:0"],[style*="max-height: 0"],[style*="mso-hide"],.preheader,.preview-text{display:none !important}
   `;
   const document = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body><div id="jun-root">${html}</div></body></html>`;
 
