@@ -1,0 +1,7 @@
+node_modules
+.next
+out
+storage-dev
+package-lock.json
+prisma/migrations
+*.md
