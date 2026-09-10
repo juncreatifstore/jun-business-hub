@@ -1,4 +1,5 @@
 "use server";
+import { logger } from "@/lib/logger";
 import { requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import {
@@ -21,10 +22,7 @@ export async function submitFinancialAuthorizationDecision(
     else return { success: false, message: "Choisissez Approuver ou Rejeter." };
     return { success: true, message: "Décision enregistrée." };
   } catch (error) {
-    console.error("[financial-authorization] decision failed", {
-      authorizationId: id,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error("financial_authorization.decision_failed", { authorizationId: id, err: error });
     return { success: false, message: financialAuthorizationError(error) };
   }
 }

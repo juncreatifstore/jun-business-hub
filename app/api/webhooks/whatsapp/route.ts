@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 import { getWhatsAppWebhookVerifyToken } from "@/lib/whatsapp";
 import { recordIncomingWhatsAppMessage } from "@/lib/whatsapp-inbox";
 import {
@@ -31,13 +32,13 @@ export async function GET(request: NextRequest) {
   };
 
   if (mode === "subscribe" && tokenMatches && challenge) {
-    console.warn("[WhatsApp webhook verify] SUCCESS", diagnostic);
+    logger.info("whatsapp.webhook_verify_ok", { diagnostic });
     return new NextResponse(challenge, {
       status: 200,
       headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" },
     });
   }
-  console.error("[WhatsApp webhook verify] FAILED", diagnostic);
+  logger.warn("whatsapp.webhook_verify_failed", { diagnostic });
   return NextResponse.json(
     {
       ok: false,
@@ -131,7 +132,7 @@ async function recordStatus(status: MetaStatus) {
 
   if (signatureOrigin?.resourceId) {
     await syncSignatureDelivery(signatureOrigin.resourceId, messageId, status).catch((error) =>
-      console.error("[WhatsApp signature delivery sync]", error),
+      logger.error("whatsapp.signature_delivery_sync_failed", { err: error }),
     );
   }
 
@@ -184,7 +185,9 @@ export async function POST(request: NextRequest) {
         const statuses: MetaStatus[] = Array.isArray(value?.statuses) ? value.statuses : [];
         statusCount += statuses.length;
         for (const status of statuses)
-          await recordStatus(status).catch((error) => console.error("[WhatsApp webhook status]", error));
+          await recordStatus(status).catch((error) =>
+            logger.error("whatsapp.webhook_status_failed", { err: error }),
+          );
 
         const contacts = Array.isArray(value?.contacts) ? value.contacts : [];
         const contactNames = new Map<string, string>();
@@ -199,7 +202,7 @@ export async function POST(request: NextRequest) {
         for (const message of messages) {
           const from = String(message?.from || "").replace(/[^0-9]/g, "");
           await recordIncomingWhatsAppMessage({ message, contactName: contactNames.get(from) }).catch(
-            (error) => console.error("[WhatsApp webhook inbound]", error),
+            (error) => logger.error("whatsapp.webhook_inbound_failed", { err: error }),
           );
         }
       }
@@ -209,7 +212,7 @@ export async function POST(request: NextRequest) {
       messages: messageCount,
       statuses: statusCount,
       entries: entries.length,
-    }).catch((error) => console.error("[WhatsApp webhook heartbeat]", error));
+    }).catch((error) => logger.error("whatsapp.webhook_heartbeat_failed", { err: error }));
     console.info("[WhatsApp webhook] processed", {
       entries: entries.length,
       messages: messageCount,
@@ -217,7 +220,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ received: true }, { status: 200 });
   } catch (error) {
-    console.error("[WhatsApp webhook] invalid payload", error);
+    logger.warn("whatsapp.webhook_invalid_payload", { err: error });
     return NextResponse.json({ received: true }, { status: 200 });
   }
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { logger } from "@/lib/logger";
 import { notFound } from "next/navigation";
 import { requireUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -64,7 +65,7 @@ async function optionalLoad<T>(
   try {
     return await loader();
   } catch (error) {
-    console.error(`[drive-intelligence-actions] ${label} failed`, error);
+    logger.error("drive_intelligence.action_failed", { label, err: error });
     warnings.push(label);
     return fallback;
   }
@@ -84,7 +85,7 @@ export default async function DriveIntelligenceActionsPage({
   try {
     ctx = await getDriveActionContext(params.id);
   } catch (error) {
-    console.error("[drive-intelligence-actions] context failed", { fileId: params.id, error });
+    logger.error("drive_intelligence.context_failed", { fileId: params.id, err: error });
     return <LoadFailure fileId={params.id} />;
   }
   if (!ctx) notFound();

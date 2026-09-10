@@ -1,4 +1,5 @@
 "use server";
+import { logger } from "@/lib/logger";
 import { rateLimitAsync } from "@/lib/rate-limit";
 import { sha256 } from "@/lib/hash";
 import { headers } from "next/headers";
@@ -74,7 +75,7 @@ export async function requestPasswordReset(
 
     const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
     if (!base) {
-      console.error("PASSWORD_RESET_EMAIL_SKIPPED: NEXT_PUBLIC_APP_URL missing");
+      logger.error("password_reset.email_skipped", { reason: "NEXT_PUBLIC_APP_URL missing" });
       return { message: generic };
     }
     const resetUrl = `${base}/reset-password?token=${encodeURIComponent(token)}`;
@@ -83,7 +84,7 @@ export async function requestPasswordReset(
       orderBy: { createdAt: "asc" },
     });
     if (!mailbox) {
-      console.error("PASSWORD_RESET_EMAIL_SKIPPED: no connected JUN mailbox", { userId: user.id });
+      logger.error("password_reset.email_skipped", { reason: "no connected mailbox", userId: user.id });
       return { message: generic };
     }
 
@@ -94,12 +95,12 @@ export async function requestPasswordReset(
         text: `Hello ${user.firstName},\n\nA password reset was requested for your JUN Business Hub account.\n\nOpen this secure link within 30 minutes:\n${resetUrl}\n\nIf you did not request this, ignore this email. The link can only be used once.\n\nJUN Business Hub`,
       });
     } catch (error) {
-      console.error("PASSWORD_RESET_EMAIL_FAILED", error);
+      logger.error("password_reset.email_failed", { userId: user.id, err: error });
     }
     return { message: generic };
   } catch (error) {
     const code = safeResetCode(error);
-    console.error("PASSWORD_RESET_DIAGNOSTIC", code, error);
+    logger.error("password_reset.failed", { code, err: error });
     return { error: `Password reset service unavailable (${code}).` };
   }
 }

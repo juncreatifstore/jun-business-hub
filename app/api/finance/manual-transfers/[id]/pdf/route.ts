@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/auth";
 import { getManualTransferOrder } from "@/lib/finance-manual-transfers";
 import { renderManualTransferOrderPdf } from "@/services/pdf/manual-transfer-order";
@@ -36,7 +37,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       },
     });
   } catch (error) {
-    console.error("[manual-transfer-pdf] generation failed", error);
+    logger.error("manual_transfer.pdf_failed", { err: error });
     return NextResponse.json({ error: "Unable to generate payment order PDF" }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 "use server";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validation";
 import { signSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
@@ -40,7 +41,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     user = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
   } catch (error) {
     const code = safeRuntimeCode(error);
-    console.error("LOGIN_DIAGNOSTIC:user_lookup", code, error);
+    logger.error("login.user_lookup_failed", { code, err: error });
     return { error: `Login service unavailable (${code}).` };
   }
 
@@ -54,7 +55,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       cookies().set("jun_mfa_pending", pending, { ...sessionCookieOptions, maxAge: 300 });
     } catch (error) {
       const code = safeRuntimeCode(error);
-      console.error("LOGIN_DIAGNOSTIC:mfa_session", code, error);
+      logger.error("login.mfa_session_failed", { code, err: error });
       return { error: `Login service unavailable (${code}).` };
     }
     redirect("/login/mfa");
@@ -66,7 +67,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     cookies().set(SESSION_COOKIE, token, sessionCookieOptions);
   } catch (error) {
     const code = safeRuntimeCode(error);
-    console.error("LOGIN_DIAGNOSTIC:session_sign", code, error);
+    logger.error("login.session_sign_failed", { code, err: error });
     return { error: `Login service unavailable (${code}).` };
   }
 
@@ -86,7 +87,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   } catch (error) {
     cookies().delete(SESSION_COOKIE);
     const code = safeRuntimeCode(error);
-    console.error("LOGIN_DIAGNOSTIC:session_persist", code, error);
+    logger.error("login.session_persist_failed", { code, err: error });
     return { error: `Login service unavailable (${code}).` };
   }
 
