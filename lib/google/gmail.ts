@@ -248,10 +248,33 @@ export async function syncFolder(
     );
     const refs = list.messages ?? [];
     if (!refs.length) break;
+    // One query for every thread of this page: lets us skip the expensive
+    // `format=full` download when nothing new arrived in a thread.
+    const known = new Map(
+      (
+        await prisma.mailThread.findMany({
+          where: { mailAccountId: accountId, gmailThreadId: { in: refs.map((r) => r.threadId) } },
+          select: { id: true, gmailThreadId: true, lastMessageAt: true },
+        })
+      ).map((t) => [t.gmailThreadId, t]),
+    );
     for (const ref of refs) {
       seen++;
       if (processedThreads.has(ref.threadId)) continue;
       processedThreads.add(ref.threadId);
+      const existingRow = known.get(ref.threadId);
+      if (existingRow?.lastMessageAt && folder !== "DRAFTS") {
+        const brief = await gmail<{ internalDate?: string; labelIds?: string[] }>(
+          token,
+          `/messages/${ref.id}?format=minimal`,
+        );
+        const at = brief.internalDate ? Number(brief.internalDate) : 0;
+        if (at && at <= existingRow.lastMessageAt.getTime()) {
+          // Unchanged thread: only mirror read/star flags.
+          await syncStateFromLabels(existingRow.id, brief.labelIds);
+          continue;
+        }
+      }
       const m = await gmail<GmailMessage>(token, `/messages/${ref.id}?format=full`);
       const subject = header(m, "Subject") || "(no subject)",
         from = header(m, "From"),

@@ -6,6 +6,7 @@ import { getAccessibleMailboxIds } from "@/lib/mail-security";
 import { getMailThreadStateMap, isSnoozed } from "@/lib/mail-thread-state";
 import { getMailConversation } from "@/lib/mail-thread-reader";
 import { getCachedMailConversation } from "@/lib/mail-thread-cache";
+import { MailLive } from "./mail-live";
 import { getGmailMailboxCacheMap } from "@/lib/mail-gmail-cache";
 import { syncMailboxV2, syncAllMailboxesV2 } from "@/services/mail-sync-v2";
 import {
@@ -396,6 +397,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
 
   return (
     <>
+      <MailLive />
       {/* Mobile list */}
       <div className="-mx-4 -mt-4 sm:-mx-6 sm:-mt-6 lg:hidden">
         <div className="sticky top-16 z-20 border-b border-line bg-canvas/95 px-4 pb-2.5 pt-3 backdrop-blur-md">

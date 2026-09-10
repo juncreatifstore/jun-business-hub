@@ -46,13 +46,14 @@ async function syncOne(accountId: string) {
   let created = 0;
   created += await syncFolder(accountId, "INBOX", INBOX_SYNC_LIMIT);
   await sleep(BETWEEN_FOLDERS_MS);
-  created += await syncFolder(accountId, "SENT", SECONDARY_SYNC_LIMIT);
-  await sleep(BETWEEN_FOLDERS_MS);
-  created += await syncFolder(accountId, "DRAFTS", SECONDARY_SYNC_LIMIT);
-  await sleep(BETWEEN_FOLDERS_MS);
-  created += await syncFolder(accountId, "IMPORTANT", SECONDARY_SYNC_LIMIT);
-  await sleep(BETWEEN_FOLDERS_MS);
-  await refreshGmailMailboxCache(accountId, CACHE_LIMIT);
+  // Secondary folders and the label/category cache are independent: run them together.
+  const [sent, drafts, important] = await Promise.all([
+    syncFolder(accountId, "SENT", SECONDARY_SYNC_LIMIT),
+    syncFolder(accountId, "DRAFTS", SECONDARY_SYNC_LIMIT),
+    syncFolder(accountId, "IMPORTANT", SECONDARY_SYNC_LIMIT),
+    refreshGmailMailboxCache(accountId, CACHE_LIMIT),
+  ]);
+  created += sent + drafts + important;
   return {
     created,
     inboxLimit: INBOX_SYNC_LIMIT,
