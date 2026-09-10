@@ -62,6 +62,7 @@ import { InboxLive } from "@/components/whatsapp/inbox-live";
 import { TemplateComposer } from "@/components/whatsapp/template-composer";
 import { MediaComposer } from "@/components/whatsapp/media-composer";
 import { ReplyAssistant, TranscribeButton, TranslateButton } from "@/components/whatsapp/ai-bits";
+import { ComposerKeys } from "@/components/whatsapp/composer-keys";
 import { getQuickReplies, type QuickReply } from "@/lib/whatsapp-quick-replies";
 import { whatsAppAIEnabled, type Transcript } from "@/lib/whatsapp-ai";
 import { listApprovedWhatsAppTemplates, type ApprovedTemplate } from "@/lib/whatsapp";
@@ -70,7 +71,7 @@ import { StatusBadge } from "@/components/ui/badge";
 export const dynamic = "force-dynamic";
 
 type Row = Awaited<ReturnType<typeof loadRows>>[number];
-type FilterKey = "all" | "unread" | "waiting" | "urgent" | "resolved";
+type FilterKey = "all" | "unread" | "unanswered" | "mine" | "waiting" | "urgent" | "resolved";
 type ConversationStatus = "OPEN" | "WAITING" | "RESOLVED";
 type ConversationPriority = "NORMAL" | "HIGH" | "URGENT";
 type Assignment = { userId: string; name: string; assignedAt: string } | null;
@@ -189,28 +190,50 @@ export default async function WhatsAppInboxPage({
     tags: settings.tags.get(c.phone) || [],
     notes: settings.notes.get(c.phone) || [],
     attachedCaseId: settings.cases.get(c.phone) || c.caseId || null,
+    /** Client wrote last and nobody answered yet. */
+    awaitingSince:
+      c.lastInboundAt && (!c.lastOutboundAt || c.lastInboundAt > c.lastOutboundAt) ? c.lastInboundAt : null,
   }));
   const query = String(searchParams.q || "")
     .trim()
     .toLowerCase();
   const rawFilter = String(searchParams.filter || "all") as FilterKey;
-  const filter: FilterKey = ["all", "unread", "waiting", "urgent", "resolved"].includes(rawFilter)
+  const filter: FilterKey = ["all", "unread", "unanswered", "mine", "waiting", "urgent", "resolved"].includes(
+    rawFilter,
+  )
     ? rawFilter
     : "all";
-  const conversations = allConversations.filter((c) => {
-    const m =
-      !query ||
-      [c.name, c.phone, c.internalId || "", c.caseNumber || "", c.preview, ...c.tags]
+  const conversations = allConversations
+    .map((c) => {
+      if (!query) return c;
+      const head = [c.name, c.phone, c.internalId || "", c.caseNumber || "", ...c.tags]
         .join(" ")
-        .toLowerCase()
-        .includes(query);
-    if (!m) return false;
-    if (filter === "unread") return c.unread > 0;
-    if (filter === "waiting") return c.status === "WAITING";
-    if (filter === "urgent") return c.priority === "URGENT";
-    if (filter === "resolved") return c.status === "RESOLVED";
-    return true;
-  });
+        .toLowerCase();
+      if (head.includes(query)) return c;
+      const hit = c.texts.find((t) => t.toLowerCase().includes(query));
+      if (!hit) return null;
+      // Show the matching message instead of the latest one.
+      const i = hit.toLowerCase().indexOf(query);
+      const start = Math.max(0, i - 30);
+      return { ...c, preview: `${start > 0 ? "…" : ""}${hit.slice(start, i + query.length + 60)}` };
+    })
+    .filter((c): c is NonNullable<typeof c> => c !== null)
+    .filter((c) => {
+      if (filter === "unread") return c.unread > 0;
+      if (filter === "unanswered") return Boolean(c.awaitingSince) && c.status !== "RESOLVED";
+      if (filter === "mine") return c.assignment?.userId === user.id;
+      if (filter === "waiting") return c.status === "WAITING";
+      if (filter === "urgent") return c.priority === "URGENT";
+      if (filter === "resolved") return c.status === "RESOLVED";
+      return true;
+    });
+  const unansweredCount = allConversations.filter((c) => c.awaitingSince && c.status !== "RESOLVED").length;
+  const mineCount = allConversations.filter((c) => c.assignment?.userId === user.id).length;
+  const overdueCount = allConversations.filter(
+    (c) =>
+      c.awaitingSince && c.status !== "RESOLVED" && Date.now() - c.awaitingSince.getTime() > 2 * 3_600_000,
+  ).length;
+  const medianResponse = medianFirstResponseMinutes(rows);
   const requested = normalizeWhatsAppPhone(String(searchParams.phone || ""));
   const explicitConversation = Boolean(requested && allConversations.some((c) => c.phone === requested));
   const selectedPhone = explicitConversation
@@ -283,6 +306,10 @@ export default async function WhatsAppInboxPage({
           <Metric label="Conversations" value={allConversations.length} />
           <Metric label="Non lus" value={unreadTotal} emphasis={unreadTotal > 0} />
           <Metric label="Urgentes" value={urgentCount} danger={urgentCount > 0} />
+          <Metric label="Sans réponse" value={unansweredCount} danger={overdueCount > 0} />
+          {medianResponse !== null ? (
+            <Metric label="Réponse médiane · 7 j" value={formatMinutes(medianResponse)} />
+          ) : null}
           <InboxLive openPhone={explicitConversation ? selectedPhone : null} unread={unreadConversations} />
           <Link
             href="/app/whatsapp"
@@ -307,6 +334,8 @@ export default async function WhatsAppInboxPage({
             allCount={allConversations.length}
             counts={{
               unread: unreadConversations,
+              unanswered: unansweredCount,
+              mine: mineCount,
               waiting: waitingCount,
               urgent: urgentCount,
               resolved: resolvedCount,
@@ -358,14 +387,16 @@ export default async function WhatsAppInboxPage({
                       className="h-10 w-full rounded-xl border border-line bg-surface/40 pl-9 pr-3 text-sm outline-none focus:border-electric"
                     />
                   </div>
-                  <div className="grid grid-cols-5 gap-1 rounded-xl bg-surface p-1 text-[9px] font-medium sm:text-[10px]">
+                  <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {(
                       [
                         ["all", "Tous", allConversations.length],
                         ["unread", "Non lus", unreadConversations],
-                        ["waiting", "Attente", waitingCount],
-                        ["urgent", "Urgent", urgentCount],
-                        ["resolved", "Résolus", resolvedCount],
+                        ["unanswered", "Sans réponse", unansweredCount],
+                        ["mine", "À moi", mineCount],
+                        ["waiting", "En attente", waitingCount],
+                        ["urgent", "Urgentes", urgentCount],
+                        ["resolved", "Résolues", resolvedCount],
                       ] as const
                     ).map(([key, label, count]) => (
                       <button
@@ -373,10 +404,16 @@ export default async function WhatsAppInboxPage({
                         type="submit"
                         name="filter"
                         value={key}
-                        className={`rounded-lg px-1 py-2 ${filter === key ? "bg-white text-ink shadow-sm" : "text-muted2"}`}
+                        className={`flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                          filter === key
+                            ? "border-ink bg-ink text-canvas"
+                            : "border-line bg-surface-1 text-ink-2 hover:bg-surface-2"
+                        }`}
                       >
-                        <span className="block truncate">{label}</span>
-                        <span className="block opacity-70">{count}</span>
+                        {label}
+                        <span className={`tabular-nums ${filter === key ? "text-canvas/70" : "text-ink-3"}`}>
+                          {count}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -405,7 +442,21 @@ export default async function WhatsAppInboxPage({
                             <div className={`truncate text-sm ${c.unread ? "font-semibold" : "font-medium"}`}>
                               {c.name}
                             </div>
-                            <div className="text-[10px] text-muted2">{formatListWhen(c.lastAt)}</div>
+                            <div className="text-[10px] text-muted2">
+                              {formatListWhen(c.lastAt)}
+                              {c.awaitingSince && c.status !== "RESOLVED" ? (
+                                <span
+                                  className={`ml-1.5 rounded px-1 py-0.5 font-semibold ${
+                                    Date.now() - c.awaitingSince.getTime() > 2 * 3_600_000
+                                      ? "tint-danger text-danger"
+                                      : "tint-warning text-warning"
+                                  }`}
+                                  title="Le client attend une réponse"
+                                >
+                                  {waitingLabel(c.awaitingSince)}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1">
                             <ConversationStatusBadge status={c.status} compact />
@@ -576,9 +627,10 @@ export default async function WhatsAppInboxPage({
                           rows={2}
                           required
                           maxLength={4096}
-                          placeholder="Écrire une réponse…"
+                          placeholder="Écrire une réponse… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)"
                           className="min-h-[56px] resize-none border-0 sm:min-h-[62px]"
                         />
+                        <ComposerKeys phone={selected.phone} />
                         <div className="flex items-center justify-between gap-2 border-t border-line px-2.5 py-2 sm:px-3">
                           <div className="min-w-0 text-[10px] text-muted2 sm:text-[11px]">
                             <span className="hidden sm:inline">
@@ -1053,7 +1105,10 @@ function groupConversations(rows: Row[]) {
       preview: string;
       lastAt: Date;
       lastInboundAt: Date | null;
+      lastOutboundAt: Date | null;
       unread: number;
+      /** All message texts, newest first, for content search. */
+      texts: string[];
     }
   >();
   for (const row of rows) {
@@ -1076,11 +1131,15 @@ function groupConversations(rows: Row[]) {
         preview: previewText(payload),
         lastAt: row.createdAt,
         lastInboundAt: inbound ? new Date(payload.timestamp) : null,
+        lastOutboundAt: inbound ? null : new Date(payload.timestamp),
         unread: row.type === "WHATSAPP_INBOUND_UNREAD" ? 1 : 0,
+        texts: [payload.text],
       });
     else {
+      existing.texts.push(payload.text);
       if (row.type === "WHATSAPP_INBOUND_UNREAD") existing.unread++;
       if (!existing.lastInboundAt && inbound) existing.lastInboundAt = new Date(payload.timestamp);
+      if (!existing.lastOutboundAt && !inbound) existing.lastOutboundAt = new Date(payload.timestamp);
       if (!existing.clientId && row.client) {
         existing.clientId = row.client.id;
         existing.internalId = row.client.internalId;
@@ -1291,7 +1350,7 @@ function Metric({
   danger = false,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   emphasis?: boolean;
   danger?: boolean;
 }) {
@@ -1430,6 +1489,7 @@ type Conversation = ReturnType<typeof groupConversations>[number] & {
   tags: string[];
   notes: NoteItem[];
   attachedCaseId: string | null;
+  awaitingSince: Date | null;
 };
 
 function MobileInbox({
@@ -1455,7 +1515,14 @@ function MobileInbox({
 }: {
   conversations: Conversation[];
   allCount: number;
-  counts: { unread: number; waiting: number; urgent: number; resolved: number };
+  counts: {
+    unread: number;
+    unanswered: number;
+    mine: number;
+    waiting: number;
+    urgent: number;
+    resolved: number;
+  };
   filter: FilterKey;
   query: string;
   selected: Conversation | null;
@@ -1476,6 +1543,8 @@ function MobileInbox({
   const chips = [
     ["all", "Tous", allCount],
     ["unread", "Non lus", counts.unread],
+    ["unanswered", "Sans réponse", counts.unanswered],
+    ["mine", "À moi", counts.mine],
     ["waiting", "En attente", counts.waiting],
     ["urgent", "Urgentes", counts.urgent],
     ["resolved", "Résolues", counts.resolved],
@@ -1603,6 +1672,7 @@ function MobileInbox({
                 placeholder="Message"
                 className="max-h-32 min-h-[40px] flex-1 resize-none rounded-[20px] py-2.5 text-[15px] leading-5"
               />
+              <ComposerKeys phone={selected.phone} />
               <button
                 type="submit"
                 aria-label="Envoyer"
@@ -1700,8 +1770,19 @@ function MobileInbox({
                   >
                     {c.name}
                   </span>
-                  <span className={`shrink-0 text-2xs tabular-nums ${unread ? "text-accent" : "text-ink-3"}`}>
-                    {formatListWhen(c.lastAt)}
+                  <span className="flex shrink-0 items-center gap-1.5 text-2xs tabular-nums">
+                    {c.awaitingSince && c.status !== "RESOLVED" ? (
+                      <span
+                        className={`rounded px-1 py-0.5 font-semibold ${
+                          Date.now() - c.awaitingSince.getTime() > 2 * 3_600_000
+                            ? "tint-danger text-danger"
+                            : "tint-warning text-warning"
+                        }`}
+                      >
+                        {waitingLabel(c.awaitingSince)}
+                      </span>
+                    ) : null}
+                    <span className={unread ? "text-accent" : "text-ink-3"}>{formatListWhen(c.lastAt)}</span>
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center justify-between gap-2">
@@ -2074,4 +2155,50 @@ function LinkClientForms({ selected, clients }: { selected: Conversation; client
       </form>
     </div>
   );
+}
+
+/** Median delay between a client message and the next JUN reply, last 7 days. */
+function medianFirstResponseMinutes(rows: Row[]) {
+  const since = Date.now() - 7 * 86_400_000;
+  const byPhone = new Map<string, { at: number; inbound: boolean }[]>();
+  for (const row of rows) {
+    const phone = rowPhone(row);
+    const payload = payloadForRow(row);
+    if (!phone || !payload) continue;
+    const at = new Date(payload.timestamp).getTime();
+    if (at < since) continue;
+    (byPhone.get(phone) ?? byPhone.set(phone, []).get(phone)!).push({
+      at,
+      inbound: payload.direction === "INBOUND",
+    });
+  }
+  const deltas: number[] = [];
+  for (const list of byPhone.values()) {
+    list.sort((a, b) => a.at - b.at);
+    let pending: number | null = null;
+    for (const m of list) {
+      if (m.inbound) {
+        if (pending === null) pending = m.at;
+      } else if (pending !== null) {
+        deltas.push((m.at - pending) / 60_000);
+        pending = null;
+      }
+    }
+  }
+  if (!deltas.length) return null;
+  deltas.sort((a, b) => a - b);
+  return Math.round(deltas[Math.floor(deltas.length / 2)]);
+}
+
+function waitingLabel(since: Date) {
+  const m = Math.floor((Date.now() - since.getTime()) / 60_000);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} h`;
+  return `${Math.floor(h / 24)} j`;
+}
+function formatMinutes(m: number) {
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return h < 48 ? `${h} h ${String(m % 60).padStart(2, "0")}` : `${Math.floor(h / 24)} j`;
 }
