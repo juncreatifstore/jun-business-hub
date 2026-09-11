@@ -61,11 +61,17 @@ export function FileUploadForm({
   vaultCategories,
   clients,
   cases,
+  defaultClientId,
+  returnTo,
 }: {
   action: (formData: FormData) => Promise<void>;
   isVault?: boolean;
   folderId?: string | null;
   categories: string[];
+  /** Pre-selects a client (client document page). */
+  defaultClientId?: string | null;
+  /** Where to land after a successful direct upload (defaults to the folder). */
+  returnTo?: string;
   vaultCategories?: readonly string[];
   clients?: { id: string; label: string }[];
   cases?: { id: string; label: string }[];
@@ -157,9 +163,9 @@ export function FileUploadForm({
         body: JSON.stringify({ fileId: finalBody.fileId }),
         keepalive: true,
       }).catch(() => undefined);
-      const destination = folderId
-        ? `/app/drive?folder=${encodeURIComponent(folderId)}&toast=${encodeURIComponent("File uploaded")}`
-        : `/app/drive?toast=${encodeURIComponent("File uploaded")}`;
+      const base =
+        returnTo || (folderId ? `/app/drive?folder=${encodeURIComponent(folderId)}` : "/app/drive");
+      const destination = `${base}${base.includes("?") ? "&" : "?"}toast=${encodeURIComponent("File uploaded")}`;
       window.setTimeout(() => window.location.assign(destination), 350);
     } catch (error) {
       setStatus("error");
@@ -221,7 +227,7 @@ export function FileUploadForm({
       )}
       {!isVault && clients ? (
         <Field label="Link to client (optional)">
-          <Select name="clientId" defaultValue="">
+          <Select name="clientId" defaultValue={defaultClientId ?? ""}>
             <option value="">— None —</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>

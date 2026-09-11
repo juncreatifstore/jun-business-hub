@@ -1,10 +1,17 @@
 import Link from "next/link";
-import { BrainCircuit, GitBranch, MessageSquare, ShieldCheck, Cloud, FileLock2 } from "lucide-react";
+import { BrainCircuit, GitBranch, MessageSquare, ShieldCheck, Cloud, FileLock2, Users } from "lucide-react";
 
 export default function DriveLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-ink" data-drive-release="phase11-connected-cloud-2026-08-20">
       <div className="mb-4 flex flex-wrap justify-end gap-2">
+        <Link
+          prefetch={false}
+          href="/app/drive/clients"
+          className="inline-flex items-center gap-2 rounded-lg border border-electric/30 bg-electric/10 px-3 py-2 text-xs font-medium text-electric hover:bg-electric/15"
+        >
+          <Users className="h-4 w-4" /> By client
+        </Link>
         <Link
           href="/app/drive/cloud"
           className="inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-medium text-cyan-900 hover:bg-cyan-100"

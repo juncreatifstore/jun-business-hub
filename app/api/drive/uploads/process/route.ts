@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { processDriveAutomation } from "@/lib/drive-automation";
+import { extractFileInBackground } from "@/services/drive-intelligence";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -33,5 +35,7 @@ export async function POST(req: NextRequest) {
   }
 
   await processDriveAutomation(file.id, user.id).catch(() => null);
+  // Document typing + key-field extraction (needs the bytes; ≤ 18 MB handled by the model).
+  if (file.sizeBytes <= 18 * 1024 * 1024) await extractFileInBackground(file.id).catch(() => null);
   return NextResponse.json({ ok: true, deferred: false });
 }
