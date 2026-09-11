@@ -25,46 +25,15 @@ export async function resolveOtpSenderMailbox() {
       refreshTokenEnc: true,
     },
   });
-  if (automatedMailbox?.accessTokenEnc || automatedMailbox?.refreshTokenEnc) return automatedMailbox;
-
-  const preferredId = await getOtpSenderAccountId();
-
-  if (preferredId) {
-    const preferred = await prisma.mailAccount.findUnique({
-      where: { id: preferredId },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        accessTokenEnc: true,
-        refreshTokenEnc: true,
-      },
-    });
-
-    if (!preferred) {
-      throw new Error("OTP sender mailbox not found. Choose another OTP mailbox in Settings → Email.");
-    }
-
-    if (!preferred.accessTokenEnc && !preferred.refreshTokenEnc) {
-      throw new Error(
-        `OTP sender mailbox ${preferred.email} is disconnected. Reconnect it in Settings → Email.`,
-      );
-    }
-
-    return preferred;
+  if (!automatedMailbox) {
+    throw new Error(
+      `Automated sender mailbox ${EMAIL_ALIAS_DESTINATION} is not connected. Connect it in Settings → Email.`,
+    );
   }
-
-  return prisma.mailAccount.findFirst({
-    where: {
-      OR: [{ accessTokenEnc: { not: null } }, { refreshTokenEnc: { not: null } }],
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      email: true,
-      displayName: true,
-      accessTokenEnc: true,
-      refreshTokenEnc: true,
-    },
-  });
+  if (!automatedMailbox.accessTokenEnc && !automatedMailbox.refreshTokenEnc) {
+    throw new Error(
+      `Automated sender mailbox ${EMAIL_ALIAS_DESTINATION} is disconnected. Reconnect it in Settings → Email.`,
+    );
+  }
+  return automatedMailbox;
 }
