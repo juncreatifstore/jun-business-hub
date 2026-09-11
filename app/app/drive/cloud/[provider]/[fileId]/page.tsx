@@ -69,8 +69,8 @@ export default async function CloudFilePage(props: {
   const here = `/app/drive/cloud/${provider}/${encodeURIComponent(params.fileId)}`;
   const aiAllowed = can(user, "AI_USE");
   const folderHref = meta?.parentId
-    ? `/app/drive/cloud?${provider}Folder=${encodeURIComponent(meta.parentId)}`
-    : "/app/drive/cloud";
+    ? `/app/drive/cloud?provider=${provider}&${provider}Folder=${encodeURIComponent(meta.parentId)}`
+    : `/app/drive/cloud?provider=${provider}`;
 
   return (
     <div className="space-y-4">
