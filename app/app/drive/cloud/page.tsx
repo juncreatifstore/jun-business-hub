@@ -32,12 +32,8 @@ import {
   type CloudProvider,
 } from "@/lib/drive-cloud";
 import { googleWorkspaceConfigured } from "@/lib/google-workspace-drive";
-import {
-  disconnectCloudProvider,
-  importCloudFile,
-  toggleCloudStar,
-  CLOUD_STAR_PREFIX,
-} from "@/services/drive-cloud";
+import { disconnectCloudProvider, importCloudFile, toggleCloudStar } from "@/services/drive-cloud";
+import { CLOUD_STAR_PREFIX } from "@/lib/drive-cloud";
 import { CloudFileActions } from "@/components/app/cloud-file-actions";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/auth";
