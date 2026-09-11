@@ -44,6 +44,19 @@ import {
 } from "lucide-react";
 
 const LIMIT = 20;
+const QUERY_LIMIT = 200;
+const SERVICES = [
+  { email: "contact@juncreatifs.org", label: "Contact", color: "bg-blue-500/15 text-blue-400" },
+  { email: "support@juncreatifs.org", label: "Support client", color: "bg-emerald-500/15 text-emerald-400" },
+  { email: "finance@juncreatifs.org", label: "Finance", color: "bg-amber-500/15 text-amber-400" },
+  { email: "travel@juncreatifs.org", label: "Voyages", color: "bg-cyan-500/15 text-cyan-400" },
+  { email: "documents@juncreatifs.org", label: "Documents", color: "bg-violet-500/15 text-violet-400" },
+  { email: "legal@juncreatifs.org", label: "Juridique", color: "bg-rose-500/15 text-rose-400" },
+  { email: "info@juncreatifs.org", label: "Informations", color: "bg-indigo-500/15 text-indigo-400" },
+  { email: "noreply@juncreatifs.org", label: "Automatique", color: "bg-slate-500/15 text-slate-400" },
+] as const;
+type Service = (typeof SERVICES)[number];
+
 const FOLDERS = [
   { key: "INBOX", label: "Réception", icon: Inbox },
   { key: "STARRED", label: "Suivis", icon: Star },
@@ -61,7 +74,20 @@ const CATEGORIES = [
 ] as const;
 type FolderKey = (typeof FOLDERS)[number]["key"];
 type CategoryKey = (typeof CATEGORIES)[number]["key"];
-type Params = { folder?: string; thread?: string; q?: string; mailbox?: string; category?: string };
+type Params = { folder?: string; thread?: string; q?: string; mailbox?: string; category?: string; alias?: string };
+
+function serviceForThread(thread: { toEmails: string[]; fromEmail: string | null }): Service | undefined {
+  const addresses = [...thread.toEmails, thread.fromEmail || ""].map((value) => value.toLowerCase());
+  return SERVICES.find((service) => addresses.some((value) => value.includes(service.email)));
+}
+
+function ServiceBadge({ service }: { service: Service }) {
+  return (
+    <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-2xs font-semibold ${service.color}`}>
+      {service.label}
+    </span>
+  );
+}
 
 function senderLabel(raw: string | null) {
   const v = (raw || "").trim();
@@ -126,13 +152,16 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
     : "PRIMARY";
   const scopedIds = mailbox === "ALL" ? accountIds : [mailbox];
   const q = (searchParams.q || "").trim().toLowerCase();
+  const selectedAlias = SERVICES.some((service) => service.email === searchParams.alias)
+    ? searchParams.alias
+    : "";
   const threadQuery = searchParams.thread && accountIds.length ? searchParams.thread : null;
   const [recent, cacheMap, activeThread] = await Promise.all([
     scopedIds.length
       ? prisma.mailThread.findMany({
           where: { mailAccountId: { in: scopedIds } },
           orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
-          take: LIMIT,
+          take: QUERY_LIMIT,
           include: { account: { select: { id: true, email: true, displayName: true } } },
         })
       : Promise.resolve([]),
@@ -177,7 +206,17 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
   };
   const matches = (t: (typeof recent)[number]) =>
     !q || `${t.subject ?? ""} ${t.fromEmail ?? ""} ${t.snippet ?? ""}`.toLowerCase().includes(q);
-  const threads = recent.filter((t) => inFolder(t) && matches(t)).slice(0, LIMIT);
+  const folderThreads = recent.filter((t) => inFolder(t) && matches(t));
+  const serviceCounts = new Map(
+    SERVICES.map((service) => [
+      service.email,
+      folderThreads.filter((thread) => serviceForThread(thread)?.email === service.email).length,
+    ]),
+  );
+  const threads = folderThreads
+    .filter((thread) => !selectedAlias || serviceForThread(thread)?.email === selectedAlias)
+    .slice(0, LIMIT);
+  const activeService = activeThread ? serviceForThread(activeThread) : undefined;
   const inboxUnread = scopedIds.reduce(
     (sum, id) =>
       sum +
@@ -200,6 +239,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
     p.set("folder", folder);
     if (folder === "INBOX") p.set("category", category);
     if (q) p.set("q", q);
+    if (selectedAlias) p.set("alias", selectedAlias);
     for (const [k, v] of Object.entries(extra)) {
       if (v) p.set(k, v);
       else p.delete(k);
@@ -254,6 +294,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <h1 className="px-1 font-display text-[22px] font-medium leading-tight text-ink">
               {activeThread.subject || "(sans objet)"}
             </h1>
+            {activeService ? <div className="mt-2"><ServiceBadge service={activeService} /></div> : null}
             <div className="mt-4 space-y-4">
               {conversation.length ? (
                 conversation.map((m) => <MessageCard key={m.id} m={m} />)
@@ -292,6 +333,12 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <h1 className="mb-5 font-display text-2xl font-medium leading-tight text-ink">
               {activeThread.subject || "(sans objet)"}
             </h1>
+            {activeService ? (
+              <div className="-mt-3 mb-5 flex items-center gap-2">
+                <ServiceBadge service={activeService} />
+                <span className="text-xs text-ink-3">{activeService.email}</span>
+              </div>
+            ) : null}
             {conversation.length ? (
               <div className="space-y-4">
                 {conversation.map((m, i) => (
@@ -340,6 +387,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
     threads.map((t) => {
       const s = stateMap.get(t.id)!;
       const unread = !s.isRead;
+      const service = serviceForThread(t);
       return (
         <div
           key={t.id}
@@ -376,8 +424,11 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
                 </span>
               </span>
               <span className="mt-0.5 block min-w-0 truncate text-sm lg:mt-0">
-                <span className={unread ? "font-semibold text-ink" : "text-ink"}>
-                  {t.subject || "(sans objet)"}
+<span className="inline-flex min-w-0 items-center gap-2">
+                  {service ? <ServiceBadge service={service} /> : null}
+                  <span className={unread ? "font-semibold text-ink" : "text-ink"}>
+                    {t.subject || "(sans objet)"}
+                  </span>
                 </span>
                 <span className="text-ink-3"> — {t.snippet || ""}</span>
               </span>
@@ -425,6 +476,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <input type="hidden" name="mailbox" value={mailbox} />
             <input type="hidden" name="folder" value={folder} />
             {folder === "INBOX" ? <input type="hidden" name="category" value={category} /> : null}
+            {selectedAlias ? <input type="hidden" name="alias" value={selectedAlias} /> : null}
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
               <input
@@ -457,6 +509,14 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
                 </Link>
               );
             })}
+          </div>
+          <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <Link href={qp({ alias: undefined, thread: undefined })} className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${!selectedAlias ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}>Tous services</Link>
+            {SERVICES.map((service) => (
+              <Link key={service.email} href={qp({ alias: service.email, thread: undefined })} className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${selectedAlias === service.email ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}>
+                {service.label} <span className="opacity-70">{serviceCounts.get(service.email) || 0}</span>
+              </Link>
+            ))}
           </div>
           {folder === "INBOX" ? (
             <div className="-mx-4 mt-2 flex gap-4 overflow-x-auto border-t border-line px-4 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -516,6 +576,23 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               </Link>
             ))}
           </nav>
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="mb-2 px-3 text-2xs font-semibold uppercase tracking-wider text-ink-3">
+              Services / alias
+            </p>
+            <nav className="space-y-0.5">
+              <Link href={qp({ alias: undefined, thread: undefined })} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${!selectedAlias ? "bg-surface-1 font-medium text-ink shadow-card" : "text-ink-2 hover:bg-surface-1"}`}>
+                <span>Tous les services</span>
+                <span className="text-2xs text-ink-3">{folderThreads.length}</span>
+              </Link>
+              {SERVICES.map((service) => (
+                <Link key={service.email} href={qp({ alias: service.email, thread: undefined })} title={service.email} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${selectedAlias === service.email ? "bg-surface-1 font-medium text-ink shadow-card" : "text-ink-2 hover:bg-surface-1"}`}>
+                  <span className="truncate">{service.label}</span>
+                  <span className="text-2xs text-ink-3">{serviceCounts.get(service.email) || 0}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
         </aside>
         <section className="min-w-0">
           <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-line px-3">
@@ -524,6 +601,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               <input type="hidden" name="mailbox" value={mailbox} />
               <input type="hidden" name="folder" value={folder} />
               {folder === "INBOX" ? <input type="hidden" name="category" value={category} /> : null}
+              {selectedAlias ? <input type="hidden" name="alias" value={selectedAlias} /> : null}
               <div className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
                 <input
@@ -569,7 +647,8 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             </div>
           ) : null}
           <div className="border-b border-line px-4 py-2 text-xs text-ink-3">
-            {LIMIT} conversations les plus récentes · {mailboxLabel}
+{selectedAlias ? `${SERVICES.find((service) => service.email === selectedAlias)?.label} · ` : ""}
+            {threads.length} conversation{threads.length > 1 ? "s" : ""} affichée{threads.length > 1 ? "s" : ""} · {mailboxLabel}
             {syncedAt ? ` · synchronisé ${relativeFr(syncedAt)}` : ""}
           </div>
           <div>{rows}</div>
