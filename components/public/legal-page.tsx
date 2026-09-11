@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 
 export type LegalKind = "privacy" | "terms" | "deletion";
 export type LegalLocale = "en" | "fr" | "es" | "ht";
@@ -11,7 +12,7 @@ const languages: { code: LegalLocale; label: string }[] = [
 ];
 
 type Section = { title: string; paragraphs: string[]; bullets?: string[] };
-type DocumentCopy = { title: string; intro: string; updated: string; sections: Section[] };
+export type DocumentCopy = { title: string; intro: string; updated: string; sections: Section[] };
 
 const privacy: Record<LegalLocale, DocumentCopy> = {
   en: {
@@ -132,12 +133,77 @@ const deletion: Record<LegalLocale, DocumentCopy> = {
 
 const documents = { privacy, terms, deletion };
 
+export function getDefaultLegalCopy(kind: LegalKind, locale: LegalLocale): DocumentCopy {
+  return documents[kind][locale];
+}
+
+export function legalCopyToBody(copy: DocumentCopy): string {
+  return copy.sections
+    .map((section) =>
+      [
+        `## ${section.title}`,
+        ...section.paragraphs,
+        ...(section.bullets?.map((item) => `- ${item}`) ?? []),
+      ].join("\n\n"),
+    )
+    .join("\n\n");
+}
+
+type SavedLegalCopy = {
+  title: string;
+  intro: string;
+  updated: string;
+  body: string;
+};
+
+function bodyBlocks(body: string) {
+  const lines = body.split(/\r?\n/);
+  const blocks: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flushBullets = () => {
+    if (!bullets.length) return;
+    blocks.push(
+      <ul key={`list-${blocks.length}`} className="list-disc space-y-2 pl-6">
+        {bullets.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+      </ul>,
+    );
+    bullets = [];
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) {
+      flushBullets();
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      flushBullets();
+      blocks.push(<h2 key={`heading-${blocks.length}`} className="mt-8 font-display text-2xl text-night">{line.slice(3)}</h2>);
+    } else if (line.startsWith("- ")) {
+      bullets.push(line.slice(2));
+    } else {
+      flushBullets();
+      blocks.push(<p key={`paragraph-${blocks.length}`}>{line}</p>);
+    }
+  }
+  flushBullets();
+  return blocks;
+}
+
 export function normalizeLegalLocale(value?: string): LegalLocale {
   return value === "fr" || value === "es" || value === "ht" ? value : "en";
 }
 
-export function LegalPage({ kind, locale }: { kind: LegalKind; locale: LegalLocale }) {
-  const copy = documents[kind][locale];
+export async function LegalPage({ kind, locale }: { kind: LegalKind; locale: LegalLocale }) {
+  const fallback = documents[kind][locale];
+  const row = await prisma.appSetting.findUnique({ where: { key: `legal.${kind}.${locale}` } });
+  let custom: SavedLegalCopy | null = null;
+  try {
+    custom = row ? (JSON.parse(row.value) as SavedLegalCopy) : null;
+  } catch {
+    custom = null;
+  }
+  const copy = custom?.title && custom?.intro && custom?.updated && custom?.body ? custom : null;
+
   return (
     <article className="mx-auto max-w-4xl px-5 py-16 sm:py-20">
       <nav aria-label="Language" className="mb-10 flex flex-wrap gap-2">
@@ -148,20 +214,24 @@ export function LegalPage({ kind, locale }: { kind: LegalKind; locale: LegalLoca
         ))}
       </nav>
       <p className="text-[11px] uppercase tracking-[0.25em] text-electric">JUN CREATIF AND TRAVEL LLC</p>
-      <h1 className="mt-3 font-display text-4xl text-night sm:text-5xl">{copy.title}</h1>
-      <p className="mt-3 text-sm text-muted2">{copy.updated}</p>
-      <p className="mt-8 rounded-xl border border-line bg-white p-6 leading-7 text-muted2 shadow-sm">{copy.intro}</p>
-      <div className="mt-10 space-y-10">
-        {copy.sections.map((section) => (
-          <section key={section.title}>
-            <h2 className="font-display text-2xl text-night">{section.title}</h2>
-            <div className="mt-3 space-y-3 leading-7 text-muted2">
-              {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
-              {section.bullets && <ul className="list-disc space-y-2 pl-6">{section.bullets.map((item) => <li key={item}>{item}</li>)}</ul>}
-            </div>
-          </section>
-        ))}
-      </div>
+      <h1 className="mt-3 font-display text-4xl text-night sm:text-5xl">{copy?.title ?? fallback.title}</h1>
+      <p className="mt-3 text-sm text-muted2">{copy?.updated ?? fallback.updated}</p>
+      <p className="mt-8 rounded-xl border border-line bg-white p-6 leading-7 text-muted2 shadow-sm">{copy?.intro ?? fallback.intro}</p>
+      {copy ? (
+        <div className="mt-10 space-y-3 leading-7 text-muted2">{bodyBlocks(copy.body)}</div>
+      ) : (
+        <div className="mt-10 space-y-10">
+          {fallback.sections.map((section) => (
+            <section key={section.title}>
+              <h2 className="font-display text-2xl text-night">{section.title}</h2>
+              <div className="mt-3 space-y-3 leading-7 text-muted2">
+                {section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                {section.bullets && <ul className="list-disc space-y-2 pl-6">{section.bullets.map((item) => <li key={item}>{item}</li>)}</ul>}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
       <div className="mt-12 flex flex-wrap gap-4 border-t border-line pt-8 text-sm">
         <Link href="/privacy" className="text-electric hover:underline">Privacy</Link>
         <Link href="/terms" className="text-electric hover:underline">Terms</Link>
