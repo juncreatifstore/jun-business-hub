@@ -33,10 +33,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ provider:
     url.searchParams.set("response_type", "code");
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");
-    url.searchParams.set(
-      "scope",
-      "openid email https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
-    );
+    url.searchParams.set("scope", "openid email https://www.googleapis.com/auth/drive");
     url.searchParams.set("state", state);
   } else {
     url = new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");

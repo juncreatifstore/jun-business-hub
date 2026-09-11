@@ -12,6 +12,7 @@ import {
   isCloudAdmin,
   removeCloudConnection,
   uploadCloudFile,
+  trashCloudFileRemote,
   CLOUD_STAR_PREFIX,
   type CloudProvider,
 } from "@/lib/drive-cloud";
@@ -162,4 +163,38 @@ export async function toggleCloudStar(formData: FormData): Promise<void> {
   }
   revalidatePath("/app/drive/cloud");
   redirect(returnTo.startsWith("/app/drive") ? returnTo : `/app/drive/cloud?provider=${provider}`);
+}
+
+/** Moves a connected-cloud file to the provider's trash (confirmed client-side). */
+export async function trashCloudFile(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!isCloudAdmin(user.role)) redirect("/app/forbidden");
+  const provider = safeProvider(String(formData.get("provider") ?? "")) ?? "google";
+  const fileId = String(formData.get("fileId") ?? "").trim();
+  const name = String(formData.get("name") ?? "").slice(0, 200);
+  const returnTo = String(formData.get("returnTo") ?? `/app/drive/cloud?provider=${provider}`);
+  const base = returnTo.startsWith("/app/drive") ? returnTo : `/app/drive/cloud?provider=${provider}`;
+  const toast = (key: "toast" | "toast_error", message: string): never =>
+    redirect(`${base}${base.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(message)}`);
+  if (!fileId) toast("toast_error", "Invalid file");
+  const connection = await getCloudConnection(user.id, provider);
+  if (!connection) toast("toast_error", "Cloud not connected");
+  try {
+    await trashCloudFileRemote(connection, fileId);
+    await audit({
+      userId: user.id,
+      action: "CLOUD_FILE_TRASHED",
+      resourceType: "CloudFile",
+      resourceId: fileId,
+      after: { provider, name },
+    });
+    await prisma.appSetting.deleteMany({
+      where: { key: `${CLOUD_STAR_PREFIX}${user.id}.${provider}.${fileId}` },
+    });
+    revalidatePath("/app/drive/cloud");
+    toast("toast", `${name || "File"} moved to ${provider === "google" ? "Google Drive" : "OneDrive"} trash`);
+  } catch (e) {
+    if (e instanceof Error && e.message === "NEXT_REDIRECT") throw e;
+    toast("toast_error", e instanceof Error ? e.message : "Unable to trash this file");
+  }
 }

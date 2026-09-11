@@ -546,3 +546,30 @@ export async function uploadCloudFile(
 
 /** AppSetting key prefix for per-user favourites on connected-cloud files. */
 export const CLOUD_STAR_PREFIX = "drive.cloud.star.";
+
+/** Moves a cloud file to the provider's trash (recoverable there). */
+export async function trashCloudFileRemote(connection: CloudConnection, fileId: string) {
+  const c = await refreshCloudConnection(connection);
+  if (c.provider === "google") {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${c.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ trashed: true }),
+      },
+    );
+    if (!res.ok)
+      throw new Error(
+        res.status === 403
+          ? "Google Drive refused — disconnect and reconnect Google Drive to grant full access."
+          : `Google Drive trash failed (${res.status})`,
+      );
+    return;
+  }
+  const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(fileId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`OneDrive delete failed (${res.status})`);
+}

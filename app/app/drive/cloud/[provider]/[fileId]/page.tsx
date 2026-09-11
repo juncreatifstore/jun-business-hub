@@ -12,6 +12,7 @@ import {
 import { importCloudFile } from "@/services/drive-cloud";
 import { CloudFileAsk } from "@/components/app/cloud-file-ask";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
+import { CloudTrashButton } from "@/components/app/cloud-trash-button";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +117,16 @@ export default async function CloudFilePage(props: {
             >
               <ExternalLink className="h-3.5 w-3.5" /> Open in {label}
             </a>
+          ) : null}
+          {meta ? (
+            <CloudTrashButton
+              provider={provider}
+              fileId={params.fileId}
+              name={meta.name}
+              returnTo={folderHref}
+              providerLabel={label}
+              variant="button"
+            />
           ) : null}
         </div>
       </div>

@@ -35,6 +35,7 @@ import { googleWorkspaceConfigured } from "@/lib/google-workspace-drive";
 import { disconnectCloudProvider, importCloudFile, toggleCloudStar } from "@/services/drive-cloud";
 import { CLOUD_STAR_PREFIX } from "@/lib/drive-cloud";
 import { CloudFileActions } from "@/components/app/cloud-file-actions";
+import { CloudTrashButton } from "@/components/app/cloud-trash-button";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/auth";
 import { syncGoogleWorkspaceDesktop } from "@/services/drive-workspace-sync";
@@ -113,6 +114,7 @@ function folderHref(provider: CloudProvider, folderId?: string | null) {
 export default async function CloudDrivePage(props: {
   searchParams: Promise<{
     toast?: string;
+    toast_error?: string;
     error?: string;
     connected?: string;
     googleFolder?: string;
@@ -181,6 +183,11 @@ export default async function CloudDrivePage(props: {
           {searchParams.toast ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
               {searchParams.toast}
+            </div>
+          ) : null}
+          {searchParams.toast_error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {searchParams.toast_error}
             </div>
           ) : null}
           {searchParams.error ? (
