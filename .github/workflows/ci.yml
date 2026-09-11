@@ -128,22 +128,34 @@ jobs:
 
       # Fails if prisma/schema.prisma and prisma/migrations/ disagree — the exact
       # situation that previously required a "consolidate_production_drift" migration.
+      # migrate diff needs an EMPTY shadow database to replay the migrations into.
       - name: Schema / migrations drift check
         id: drift
-        run: npm run db:check-drift 2>&1 | tee /tmp/drift.txt
-        continue-on-error: true
-
-      - name: Publish drift report (on failure)
-        if: steps.drift.outcome == 'failure'
         run: |
-          git config user.name "jun-ci" && git config user.email "ci@jun.local"
-          git checkout -q -B ops/ci-report
-          mkdir -p ops && { echo "# Schema drift — $(date -u +%FT%TZ)"; echo; echo '```'; cat /tmp/drift.txt; echo '```'; } > ops/schema-drift.md
-          git add ops/schema-drift.md && git commit -qm "ci: schema drift report" && git push -f origin ops/ci-report
-          exit 1
+          PGPASSWORD=ci psql -h 127.0.0.1 -U ci -d ci -c 'CREATE DATABASE ci_shadow' >/dev/null
+          npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url postgresql://ci:ci@127.0.0.1:5432/ci_shadow --exit-code 2>&1 | tee /tmp/drift.txt
+          exit ${PIPESTATUS[0]}
+        continue-on-error: true
 
       - name: Seed dev fixtures
         run: npm run db:seed
 
       - name: Integration tests
-        run: npm run test:integration
+        id: itests
+        run: |
+          set -o pipefail
+          npm run test:integration 2>&1 | tee /tmp/itests.txt
+        continue-on-error: true
+
+      - name: Publish report (on failure)
+        if: steps.drift.outcome == 'failure' || steps.itests.outcome == 'failure'
+        run: |
+          git config user.name "jun-ci" && git config user.email "ci@jun.local"
+          git checkout -q -B ops/ci-report
+          mkdir -p ops
+          { echo "# Integration job report — $(date -u +%FT%TZ)"; echo
+            echo "## Schema drift (${{ steps.drift.outcome }})"; echo '```'; cat /tmp/drift.txt; echo '```'; echo
+            echo "## Integration tests (${{ steps.itests.outcome }})"; echo '```'; tail -n 150 /tmp/itests.txt; echo '```'; } > ops/ci-report.md
+          git add ops/ci-report.md && git commit -qm "ci: integration report" && git push -f origin ops/ci-report
+          exit 1
