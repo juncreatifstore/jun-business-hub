@@ -10,7 +10,8 @@ function csv(value: unknown) {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
-export async function GET(_request: Request, { params }: { params: { period: string } }) {
+export async function GET(_request: Request, props: { params: Promise<{ period: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user || user.role !== "SUPER_ADMIN")
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });

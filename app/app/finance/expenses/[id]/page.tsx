@@ -17,7 +17,8 @@ import { Field, Input, Textarea } from "@/components/ui/input";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
 import { AlertTriangle, FileText, WalletCards } from "lucide-react";
 export const dynamic = "force-dynamic";
-export default async function ExpenseDetailPage({ params }: { params: { id: string } }) {
+export default async function ExpenseDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("EXPENSE_READ");
   const e = await getFinanceExpense(params.id);
   if (!e) notFound();

@@ -12,7 +12,8 @@ import { ArrowLeft, Move } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function SignaturePreparePage({ params }: { params: { id: string } }) {
+export default async function SignaturePreparePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   if (!can(user, "DOCUMENT_SIGN")) notFound();
 

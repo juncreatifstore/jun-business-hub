@@ -10,7 +10,8 @@ import { parseDocumentPages } from "@/lib/document-pages";
 
 export const dynamic = "force-dynamic";
 
-export default async function CombinePage({ searchParams }: { searchParams?: { error?: string } }) {
+export default async function CombinePage(props: { searchParams?: Promise<{ error?: string }> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("DOCUMENT_CREATE");
   const docs = await prisma.document.findMany({
     where: { status: { not: "ARCHIVED" } },

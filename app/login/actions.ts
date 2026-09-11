@@ -28,7 +28,7 @@ function safeRuntimeCode(error: unknown): string {
 }
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
-  const ip = headers().get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (!(await rateLimitAsync(`login:${ip}`, 10, 60_000, { critical: true }))) {
     return { error: "Too many attempts. Wait a minute and try again." };
   }
@@ -52,7 +52,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (user.mfaEnabled && user.mfaSecret) {
     try {
       const pending = await signSession({ sub: user.id, role: "MFA_PENDING" });
-      cookies().set("jun_mfa_pending", pending, { ...sessionCookieOptions, maxAge: 300 });
+      (await cookies()).set("jun_mfa_pending", pending, { ...sessionCookieOptions, maxAge: 300 });
     } catch (error) {
       const code = safeRuntimeCode(error);
       logger.error("login.mfa_session_failed", { code, err: error });
@@ -64,14 +64,14 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   let token: string;
   try {
     token = await signSession({ sub: user.id, role: user.role });
-    cookies().set(SESSION_COOKIE, token, sessionCookieOptions);
+    (await cookies()).set(SESSION_COOKIE, token, sessionCookieOptions);
   } catch (error) {
     const code = safeRuntimeCode(error);
     logger.error("login.session_sign_failed", { code, err: error });
     return { error: `Login service unavailable (${code}).` };
   }
 
-  const ua = headers().get("user-agent") ?? null;
+  const ua = (await headers()).get("user-agent") ?? null;
   try {
     await prisma.session.create({
       data: {
@@ -85,7 +85,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await audit({ userId: user.id, action: "LOGIN", resourceType: "User", resourceId: user.id });
   } catch (error) {
-    cookies().delete(SESSION_COOKIE);
+    (await cookies()).delete(SESSION_COOKIE);
     const code = safeRuntimeCode(error);
     logger.error("login.session_persist_failed", { code, err: error });
     return { error: `Login service unavailable (${code}).` };
@@ -96,8 +96,8 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 }
 
 export async function logout() {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (token) await prisma.session.deleteMany({ where: { tokenHash: sha256(token) } }).catch(() => undefined);
-  cookies().delete(SESSION_COOKIE);
+  (await cookies()).delete(SESSION_COOKIE);
   redirect("/login");
 }

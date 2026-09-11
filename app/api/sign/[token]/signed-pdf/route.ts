@@ -6,7 +6,8 @@ import { storage } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request, { params }: { params: { token: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const payload = await verifyNativeSigningToken(params.token);
   if (!payload) return NextResponse.json({ error: "Invalid or expired signing link" }, { status: 401 });
 

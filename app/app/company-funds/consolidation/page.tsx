@@ -21,11 +21,10 @@ import {
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-export default async function ConsolidationPage({
-  searchParams,
-}: {
-  searchParams?: { country?: string; currency?: string; period?: string };
+export default async function ConsolidationPage(props: {
+  searchParams?: Promise<{ country?: string; currency?: string; period?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/app/forbidden");
   await syncCompanyFinanceState().catch(() => null);

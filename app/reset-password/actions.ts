@@ -15,7 +15,7 @@ export async function resetPassword(
   const token = String(formData.get("token") ?? "");
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
-  const ip = headers().get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (!(await rateLimitAsync(`password-reset:${ip}`, 10, 15 * 60_000, { critical: true })))
     return { error: "Too many attempts. Try again later." };
   if (!token || token.length < 20) return { error: "This reset link is invalid." };

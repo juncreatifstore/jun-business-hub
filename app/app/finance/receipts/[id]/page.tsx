@@ -13,7 +13,8 @@ import { FileCheck2, Hash, QrCode, ReceiptText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReceiptDetailPage({ params }: { params: { id: string } }) {
+export default async function ReceiptDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("PAYMENT_READ");
   const payment = await prisma.payment.findFirst({
     where: { OR: [{ id: params.id }, { reference: params.id }] },

@@ -62,7 +62,8 @@ function validPeriod(value: string | undefined) {
   return ["30", "90", "365"].includes(String(value || "")) ? Number(value) : 0;
 }
 
-export default async function CompanyFundsTimelinePage({ searchParams }: { searchParams?: Params }) {
+export default async function CompanyFundsTimelinePage(props: { searchParams?: Promise<Params> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/app/forbidden");
 

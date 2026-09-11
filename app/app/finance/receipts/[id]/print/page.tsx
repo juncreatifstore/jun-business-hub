@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 // Printable receipt generated directly from a confirmed payment.
 // Use the browser's "Print → Save as PDF" to export it.
-export default async function ReceiptPrintPage({ params }: { params: { id: string } }) {
+export default async function ReceiptPrintPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("PAYMENT_READ");
 
   const payment = await prisma.payment.findFirst({

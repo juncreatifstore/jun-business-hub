@@ -5,11 +5,10 @@ import { TaskForm } from "@/components/app/task-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewTaskPage({
-  searchParams,
-}: {
-  searchParams: { caseId?: string; clientId?: string };
+export default async function NewTaskPage(props: {
+  searchParams: Promise<{ caseId?: string; clientId?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("TASK_CREATE");
   const [clients, cases, users] = await Promise.all([
     prisma.client.findMany({

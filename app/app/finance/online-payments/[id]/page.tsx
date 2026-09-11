@@ -11,13 +11,12 @@ import { formatDateTime, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function OnlinePaymentDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { token?: string };
+export default async function OnlinePaymentDetailPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ token?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requirePermission("PAYMENT_READ");
   const session = await getOnlinePaymentSession(params.id);
   if (!session) notFound();

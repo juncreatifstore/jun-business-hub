@@ -43,13 +43,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function BudgetDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { success?: string; error?: string };
+export default async function BudgetDetailPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requirePermission("BUDGET_READ");
   const plan = await getBudgetPlan(params.id);
   if (!plan) notFound();

@@ -11,7 +11,7 @@ export async function audit(params: {
   before?: Prisma.InputJsonValue;
   after?: Prisma.InputJsonValue;
 }) {
-  const meta = requestMeta();
+  const meta = await requestMeta();
   await prisma.auditLog.create({
     data: {
       userId: params.userId ?? null,

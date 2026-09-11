@@ -15,11 +15,10 @@ import { formatDateTime } from "@/lib/utils";
 import { AlertTriangle, Mail, Plug, RefreshCw, ShieldCheck, Star } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-export default async function EmailSettingsPage({
-  searchParams,
-}: {
-  searchParams: { gmail_reconnect?: string; accountId?: string };
+export default async function EmailSettingsPage(props: {
+  searchParams: Promise<{ gmail_reconnect?: string; accountId?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "SETTINGS_MANAGE")) redirect("/app/forbidden");
   const [accounts, otpSenderId] = await Promise.all([

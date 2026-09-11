@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 
 // Print view: browser Print → Save as PDF. Final/signed documents carry the
 // verification QR pointing at the public /verify/[documentId] page.
-export default async function DocumentPrintPage({ params }: { params: { id: string } }) {
+export default async function DocumentPrintPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("DOCUMENT_READ");
   const doc = await prisma.document.findUnique({
     where: { id: params.id },

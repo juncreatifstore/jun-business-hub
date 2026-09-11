@@ -19,7 +19,8 @@ import { formatDateTime, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientAccountPage({ params }: { params: { id: string } }) {
+export default async function ClientAccountPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("CLIENT_READ");
   const [client, account, receivers] = await Promise.all([
     prisma.client.findUnique({

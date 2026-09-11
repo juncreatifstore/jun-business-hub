@@ -168,11 +168,10 @@ async function loadInboxSettings() {
   return { status, priority, assignment, tags, notes, cases };
 }
 
-export default async function WhatsAppInboxPage({
-  searchParams,
-}: {
-  searchParams: { phone?: string; q?: string; filter?: string };
+export default async function WhatsAppInboxPage(props: {
+  searchParams: Promise<{ phone?: string; q?: string; filter?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role === "CLIENT")
     return (

@@ -8,11 +8,10 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
-export default async function NewExpensePage({
-  searchParams,
-}: {
-  searchParams: { clientId?: string; caseId?: string };
+export default async function NewExpensePage(props: {
+  searchParams: Promise<{ clientId?: string; caseId?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("EXPENSE_CREATE");
   const requestedClientId = String(searchParams.clientId || "");
   const requestedCaseId = String(searchParams.caseId || "");

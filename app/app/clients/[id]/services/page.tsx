@@ -29,11 +29,10 @@ function sumCurrency(
   );
 }
 
-export default async function ClientServicesPage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
+export default async function ClientServicesPage(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
   const user = await requirePermission("CLIENT_READ");
   const { id } = await Promise.resolve(params);
   const [client, services, block] = await Promise.all([

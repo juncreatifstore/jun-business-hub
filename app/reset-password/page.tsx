@@ -3,7 +3,8 @@ import { ResetPasswordForm } from "./reset-form";
 
 export const metadata = { title: "Reset password" };
 
-export default function ResetPasswordPage({ searchParams }: { searchParams: { token?: string } }) {
+export default async function ResetPasswordPage(props: { searchParams: Promise<{ token?: string }> }) {
+  const searchParams = await props.searchParams;
   const token = String(searchParams.token ?? "");
   return (
     <div className="grid min-h-screen lg:grid-cols-2">

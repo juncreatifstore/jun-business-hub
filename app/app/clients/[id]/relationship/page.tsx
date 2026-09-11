@@ -32,11 +32,10 @@ function ok(v: boolean) {
   );
 }
 
-export default async function RelationshipPage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
+export default async function RelationshipPage(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
   const user = await requirePermission("CLIENT_READ");
   const { id } = await Promise.resolve(params);
   const [readiness, workflow, block, finalNotices] = await Promise.all([

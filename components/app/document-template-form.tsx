@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
@@ -163,12 +164,12 @@ export function DocumentTemplateForm({
             <Button type="submit" variant="primary">
               {submitLabel}
             </Button>
-            <a
+            <Link
               href="/app/documents/templates"
               className="inline-flex h-10 items-center rounded-lg border border-line px-4 text-sm font-medium hover:bg-surface"
             >
               Cancel
-            </a>
+            </Link>
           </div>
         </section>
       </div>
@@ -186,7 +187,7 @@ export function DocumentTemplateForm({
                 type="button"
                 key={v.key}
                 onClick={() => insertVariable(v.key)}
-                className="flex w-full items-center justify-between rounded-lg border border-line bg-white px-3 py-2 text-left text-xs hover:border-electric"
+                className="flex w-full items-center justify-between rounded-lg border border-line bg-surface-1 px-3 py-2 text-left text-xs hover:border-electric"
               >
                 <span>
                   <strong>{v.label}</strong>

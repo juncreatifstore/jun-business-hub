@@ -43,7 +43,7 @@ export async function saveRefundPaymentPlan(
     const expected = String(data.get("snapshot") || "");
     const requestId = String(data.get("requestId") || "");
     if (!/^[a-zA-Z0-9-]{16,80}$/.test(requestId)) throw new Error("Rechargez la fiche puis réessayez.");
-    const meta = requestMeta();
+    const meta = await requestMeta();
     const result = await prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`refund-plan:${refundId}`}))`;

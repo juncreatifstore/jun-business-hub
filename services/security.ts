@@ -52,10 +52,10 @@ export async function disableMfa(formData: FormData): Promise<void> {
 }
 
 export async function verifyMfaLogin(formData: FormData): Promise<void> {
-  const { ip } = requestMeta();
+  const { ip } = await requestMeta();
   if (!(await rateLimitAsync(`mfa:${ip ?? "unknown"}`, 10, 60_000, { critical: true })))
     redirect("/login/mfa?toast_error=Too many attempts — wait a minute");
-  const pending = cookies().get("jun_mfa_pending")?.value;
+  const pending = (await cookies()).get("jun_mfa_pending")?.value;
   const payload = pending ? await verifySession(pending) : null;
   if (!payload || payload.role !== "MFA_PENDING")
     redirect("/login?toast_error=MFA session expired — sign in again");
@@ -72,9 +72,9 @@ export async function verifyMfaLogin(formData: FormData): Promise<void> {
   if (!ok) redirect("/login/mfa?toast_error=Invalid code");
 
   const token = await signSession({ sub: user.id, role: user.role });
-  cookies().set(SESSION_COOKIE, token, sessionCookieOptions);
-  cookies().delete("jun_mfa_pending");
-  const meta = requestMeta();
+  (await cookies()).set(SESSION_COOKIE, token, sessionCookieOptions);
+  (await cookies()).delete("jun_mfa_pending");
+  const meta = await requestMeta();
   await prisma.session.create({
     data: {
       userId: user.id,
@@ -103,7 +103,7 @@ export async function revokeSession(sessionId: string): Promise<void> {
 export async function revokeOtherSessions(): Promise<void> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const token = cookies().get(SESSION_COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const keep = token ? sha256(token) : "";
   await prisma.session.deleteMany({ where: { userId: user.id, tokenHash: { not: keep } } });
   await audit({ userId: user.id, action: "SESSIONS_REVOKED_ALL", resourceType: "User", resourceId: user.id });

@@ -34,11 +34,10 @@ async function loadNotifications(userId: string) {
   return prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 250 });
 }
 
-export default async function NotificationsPage({
-  searchParams,
-}: {
-  searchParams: { q?: string; filter?: string };
+export default async function NotificationsPage(props: {
+  searchParams: Promise<{ q?: string; filter?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const notifications = await loadNotifications(user.id);
   const unread = notifications.filter((n) => !n.readAt).length;

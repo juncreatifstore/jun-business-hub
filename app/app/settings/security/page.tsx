@@ -22,11 +22,10 @@ import { ShieldCheck, Smartphone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function SecurityPage({
-  searchParams,
-}: {
-  searchParams: { setup?: string; required?: string };
+export default async function SecurityPage(props: {
+  searchParams: Promise<{ setup?: string; required?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const row = await prisma.user.findUnique({
     where: { id: user.id },
@@ -36,7 +35,7 @@ export default async function SecurityPage({
     where: { userId: user.id, expiresAt: { gt: new Date() } },
     orderBy: { createdAt: "desc" },
   });
-  const currentHash = sha256(cookies().get(SESSION_COOKIE)?.value ?? "");
+  const currentHash = sha256((await cookies()).get(SESSION_COOKIE)?.value ?? "");
 
   let qrDataUrl: string | null = null;
   if (searchParams.setup === "1" && row?.mfaSecret && !row.mfaEnabled) {

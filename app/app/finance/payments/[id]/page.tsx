@@ -12,7 +12,8 @@ import { PaymentProofUpload } from "@/components/app/payment-proof-upload";
 import { FileCheck2, History, ReceiptText, Scale, WalletCards, Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-export default async function PaymentDetailPage({ params }: { params: { id: string } }) {
+export default async function PaymentDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("PAYMENT_READ");
   const [p, meta, auditRows] = await Promise.all([
     prisma.payment.findUnique({

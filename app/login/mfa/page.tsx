@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
-export default function MfaLoginPage({ searchParams }: { searchParams: { toast_error?: string } }) {
+export default async function MfaLoginPage(props: { searchParams: Promise<{ toast_error?: string }> }) {
+  const searchParams = await props.searchParams;
   return (
     <main className="flex min-h-screen items-center justify-center bg-night px-6 text-white">
       <div className="w-full max-w-sm">

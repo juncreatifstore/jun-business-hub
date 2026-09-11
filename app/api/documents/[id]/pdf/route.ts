@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic";
  * - Otherwise render a live PDF marked with the current status (DRAFT preview).
  * Staff need DOCUMENT_READ; CLIENT users only get their own FINAL/SIGNED docs.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

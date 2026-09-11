@@ -102,11 +102,10 @@ const NAV: Array<{ view: DriveView; label: string; icon: typeof HardDrive }> = [
   { view: "trash", label: "Trash", icon: Trash2 },
 ];
 
-export default async function DrivePage({
-  searchParams,
-}: {
-  searchParams: { category?: string; q?: string; folder?: string; view?: string };
+export default async function DrivePage(props: {
+  searchParams: Promise<{ category?: string; q?: string; folder?: string; view?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "FILE_READ")) redirect("/app/forbidden");
   const canUpload = can(user, "FILE_UPLOAD");

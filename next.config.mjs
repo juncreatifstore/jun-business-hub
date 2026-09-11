@@ -30,7 +30,6 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
-  optimizeFonts: false,
   // WhatsApp media replies (photos, voice notes, files) go through a server action.
   experimental: { serverActions: { bodySizeLimit: "16mb" } },
 

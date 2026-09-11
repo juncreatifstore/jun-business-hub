@@ -48,18 +48,17 @@ const PRIORITY_CLASS: Record<string, string> = {
     HIGH: "bg-amber-100 text-amber-800",
     CRITICAL: "bg-red-100 text-red-700",
   };
-export default async function MailIntelligencePage({
-  searchParams,
-}: {
-  searchParams: {
+export default async function MailIntelligencePage(props: {
+  searchParams: Promise<{
     category?: string;
     priority?: string;
     department?: string;
     escalation?: string;
     reply?: string;
     q?: string;
-  };
+  }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "EMAIL_READ")) redirect("/app/forbidden");
   const accessibleIds = await getAccessibleMailboxIds(user, false);

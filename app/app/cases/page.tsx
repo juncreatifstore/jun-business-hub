@@ -36,7 +36,8 @@ function caseOrder(sort: SortKey): Prisma.CaseOrderByWithRelationInput[] {
   return [{ createdAt: "desc" }];
 }
 
-export default async function CasesPage({ searchParams }: { searchParams: Params }) {
+export default async function CasesPage(props: { searchParams: Promise<Params> }) {
+  const searchParams = await props.searchParams;
   const user = await requirePermission("CASE_READ");
   const q = searchParams.q?.trim();
   const status = searchParams.status;

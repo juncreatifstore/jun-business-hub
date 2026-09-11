@@ -45,7 +45,8 @@ function tokens(q: string) {
     .slice(0, 8);
 }
 
-export default async function DriveSmartSearchPage({ searchParams }: { searchParams: { q?: string } }) {
+export default async function DriveSmartSearchPage(props: { searchParams: Promise<{ q?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "FILE_READ")) redirect("/app/forbidden");
   const q = String(searchParams.q ?? "")

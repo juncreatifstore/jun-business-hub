@@ -13,13 +13,12 @@ import { FileText, MessageCircle, Settings } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientWhatsAppPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { message?: string; mode?: string; template?: string; language?: string };
+export default async function ClientWhatsAppPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ message?: string; mode?: string; template?: string; language?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requirePermission("CLIENT_READ");
   const [client, cfg, documents, block] = await Promise.all([
     prisma.client.findUnique({

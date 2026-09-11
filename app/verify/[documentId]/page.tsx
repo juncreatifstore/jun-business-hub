@@ -11,7 +11,8 @@ export const metadata = { title: "Document verification" };
 
 // Public verification page. Deliberately exposes ONLY registry metadata.
 // It never exposes document contents, client names, payment amounts or banking details.
-export default async function VerifyPage({ params }: { params: { documentId: string } }) {
+export default async function VerifyPage(props: { params: Promise<{ documentId: string }> }) {
+  const params = await props.params;
   const id = decodeURIComponent(params.documentId).slice(0, 120);
 
   const doc = await prisma.document.findUnique({

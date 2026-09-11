@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = { country?: string; currency?: string; period?: string };
 
-export default async function TreasuryTransfersPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function TreasuryTransfersPage(props: { searchParams?: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/app/forbidden");
   const [store, allTransfers] = await Promise.all([getTreasuryStore(), listTreasuryTransfers()]);

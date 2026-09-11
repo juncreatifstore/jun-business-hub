@@ -9,13 +9,12 @@ import { Field, Input, Select, Textarea } from "@/components/ui/input";
 import { Building2, CircleDollarSign, UserRound } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-export default async function ReceiverEditPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { toast_error?: string };
+export default async function ReceiverEditPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ toast_error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requirePermission("SETTINGS_MANAGE");
   const r = await getManualTransferReceiver(params.id);
   if (!r) notFound();

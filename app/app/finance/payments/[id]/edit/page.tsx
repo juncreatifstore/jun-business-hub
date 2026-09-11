@@ -11,13 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 export const dynamic = "force-dynamic";
-export default async function EditPaymentPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { toast_error?: string };
+export default async function EditPaymentPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ toast_error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requirePermission("PAYMENT_READ");
   const [p, meta, clients, cases] = await Promise.all([
     prisma.payment.findUnique({ where: { id: params.id } }),

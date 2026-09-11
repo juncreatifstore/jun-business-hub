@@ -4,7 +4,8 @@ import { buildSignatureCertificate } from "@/lib/signature-certificate";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user || !can(user, "DOCUMENT_READ"))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

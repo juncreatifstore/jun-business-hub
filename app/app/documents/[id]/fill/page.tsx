@@ -6,13 +6,12 @@ import { createFilledDocument } from "@/services/document-fill";
 
 export const dynamic = "force-dynamic";
 
-export default async function DocumentFillPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { error?: string };
+export default async function DocumentFillPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requirePermission("DOCUMENT_READ");
   const doc = await prisma.document.findUnique({
     where: { id: params.id },

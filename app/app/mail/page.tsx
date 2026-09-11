@@ -9,10 +9,8 @@ import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
-export default async function MailPage({
-  searchParams,
-}: {
-  searchParams: {
+export default async function MailPage(props: {
+  searchParams: Promise<{
     folder?: string;
     thread?: string;
     compose?: string;
@@ -22,8 +20,9 @@ export default async function MailPage({
     mode?: string;
     category?: string;
     alias?: string;
-  };
+  }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "EMAIL_READ")) redirect("/app/forbidden");
   const accessibleIds = await getAccessibleMailboxIds(user, true);

@@ -5,11 +5,10 @@ import { RefundForm } from "@/components/app/refund-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewRefundPage({
-  searchParams,
-}: {
-  searchParams: { clientId?: string; caseId?: string };
+export default async function NewRefundPage(props: {
+  searchParams: Promise<{ clientId?: string; caseId?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("REFUND_CREATE");
   const [clients, cases, payments] = await Promise.all([
     prisma.client.findMany({

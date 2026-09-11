@@ -5,7 +5,8 @@ import { getInvoice, invoiceFinancialState } from "@/lib/finance-invoices";
 import { renderInvoicePdf } from "@/services/pdf/finance-documents";
 
 export const dynamic = "force-dynamic";
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!can(user, "INVOICE_READ")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

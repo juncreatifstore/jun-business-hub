@@ -19,7 +19,7 @@ export type CurrentUser = {
 };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const payload = await verifySession(token);
   if (!payload) return null;
@@ -81,8 +81,8 @@ export async function assertPermission(permission: PermissionCode): Promise<Curr
   return user;
 }
 
-export function requestMeta() {
-  const h = headers();
+export async function requestMeta() {
+  const h = await headers();
   return {
     ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
     userAgent: h.get("user-agent") ?? null,

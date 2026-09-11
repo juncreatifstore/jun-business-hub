@@ -1,12 +1,13 @@
 import Link from "next/link";
 
-export default async function CaseWorkspaceLayout({
-  children,
-  params,
-}: {
+export default async function CaseWorkspaceLayout(props: {
   children: React.ReactNode;
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
+
+  const { children } = props;
+
   const { id } = await Promise.resolve(params);
   return (
     <div className="space-y-4">

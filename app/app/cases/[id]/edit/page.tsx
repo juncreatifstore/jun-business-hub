@@ -7,7 +7,8 @@ import { CaseEditForm } from "@/components/app/case-edit-form";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
-export default async function EditCasePage({ params }: { params: { id: string } }) {
+export default async function EditCasePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("CASE_UPDATE");
   const [c, clients] = await Promise.all([
     prisma.case.findUnique({ where: { id: params.id } }),

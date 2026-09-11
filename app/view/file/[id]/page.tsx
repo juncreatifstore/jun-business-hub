@@ -45,13 +45,12 @@ function Unavailable({ expired = false }: { expired?: boolean }) {
   );
 }
 
-export default async function PublicFileViewer({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { key?: string; error?: string; privacy_error?: string };
+export default async function PublicFileViewer(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ key?: string; error?: string; privacy_error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const suppliedToken = typeof searchParams.key === "string" ? searchParams.key : undefined;
   const file = await prisma.file.findFirst({
     where: { id: params.id, isVault: false, archivedAt: null },
@@ -69,7 +68,7 @@ export default async function PublicFileViewer({
   if (publicLinkExpired(security)) return <Unavailable expired />;
 
   if (privacy.required) {
-    const privacyCookie = cookies().get(drivePrivacyCookieName(file.id))?.value;
+    const privacyCookie = (await cookies()).get(drivePrivacyCookieName(file.id))?.value;
     const accepted = await verifyDrivePrivacyConsent(privacyCookie, file.id, privacy.version);
     if (!accepted) {
       return (
@@ -113,7 +112,7 @@ export default async function PublicFileViewer({
   }
 
   if (security.passwordHash) {
-    const accessCookie = cookies().get(publicAccessCookieName(file.id))?.value;
+    const accessCookie = (await cookies()).get(publicAccessCookieName(file.id))?.value;
     const unlocked = await verifyDrivePublicAccess(accessCookie, file.id);
     if (!unlocked) {
       return (
@@ -157,7 +156,7 @@ export default async function PublicFileViewer({
     }
   }
 
-  await recordDrivePublicAccess(file.id, "FILE_PUBLIC_VIEW", requestPublicMeta(headers()));
+  await recordDrivePublicAccess(file.id, "FILE_PUBLIC_VIEW", requestPublicMeta(await headers()));
   const query = suppliedToken ? `?key=${encodeURIComponent(suppliedToken)}` : "";
   const rawUrl = `/public/files/${file.id}${query}`;
   const downloadUrl = `/public/files/${file.id}?${new URLSearchParams({ ...(suppliedToken ? { key: suppliedToken } : {}), download: "1" }).toString()}`;

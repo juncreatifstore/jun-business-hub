@@ -47,7 +47,7 @@ export async function requestPasswordReset(
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
-  const ip = headers().get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const generic = "If an active JUN account exists for that email, a reset link will be sent.";
   if (!email || !email.includes("@")) return { error: "Enter a valid email address." };
   if (!(await rateLimitAsync(`forgot:${ip}:${email}`, 5, 15 * 60_000, { critical: true })))

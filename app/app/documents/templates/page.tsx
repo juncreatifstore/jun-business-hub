@@ -13,11 +13,10 @@ export const dynamic = "force-dynamic";
 
 const categoryLabels = new Map<string, string>(TEMPLATE_CATEGORIES as unknown as [string, string][]);
 
-export default async function TemplateLibraryPage({
-  searchParams,
-}: {
-  searchParams?: { q?: string; category?: string; language?: string; state?: string };
+export default async function TemplateLibraryPage(props: {
+  searchParams?: Promise<{ q?: string; category?: string; language?: string; state?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("DOCUMENT_READ");
   const q = String(searchParams?.q ?? "")
     .trim()

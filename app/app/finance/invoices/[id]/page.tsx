@@ -17,13 +17,12 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Clock3, CreditCard, Printer, Send, Undo2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-export default async function InvoiceDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { toast?: string; toast_error?: string };
+export default async function InvoiceDetailPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ toast?: string; toast_error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requirePermission("INVOICE_READ");
   const invoice = await getInvoice(params.id);
   if (!invoice) notFound();

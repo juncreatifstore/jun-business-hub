@@ -18,7 +18,8 @@ const STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PARTIALLY_PAID", "PA
 const PAGE_SIZE = 25;
 type Params = { q?: string; status?: string; page?: string };
 
-export default async function RefundsPage({ searchParams }: { searchParams?: Params }) {
+export default async function RefundsPage(props: { searchParams?: Promise<Params> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("REFUND_READ");
   await syncOverdueRefundInstallments();
   const params = searchParams ?? {};

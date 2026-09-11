@@ -25,11 +25,10 @@ const severityClass: Record<string, string> = {
   CRITICAL: "bg-red-100 text-red-800",
 };
 
-export default async function CaseIntelligencePage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
+export default async function CaseIntelligencePage(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
   const user = await requireUser();
   if (!can(user, "CASE_READ")) redirect("/app/forbidden");
   const { id } = await Promise.resolve(params);

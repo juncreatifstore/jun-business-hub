@@ -12,11 +12,10 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
-export default async function TasksPage({
-  searchParams,
-}: {
-  searchParams: { view?: string; status?: string; assignee?: string; focus?: string };
+export default async function TasksPage(props: {
+  searchParams: Promise<{ view?: string; status?: string; assignee?: string; focus?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requirePermission("TASK_READ");
   const canEdit = can(user, "TASK_UPDATE");
   const status = searchParams.status;
