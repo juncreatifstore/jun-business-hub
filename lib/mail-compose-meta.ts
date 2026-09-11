@@ -9,6 +9,7 @@ export type MailComposeMode = "NEW" | "REPLY" | "REPLY_ALL" | "FORWARD";
 export type MailComposeMeta = {
   threadId: string;
   mode: MailComposeMode;
+  fromEmail?: string | null;
   to: string[];
   cc: string[];
   bcc: string[];
