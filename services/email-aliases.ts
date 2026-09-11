@@ -5,17 +5,13 @@ import { redirect } from "next/navigation";
 import { assertPermission } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-
-export const EMAIL_ALIASES_SETTING_KEY = "email.aliases.juncreatifs.org";
-export const EMAIL_ALIAS_DOMAIN = "juncreatifs.org";
-export const EMAIL_ALIAS_DESTINATION = "admin@juncreatifs.org";
-
-export type EmailAlias = {
-  address: string;
-  destination: string;
-  confirmed: boolean;
-  createdAt: string;
-};
+import {
+  EMAIL_ALIASES_SETTING_KEY,
+  EMAIL_ALIAS_DOMAIN,
+  EMAIL_ALIAS_DESTINATION,
+  listEmailAliases,
+  type EmailAlias,
+} from "@/lib/email-aliases";
 
 function aliasesUrl(message: string, error = false) {
   const key = error ? "toast_error" : "toast";
@@ -27,27 +23,6 @@ function normalizeLocalPart(value: FormDataEntryValue | null) {
     .trim()
     .toLowerCase()
     .replace(/@juncreatifs\.org$/, "");
-}
-
-async function readAliases(): Promise<EmailAlias[]> {
-  const setting = await prisma.appSetting.findUnique({
-    where: { key: EMAIL_ALIASES_SETTING_KEY },
-    select: { value: true },
-  });
-  if (!setting) return [];
-  try {
-    const parsed = JSON.parse(setting.value);
-    return Array.isArray(parsed)
-      ? parsed.filter(
-          (item): item is EmailAlias =>
-            typeof item?.address === "string" &&
-            item.address.endsWith(`@${EMAIL_ALIAS_DOMAIN}`) &&
-            item.destination === EMAIL_ALIAS_DESTINATION,
-        )
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 async function writeAliases(aliases: EmailAlias[]) {
@@ -70,7 +45,7 @@ export async function addEmailAlias(formData: FormData): Promise<void> {
     redirect(aliasesUrl("Cette adresse est déjà la boîte de destination.", true));
   }
 
-  const aliases = await readAliases();
+  const aliases = await listEmailAliases();
   if (aliases.some((alias) => alias.address === address)) {
     redirect(aliasesUrl("Cet alias existe déjà dans l’application.", true));
   }
@@ -96,7 +71,7 @@ export async function addEmailAlias(formData: FormData): Promise<void> {
 export async function setEmailAliasConfirmed(address: string, formData: FormData): Promise<void> {
   const user = await assertPermission("SETTINGS_MANAGE");
   const confirmed = String(formData.get("confirmed")) === "true";
-  const aliases = await readAliases();
+  const aliases = await listEmailAliases();
   const current = aliases.find((alias) => alias.address === address);
   if (!current) redirect(aliasesUrl("Alias introuvable.", true));
 
@@ -117,7 +92,7 @@ export async function setEmailAliasConfirmed(address: string, formData: FormData
 
 export async function removeEmailAlias(address: string): Promise<void> {
   const user = await assertPermission("SETTINGS_MANAGE");
-  const aliases = await readAliases();
+  const aliases = await listEmailAliases();
   const current = aliases.find((alias) => alias.address === address);
   if (!current) redirect(aliasesUrl("Alias introuvable.", true));
 
