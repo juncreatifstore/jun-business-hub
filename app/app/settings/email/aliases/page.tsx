@@ -8,14 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  addEmailAlias,
   EMAIL_ALIASES_SETTING_KEY,
   EMAIL_ALIAS_DESTINATION,
   EMAIL_ALIAS_DOMAIN,
-  removeEmailAlias,
-  setEmailAliasConfirmed,
   type EmailAlias,
 } from "@/lib/email-aliases";
+import { addEmailAlias, removeEmailAlias, setEmailAliasConfirmed } from "@/services/email-aliases";
 
 export const dynamic = "force-dynamic";
 
