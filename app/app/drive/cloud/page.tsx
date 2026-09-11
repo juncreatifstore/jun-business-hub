@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  Clock3,
+  FileText,
   Cloud,
   DownloadCloud,
   ExternalLink,
@@ -12,6 +14,7 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
+import { Button } from "@/components/ui/button";
 import { DriveSidebar } from "@/components/app/drive-sidebar";
 import {
   cloudFolderPath,
@@ -37,15 +40,22 @@ function size(bytes: number | null) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-async function providerState(userId: string, provider: CloudProvider, folderId?: string) {
+async function providerState(
+  userId: string,
+  provider: CloudProvider,
+  folderId?: string,
+  opts: { mode?: "root" | "recent"; query?: string } = {},
+) {
   const connection = await getCloudConnection(userId, provider);
   let files: CloudFile[] = [];
   let crumbs: CloudCrumb[] = [];
   let error: string | null = null;
+  const query = (opts.query ?? "").trim() || null;
+  const mode: "root" | "recent" | "search" = folderId ? "root" : query ? "search" : (opts.mode ?? "root");
   if (connection) {
     try {
       [files, crumbs] = await Promise.all([
-        listCloudFiles(connection, folderId),
+        listCloudFiles(connection, folderId, { mode, query: query ?? undefined }),
         folderId ? cloudFolderPath(connection, folderId) : Promise.resolve([]),
       ]);
     } catch (e) {
@@ -60,8 +70,23 @@ async function providerState(userId: string, provider: CloudProvider, folderId?:
     files,
     crumbs,
     folderId: folderId ?? null,
+    mode,
+    query,
     error,
   };
+}
+
+function shortType(mime: string) {
+  if (mime.startsWith("application/vnd.google-apps.")) return "Google " + mime.split(".").pop();
+  if (mime === "application/pdf") return "PDF";
+  if (mime.includes("wordprocessingml") || mime === "application/msword") return "Word";
+  if (mime.includes("spreadsheetml") || mime === "application/vnd.ms-excel") return "Excel";
+  if (mime.includes("presentationml") || mime === "application/vnd.ms-powerpoint") return "PowerPoint";
+  if (mime.startsWith("image/")) return "Image";
+  if (mime.startsWith("video/")) return "Video";
+  if (mime.startsWith("audio/")) return "Audio";
+  if (mime.startsWith("text/")) return "Text";
+  return mime.split("/").pop() ?? mime;
 }
 
 function folderHref(provider: CloudProvider, folderId?: string | null) {
@@ -76,6 +101,9 @@ export default async function CloudDrivePage(props: {
     connected?: string;
     googleFolder?: string;
     microsoftFolder?: string;
+    googleSearch?: string;
+    microsoftSearch?: string;
+    mode?: string;
     provider?: string;
   }>;
 }) {
@@ -88,8 +116,14 @@ export default async function CloudDrivePage(props: {
       ? searchParams.provider
       : null;
   const [google, microsoft] = await Promise.all([
-    providerState(user.id, "google", searchParams.googleFolder),
-    providerState(user.id, "microsoft", searchParams.microsoftFolder),
+    providerState(user.id, "google", searchParams.googleFolder, {
+      mode: searchParams.mode === "recent" ? "recent" : "root",
+      query: searchParams.googleSearch,
+    }),
+    providerState(user.id, "microsoft", searchParams.microsoftFolder, {
+      mode: searchParams.mode === "recent" ? "recent" : "root",
+      query: searchParams.microsoftSearch,
+    }),
   ]);
   const workspaceReady = googleWorkspaceConfigured();
   const workspaceStorageActive = (process.env.STORAGE_DRIVER || "").toUpperCase() === "GOOGLE_WORKSPACE";
@@ -185,101 +219,194 @@ export default async function CloudDrivePage(props: {
                       )}
                     </div>
                     {state.connection ? (
-                      <div className="mt-4">
-                        <nav
-                          className="mb-2 flex flex-wrap items-center gap-1 text-xs"
-                          aria-label="Folder path"
-                        >
+                      <div className="mt-4 space-y-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label="Folder path">
+                            <Link
+                              prefetch={false}
+                              href={folderHref(state.provider)}
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${!state.folderId && state.mode === "root" ? "bg-blue-50 font-medium text-electric" : "text-muted2 hover:bg-surface hover:text-ink"}`}
+                            >
+                              <HardDrive className="h-3.5 w-3.5" /> My Drive
+                            </Link>
+                            {state.crumbs.map((crumb, i) => (
+                              <span key={crumb.id} className="flex items-center gap-1">
+                                <span className="text-muted2">/</span>
+                                {i === state.crumbs.length - 1 ? (
+                                  <span className="rounded-md bg-blue-50 px-2 py-1 font-medium text-electric">
+                                    {crumb.name}
+                                  </span>
+                                ) : (
+                                  <Link
+                                    prefetch={false}
+                                    href={folderHref(state.provider, crumb.id)}
+                                    className="rounded-md px-2 py-1 text-muted2 hover:bg-surface hover:text-ink"
+                                  >
+                                    {crumb.name}
+                                  </Link>
+                                )}
+                              </span>
+                            ))}
+                            {state.mode === "recent" ? (
+                              <span className="rounded-md bg-blue-50 px-2 py-1 font-medium text-electric">
+                                Recent
+                              </span>
+                            ) : null}
+                            {state.mode === "search" ? (
+                              <span className="rounded-md bg-blue-50 px-2 py-1 font-medium text-electric">
+                                Search: “{state.query}”
+                              </span>
+                            ) : null}
+                          </nav>
                           <Link
                             prefetch={false}
-                            href={folderHref(state.provider)}
-                            className={
-                              state.folderId
-                                ? "font-semibold uppercase tracking-wide text-electric hover:underline"
-                                : "font-semibold uppercase tracking-wide text-muted2"
-                            }
+                            href={`/app/drive/cloud?provider=${state.provider}&mode=recent`}
+                            className={`ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ${state.mode === "recent" ? "bg-blue-50 text-electric" : "text-muted2 hover:bg-surface hover:text-ink"}`}
                           >
-                            {state.folderId ? "Recent" : "Recent files"}
+                            <Clock3 className="h-3.5 w-3.5" /> Recent
                           </Link>
-                          {state.crumbs.map((crumb, i) => (
-                            <span key={crumb.id} className="flex items-center gap-1">
-                              <span className="text-muted2">/</span>
-                              {i === state.crumbs.length - 1 ? (
-                                <span className="font-semibold text-ink">{crumb.name}</span>
-                              ) : (
-                                <Link
-                                  prefetch={false}
-                                  href={folderHref(state.provider, crumb.id)}
-                                  className="text-electric hover:underline"
-                                >
-                                  {crumb.name}
-                                </Link>
-                              )}
-                            </span>
-                          ))}
-                        </nav>
+                        </div>
+                        <form method="get" className="flex flex-wrap gap-2">
+                          <input type="hidden" name="provider" value={state.provider} />
+                          <input
+                            name={`${state.provider}Search`}
+                            defaultValue={state.query ?? ""}
+                            placeholder={`Search ${label}…`}
+                            className="h-10 min-w-64 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
+                          />
+                          <Button type="submit" variant="secondary">
+                            Search
+                          </Button>
+                          {state.query ? (
+                            <Link
+                              prefetch={false}
+                              href={folderHref(state.provider)}
+                              className="inline-flex h-10 items-center rounded-lg px-3 text-sm text-muted2 hover:bg-surface hover:text-ink"
+                            >
+                              Clear
+                            </Link>
+                          ) : null}
+                        </form>
                         {state.error ? (
                           <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{state.error}</div>
                         ) : state.files.length ? (
-                          <div className="max-h-[520px] space-y-2 overflow-y-auto pr-1">
-                            {state.files.map((f) => (
-                              <div
-                                key={f.id}
-                                className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  {f.isFolder ? (
-                                    <Link
-                                      prefetch={false}
-                                      href={folderHref(state.provider, f.id)}
-                                      className="flex items-center gap-2 truncate text-sm font-medium hover:text-electric hover:underline"
-                                      title="Open folder"
-                                    >
-                                      <FolderOpen className="h-4 w-4 shrink-0 text-muted2" /> {f.name}
-                                    </Link>
-                                  ) : (
-                                    <Link
-                                      prefetch={false}
-                                      href={`/app/drive/cloud/${state.provider}/${encodeURIComponent(f.id)}`}
-                                      className="block truncate text-sm font-medium hover:text-electric hover:underline"
-                                      title="Open in JUN"
-                                    >
-                                      {f.name}
-                                    </Link>
-                                  )}
-                                  <div className="mt-1 text-[11px] text-muted2">
-                                    {f.isFolder ? "Folder" : `${f.mimeType} · ${size(f.sizeBytes)}`}
-                                    {f.modifiedAt ? ` · ${new Date(f.modifiedAt).toLocaleDateString()}` : ""}
-                                  </div>
+                          <>
+                            {state.files.some((f) => f.isFolder) ? (
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted2">
+                                  Folders
                                 </div>
-                                {f.webUrl ? (
-                                  <a
-                                    href={f.webUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    title={`Open in ${label}`}
-                                    className="rounded-md p-2 text-muted2 hover:bg-white hover:text-ink"
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </a>
-                                ) : null}
-                                {!f.isFolder ? (
-                                  <form action={importCloudFile}>
-                                    <input type="hidden" name="provider" value={state.provider} />
-                                    <input type="hidden" name="fileId" value={f.id} />
-                                    <button className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-2 text-xs font-medium text-electric shadow-sm hover:bg-blue-50">
-                                      <DownloadCloud className="h-3.5 w-3.5" /> Import
-                                    </button>
-                                  </form>
-                                ) : null}
+                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                  {state.files
+                                    .filter((f) => f.isFolder)
+                                    .map((f) => (
+                                      <Link
+                                        key={f.id}
+                                        prefetch={false}
+                                        href={folderHref(state.provider, f.id)}
+                                        className="flex items-center gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm transition hover:border-electric/40 hover:shadow"
+                                      >
+                                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-electric">
+                                          <FolderOpen className="h-5 w-5" />
+                                        </span>
+                                        <span className="min-w-0">
+                                          <span className="block truncate text-sm font-medium">{f.name}</span>
+                                          <span className="block text-xs text-muted2">
+                                            {f.modifiedAt
+                                              ? new Date(f.modifiedAt).toLocaleDateString()
+                                              : "Folder"}
+                                          </span>
+                                        </span>
+                                      </Link>
+                                    ))}
+                                </div>
                               </div>
-                            ))}
-                          </div>
+                            ) : null}
+                            {state.files.some((f) => !f.isFolder) ? (
+                              <div>
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted2">
+                                  Files
+                                </div>
+                                <div className="overflow-hidden rounded-2xl border border-line bg-white">
+                                  <table className="w-full text-sm">
+                                    <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted2">
+                                      <tr>
+                                        <th className="p-3">Name</th>
+                                        <th className="p-3">Type</th>
+                                        <th className="p-3">Size</th>
+                                        <th className="p-3">Modified</th>
+                                        <th className="p-3 text-right">Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-line">
+                                      {state.files
+                                        .filter((f) => !f.isFolder)
+                                        .map((f) => (
+                                          <tr key={f.id} className="hover:bg-surface/60">
+                                            <td className="p-3">
+                                              <Link
+                                                prefetch={false}
+                                                href={`/app/drive/cloud/${state.provider}/${encodeURIComponent(f.id)}`}
+                                                className="flex max-w-[420px] items-center gap-2 font-medium hover:text-electric"
+                                                title="Open in JUN"
+                                              >
+                                                <FileText className="h-4 w-4 shrink-0 text-muted2" />
+                                                <span className="truncate">{f.name}</span>
+                                              </Link>
+                                            </td>
+                                            <td className="p-3 text-xs text-muted2">
+                                              {shortType(f.mimeType)}
+                                            </td>
+                                            <td className="p-3 text-xs text-muted2">{size(f.sizeBytes)}</td>
+                                            <td className="p-3 text-xs text-muted2">
+                                              {f.modifiedAt
+                                                ? new Date(f.modifiedAt).toLocaleDateString()
+                                                : "—"}
+                                            </td>
+                                            <td className="p-3">
+                                              <div className="flex items-center justify-end gap-1">
+                                                {f.webUrl ? (
+                                                  <a
+                                                    href={f.webUrl}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    title={`Open in ${label}`}
+                                                    className="rounded-md p-2 text-muted2 hover:bg-surface hover:text-ink"
+                                                  >
+                                                    <ExternalLink className="h-4 w-4" />
+                                                  </a>
+                                                ) : null}
+                                                <form action={importCloudFile}>
+                                                  <input
+                                                    type="hidden"
+                                                    name="provider"
+                                                    value={state.provider}
+                                                  />
+                                                  <input type="hidden" name="fileId" value={f.id} />
+                                                  <button
+                                                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-electric hover:bg-blue-50"
+                                                    title="Copy into JUN Drive"
+                                                  >
+                                                    <DownloadCloud className="h-3.5 w-3.5" /> Copy to JUN
+                                                  </button>
+                                                </form>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
                         ) : (
                           <p className="rounded-lg bg-surface p-3 text-xs text-muted2">
-                            {state.folderId
-                              ? "This folder is empty."
-                              : "No files returned from this account."}
+                            {state.mode === "search"
+                              ? "No file matches this search."
+                              : state.folderId
+                                ? "This folder is empty."
+                                : "No files in My Drive."}
                           </p>
                         )}
                       </div>

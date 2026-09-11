@@ -225,15 +225,34 @@ export async function cloudFolderPath(connection: CloudConnection, folderId: str
  * returns the most recently modified items across the drive and OneDrive
  * returns the root.
  */
-export async function listCloudFiles(connection: CloudConnection, folderId?: string): Promise<CloudFile[]> {
+export type CloudListMode = "root" | "recent" | "search";
+
+/**
+ * Lists a location of the connected cloud. Default is the root of "My Drive"
+ * (folders first, like the JUN browser); `recent` = most recently modified
+ * across the drive; `search` = name contains `query`.
+ */
+export async function listCloudFiles(
+  connection: CloudConnection,
+  folderId?: string,
+  options: { mode?: CloudListMode; query?: string } = {},
+): Promise<CloudFile[]> {
   const c = await refreshCloudConnection(connection);
+  const mode: CloudListMode = folderId ? "root" : options.query ? "search" : (options.mode ?? "root");
+  const esc = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
   if (c.provider === "google") {
     const q = new URL("https://www.googleapis.com/drive/v3/files");
     q.searchParams.set("pageSize", "200");
-    q.searchParams.set("orderBy", folderId ? "folder,name" : "modifiedTime desc");
+    q.searchParams.set("orderBy", mode === "recent" ? "modifiedTime desc" : "folder,name");
     q.searchParams.set(
       "q",
-      folderId ? `'${folderId.replace(/'/g, "\\'")}' in parents and trashed = false` : "trashed = false",
+      folderId
+        ? `'${esc(folderId)}' in parents and trashed = false`
+        : mode === "search"
+          ? `name contains '${esc(options.query ?? "")}' and trashed = false`
+          : mode === "recent"
+            ? "trashed = false and mimeType != 'application/vnd.google-apps.folder'"
+            : "'root' in parents and trashed = false",
     );
     q.searchParams.set("fields", "files(id,name,mimeType,size,modifiedTime,webViewLink)");
     q.searchParams.set("supportsAllDrives", "true");
@@ -264,7 +283,11 @@ export async function listCloudFiles(connection: CloudConnection, folderId?: str
   const res = await fetch(
     folderId
       ? `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(folderId)}/children?$top=200&$orderby=name`
-      : "https://graph.microsoft.com/v1.0/me/drive/root/children?$top=100&$orderby=lastModifiedDateTime desc",
+      : mode === "search"
+        ? `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(esc(options.query ?? ""))}')?$top=100`
+        : mode === "recent"
+          ? "https://graph.microsoft.com/v1.0/me/drive/recent?$top=100"
+          : "https://graph.microsoft.com/v1.0/me/drive/root/children?$top=200&$orderby=name",
     { headers: { Authorization: `Bearer ${c.accessToken}` } },
   );
   if (!res.ok) throw new Error("Unable to list OneDrive files");
