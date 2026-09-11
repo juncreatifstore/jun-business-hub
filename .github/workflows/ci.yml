@@ -8,7 +8,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  issues: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -150,12 +151,14 @@ jobs:
 
       - name: Publish report (on failure)
         if: steps.drift.outcome == 'failure' || steps.itests.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "jun-ci" && git config user.email "ci@jun.local"
-          git checkout -q -B ops/ci-report
-          mkdir -p ops
-          { echo "# Integration job report — $(date -u +%FT%TZ)"; echo
-            echo "## Schema drift (${{ steps.drift.outcome }})"; echo '```'; cat /tmp/drift.txt; echo '```'; echo
-            echo "## Integration tests (${{ steps.itests.outcome }})"; echo '```'; tail -n 150 /tmp/itests.txt; echo '```'; } > ops/ci-report.md
-          git add ops/ci-report.md && git commit -qm "ci: integration report" && git push -f origin ops/ci-report
+          {
+            echo "## Integration job report — $(date -u +%FT%TZ) — ${GITHUB_SHA::7}"
+            echo; echo "### Schema drift (${{ steps.drift.outcome }})"; echo '```'; tail -n 80 /tmp/drift.txt 2>/dev/null; echo '```'
+            echo; echo "### Integration tests (${{ steps.itests.outcome }})"; echo '```'; tail -n 120 /tmp/itests.txt 2>/dev/null; echo '```'
+          } > /tmp/report.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "CI integration report — ${GITHUB_SHA::7}" --label ci --body-file /tmp/report.md \
+            || gh issue create --repo "$GITHUB_REPOSITORY" --title "CI integration report — ${GITHUB_SHA::7}" --body-file /tmp/report.md
           exit 1
