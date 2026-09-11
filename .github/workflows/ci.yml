@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -25,7 +29,92 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Prisma validate
+        run: npx prisma validate
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dependency audit
+        run: |
+          npm audit --audit-level=critical
+          npm audit --audit-level=high || echo "::warning::high advisories present — review before next release"
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      NEXT_PUBLIC_APP_URL: https://www.juncreatif.org
+      AUTH_SECRET: ci-only-secret-not-for-production-0123456789
+      STORAGE_DRIVER: LOCAL
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
@@ -34,14 +123,16 @@ jobs:
       - name: Prisma generate
         run: npx prisma generate
 
-      - name: Prisma validate
-        run: npx prisma validate
+      - name: Apply migrations
+        run: npx prisma migrate deploy
 
-      - name: Tests
-        run: npm test
+      # Fails if prisma/schema.prisma and prisma/migrations/ disagree — the exact
+      # situation that previously required a "consolidate_production_drift" migration.
+      - name: Schema / migrations drift check
+        run: npm run db:check-drift
 
-      - name: TypeScript
-        run: npx tsc --noEmit
+      - name: Seed dev fixtures
+        run: npm run db:seed
 
-      - name: Production build
-        run: npm run build
+      - name: Integration tests
+        run: npm run test:integration
