@@ -63,38 +63,38 @@ export default async function MailPage({
       <GmailStyleMailCenterV6 searchParams={{ ...searchParams, mailbox }} />
       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2">
         <span className="mr-1 text-xs font-medium uppercase tracking-wide text-ink-3">Outils</span>
-        <Link href="/app/mail/aliases">
+        <Link prefetch={false} href="/app/mail/aliases">
           <Button size="sm" variant="ghost">
             Centre des alias
           </Button>
         </Link>
-        <Link href="/app/mail/search">
+        <Link prefetch={false} href="/app/mail/search">
           <Button size="sm" variant="ghost">
             Recherche avancée
           </Button>
         </Link>
-        <Link href="/app/mail/analytics">
+        <Link prefetch={false} href="/app/mail/analytics">
           <Button size="sm" variant="ghost">
             Statistiques
           </Button>
         </Link>
-        <Link href="/app/mail/operations">
+        <Link prefetch={false} href="/app/mail/operations">
           <Button size="sm" variant="ghost">
             Opérations et SLA
           </Button>
         </Link>
-        <Link href="/app/mail/intelligence">
+        <Link prefetch={false} href="/app/mail/intelligence">
           <Button size="sm" variant="ghost">
             Intelligence
           </Button>
         </Link>
-        <Link href="/app/mail/approvals">
+        <Link prefetch={false} href="/app/mail/approvals">
           <Button size="sm" variant="ghost">
             Validations IA
           </Button>
         </Link>
         {can(user, "EMAIL_MANAGE") ? (
-          <Link href="/app/mail/security">
+          <Link prefetch={false} href="/app/mail/security">
             <Button size="sm" variant="ghost">
               Sécurité
             </Button>

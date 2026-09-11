@@ -229,6 +229,20 @@ async function syncStateFromLabels(threadId: string, labelIds: string[] | undefi
     await saveMailThreadState(next);
 }
 
+const SYNC_FETCH_CONCURRENCY = 5;
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 export async function syncFolder(
   accountId: string,
   folder: "INBOX" | "SENT" | "DRAFTS" | "IMPORTANT",
@@ -258,10 +272,16 @@ export async function syncFolder(
         })
       ).map((t) => [t.gmailThreadId, t]),
     );
-    for (const ref of refs) {
+    // Network phase — Gmail round trips run in small parallel batches (well
+    // under the 250 quota units/s/user: messages.get costs 5). DB writes stay
+    // sequential in the phase below.
+    const pending = refs.filter((ref) => {
       seen++;
-      if (processedThreads.has(ref.threadId)) continue;
+      if (processedThreads.has(ref.threadId)) return false;
       processedThreads.add(ref.threadId);
+      return true;
+    });
+    const fetched = await mapLimit(pending, SYNC_FETCH_CONCURRENCY, async (ref) => {
       const existingRow = known.get(ref.threadId);
       if (existingRow?.lastMessageAt && folder !== "DRAFTS") {
         const brief = await gmail<{ internalDate?: string; labelIds?: string[] }>(
@@ -270,12 +290,20 @@ export async function syncFolder(
         );
         const at = brief.internalDate ? Number(brief.internalDate) : 0;
         if (at && at <= existingRow.lastMessageAt.getTime()) {
-          // Unchanged thread: only mirror read/star flags.
-          await syncStateFromLabels(existingRow.id, brief.labelIds);
-          continue;
+          return { ref, existingRow, unchangedLabels: brief.labelIds ?? [], m: null };
         }
       }
       const m = await gmail<GmailMessage>(token, `/messages/${ref.id}?format=full`);
+      return { ref, existingRow, unchangedLabels: null, m };
+    });
+    for (const item of fetched) {
+      const { existingRow } = item;
+      if (item.m === null) {
+        // Unchanged thread: only mirror read/star flags.
+        await syncStateFromLabels(existingRow!.id, item.unchangedLabels ?? undefined);
+        continue;
+      }
+      const m = item.m;
       const subject = header(m, "Subject") || "(no subject)",
         from = header(m, "From"),
         to = header(m, "To"),

@@ -274,6 +274,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
         <div className="fixed inset-0 z-50 flex flex-col bg-canvas lg:hidden">
           <div className="flex items-center gap-1 border-b border-line bg-surface-1 px-2 pb-2 pt-[max(8px,env(safe-area-inset-top))]">
             <Link
+              prefetch={false}
               href={qp({ thread: undefined })}
               aria-label="Retour"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-2 active:bg-surface-2"
@@ -316,13 +317,13 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
           </div>
           {conversation.length && canDraft ? (
             <div className="grid grid-cols-3 gap-2 border-t border-line bg-surface-1 px-3 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]">
-              <Link href={replyHref("REPLY")} className={mobileReplyBtn}>
+              <Link prefetch={false} href={replyHref("REPLY")} className={mobileReplyBtn}>
                 <Reply className="h-4 w-4" /> Répondre
               </Link>
-              <Link href={replyHref("REPLY_ALL")} className={mobileReplyBtn}>
+              <Link prefetch={false} href={replyHref("REPLY_ALL")} className={mobileReplyBtn}>
                 <ReplyAll className="h-4 w-4" /> À tous
               </Link>
-              <Link href={replyHref("FORWARD")} className={mobileReplyBtn}>
+              <Link prefetch={false} href={replyHref("FORWARD")} className={mobileReplyBtn}>
                 <Forward className="h-4 w-4" /> Transférer
               </Link>
             </div>
@@ -332,7 +333,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
         {/* Desktop reader */}
         <div className="hidden overflow-hidden rounded-xl border border-line bg-surface-1 text-ink shadow-card lg:block">
           <div className="flex min-h-14 flex-wrap items-center gap-2 border-b border-line px-3">
-            <Link href={qp({ thread: undefined })}>
+            <Link prefetch={false} href={qp({ thread: undefined })}>
               <Button size="sm" variant="ghost">
                 <ArrowLeft className="h-4 w-4" /> Retour
               </Button>
@@ -356,17 +357,17 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
                   <MessageCard key={m.id} m={m} last={i === conversation.length - 1}>
                     {i === conversation.length - 1 && canDraft ? (
                       <div className="flex flex-wrap gap-2 border-t border-line px-4 py-3">
-                        <Link href={replyHref("REPLY")}>
+                        <Link prefetch={false} href={replyHref("REPLY")}>
                           <Button variant="outline" size="sm">
                             <Reply className="h-4 w-4" /> Répondre
                           </Button>
                         </Link>
-                        <Link href={replyHref("REPLY_ALL")}>
+                        <Link prefetch={false} href={replyHref("REPLY_ALL")}>
                           <Button variant="outline" size="sm">
                             <ReplyAll className="h-4 w-4" /> Répondre à tous
                           </Button>
                         </Link>
-                        <Link href={replyHref("FORWARD")}>
+                        <Link prefetch={false} href={replyHref("FORWARD")}>
                           <Button variant="outline" size="sm">
                             <Forward className="h-4 w-4" /> Transférer
                           </Button>
@@ -413,7 +414,11 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               <Star className={`h-4 w-4 ${s.starred ? "fill-warning text-warning" : ""}`} />
             </button>
           </form>
-          <Link href={qp({ thread: t.id })} className="flex min-w-0 flex-1 items-center gap-3">
+          <Link
+            prefetch={false}
+            href={qp({ thread: t.id })}
+            className="flex min-w-0 flex-1 items-center gap-3"
+          >
             <span
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold lg:hidden ${
                 unread ? "bg-accent text-accent-fg" : "tint-accent text-accent"
@@ -475,6 +480,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             </div>
             {canDraft && accounts.length ? (
               <Link
+                prefetch={false}
                 href={composeHref}
                 aria-label="Nouveau message"
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-fg shadow-card"
@@ -504,6 +510,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               const active = folder === f.key;
               return (
                 <Link
+                  prefetch={false}
                   key={f.key}
                   href={`/app/mail?mailbox=${encodeURIComponent(mailbox)}&folder=${f.key}${f.key === "INBOX" ? "&category=PRIMARY" : ""}`}
                   className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
@@ -523,6 +530,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
           </div>
           <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <Link
+              prefetch={false}
               href={qp({ alias: undefined, thread: undefined })}
               className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${!selectedAlias ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}
             >
@@ -530,6 +538,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             </Link>
             {SERVICES.map((service) => (
               <Link
+                prefetch={false}
                 key={service.email}
                 href={qp({ alias: service.email, thread: undefined })}
                 className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${selectedAlias === service.email ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}
@@ -542,6 +551,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <div className="-mx-4 mt-2 flex gap-4 overflow-x-auto border-t border-line px-4 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {CATEGORIES.map((c) => (
                 <Link
+                  prefetch={false}
                   key={c.key}
                   href={qp({ folder: "INBOX", category: c.key, thread: undefined })}
                   className={`shrink-0 border-b-2 py-1.5 text-xs font-medium ${
@@ -567,7 +577,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
       <div className="hidden min-h-[68vh] overflow-hidden rounded-xl border border-line bg-surface-1 text-ink shadow-card lg:grid lg:grid-cols-[200px_minmax(0,1fr)]">
         <aside className="border-r border-line bg-surface-2/60 p-3">
           {canDraft && accounts.length ? (
-            <Link href={composeHref}>
+            <Link prefetch={false} href={composeHref}>
               <Button variant="primary" className="mb-4 w-full">
                 <PenSquare className="h-4 w-4" /> Nouveau message
               </Button>
@@ -576,6 +586,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
           <nav className="space-y-0.5">
             {FOLDERS.map((f) => (
               <Link
+                prefetch={false}
                 key={f.key}
                 href={`/app/mail?mailbox=${encodeURIComponent(mailbox)}&folder=${f.key}${f.key === "INBOX" ? "&category=PRIMARY" : ""}`}
                 className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors ${
@@ -602,6 +613,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             </p>
             <nav className="space-y-0.5">
               <Link
+                prefetch={false}
                 href={qp({ alias: undefined, thread: undefined })}
                 className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${!selectedAlias ? "bg-surface-1 font-medium text-ink shadow-card" : "text-ink-2 hover:bg-surface-1"}`}
               >
@@ -610,6 +622,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               </Link>
               {SERVICES.map((service) => (
                 <Link
+                  prefetch={false}
                   key={service.email}
                   href={qp({ alias: service.email, thread: undefined })}
                   title={service.email}
@@ -660,6 +673,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <div className="flex gap-1 border-b border-line px-3">
               {CATEGORIES.map((c) => (
                 <Link
+                  prefetch={false}
                   key={c.key}
                   href={qp({ folder: "INBOX", category: c.key, thread: undefined })}
                   className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition-colors ${
