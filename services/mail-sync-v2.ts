@@ -17,6 +17,11 @@ import { warmMailConversationCache } from "@/lib/mail-thread-cache";
 
 const INBOX_SYNC_LIMIT = 15;
 const SECONDARY_SYNC_LIMIT = 5;
+// Catch-up: when a pass fills its whole window with new threads (backlog after
+// a reconnection or an outage), the unattended cron widens the inbox window in
+// steps until a pass comes back with slack or the time budget is spent.
+const CATCH_UP_STEPS = [60, 120, 250];
+const CATCH_UP_BUDGET_MS = 75_000;
 const CACHE_LIMIT = 40;
 const BETWEEN_FOLDERS_MS = 350;
 
@@ -196,6 +201,7 @@ export async function syncAllMailboxesUnattended() {
     email: string;
     ok: boolean;
     created?: number;
+    caughtUp?: number;
     warmed?: number;
     backfilled?: number;
     error?: string;
@@ -203,6 +209,17 @@ export async function syncAllMailboxesUnattended() {
   for (const acc of accounts) {
     try {
       const r = await syncOne(acc.id);
+      let caughtUp = 0;
+      if (r.created >= INBOX_SYNC_LIMIT) {
+        const started = Date.now();
+        for (const step of CATCH_UP_STEPS) {
+          if (Date.now() - started > CATCH_UP_BUDGET_MS) break;
+          await sleep(BETWEEN_FOLDERS_MS);
+          const more = await syncFolder(acc.id, "INBOX", step);
+          caughtUp += more;
+          if (more < step / 4) break; // the window now has slack: backlog absorbed
+        }
+      }
       const w = await warmMailConversationCache(acc.id);
       // Only the alias destination mailbox receives alias traffic worth backfilling.
       const b =
