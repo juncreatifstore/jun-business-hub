@@ -4,6 +4,7 @@ import { submitContact, type ContactState } from "./actions";
 import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
+import { CONTACT_DEPARTMENTS } from "@/lib/contact-routing";
 
 const initial: ContactState = { ok: false };
 
@@ -64,12 +65,11 @@ export function ContactForm() {
       </div>
       <Field label="Department">
         <Select name="department" defaultValue="CUSTOMER_SERVICE">
-          <option value="CUSTOMER_SERVICE">Customer service</option>
-          <option value="TRAVEL">Travel</option>
-          <option value="DOCUMENTS">Documents</option>
-          <option value="FINANCE">Finance</option>
-          <option value="LEGAL">Legal</option>
-          <option value="ADMINISTRATION">Administration</option>
+          {CONTACT_DEPARTMENTS.map((d) => (
+            <option key={d.key} value={d.key}>
+              {d.label}
+            </option>
+          ))}
         </Select>
       </Field>
       <div className="sm:col-span-2">

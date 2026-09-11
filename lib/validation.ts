@@ -90,7 +90,7 @@ export const contactSchema = z.object({
   phone: z.string().trim().max(40).optional().or(z.literal("")),
   email: z.string().trim().email("A valid email is required").max(160),
   subject: z.string().trim().min(1, "Subject is required").max(200),
-  department: z.string().trim().min(1).max(60),
+  department: z.enum(["CUSTOMER_SERVICE", "TRAVEL", "DOCUMENTS", "FINANCE", "LEGAL", "ADMINISTRATION"]),
   message: z.string().trim().min(1, "Message is required").max(5000),
 });
 

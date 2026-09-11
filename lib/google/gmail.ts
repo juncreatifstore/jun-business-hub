@@ -431,6 +431,7 @@ export async function gmailSend(
     subject: string;
     text: string;
     fromEmail?: string;
+    replyTo?: string;
     automated?: boolean;
     inReplyToGmailId?: string;
     attachments?: GmailAttachment[];
@@ -442,6 +443,7 @@ export async function gmailSend(
     common = [
       `From: ${safeHeaderValue(fromEmail)}`,
       `To: ${safeHeaderValue(input.to)}`,
+      ...(input.replyTo ? [`Reply-To: ${safeHeaderValue(input.replyTo)}`] : []),
       ...(input.automated ? ["Auto-Submitted: auto-generated", "X-Auto-Response-Suppress: All"] : []),
       `Subject: ${safeHeaderValue(input.subject)}`,
       "MIME-Version: 1.0",
