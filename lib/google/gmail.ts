@@ -400,9 +400,7 @@ export async function gmailSend(
     common = [
       `From: ${safeHeaderValue(fromEmail)}`,
       `To: ${safeHeaderValue(input.to)}`,
-      ...(input.automated
-        ? ["Auto-Submitted: auto-generated", "X-Auto-Response-Suppress: All"]
-        : []),
+      ...(input.automated ? ["Auto-Submitted: auto-generated", "X-Auto-Response-Suppress: All"] : []),
       `Subject: ${safeHeaderValue(input.subject)}`,
       "MIME-Version: 1.0",
     ];

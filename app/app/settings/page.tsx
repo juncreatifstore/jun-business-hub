@@ -7,7 +7,17 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { saveSettings } from "@/services/settings";
-import { Mail, MessageCircle, ShieldCheck, Building2, Palette, FileBadge2, Hash, Save, ScrollText } from "lucide-react";
+import {
+  Mail,
+  MessageCircle,
+  ShieldCheck,
+  Building2,
+  Palette,
+  FileBadge2,
+  Hash,
+  Save,
+  ScrollText,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +109,6 @@ export default async function SettingsPage() {
             </div>
           </div>
         </a>
-
       </div>
 
       <form

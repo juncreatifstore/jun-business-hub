@@ -23,16 +23,10 @@ export async function listGoogleSendAsAliases(accountId: string): Promise<Google
   return Array.isArray(data.sendAs) ? data.sendAs : [];
 }
 
-
-export async function listGoogleDirectoryAliases(
-  accountId: string,
-  userEmail: string,
-): Promise<string[]> {
+export async function listGoogleDirectoryAliases(accountId: string, userEmail: string): Promise<string[]> {
   const { token } = await accessTokenFor(accountId);
   const url =
-    "https://admin.googleapis.com/admin/directory/v1/users/" +
-    encodeURIComponent(userEmail) +
-    "/aliases";
+    "https://admin.googleapis.com/admin/directory/v1/users/" + encodeURIComponent(userEmail) + "/aliases";
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
@@ -48,6 +42,10 @@ export async function listGoogleDirectoryAliases(
   }
   const data = (await response.json()) as { aliases?: Array<{ alias?: string }> };
   return (data.aliases ?? [])
-    .map((entry) => String(entry.alias || "").trim().toLowerCase())
+    .map((entry) =>
+      String(entry.alias || "")
+        .trim()
+        .toLowerCase(),
+    )
     .filter(Boolean);
 }

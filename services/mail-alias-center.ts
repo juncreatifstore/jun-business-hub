@@ -49,14 +49,16 @@ export async function assignAliasConversation(
   }
   await setMailOwnerId(threadId, ownerId);
   if (ownerId && ownerId !== user.id) {
-    await prisma.notification.create({
-      data: {
-        userId: ownerId,
-        type: "TASK_ASSIGNED",
-        title: `Conversation ${alias || "e-mail"} assignée`,
-        body: thread.subject ?? "Conversation e-mail",
-      },
-    }).catch(() => null);
+    await prisma.notification
+      .create({
+        data: {
+          userId: ownerId,
+          type: "TASK_ASSIGNED",
+          title: `Conversation ${alias || "e-mail"} assignée`,
+          body: thread.subject ?? "Conversation e-mail",
+        },
+      })
+      .catch(() => null);
   }
   await audit({
     userId: user.id,

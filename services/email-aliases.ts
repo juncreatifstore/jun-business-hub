@@ -12,10 +12,7 @@ import {
   listEmailAliases,
   type EmailAlias,
 } from "@/lib/email-aliases";
-import {
-  listGoogleDirectoryAliases,
-  listGoogleSendAsAliases,
-} from "@/lib/google/gmail-aliases";
+import { listGoogleDirectoryAliases, listGoogleSendAsAliases } from "@/lib/google/gmail-aliases";
 
 function aliasesUrl(message: string, error = false) {
   const key = error ? "toast_error" : "toast";
@@ -79,9 +76,7 @@ export async function setEmailAliasConfirmed(address: string, formData: FormData
   const current = aliases.find((alias) => alias.address === address);
   if (!current) redirect(aliasesUrl("Alias introuvable.", true));
 
-  await writeAliases(
-    aliases.map((alias) => (alias.address === address ? { ...alias, confirmed } : alias)),
-  );
+  await writeAliases(aliases.map((alias) => (alias.address === address ? { ...alias, confirmed } : alias)));
   await audit({
     userId: user.id,
     action: confirmed ? "EMAIL_ALIAS_CONFIRMED" : "EMAIL_ALIAS_MARKED_PENDING",
@@ -109,9 +104,10 @@ export async function removeEmailAlias(address: string): Promise<void> {
     before: current,
   });
   revalidatePath("/app/settings/email/aliases");
-  redirect(aliasesUrl(`${address} retiré de l’application. Supprimez-le aussi dans Google Workspace si nécessaire.`));
+  redirect(
+    aliasesUrl(`${address} retiré de l’application. Supprimez-le aussi dans Google Workspace si nécessaire.`),
+  );
 }
-
 
 export async function syncEmailAliasesFromGoogle(): Promise<void> {
   const user = await assertPermission("SETTINGS_MANAGE");
@@ -121,10 +117,7 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
   });
   if (!account || (!account.accessTokenEnc && !account.refreshTokenEnc)) {
     redirect(
-      aliasesUrl(
-        `Connectez d’abord ${EMAIL_ALIAS_DESTINATION} dans Paramètres → Intégration Email.`,
-        true,
-      ),
+      aliasesUrl(`Connectez d’abord ${EMAIL_ALIAS_DESTINATION} dans Paramètres → Intégration Email.`, true),
     );
   }
 
@@ -168,11 +161,7 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
     ]),
   ];
   const aliases: EmailAlias[] = mergedAddresses
-    .filter(
-      (address) =>
-        address.endsWith(domainSuffix) &&
-        address !== EMAIL_ALIAS_DESTINATION,
-    )
+    .filter((address) => address.endsWith(domainSuffix) && address !== EMAIL_ALIAS_DESTINATION)
     .map((address) => ({
       address,
       destination: EMAIL_ALIAS_DESTINATION,

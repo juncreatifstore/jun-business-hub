@@ -67,10 +67,16 @@ export default async function EmailAliasesPage({
             Synchroniser depuis Google
           </Button>
         </form>
-        <Link href="/app/mail/aliases" className="rounded-lg border border-electric bg-electric px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+        <Link
+          href="/app/mail/aliases"
+          className="rounded-lg border border-electric bg-electric px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
           Ouvrir le Centre des alias
         </Link>
-        <Link href="/app/settings/email" className="rounded-lg border border-line px-4 py-2 text-sm text-muted2 hover:text-ink">
+        <Link
+          href="/app/settings/email"
+          className="rounded-lg border border-line px-4 py-2 text-sm text-muted2 hover:text-ink"
+        >
           ← Intégration Email
         </Link>
         <a
@@ -93,8 +99,9 @@ export default async function EmailAliasesPage({
         <CardContent className="space-y-2 text-sm text-muted2">
           <p>1. Ajoutez l’adresse ci-dessous pour la suivre dans JUN Business Hub.</p>
           <p>
-            2. Dans Google Admin, ouvrez l’utilisateur <strong className="text-ink">{EMAIL_ALIAS_DESTINATION}</strong>,
-            puis « Informations utilisateur → Adresses e-mail secondaires (alias) » et ajoutez la même adresse.
+            2. Dans Google Admin, ouvrez l’utilisateur{" "}
+            <strong className="text-ink">{EMAIL_ALIAS_DESTINATION}</strong>, puis « Informations utilisateur →
+            Adresses e-mail secondaires (alias) » et ajoutez la même adresse.
           </p>
           <p className="font-medium text-warning">
             L’enregistrement dans l’application ne crée pas à lui seul l’alias chez Google.
@@ -145,13 +152,18 @@ export default async function EmailAliasesPage({
           ) : (
             <div className="space-y-3">
               {aliases.map((alias) => (
-                <div key={alias.address} className="grid gap-3 rounded-xl border border-line p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div
+                  key={alias.address}
+                  className="grid gap-3 rounded-xl border border-line p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+                >
                   <div className="min-w-0">
                     <p className="break-all font-medium text-ink">{alias.address}</p>
                     <p className="mt-1 break-all text-sm text-muted2">→ {EMAIL_ALIAS_DESTINATION}</p>
-                    <span className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-                      alias.confirmed ? "bg-emerald-500/15 text-success" : "bg-amber-500/15 text-warning"
-                    }`}>
+                    <span
+                      className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                        alias.confirmed ? "bg-emerald-500/15 text-success" : "bg-amber-500/15 text-warning"
+                      }`}
+                    >
                       {alias.confirmed ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
                       {alias.confirmed ? "ACTIF DANS GOOGLE" : "À CONFIGURER DANS GOOGLE"}
                     </span>

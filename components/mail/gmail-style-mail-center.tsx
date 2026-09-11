@@ -74,7 +74,14 @@ const CATEGORIES = [
 ] as const;
 type FolderKey = (typeof FOLDERS)[number]["key"];
 type CategoryKey = (typeof CATEGORIES)[number]["key"];
-type Params = { folder?: string; thread?: string; q?: string; mailbox?: string; category?: string; alias?: string };
+type Params = {
+  folder?: string;
+  thread?: string;
+  q?: string;
+  mailbox?: string;
+  category?: string;
+  alias?: string;
+};
 
 function serviceForThread(thread: { toEmails: string[]; fromEmail: string | null }): Service | undefined {
   const addresses = [...thread.toEmails, thread.fromEmail || ""].map((value) => value.toLowerCase());
@@ -294,7 +301,11 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             <h1 className="px-1 font-display text-[22px] font-medium leading-tight text-ink">
               {activeThread.subject || "(sans objet)"}
             </h1>
-            {activeService ? <div className="mt-2"><ServiceBadge service={activeService} /></div> : null}
+            {activeService ? (
+              <div className="mt-2">
+                <ServiceBadge service={activeService} />
+              </div>
+            ) : null}
             <div className="mt-4 space-y-4">
               {conversation.length ? (
                 conversation.map((m) => <MessageCard key={m.id} m={m} />)
@@ -424,7 +435,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
                 </span>
               </span>
               <span className="mt-0.5 block min-w-0 truncate text-sm lg:mt-0">
-<span className="inline-flex min-w-0 items-center gap-2">
+                <span className="inline-flex min-w-0 items-center gap-2">
                   {service ? <ServiceBadge service={service} /> : null}
                   <span className={unread ? "font-semibold text-ink" : "text-ink"}>
                     {t.subject || "(sans objet)"}
@@ -511,9 +522,18 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             })}
           </div>
           <div className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Link href={qp({ alias: undefined, thread: undefined })} className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${!selectedAlias ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}>Tous services</Link>
+            <Link
+              href={qp({ alias: undefined, thread: undefined })}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${!selectedAlias ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}
+            >
+              Tous services
+            </Link>
             {SERVICES.map((service) => (
-              <Link key={service.email} href={qp({ alias: service.email, thread: undefined })} className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${selectedAlias === service.email ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}>
+              <Link
+                key={service.email}
+                href={qp({ alias: service.email, thread: undefined })}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium ${selectedAlias === service.email ? "border-accent bg-accent text-accent-fg" : "border-line text-ink-2"}`}
+              >
                 {service.label} <span className="opacity-70">{serviceCounts.get(service.email) || 0}</span>
               </Link>
             ))}
@@ -581,12 +601,20 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               Services / alias
             </p>
             <nav className="space-y-0.5">
-              <Link href={qp({ alias: undefined, thread: undefined })} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${!selectedAlias ? "bg-surface-1 font-medium text-ink shadow-card" : "text-ink-2 hover:bg-surface-1"}`}>
+              <Link
+                href={qp({ alias: undefined, thread: undefined })}
+                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${!selectedAlias ? "bg-surface-1 font-medium text-ink shadow-card" : "text-ink-2 hover:bg-surface-1"}`}
+              >
                 <span>Tous les services</span>
                 <span className="text-2xs text-ink-3">{folderThreads.length}</span>
               </Link>
               {SERVICES.map((service) => (
-                <Link key={service.email} href={qp({ alias: service.email, thread: undefined })} title={service.email} className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${selectedAlias === service.email ? "bg-surface-1 font-medium text-ink shadow-card" : "text-ink-2 hover:bg-surface-1"}`}>
+                <Link
+                  key={service.email}
+                  href={qp({ alias: service.email, thread: undefined })}
+                  title={service.email}
+                  className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${selectedAlias === service.email ? "bg-surface-1 font-medium text-ink shadow-card" : "text-ink-2 hover:bg-surface-1"}`}
+                >
                   <span className="truncate">{service.label}</span>
                   <span className="text-2xs text-ink-3">{serviceCounts.get(service.email) || 0}</span>
                 </Link>
@@ -647,8 +675,9 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             </div>
           ) : null}
           <div className="border-b border-line px-4 py-2 text-xs text-ink-3">
-{selectedAlias ? `${SERVICES.find((service) => service.email === selectedAlias)?.label} · ` : ""}
-            {threads.length} conversation{threads.length > 1 ? "s" : ""} affichée{threads.length > 1 ? "s" : ""} · {mailboxLabel}
+            {selectedAlias ? `${SERVICES.find((service) => service.email === selectedAlias)?.label} · ` : ""}
+            {threads.length} conversation{threads.length > 1 ? "s" : ""} affichée
+            {threads.length > 1 ? "s" : ""} · {mailboxLabel}
             {syncedAt ? ` · synchronisé ${relativeFr(syncedAt)}` : ""}
           </div>
           <div>{rows}</div>

@@ -23,7 +23,9 @@ function bad(message: string, mailbox = "ALL", draftId?: string): never {
 }
 function values(formData: FormData) {
   const mailAccountId = String(formData.get("mailAccountId") || "").trim(),
-    fromEmail = String(formData.get("fromEmail") || "").trim().toLowerCase(),
+    fromEmail = String(formData.get("fromEmail") || "")
+      .trim()
+      .toLowerCase(),
     subject = String(formData.get("subject") || "")
       .trim()
       .slice(0, 200),

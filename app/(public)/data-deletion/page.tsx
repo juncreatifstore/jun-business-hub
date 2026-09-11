@@ -6,7 +6,11 @@ export const metadata: Metadata = {
   description: "How to disconnect Google and request deletion of data from JUN Business Hub.",
 };
 
-export default async function DataDeletionPage({ searchParams }: { searchParams: Promise<{ lang?: string }> }) {
+export default async function DataDeletionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ lang?: string }>;
+}) {
   const { lang } = await searchParams;
   return <LegalPage kind="deletion" locale={normalizeLegalLocale(lang)} />;
 }

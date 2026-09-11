@@ -31,12 +31,22 @@ export async function saveLegalContent(formData: FormData): Promise<void> {
       after: { kind, locale },
     });
   } else {
-    const title = String(formData.get("title") ?? "").trim().slice(0, 200);
-    const intro = String(formData.get("intro") ?? "").trim().slice(0, 3000);
-    const updated = String(formData.get("updated") ?? "").trim().slice(0, 120);
-    const body = String(formData.get("body") ?? "").trim().slice(0, 50000);
+    const title = String(formData.get("title") ?? "")
+      .trim()
+      .slice(0, 200);
+    const intro = String(formData.get("intro") ?? "")
+      .trim()
+      .slice(0, 3000);
+    const updated = String(formData.get("updated") ?? "")
+      .trim()
+      .slice(0, 120);
+    const body = String(formData.get("body") ?? "")
+      .trim()
+      .slice(0, 50000);
     if (!title || !intro || !updated || !body) {
-      redirect(`/app/settings/legal?kind=${kind}&lang=${locale}&toast_error=${encodeURIComponent("All fields are required")}`);
+      redirect(
+        `/app/settings/legal?kind=${kind}&lang=${locale}&toast_error=${encodeURIComponent("All fields are required")}`,
+      );
     }
     await prisma.appSetting.upsert({
       where: { key },
@@ -56,5 +66,7 @@ export async function saveLegalContent(formData: FormData): Promise<void> {
   revalidatePath("/terms");
   revalidatePath("/data-deletion");
   revalidatePath("/app/settings/legal");
-  redirect(`/app/settings/legal?kind=${kind}&lang=${locale}&toast=${encodeURIComponent(intent === "reset" ? "Default content restored" : "Legal page published")}`);
+  redirect(
+    `/app/settings/legal?kind=${kind}&lang=${locale}&toast=${encodeURIComponent(intent === "reset" ? "Default content restored" : "Legal page published")}`,
+  );
 }

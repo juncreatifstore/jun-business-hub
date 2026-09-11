@@ -13,19 +13,51 @@ export function SiteFooter() {
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Company</p>
           <ul className="mt-3 space-y-2 text-sm text-white/70">
-            <li><Link href="/about" className="hover:text-white">About</Link></li>
-            <li><Link href="/services" className="hover:text-white">Services</Link></li>
-            <li><Link href="/brands" className="hover:text-white">Divisions</Link></li>
+            <li>
+              <Link href="/about" className="hover:text-white">
+                About
+              </Link>
+            </li>
+            <li>
+              <Link href="/services" className="hover:text-white">
+                Services
+              </Link>
+            </li>
+            <li>
+              <Link href="/brands" className="hover:text-white">
+                Divisions
+              </Link>
+            </li>
           </ul>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-[0.2em] text-gold/80">Support & legal</p>
           <ul className="mt-3 space-y-2 text-sm text-white/70">
-            <li><Link href="/contact" className="hover:text-white">Contact</Link></li>
-            <li><Link href="/privacy" className="hover:text-white">Privacy policy</Link></li>
-            <li><Link href="/terms" className="hover:text-white">Terms of service</Link></li>
-            <li><Link href="/data-deletion" className="hover:text-white">Data deletion</Link></li>
-            <li><Link href="/login" className="hover:text-white">Client access</Link></li>
+            <li>
+              <Link href="/contact" className="hover:text-white">
+                Contact
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className="hover:text-white">
+                Privacy policy
+              </Link>
+            </li>
+            <li>
+              <Link href="/terms" className="hover:text-white">
+                Terms of service
+              </Link>
+            </li>
+            <li>
+              <Link href="/data-deletion" className="hover:text-white">
+                Data deletion
+              </Link>
+            </li>
+            <li>
+              <Link href="/login" className="hover:text-white">
+                Client access
+              </Link>
+            </li>
           </ul>
         </div>
         <div>
