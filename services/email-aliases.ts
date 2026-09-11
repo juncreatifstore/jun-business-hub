@@ -125,7 +125,7 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
     );
   }
 
-  let googleAliases;
+  let googleAliases: Awaited<ReturnType<typeof listGoogleSendAsAliases>>;
   try {
     googleAliases = await listGoogleSendAsAliases(account.id);
   } catch (error) {
