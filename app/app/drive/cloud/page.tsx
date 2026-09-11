@@ -154,7 +154,18 @@ export default async function CloudDrivePage(props: {
                           className="flex items-center gap-3 rounded-xl border border-line bg-surface p-3"
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium">{f.name}</div>
+                            {f.isFolder ? (
+                              <div className="truncate text-sm font-medium">{f.name}</div>
+                            ) : (
+                              <Link
+                                prefetch={false}
+                                href={`/app/drive/cloud/${state.provider}/${encodeURIComponent(f.id)}`}
+                                className="block truncate text-sm font-medium hover:text-electric hover:underline"
+                                title="Open in JUN"
+                              >
+                                {f.name}
+                              </Link>
+                            )}
                             <div className="mt-1 text-[11px] text-muted2">
                               {f.isFolder ? "Folder" : `${f.mimeType} · ${size(f.sizeBytes)}`}
                               {f.modifiedAt ? ` · ${new Date(f.modifiedAt).toLocaleDateString()}` : ""}

@@ -268,6 +268,7 @@ function nativeGoogleExport(mimeType: string, name: string) {
 export async function downloadCloudFile(
   connection: CloudConnection,
   fileId: string,
+  options: { forPreview?: boolean } = {},
 ): Promise<{ data: Buffer; name: string; mimeType: string }> {
   const c = await refreshCloudConnection(connection);
   if (c.provider === "google") {
@@ -277,7 +278,15 @@ export async function downloadCloudFile(
     );
     if (!metaRes.ok) throw new Error("Google Drive file not found");
     const meta = (await metaRes.json()) as { name: string; mimeType: string };
-    const native = nativeGoogleExport(meta.mimeType, meta.name);
+    // In-app preview: Docs/Sheets/Slides render best as PDF in the browser.
+    const native =
+      options.forPreview && meta.mimeType.startsWith("application/vnd.google-apps.")
+        ? {
+            mime: "application/pdf",
+            ext: ".pdf",
+            name: `${meta.name.replace(/\.(gdoc|gsheet|gslides)$/i, "")}.pdf`,
+          }
+        : nativeGoogleExport(meta.mimeType, meta.name);
     if (native) {
       const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=${encodeURIComponent(native.mime)}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${c.accessToken}` } });
