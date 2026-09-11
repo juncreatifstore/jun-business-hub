@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  Laptop,
   Star,
   Image as ImageIcon,
   PlaySquare,
@@ -27,6 +28,7 @@ import {
   getCloudConnection,
   isCloudAdmin,
   listCloudFiles,
+  listCloudComputers,
   type CloudCrumb,
   type CloudFile,
   type CloudProvider,
@@ -53,18 +55,24 @@ async function providerState(
   userId: string,
   provider: CloudProvider,
   folderId?: string,
-  opts: { mode?: "root" | "recent"; query?: string } = {},
+  opts: { mode?: "root" | "recent" | "computers"; query?: string } = {},
 ) {
   const connection = await getCloudConnection(userId, provider);
   let files: CloudFile[] = [];
   let crumbs: CloudCrumb[] = [];
   let error: string | null = null;
   const query = (opts.query ?? "").trim() || null;
-  const mode: "root" | "recent" | "search" = folderId ? "root" : query ? "search" : (opts.mode ?? "root");
+  const mode: "root" | "recent" | "search" | "computers" = folderId
+    ? "root"
+    : query
+      ? "search"
+      : (opts.mode ?? "root");
   if (connection) {
     try {
       [files, crumbs] = await Promise.all([
-        listCloudFiles(connection, folderId, { mode, query: query ?? undefined }),
+        mode === "computers"
+          ? listCloudComputers(connection)
+          : listCloudFiles(connection, folderId, { mode, query: query ?? undefined }),
         folderId ? cloudFolderPath(connection, folderId) : Promise.resolve([]),
       ]);
     } catch (e) {
@@ -135,7 +143,8 @@ export default async function CloudDrivePage(props: {
       : null;
   const [google, microsoft] = await Promise.all([
     providerState(user.id, "google", searchParams.googleFolder, {
-      mode: searchParams.mode === "recent" ? "recent" : "root",
+      mode:
+        searchParams.mode === "recent" ? "recent" : searchParams.mode === "computers" ? "computers" : "root",
       query: searchParams.googleSearch,
     }),
     providerState(user.id, "microsoft", searchParams.microsoftFolder, {
@@ -150,7 +159,7 @@ export default async function CloudDrivePage(props: {
   const starred = new Set(starredRows.map((r) => r.key.slice(`${CLOUD_STAR_PREFIX}${user.id}.`.length)));
   const aiAllowed = can(user, "AI_USE");
   const currentUrl = (provider: CloudProvider) =>
-    `/app/drive/cloud?provider=${provider}${searchParams[`${provider}Folder`] ? `&${provider}Folder=${encodeURIComponent(searchParams[`${provider}Folder`]!)}` : ""}${searchParams.mode === "recent" ? "&mode=recent" : ""}`;
+    `/app/drive/cloud?provider=${provider}${searchParams[`${provider}Folder`] ? `&${provider}Folder=${encodeURIComponent(searchParams[`${provider}Folder`]!)}` : ""}${searchParams.mode === "recent" ? "&mode=recent" : searchParams.mode === "computers" ? "&mode=computers" : ""}`;
   const workspaceReady = googleWorkspaceConfigured();
   const workspaceStorageActive = (process.env.STORAGE_DRIVER || "").toUpperCase() === "GOOGLE_WORKSPACE";
   const syncFolder =
@@ -289,13 +298,25 @@ export default async function CloudDrivePage(props: {
                               </span>
                             ) : null}
                           </nav>
-                          <Link
-                            prefetch={false}
-                            href={`/app/drive/cloud?provider=${state.provider}&mode=recent`}
-                            className={`ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ${state.mode === "recent" ? "bg-blue-50 text-electric" : "text-muted2 hover:bg-surface hover:text-ink"}`}
-                          >
-                            <Clock3 className="h-3.5 w-3.5" /> Recent
-                          </Link>
+                          <div className="ml-auto flex items-center gap-1">
+                            {state.provider === "google" ? (
+                              <Link
+                                prefetch={false}
+                                href={`/app/drive/cloud?provider=google&mode=computers`}
+                                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ${state.mode === "computers" ? "bg-blue-50 text-electric" : "text-muted2 hover:bg-surface hover:text-ink"}`}
+                                title="Folders backed up by Google Drive for desktop (Mon Mac, Desktop, Documents…)"
+                              >
+                                <Laptop className="h-3.5 w-3.5" /> Computers
+                              </Link>
+                            ) : null}
+                            <Link
+                              prefetch={false}
+                              href={`/app/drive/cloud?provider=${state.provider}&mode=recent`}
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs ${state.mode === "recent" ? "bg-blue-50 text-electric" : "text-muted2 hover:bg-surface hover:text-ink"}`}
+                            >
+                              <Clock3 className="h-3.5 w-3.5" /> Recent
+                            </Link>
+                          </div>
                         </div>
                         <form method="get" className="flex flex-wrap gap-2">
                           <input type="hidden" name="provider" value={state.provider} />
@@ -463,9 +484,11 @@ export default async function CloudDrivePage(props: {
                           <p className="rounded-lg bg-surface p-3 text-xs text-muted2">
                             {state.mode === "search"
                               ? "No file matches this search."
-                              : state.folderId
-                                ? "This folder is empty."
-                                : "No files in My Drive."}
+                              : state.mode === "computers"
+                                ? "No computer backup found. Install Google Drive for desktop and enable 'My computer' backup."
+                                : state.folderId
+                                  ? "This folder is empty."
+                                  : "No files in My Drive."}
                           </p>
                         )}
                       </div>

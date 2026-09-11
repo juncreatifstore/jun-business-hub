@@ -573,3 +573,75 @@ export async function trashCloudFileRemote(connection: CloudConnection, fileId: 
   });
   if (!res.ok && res.status !== 204) throw new Error(`OneDrive delete failed (${res.status})`);
 }
+
+/**
+ * "Computers" section of Google Drive (Drive for desktop backups): top-level
+ * folders that are owned by the user and have no parent (the My Drive root is
+ * excluded). Google exposes no dedicated endpoint, so folders are scanned and
+ * the result cached for 15 minutes per connection.
+ */
+export async function listCloudComputers(connection: CloudConnection): Promise<CloudFile[]> {
+  if (connection.provider !== "google") return [];
+  const cacheKey = `drive.cloud.computers.${connection.userId}.${connection.accountEmail}`;
+  const cached = await prisma.appSetting.findUnique({ where: { key: cacheKey }, select: { value: true } });
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached.value) as { at: number; items: CloudFile[] };
+      if (Date.now() - parsed.at < 15 * 60_000) return parsed.items;
+    } catch {}
+  }
+  const c = await refreshCloudConnection(connection);
+  const rootRes = await fetch("https://www.googleapis.com/drive/v3/files/root?fields=id", {
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+  });
+  const rootId = rootRes.ok ? ((await rootRes.json()) as { id: string }).id : "root";
+  const items: CloudFile[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < 8; page++) {
+    const q = new URL("https://www.googleapis.com/drive/v3/files");
+    q.searchParams.set("pageSize", "1000");
+    q.searchParams.set(
+      "q",
+      "mimeType = 'application/vnd.google-apps.folder' and trashed = false and 'me' in owners",
+    );
+    q.searchParams.set("fields", "nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink,parents)");
+    if (pageToken) q.searchParams.set("pageToken", pageToken);
+    const res = await fetch(q, { headers: { Authorization: `Bearer ${c.accessToken}` } });
+    if (!res.ok) break;
+    const body = (await res.json()) as {
+      nextPageToken?: string;
+      files?: Array<{
+        id: string;
+        name: string;
+        mimeType: string;
+        modifiedTime?: string;
+        webViewLink?: string;
+        parents?: string[];
+      }>;
+    };
+    for (const f of body.files ?? []) {
+      if (f.id === rootId) continue;
+      if (f.parents && f.parents.length) continue;
+      items.push({
+        id: f.id,
+        name: f.name,
+        mimeType: f.mimeType,
+        sizeBytes: 0,
+        modifiedAt: f.modifiedTime || null,
+        isFolder: true,
+        webUrl: f.webViewLink || null,
+      });
+    }
+    pageToken = body.nextPageToken;
+    if (!pageToken) break;
+  }
+  items.sort((a, b) => a.name.localeCompare(b.name));
+  await prisma.appSetting
+    .upsert({
+      where: { key: cacheKey },
+      create: { key: cacheKey, value: JSON.stringify({ at: Date.now(), items }) },
+      update: { value: JSON.stringify({ at: Date.now(), items }) },
+    })
+    .catch(() => null);
+  return items;
+}
