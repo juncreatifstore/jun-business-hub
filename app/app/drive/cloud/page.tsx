@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  Star,
+  Image as ImageIcon,
+  PlaySquare,
+  Music2,
   Clock3,
   FileText,
   Cloud,
@@ -28,7 +32,15 @@ import {
   type CloudProvider,
 } from "@/lib/drive-cloud";
 import { googleWorkspaceConfigured } from "@/lib/google-workspace-drive";
-import { disconnectCloudProvider, importCloudFile } from "@/services/drive-cloud";
+import {
+  disconnectCloudProvider,
+  importCloudFile,
+  toggleCloudStar,
+  CLOUD_STAR_PREFIX,
+} from "@/services/drive-cloud";
+import { CloudFileActions } from "@/components/app/cloud-file-actions";
+import { prisma } from "@/lib/prisma";
+import { can } from "@/lib/auth";
 import { syncGoogleWorkspaceDesktop } from "@/services/drive-workspace-sync";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +88,14 @@ async function providerState(
   };
 }
 
+function TypeIcon({ mimeType }: { mimeType: string }) {
+  if (mimeType.startsWith("image/")) return <ImageIcon className="h-4 w-4 shrink-0 text-muted2" />;
+  if (mimeType.startsWith("video/")) return <PlaySquare className="h-4 w-4 shrink-0 text-muted2" />;
+  if (mimeType.startsWith("audio/")) return <Music2 className="h-4 w-4 shrink-0 text-muted2" />;
+  if (mimeType === "application/vnd.google-apps.folder")
+    return <FolderOpen className="h-4 w-4 shrink-0 text-muted2" />;
+  return <FileText className="h-4 w-4 shrink-0 text-muted2" />;
+}
 function shortType(mime: string) {
   if (mime.startsWith("application/vnd.google-apps.")) return "Google " + mime.split(".").pop();
   if (mime === "application/pdf") return "PDF";
@@ -125,6 +145,14 @@ export default async function CloudDrivePage(props: {
       query: searchParams.microsoftSearch,
     }),
   ]);
+  const starredRows = await prisma.appSetting.findMany({
+    where: { key: { startsWith: `${CLOUD_STAR_PREFIX}${user.id}.` } },
+    select: { key: true },
+  });
+  const starred = new Set(starredRows.map((r) => r.key.slice(`${CLOUD_STAR_PREFIX}${user.id}.`.length)));
+  const aiAllowed = can(user, "AI_USE");
+  const currentUrl = (provider: CloudProvider) =>
+    `/app/drive/cloud?provider=${provider}${searchParams[`${provider}Folder`] ? `&${provider}Folder=${encodeURIComponent(searchParams[`${provider}Folder`]!)}` : ""}${searchParams.mode === "recent" ? "&mode=recent" : ""}`;
   const workspaceReady = googleWorkspaceConfigured();
   const workspaceStorageActive = (process.env.STORAGE_DRIVER || "").toUpperCase() === "GOOGLE_WORKSPACE";
   const syncFolder =
@@ -331,6 +359,7 @@ export default async function CloudDrivePage(props: {
                                   <table className="w-full text-sm">
                                     <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted2">
                                       <tr>
+                                        <th className="w-8 p-3" />
                                         <th className="p-3">Name</th>
                                         <th className="p-3">Type</th>
                                         <th className="p-3">Size</th>
@@ -341,59 +370,86 @@ export default async function CloudDrivePage(props: {
                                     <tbody className="divide-y divide-line">
                                       {state.files
                                         .filter((f) => !f.isFolder)
-                                        .map((f) => (
-                                          <tr key={f.id} className="hover:bg-surface/60">
-                                            <td className="p-3">
-                                              <Link
-                                                prefetch={false}
-                                                href={`/app/drive/cloud/${state.provider}/${encodeURIComponent(f.id)}`}
-                                                className="flex max-w-[420px] items-center gap-2 font-medium hover:text-electric"
-                                                title="Open in JUN"
-                                              >
-                                                <FileText className="h-4 w-4 shrink-0 text-muted2" />
-                                                <span className="truncate">{f.name}</span>
-                                              </Link>
-                                            </td>
-                                            <td className="p-3 text-xs text-muted2">
-                                              {shortType(f.mimeType)}
-                                            </td>
-                                            <td className="p-3 text-xs text-muted2">{size(f.sizeBytes)}</td>
-                                            <td className="p-3 text-xs text-muted2">
-                                              {f.modifiedAt
-                                                ? new Date(f.modifiedAt).toLocaleDateString()
-                                                : "—"}
-                                            </td>
-                                            <td className="p-3">
-                                              <div className="flex items-center justify-end gap-1">
-                                                {f.webUrl ? (
-                                                  <a
-                                                    href={f.webUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    title={`Open in ${label}`}
-                                                    className="rounded-md p-2 text-muted2 hover:bg-surface hover:text-ink"
-                                                  >
-                                                    <ExternalLink className="h-4 w-4" />
-                                                  </a>
-                                                ) : null}
-                                                <form action={importCloudFile}>
+                                        .sort(
+                                          (a, b) =>
+                                            Number(starred.has(`${state.provider}.${b.id}`)) -
+                                            Number(starred.has(`${state.provider}.${a.id}`)),
+                                        )
+                                        .map((f) => {
+                                          const isStarred = starred.has(`${state.provider}.${f.id}`);
+                                          return (
+                                            <tr key={f.id} className="hover:bg-surface/60">
+                                              <td className="p-3">
+                                                <form action={toggleCloudStar}>
                                                   <input
                                                     type="hidden"
                                                     name="provider"
                                                     value={state.provider}
                                                   />
                                                   <input type="hidden" name="fileId" value={f.id} />
+                                                  <input
+                                                    type="hidden"
+                                                    name="returnTo"
+                                                    value={currentUrl(state.provider)}
+                                                  />
                                                   <button
-                                                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-electric hover:bg-blue-50"
-                                                    title="Copy into JUN Drive"
+                                                    className="rounded-md p-1 text-muted2 hover:bg-surface hover:text-ink"
+                                                    title={isStarred ? "Unstar" : "Star"}
                                                   >
-                                                    <DownloadCloud className="h-3.5 w-3.5" /> Copy to JUN
+                                                    <Star
+                                                      className={`h-4 w-4 ${isStarred ? "fill-amber-400 text-amber-400" : ""}`}
+                                                    />
                                                   </button>
                                                 </form>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        ))}
+                                              </td>
+                                              <td className="p-3">
+                                                <Link
+                                                  prefetch={false}
+                                                  href={`/app/drive/cloud/${state.provider}/${encodeURIComponent(f.id)}`}
+                                                  className="flex max-w-[420px] items-center gap-2 font-medium hover:text-electric"
+                                                  title="Open in JUN"
+                                                >
+                                                  <TypeIcon mimeType={f.mimeType} />
+                                                  <span className="truncate">{f.name}</span>
+                                                </Link>
+                                              </td>
+                                              <td className="p-3 text-xs text-muted2">
+                                                {shortType(f.mimeType)}
+                                              </td>
+                                              <td className="p-3 text-xs text-muted2">{size(f.sizeBytes)}</td>
+                                              <td className="p-3 text-xs text-muted2">
+                                                {f.modifiedAt
+                                                  ? new Date(f.modifiedAt).toLocaleDateString()
+                                                  : "—"}
+                                              </td>
+                                              <td className="p-3">
+                                                <div className="flex items-center justify-end gap-1">
+                                                  <CloudFileActions
+                                                    provider={state.provider}
+                                                    fileId={f.id}
+                                                    webUrl={f.webUrl}
+                                                    providerLabel={label}
+                                                    aiAllowed={aiAllowed}
+                                                  />
+                                                  <form action={importCloudFile}>
+                                                    <input
+                                                      type="hidden"
+                                                      name="provider"
+                                                      value={state.provider}
+                                                    />
+                                                    <input type="hidden" name="fileId" value={f.id} />
+                                                    <button
+                                                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-medium text-electric hover:bg-blue-50"
+                                                      title="Copy into JUN Drive"
+                                                    >
+                                                      <DownloadCloud className="h-3.5 w-3.5" /> Copy to JUN
+                                                    </button>
+                                                  </form>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
                                     </tbody>
                                   </table>
                                 </div>

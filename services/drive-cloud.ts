@@ -145,3 +145,22 @@ export async function exportFileToCloud(formData: FormData): Promise<void> {
     back(e instanceof Error ? e.message : "Export to cloud failed", true);
   }
 }
+
+export const CLOUD_STAR_PREFIX = "drive.cloud.star.";
+
+/** Toggles a JUN-side favourite on a connected-cloud file (per user). */
+export async function toggleCloudStar(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  if (!isCloudAdmin(user.role)) redirect("/app/forbidden");
+  const provider = safeProvider(String(formData.get("provider") ?? "")) ?? "google";
+  const fileId = String(formData.get("fileId") ?? "").trim();
+  const returnTo = String(formData.get("returnTo") ?? `/app/drive/cloud?provider=${provider}`);
+  if (fileId) {
+    const key = `${CLOUD_STAR_PREFIX}${user.id}.${provider}.${fileId}`;
+    const existing = await prisma.appSetting.findUnique({ where: { key }, select: { id: true } });
+    if (existing) await prisma.appSetting.delete({ where: { key } });
+    else await prisma.appSetting.create({ data: { key, value: "1" } });
+  }
+  revalidatePath("/app/drive/cloud");
+  redirect(returnTo.startsWith("/app/drive") ? returnTo : `/app/drive/cloud?provider=${provider}`);
+}
