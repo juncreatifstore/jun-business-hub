@@ -58,6 +58,9 @@ export default async function EmailAliasesPage({
       ) : null}
 
       <div className="mb-5 flex flex-wrap gap-2">
+        <Link href="/app/mail/aliases" className="rounded-lg border border-electric bg-electric px-4 py-2 text-sm font-medium text-white hover:opacity-90">
+          Ouvrir le Centre des alias
+        </Link>
         <Link href="/app/settings/email" className="rounded-lg border border-line px-4 py-2 text-sm text-muted2 hover:text-ink">
           ← Intégration Email
         </Link>
