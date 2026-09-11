@@ -62,6 +62,11 @@ export default async function MailPage({
       <GmailStyleMailCenterV6 searchParams={{ ...searchParams, mailbox }} />
       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2">
         <span className="mr-1 text-xs font-medium uppercase tracking-wide text-ink-3">Outils</span>
+        <Link href="/app/mail/aliases">
+          <Button size="sm" variant="ghost">
+            Centre des alias
+          </Button>
+        </Link>
         <Link href="/app/mail/search">
           <Button size="sm" variant="ghost">
             Recherche avancée
