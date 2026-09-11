@@ -4,6 +4,7 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { getMailThreadState, saveMailThreadState } from "@/lib/mail-thread-state";
 import { isClientCommunicationBanned } from "@/lib/client-communication-policy";
 import { detectSignatureEmailBounce } from "@/lib/signature-email-bounce";
+import { AUTOMATED_NO_REPLY_EMAIL } from "@/lib/email-aliases";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
@@ -386,15 +387,21 @@ export async function gmailSend(
     to: string;
     subject: string;
     text: string;
+    fromEmail?: string;
+    automated?: boolean;
     inReplyToGmailId?: string;
     attachments?: GmailAttachment[];
   },
 ): Promise<string> {
   const { token, email } = await accessTokenFor(accountId),
     attachments = input.attachments ?? [],
+    fromEmail = input.fromEmail || (input.automated ? AUTOMATED_NO_REPLY_EMAIL : email),
     common = [
-      `From: ${safeHeaderValue(email)}`,
+      `From: ${safeHeaderValue(fromEmail)}`,
       `To: ${safeHeaderValue(input.to)}`,
+      ...(input.automated
+        ? ["Auto-Submitted: auto-generated", "X-Auto-Response-Suppress: All"]
+        : []),
       `Subject: ${safeHeaderValue(input.subject)}`,
       "MIME-Version: 1.0",
     ];
