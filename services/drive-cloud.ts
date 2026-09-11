@@ -109,18 +109,19 @@ export async function exportFileToCloud(formData: FormData): Promise<void> {
   const fileId = String(formData.get("fileId") ?? "").trim();
   const folderId = String(formData.get("cloudFolderId") ?? "").trim() || null;
   const returnTo = String(formData.get("returnTo") ?? "/app/drive");
-  const back = (message: string, error = false): never =>
+  function back(message: string, error = false): never {
     redirect(
       `${returnTo}${returnTo.includes("?") ? "&" : "?"}${error ? "toast_error" : "toast"}=${encodeURIComponent(message)}`,
     );
+  }
   if (!isCloudAdmin(user.role)) redirect("/app/forbidden");
   if (!fileId) back("Invalid file", true);
   const file = await prisma.file.findFirst({ where: { id: fileId, archivedAt: null } });
-  if (!file) back("File not found", true);
+  if (!file) return back("File not found", true);
   if (file.isVault ? !can(user, "VAULT_READ") : !can(user, "FILE_READ")) redirect("/app/forbidden");
   const connection = await getCloudConnection(user.id, provider);
   if (!connection)
-    back(
+    return back(
       `${provider === "google" ? "Google Drive" : "OneDrive"} is not connected — open Drive › Connected Cloud`,
       true,
     );
