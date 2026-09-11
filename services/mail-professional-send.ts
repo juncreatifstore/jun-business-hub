@@ -24,6 +24,7 @@ import {
   getClientCommunicationBan,
   isClientCommunicationBanned,
 } from "@/lib/client-communication-policy";
+import { isAllowedSenderAddress } from "@/lib/email-aliases";
 
 export async function sendProfessionalDraft(threadId: string) {
   const user = await assertPermission("EMAIL_SEND");
@@ -34,6 +35,11 @@ export async function sendProfessionalDraft(threadId: string) {
   if (!meta)
     redirect(
       `/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("This is not a professional draft")}`,
+    );
+  const fromEmail = (meta.fromEmail || thread.account.email).toLowerCase();
+  if (!(await isAllowedSenderAddress(thread.account.email, fromEmail)))
+    redirect(
+      `/app/mail?mailbox=${thread.mailAccountId}&folder=DRAFTS&thread=${threadId}&toast_error=${encodeURIComponent("The selected sender alias is no longer active")}`,
     );
   if (thread.clientId && (await isClientCommunicationBanned(thread.clientId))) {
     const ban = await getClientCommunicationBan(thread.clientId);
@@ -109,6 +115,7 @@ export async function sendProfessionalDraft(threadId: string) {
   let gmailMessageId: string;
   try {
     gmailMessageId = await gmailSendAdvanced(thread.mailAccountId, {
+      fromEmail,
       to: meta.to,
       cc: meta.cc,
       bcc: meta.bcc,
@@ -150,6 +157,7 @@ export async function sendProfessionalDraft(threadId: string) {
     resourceId: thread.id,
     after: {
       mailbox: thread.account.email,
+      fromEmail,
       mode: meta.mode,
       to: meta.to,
       cc: meta.cc,
