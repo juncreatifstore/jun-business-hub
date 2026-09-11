@@ -3,6 +3,7 @@ import { accessTokenFor } from "@/lib/google/gmail";
 
 export type AdvancedGmailAttachment = { filename: string; mimeType: string; data: Buffer | Uint8Array };
 export type AdvancedGmailInput = {
+  fromEmail?: string;
   to: string[];
   cc?: string[];
   bcc?: string[];
@@ -32,8 +33,9 @@ export async function gmailSendAdvanced(accountId: string, input: AdvancedGmailI
   const { token, email } = await accessTokenFor(accountId);
   if (!input.to.length) throw new Error("At least one recipient is required");
   const attachments = input.attachments ?? [];
+  const fromEmail = (input.fromEmail || email).trim().toLowerCase();
   const headers = [
-    `From: ${safeHeader(email)}`,
+    `From: ${safeHeader(fromEmail)}`,
     `To: ${safeHeader(input.to.join(", "))}`,
     ...(input.cc?.length ? [`Cc: ${safeHeader(input.cc.join(", "))}`] : []),
     ...(input.bcc?.length ? [`Bcc: ${safeHeader(input.bcc.join(", "))}`] : []),
