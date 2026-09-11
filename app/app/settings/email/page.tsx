@@ -39,6 +39,11 @@ export default async function EmailSettingsPage({
         subtitle="Connectez et gérez les boîtes Gmail / Google Workspace utilisées par JUN Mail Center."
         actions={
           <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
+            <Link href="/app/settings/email/aliases" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto">
+                Alias e-mail
+              </Button>
+            </Link>
             <Link href="/app/settings/email/composer" className="w-full sm:w-auto">
               <Button variant="outline" className="w-full sm:w-auto">
                 Signatures & modèles
