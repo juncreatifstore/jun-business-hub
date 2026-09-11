@@ -155,6 +155,22 @@ type GmailLabel = {
 function header(m: GmailMessage, name: string) {
   return m.payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 }
+/** All values of a repeatable header (e.g. several Delivered-To on alias delivery). */
+function headers(m: GmailMessage, name: string) {
+  return (m.payload?.headers ?? [])
+    .filter((h) => h.name.toLowerCase() === name.toLowerCase())
+    .map((h) => h.value);
+}
+/**
+ * Every address the message was sent from or delivered to. Alias routing
+ * (contact@ → admin@) often leaves the alias only in Cc, Bcc or Delivered-To,
+ * so reading just From + To would lose the service the mail belongs to.
+ */
+const RECIPIENT_HEADERS = ["To", "Cc", "Bcc", "Delivered-To", "X-Original-To", "X-Forwarded-To"];
+function participantEmails(m: GmailMessage, from: string) {
+  const raw = [from, ...RECIPIENT_HEADERS.flatMap((h) => headers(m, h))].join(" ");
+  return Array.from(new Set((raw.match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? []).map((e) => e.toLowerCase())));
+}
 function decodeBody(m: GmailMessage) {
   const b64 = (d?: string) =>
     d ? Buffer.from(d.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8") : "";
@@ -306,10 +322,9 @@ export async function syncFolder(
       const m = item.m;
       const subject = header(m, "Subject") || "(no subject)",
         from = header(m, "From"),
-        to = header(m, "To"),
         body = decodeBody(m).slice(0, 20_000),
         snippet = m.snippet?.slice(0, 500) || body.slice(0, 500) || null;
-      const emails = `${from} ${to}`.match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? [];
+      const emails = participantEmails(m, from);
       const client = emails.length
         ? await prisma.client.findFirst({
             where: { email: { in: emails.map((e) => e.toLowerCase()) } },
