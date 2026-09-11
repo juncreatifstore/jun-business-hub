@@ -543,3 +543,6 @@ export async function uploadCloudFile(
   const out = (await res.json()) as { id: string; webUrl?: string };
   return { id: out.id, webUrl: out.webUrl ?? null };
 }
+
+/** AppSetting key prefix for per-user favourites on connected-cloud files. */
+export const CLOUD_STAR_PREFIX = "drive.cloud.star.";

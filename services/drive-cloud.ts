@@ -12,6 +12,7 @@ import {
   isCloudAdmin,
   removeCloudConnection,
   uploadCloudFile,
+  CLOUD_STAR_PREFIX,
   type CloudProvider,
 } from "@/lib/drive-cloud";
 import { can } from "@/lib/auth";
@@ -145,8 +146,6 @@ export async function exportFileToCloud(formData: FormData): Promise<void> {
     back(e instanceof Error ? e.message : "Export to cloud failed", true);
   }
 }
-
-export const CLOUD_STAR_PREFIX = "drive.cloud.star.";
 
 /** Toggles a JUN-side favourite on a connected-cloud file (per user). */
 export async function toggleCloudStar(formData: FormData): Promise<void> {
