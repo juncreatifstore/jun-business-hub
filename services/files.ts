@@ -6,6 +6,7 @@ import { storage, makeStorageKey, MAX_UPLOAD_BYTES, ALLOWED_MIME } from "@/lib/s
 import { emptyToNull } from "@/lib/validation";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import type { FileCategory } from "@prisma/client";
 import { VAULT_CATEGORIES } from "@/lib/utils";
 import { processDriveAutomation } from "@/lib/drive-automation";
@@ -162,7 +163,14 @@ export async function uploadFile(formData: FormData): Promise<void> {
     clientId: clientId ?? undefined,
     caseId: caseId ?? undefined,
   });
-  if (!isVault) await processDriveAutomation(record.id, user.id, buf).catch(() => null);
+  if (!isVault) {
+    await processDriveAutomation(record.id, user.id, buf).catch(() => null);
+    // Document typing + key-field extraction runs after the response is sent.
+    after(async () => {
+      const { extractFileInBackground } = await import("@/services/drive-intelligence");
+      await extractFileInBackground(record.id).catch(() => null);
+    });
+  }
 
   const dest = isVault ? "/app/vault" : driveDest(folderId);
   revalidatePath(isVault ? "/app/vault" : "/app/drive");

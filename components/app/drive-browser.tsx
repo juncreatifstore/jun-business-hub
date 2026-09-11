@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, Fragment } from "react";
 import {
   CloudUpload,
   Grid2X2,
@@ -54,11 +54,59 @@ export type DriveBrowserFile = {
   publicToken: string | null;
   versions: DriveVersionInfo[];
   activity: DriveActivityInfo[];
+  extraction: DriveExtractionInfo | null;
+};
+export type DriveExtractionInfo = {
+  docType: string;
+  label: string;
+  confidence: number;
+  holderName: string | null;
+  documentNumber: string | null;
+  issuingCountry: string | null;
+  issuer: string | null;
+  issuedAt: string | null;
+  expiresAt: string | null;
+  expiry: "expired" | "critical" | "soon" | "ok" | null;
+  amount: string | null;
+  reference: string | null;
+  error: string | null;
+  fields: Record<string, string>;
 };
 export type DriveBrowserFolder = DriveFolderManagerFolder;
 export type DriveMoveFolder = { id: string; label: string };
 export type DriveTeamUser = { id: string; label: string };
 
+function expiryClass(status: DriveExtractionInfo["expiry"]) {
+  if (status === "expired") return "font-medium text-red-600";
+  if (status === "critical") return "font-medium text-amber-600";
+  if (status === "soon") return "text-amber-700";
+  return "";
+}
+/** Document-type chip with expiry colouring; falls back to the manual category. */
+function DocBadge({ file, fallback }: { file: DriveBrowserFile; fallback: string }) {
+  const x = file.extraction;
+  if (!x || x.error || x.docType === "OTHER")
+    return <span className="rounded-md bg-surface px-2 py-1 text-[10px] text-muted2">{fallback}</span>;
+  const tone =
+    x.expiry === "expired"
+      ? "bg-red-50 text-red-700"
+      : x.expiry === "critical" || x.expiry === "soon"
+        ? "bg-amber-50 text-amber-700"
+        : "bg-electric/10 text-electric";
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium ${tone}`}
+      title={x.holderName ?? undefined}
+    >
+      {x.label}
+      {x.expiresAt ? (
+        <span className="opacity-70">
+          · {x.expiry === "expired" ? "expired" : `exp. ${formatDate(x.expiresAt)}`}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 function humanSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -383,9 +431,7 @@ export function DriveBrowser({
                       <Square className="h-4 w-4" />
                     )}
                   </button>
-                  <span className="rounded-md bg-surface px-2 py-1 text-[10px] text-muted2">
-                    {f.category.replace(/_/g, " ")}
-                  </span>
+                  <DocBadge file={f} fallback={f.category.replace(/_/g, " ")} />
                 </div>
                 <button
                   type="button"
@@ -460,7 +506,9 @@ export function DriveBrowser({
                     </button>
                     <div className="ml-6 text-xs text-muted2">{f.mimeType}</div>
                   </td>
-                  <td className="p-3 text-muted2">{f.category.replace(/_/g, " ")}</td>
+                  <td className="p-3 text-muted2">
+                    <DocBadge file={f} fallback={f.category.replace(/_/g, " ")} />
+                  </td>
                   <td className="p-3 text-muted2">
                     {[f.clientLabel, f.caseNumber].filter(Boolean).join(" · ") || "—"}
                   </td>
@@ -810,6 +858,72 @@ function DetailsPanel({
           <dd>{file.clientLabel || "—"}</dd>
           <dt className="text-muted2">Case</dt>
           <dd>{file.caseNumber || "—"}</dd>
+          <dt className="text-muted2">Document</dt>
+          <dd>
+            {file.extraction && !file.extraction.error ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="rounded-md bg-electric/10 px-2 py-0.5 text-xs font-medium text-electric">
+                  {file.extraction.label}
+                </span>
+                <span className="text-xs text-muted2">{Math.round(file.extraction.confidence * 100)}%</span>
+              </span>
+            ) : file.extraction?.error ? (
+              <span className="text-xs text-amber-700">Analysis failed — retry from Intelligence</span>
+            ) : (
+              <span className="text-xs text-muted2">Analysis pending</span>
+            )}
+          </dd>
+          {file.extraction?.holderName ? (
+            <>
+              <dt className="text-muted2">Holder</dt>
+              <dd>{file.extraction.holderName}</dd>
+            </>
+          ) : null}
+          {file.extraction?.documentNumber ? (
+            <>
+              <dt className="text-muted2">Number</dt>
+              <dd className="font-mono text-xs">{file.extraction.documentNumber}</dd>
+            </>
+          ) : null}
+          {file.extraction?.issuingCountry || file.extraction?.issuer ? (
+            <>
+              <dt className="text-muted2">Issued by</dt>
+              <dd>{[file.extraction.issuer, file.extraction.issuingCountry].filter(Boolean).join(" · ")}</dd>
+            </>
+          ) : null}
+          {file.extraction?.issuedAt ? (
+            <>
+              <dt className="text-muted2">Issued</dt>
+              <dd>{formatDate(file.extraction.issuedAt)}</dd>
+            </>
+          ) : null}
+          {file.extraction?.expiresAt ? (
+            <>
+              <dt className="text-muted2">Expires</dt>
+              <dd className={expiryClass(file.extraction.expiry)}>
+                {formatDate(file.extraction.expiresAt)}
+                {file.extraction.expiry === "expired"
+                  ? " · expired"
+                  : file.extraction.expiry === "critical"
+                    ? " · within 30 days"
+                    : file.extraction.expiry === "soon"
+                      ? " · within 90 days"
+                      : ""}
+              </dd>
+            </>
+          ) : null}
+          {file.extraction?.amount ? (
+            <>
+              <dt className="text-muted2">Amount</dt>
+              <dd>{file.extraction.amount}</dd>
+            </>
+          ) : null}
+          {file.extraction?.reference ? (
+            <>
+              <dt className="text-muted2">Reference</dt>
+              <dd className="font-mono text-xs">{file.extraction.reference}</dd>
+            </>
+          ) : null}
           <dt className="text-muted2">Public link</dt>
           <dd className={file.publicDisabled ? "text-red-600" : "text-emerald-700"}>
             {file.publicDisabled ? "Disabled" : "Active"}
@@ -817,6 +931,21 @@ function DetailsPanel({
           <dt className="text-muted2">Versions</dt>
           <dd>{file.versions.length}</dd>
         </dl>
+        {file.extraction && Object.keys(file.extraction.fields).length ? (
+          <div className="mt-5 rounded-lg border border-line bg-surface p-3">
+            <div className="mb-2 text-xs font-medium text-muted2">Extracted fields</div>
+            <dl className="grid grid-cols-[130px_1fr] gap-y-1.5 text-xs">
+              {Object.entries(file.extraction.fields).map(([k, v]) => (
+                <Fragment key={k}>
+                  <dt className="text-muted2">
+                    {k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
+                  </dt>
+                  <dd className="break-words">{v}</dd>
+                </Fragment>
+              ))}
+            </dl>
+          </div>
+        ) : null}
         {file.note ? (
           <div className="mt-5 rounded-lg border border-line bg-surface p-3">
             <div className="mb-1 text-xs font-medium text-muted2">Internal note</div>

@@ -12,6 +12,7 @@ import { DriveBrowser } from "@/components/app/drive-browser";
 import { uploadFile, createFolder } from "@/services/files";
 import { FOLDER_TRASH_PREFIX, FOLDER_SHARE_PREFIX } from "@/lib/drive-folder-constants";
 import { getCloudConnection, isCloudAdmin } from "@/lib/drive-cloud";
+import { DOC_TYPE_LABELS, expiryStatus, listExpiringFiles, type DocType } from "@/lib/file-extraction";
 import {
   FolderOpen,
   FolderPlus,
@@ -360,6 +361,12 @@ export default async function DrivePage(props: {
   const currentFolder = breadcrumbs?.[breadcrumbs.length - 1];
   const returnTo = driveUrl(view, folderId, q, category);
   const viewLabel = NAV.find((item) => item.view === view)?.label ?? "My Drive";
+  const extractions = await prisma.fileExtraction.findMany({
+    where: { fileId: { in: files.map((f) => f.id) } },
+  });
+  const extractionMap = new Map(extractions.map((x) => [x.fileId, x]));
+  const expiring = await listExpiringFiles(90, 12).catch(() => []);
+  const fmtDate = (d: Date | null) => (d ? d.toISOString() : null);
   const browserFiles = files.map((f) => ({
     id: f.id,
     name: f.name,
@@ -376,6 +383,30 @@ export default async function DrivePage(props: {
     publicToken: publicTokenMap.get(f.id) ?? null,
     versions: versionsMap.get(f.id) ?? [],
     activity: activityMap.get(f.id) ?? [],
+    extraction: (() => {
+      const x = extractionMap.get(f.id);
+      if (!x) return null;
+      const raw = (x.fields ?? {}) as Record<string, unknown>;
+      const fields: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw))
+        if (v !== null && v !== "" && typeof v !== "object") fields[k] = String(v);
+      return {
+        docType: x.docType,
+        label: DOC_TYPE_LABELS[x.docType as DocType] ?? x.docType,
+        confidence: x.confidence,
+        holderName: x.holderName,
+        documentNumber: x.documentNumber,
+        issuingCountry: x.issuingCountry,
+        issuer: x.issuer,
+        issuedAt: fmtDate(x.issuedAt),
+        expiresAt: fmtDate(x.expiresAt),
+        expiry: expiryStatus(x.expiresAt),
+        amount: x.amount ? `${x.currency ?? ""} ${x.amount.toFixed(2)}`.trim() : null,
+        reference: x.reference,
+        error: x.error,
+        fields,
+      };
+    })(),
   }));
   const browserFolders = folders.map((f) => ({
     id: f.id,
@@ -514,6 +545,54 @@ export default async function DrivePage(props: {
               </Link>
             ) : null}
           </form>
+          {view === "my" && !folderId && !q && !category && expiring.length ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-amber-900">
+                  Documents expiring within 90 days ({expiring.length})
+                </div>
+                <Link
+                  prefetch={false}
+                  href="/app/drive/automation"
+                  className="text-xs text-amber-800 underline-offset-2 hover:underline"
+                >
+                  Expiration rules
+                </Link>
+              </div>
+              <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
+                {expiring.map((x) => {
+                  const status = expiryStatus(x.expiresAt);
+                  const cls =
+                    status === "expired"
+                      ? "text-red-700"
+                      : status === "critical"
+                        ? "text-amber-800"
+                        : "text-amber-700";
+                  return (
+                    <li key={x.fileId} className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`shrink-0 rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-medium ${cls}`}
+                      >
+                        {DOC_TYPE_LABELS[x.docType as DocType] ?? x.docType}
+                      </span>
+                      <Link
+                        prefetch={false}
+                        href={`/app/drive?q=${encodeURIComponent(x.file.name)}`}
+                        className="min-w-0 truncate hover:underline"
+                        title={x.file.name}
+                      >
+                        {x.holderName ?? x.file.name}
+                      </Link>
+                      <span className={`ml-auto shrink-0 text-xs ${cls}`}>
+                        {status === "expired" ? "expired " : ""}
+                        {x.expiresAt ? x.expiresAt.toLocaleDateString("fr-FR") : ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
           {files.length === 0 && folders.length === 0 ? (
             <EmptyState
               icon={

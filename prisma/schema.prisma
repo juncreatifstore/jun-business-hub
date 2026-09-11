@@ -426,6 +426,31 @@ model Folder {
   files     File[]
 }
 
+/// Structured data extracted by AI from a Drive file (type + key fields).
+model FileExtraction {
+  fileId          String    @id
+  file            File      @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  docType         String    @default("OTHER")
+  confidence      Float     @default(0)
+  holderName      String?
+  documentNumber  String?
+  issuingCountry  String?
+  issuer          String?
+  dateOfBirth     DateTime?
+  issuedAt        DateTime?
+  expiresAt       DateTime?
+  amount          Decimal?  @db.Decimal(14, 2)
+  currency        String?
+  reference       String?
+  fields          Json      @default("{}")
+  model           String?
+  extractedAt     DateTime  @default(now())
+  error           String?
+
+  @@index([docType])
+  @@index([expiresAt])
+}
+
 model File {
   id            String       @id @default(cuid())
   name          String
@@ -449,6 +474,7 @@ model File {
   payment       Payment?     @relation(fields: [paymentId], references: [id])
   refund        Refund?      @relation(fields: [refundId], references: [id])
   uploadedBy    User         @relation(fields: [uploadedById], references: [id])
+  extraction    FileExtraction?
 }
 
 model Document {
@@ -485,7 +511,6 @@ model DocumentVersion {
   createdAt  DateTime              @default(now())
   document   Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
   author     User                  @relation(fields: [authorId], references: [id])
-
   @@unique([documentId, version])
 }
 

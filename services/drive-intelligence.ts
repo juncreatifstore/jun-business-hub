@@ -7,6 +7,7 @@ import { storage } from "@/lib/storage";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { FileCategory } from "@prisma/client";
+import { DOC_TYPES, saveFileExtraction, markExtractionError } from "@/lib/file-extraction";
 import {
   DRIVE_INTEL_PREFIX,
   DRIVE_TAGS_PREFIX,
@@ -101,7 +102,7 @@ async function richOpenAIAnalysis(input: {
   const content: Array<Record<string, unknown>> = [
     {
       type: "input_text",
-      text: `${input.context}\n\nAnalyze this file as an operations-grade document analyst. Return ONLY valid JSON with these keys:\nsummary: concise executive summary;\ndetailedDescription: explanatory description useful to a staff member who has not opened the file;\ndocumentPurpose: what this document/image appears to be for and how it may be used operationally;\nvisualDescription: for images/scans, describe visible layout, objects, stamps, signatures, document structure and notable visual details without identifying a real person's identity from appearance; for non-visual files use an empty string;\nlanguage;\nsuggestedCategory: one of ${CATEGORIES.join(", ")};\ntags: array;\npeople: names explicitly written in the file only;\norganizations: array;\nimportantDates: array with context;\nkeyFacts: array of concrete useful facts;\nactionItems: array of recommended next checks/actions;\nrisks: array of inconsistencies, expiry concerns, missing signatures/pages, unclear items, or operational risks;\nmissingInformation: array of information that appears necessary but is absent or unreadable.\n\nBe explicit and useful. Never invent facts. Distinguish clearly between what is visible, what is extracted, and what is uncertain. Do not make legal conclusions.`,
+      text: `${input.context}\n\nAnalyze this file as an operations-grade document analyst. Return ONLY valid JSON with these keys:\nsummary: concise executive summary;\ndetailedDescription: explanatory description useful to a staff member who has not opened the file;\ndocumentPurpose: what this document/image appears to be for and how it may be used operationally;\nvisualDescription: for images/scans, describe visible layout, objects, stamps, signatures, document structure and notable visual details without identifying a real person's identity from appearance; for non-visual files use an empty string;\nlanguage;\nsuggestedCategory: one of ${CATEGORIES.join(", ")};\ntags: array;\npeople: names explicitly written in the file only;\norganizations: array;\nimportantDates: array with context;\nkeyFacts: array of concrete useful facts;\nactionItems: array of recommended next checks/actions;\nrisks: array of inconsistencies, expiry concerns, missing signatures/pages, unclear items, or operational risks;\nmissingInformation: array of information that appears necessary but is absent or unreadable;\ndocumentType: exactly one of ${DOC_TYPES.join(", ")};\ndocumentTypeConfidence: number 0-1;\nextractedFields: object with only the keys that are actually readable in the document, chosen from: holderName (full name of the person the document is about), dateOfBirth, nationality, documentNumber, issuingCountry, issuer, issueDate, expiryDate, placeOfIssue, amount (number), currency (ISO code), invoiceNumber, reference, bookingReference, travelFrom, travelTo, departureDate, returnDate, employer, monthlyIncome (number), accountHolder, accountLast4. Dates must be ISO YYYY-MM-DD. Omit keys you cannot read; never guess.\n\nBe explicit and useful. Never invent facts. Distinguish clearly between what is visible, what is extracted, and what is uncertain. Do not make legal conclusions.`,
     },
   ];
 
@@ -143,6 +144,45 @@ async function richOpenAIAnalysis(input: {
     throw new Error(`AI analysis failed (${response.status})${message ? `: ${message.slice(0, 300)}` : ""}`);
   }
   return extractResponsesText(await response.json());
+}
+
+/**
+ * Background extraction for one file (no user context): typing + key fields.
+ * Used after upload and by the cron backfill. Errors are recorded on the row.
+ */
+export async function extractFileInBackground(fileId: string): Promise<boolean> {
+  if (!process.env.OPENAI_API_KEY) return false;
+  const r = await runAnalysis(fileId);
+  if (!r.ok) await markExtractionError(fileId, r.error).catch(() => null);
+  return r.ok;
+}
+
+/** Files never analysed (or failed > 1 day ago), oldest first. */
+export async function backfillFileExtractions(limit = 8, budgetMs = 60_000) {
+  if (!process.env.OPENAI_API_KEY) return { processed: 0, ok: 0 };
+  const started = Date.now();
+  const candidates = await prisma.file.findMany({
+    where: {
+      isVault: false,
+      archivedAt: null,
+      sizeBytes: { lte: 18 * 1024 * 1024 },
+      OR: [
+        { extraction: null },
+        { extraction: { error: { not: null }, extractedAt: { lt: new Date(Date.now() - 86_400_000) } } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: { id: true },
+  });
+  let ok = 0;
+  let processed = 0;
+  for (const f of candidates) {
+    if (Date.now() - started > budgetMs) break;
+    processed++;
+    if (await extractFileInBackground(f.id).catch(() => false)) ok++;
+  }
+  return { processed, ok };
 }
 
 async function runAnalysis(fileId: string): Promise<AnalysisResult> {
@@ -211,6 +251,18 @@ async function runAnalysis(fileId: string): Promise<AnalysisResult> {
       update: { value: JSON.stringify(intelligence) },
       create: { key: `${DRIVE_INTEL_PREFIX}${file.id}`, value: JSON.stringify(intelligence) },
     });
+    await saveFileExtraction(
+      file.id,
+      {
+        documentType: parsed.documentType,
+        documentTypeConfidence: parsed.documentTypeConfidence,
+        extractedFields:
+          parsed.extractedFields && typeof parsed.extractedFields === "object"
+            ? (parsed.extractedFields as Record<string, unknown>)
+            : null,
+      },
+      process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+    ).catch(() => null);
     return { ok: true, intelligence };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "AI analysis failed" };
