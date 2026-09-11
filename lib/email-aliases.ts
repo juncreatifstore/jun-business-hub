@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 export const EMAIL_ALIASES_SETTING_KEY = "email.aliases.juncreatifs.org";
 export const EMAIL_ALIAS_DOMAIN = "juncreatifs.org";
 export const EMAIL_ALIAS_DESTINATION = "admin@juncreatifs.org";
+export const AUTOMATED_NO_REPLY_EMAIL = "noreply@juncreatifs.org";
 
 export type EmailAlias = {
   address: string;
