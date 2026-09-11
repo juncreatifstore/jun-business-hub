@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -129,7 +129,18 @@ jobs:
       # Fails if prisma/schema.prisma and prisma/migrations/ disagree — the exact
       # situation that previously required a "consolidate_production_drift" migration.
       - name: Schema / migrations drift check
-        run: npm run db:check-drift
+        id: drift
+        run: npm run db:check-drift 2>&1 | tee /tmp/drift.txt
+        continue-on-error: true
+
+      - name: Publish drift report (on failure)
+        if: steps.drift.outcome == 'failure'
+        run: |
+          git config user.name "jun-ci" && git config user.email "ci@jun.local"
+          git checkout -q -B ops/ci-report
+          mkdir -p ops && { echo "# Schema drift — $(date -u +%FT%TZ)"; echo; echo '```'; cat /tmp/drift.txt; echo '```'; } > ops/schema-drift.md
+          git add ops/schema-drift.md && git commit -qm "ci: schema drift report" && git push -f origin ops/ci-report
+          exit 1
 
       - name: Seed dev fixtures
         run: npm run db:seed
