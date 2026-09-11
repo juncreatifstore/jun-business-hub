@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CheckCircle2, ExternalLink, MailPlus, Route, Trash2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, MailPlus, RefreshCw, Route, Trash2 } from "lucide-react";
 import { requireUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/app/page-header";
@@ -13,7 +13,12 @@ import {
   EMAIL_ALIAS_DOMAIN,
   type EmailAlias,
 } from "@/lib/email-aliases";
-import { addEmailAlias, removeEmailAlias, setEmailAliasConfirmed } from "@/services/email-aliases";
+import {
+  addEmailAlias,
+  removeEmailAlias,
+  setEmailAliasConfirmed,
+  syncEmailAliasesFromGoogle,
+} from "@/services/email-aliases";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +61,12 @@ export default async function EmailAliasesPage({
       ) : null}
 
       <div className="mb-5 flex flex-wrap gap-2">
+        <form action={syncEmailAliasesFromGoogle}>
+          <Button type="submit">
+            <RefreshCw className="h-4 w-4" />
+            Synchroniser depuis Google
+          </Button>
+        </form>
         <Link href="/app/mail/aliases" className="rounded-lg border border-electric bg-electric px-4 py-2 text-sm font-medium text-white hover:opacity-90">
           Ouvrir le Centre des alias
         </Link>
