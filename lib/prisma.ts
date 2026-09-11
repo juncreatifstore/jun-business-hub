@@ -19,7 +19,13 @@ function normalizeConnectionString(raw: string) {
 
   if (isSupabaseTransactionPooler) {
     if (!url.searchParams.has("pgbouncer")) url.searchParams.set("pgbouncer", "true");
-    if (!url.searchParams.has("connection_limit")) url.searchParams.set("connection_limit", "1");
+    // A small per-instance pool: pages fan out 3–5 queries with Promise.all and
+    // a single connection made them queue and time out (P2024). The Supabase
+    // transaction pooler multiplexes these cheaply; override with
+    // PRISMA_CONNECTION_LIMIT if the pooler's client cap is ever reached.
+    if (!url.searchParams.has("connection_limit"))
+      url.searchParams.set("connection_limit", process.env.PRISMA_CONNECTION_LIMIT || "5");
+    if (!url.searchParams.has("pool_timeout")) url.searchParams.set("pool_timeout", "20");
     if (!url.searchParams.has("sslmode")) url.searchParams.set("sslmode", "require");
   }
 
