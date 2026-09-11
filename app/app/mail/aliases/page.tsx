@@ -71,7 +71,6 @@ export default async function AliasMailCenterPage({
     ? await prisma.mailThread.findMany({
         where: {
           mailAccountId: { in: accessibleIds },
-          toEmails: { hasSome: selectedAlias === "ALL" ? addresses : [selectedAlias] },
           aiDraft: null,
         },
         orderBy: { lastMessageAt: "desc" },
@@ -92,6 +91,8 @@ export default async function AliasMailCenterPage({
   const requestedStatus = String(query.status || "ACTIVE").toUpperCase();
   const search = String(query.q || "").trim().toLowerCase();
   const rows = threads.filter((thread) => {
+    const recipients = thread.toEmails.map((email) => email.toLowerCase());
+    if (selectedAlias !== "ALL" && !recipients.includes(selectedAlias)) return false;
     const state = stateMap.get(thread.id);
     if (requestedStatus === "ACTIVE" && state?.workflowStatus === "RESOLVED") return false;
     if (requestedStatus !== "ALL" && requestedStatus !== "ACTIVE" && state?.workflowStatus !== requestedStatus) return false;
