@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  HardDriveDownload,
   Activity,
   AlertTriangle,
   ArrowLeft,
@@ -31,7 +32,8 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
-import { requireUser } from "@/lib/auth";
+import { requireUser, can } from "@/lib/auth";
+import { saveWhatsAppMediaToDrive } from "@/services/whatsapp-attachments";
 import { prisma } from "@/lib/prisma";
 import {
   decodeWhatsAppInboxPayload,
@@ -239,6 +241,10 @@ export default async function WhatsAppInboxPage(props: {
     ? requested
     : conversations[0]?.phone || allConversations[0]?.phone || "";
   const selected = allConversations.find((c) => c.phone === selectedPhone);
+  const canSaveToDrive = can(user, "FILE_UPLOAD");
+  const currentHref = selected
+    ? `/app/whatsapp/inbox?phone=${encodeURIComponent(selected.phone)}`
+    : "/app/whatsapp/inbox";
   const mobileBackParams = new URLSearchParams();
   if (searchParams.q) mobileBackParams.set("q", searchParams.q);
   if (filter !== "all") mobileBackParams.set("filter", filter);
@@ -586,6 +592,9 @@ export default async function WhatsAppInboxPage(props: {
                         deliveryStatuses={deliveryStatuses}
                         transcripts={transcripts}
                         aiEnabled={aiEnabled}
+                        clientId={selected?.clientId ?? null}
+                        canSaveToDrive={canSaveToDrive}
+                        currentHref={currentHref}
                       />
                     </div>
                   </div>
@@ -1416,11 +1425,17 @@ function Timeline({
   deliveryStatuses,
   transcripts,
   aiEnabled,
+  clientId = null,
+  canSaveToDrive = false,
+  currentHref = "/app/whatsapp/inbox",
 }: {
   messages: TimelineItem[];
   deliveryStatuses: Map<string, DeliveryInfo>;
   transcripts?: Map<string, Transcript>;
   aiEnabled?: boolean;
+  clientId?: string | null;
+  canSaveToDrive?: boolean;
+  currentHref?: string;
 }) {
   return (
     <>
@@ -1443,6 +1458,29 @@ function Timeline({
                 className={`min-w-[130px] max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm sm:max-w-[82%] md:max-w-[74%] ${outbound ? "rounded-br-md bg-surface-1 text-ink" : "rounded-bl-md border border-line bg-white"}`}
               >
                 <MediaBubble payload={payload} outbound={outbound} />
+                {payload.mediaId &&
+                ["image", "document", "video"].includes(payload.type) &&
+                canSaveToDrive ? (
+                  <form action={saveWhatsAppMediaToDrive} className="mb-1.5 -mt-0.5">
+                    <input type="hidden" name="mediaId" value={payload.mediaId} />
+                    <input type="hidden" name="type" value={payload.type} />
+                    <input type="hidden" name="filename" value={payload.filename ?? ""} />
+                    <input type="hidden" name="phone" value={payload.phone} />
+                    <input type="hidden" name="contact" value={payload.contactName ?? ""} />
+                    <input type="hidden" name="clientId" value={clientId ?? ""} />
+                    <input type="hidden" name="returnTo" value={currentHref} />
+                    <button
+                      className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/10"
+                      title={
+                        clientId
+                          ? "Enregistrer dans JUN Drive, lié à ce client"
+                          : "Enregistrer dans JUN Drive"
+                      }
+                    >
+                      <HardDriveDownload className="h-3 w-3" /> Drive
+                    </button>
+                  </form>
+                ) : null}
                 {payload.type === "audio" && payload.mediaId ? (
                   transcripts?.get(payload.mediaId) ? (
                     <div className="mb-1 text-xs">
@@ -1611,6 +1649,9 @@ function MobileInbox({
               deliveryStatuses={deliveryStatuses}
               transcripts={transcripts}
               aiEnabled={aiEnabled}
+              clientId={selected?.clientId ?? null}
+              canSaveToDrive={canSaveToDrive}
+              currentHref={currentHref}
             />
           </div>
         </div>

@@ -42,7 +42,10 @@ import {
   ReplyAll,
   Forward,
   PenSquare,
+  Paperclip,
+  Download,
 } from "lucide-react";
+import { saveMailAttachmentToDrive } from "@/services/mail-attachments";
 
 const LIMIT = 20;
 const QUERY_LIMIT = 200;
@@ -124,6 +127,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
   const user = await requireUser();
   if (!can(user, "EMAIL_READ")) redirect("/app/forbidden");
   const canDraft = can(user, "EMAIL_DRAFT");
+  const canSaveToDrive = can(user, "FILE_UPLOAD");
   const accessibleIds = await getAccessibleMailboxIds(user, true);
   const accounts = accessibleIds.length
     ? await prisma.mailAccount.findMany({
@@ -305,7 +309,15 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             ) : null}
             <div className="mt-4 space-y-4">
               {conversation.length ? (
-                conversation.map((m) => <MessageCard key={m.id} m={m} />)
+                conversation.map((m) => (
+                  <MessageCard
+                    key={m.id}
+                    m={m}
+                    threadId={activeThread.id}
+                    returnTo={qp({})}
+                    canSave={canSaveToDrive}
+                  />
+                ))
               ) : (
                 <p className="py-10 text-sm text-ink-3">Impossible de charger la conversation.</p>
               )}
@@ -350,7 +362,14 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
             {conversation.length ? (
               <div className="space-y-4">
                 {conversation.map((m, i) => (
-                  <MessageCard key={m.id} m={m} last={i === conversation.length - 1}>
+                  <MessageCard
+                    key={m.id}
+                    m={m}
+                    last={i === conversation.length - 1}
+                    threadId={activeThread.id}
+                    returnTo={qp({})}
+                    canSave={canSaveToDrive}
+                  >
                     {i === conversation.length - 1 && canDraft ? (
                       <div className="flex flex-wrap gap-2 border-t border-line px-4 py-3">
                         <Link prefetch={false} href={replyHref("REPLY")}>
@@ -704,11 +723,18 @@ function MessageCard({
   m,
   last,
   children,
+  threadId,
+  returnTo,
+  canSave,
 }: {
   m: Awaited<ReturnType<typeof getMailConversation>>[number];
   last?: boolean;
   children?: React.ReactNode;
+  threadId: string;
+  returnTo: string;
+  canSave: boolean;
 }) {
+  const files = m.attachments.filter((a) => a.attachmentId);
   return (
     <article className="overflow-hidden rounded-xl border border-line bg-surface-1">
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
@@ -731,6 +757,57 @@ function MessageCard({
           </div>
         )}
       </div>
+      {files.length ? (
+        <div className="flex flex-wrap gap-2 border-t border-line bg-surface-1 px-4 py-2.5">
+          {files.map((a) => {
+            const href = `/api/mail/attachments/${threadId}/${encodeURIComponent(m.id)}/${encodeURIComponent(a.attachmentId!)}?name=${encodeURIComponent(a.filename)}&type=${encodeURIComponent(a.mimeType)}`;
+            return (
+              <div
+                key={a.attachmentId}
+                className="flex items-center gap-1 rounded-lg border border-line bg-surface-2 pl-2 text-xs"
+              >
+                <Paperclip className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="max-w-[220px] truncate py-1.5 font-medium hover:text-accent"
+                  title={a.filename}
+                >
+                  {a.filename}
+                </a>
+                <span className="text-ink-3">
+                  {a.size ? `${Math.max(1, Math.round(a.size / 1024))} KB` : ""}
+                </span>
+                <a
+                  href={`${href}&download=1`}
+                  className="px-1.5 py-1.5 text-ink-3 hover:text-ink"
+                  title="Télécharger"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </a>
+                {canSave ? (
+                  <form action={saveMailAttachmentToDrive}>
+                    <input type="hidden" name="threadId" value={threadId} />
+                    <input type="hidden" name="messageId" value={m.id} />
+                    <input type="hidden" name="attachmentId" value={a.attachmentId!} />
+                    <input type="hidden" name="filename" value={a.filename} />
+                    <input type="hidden" name="mimeType" value={a.mimeType} />
+                    <input type="hidden" name="from" value={m.from} />
+                    <input type="hidden" name="returnTo" value={returnTo} />
+                    <button
+                      className="rounded-r-lg border-l border-line px-2 py-1.5 font-medium text-accent hover:bg-accent/10"
+                      title="Enregistrer dans JUN Drive (lié au client du fil)"
+                    >
+                      Drive
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       {last ? children : null}
     </article>
   );
