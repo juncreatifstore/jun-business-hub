@@ -21,6 +21,7 @@ export default async function MailPage({
     source?: string;
     mode?: string;
     category?: string;
+    alias?: string;
   };
 }) {
   const user = await requireUser();
