@@ -8,6 +8,7 @@ import { getMailConversation } from "@/lib/mail-thread-reader";
 import { getCachedMailConversation } from "@/lib/mail-thread-cache";
 import { MailLive } from "./mail-live";
 import { getGmailMailboxCacheMap } from "@/lib/mail-gmail-cache";
+import { listMailServices, type MailService } from "@/lib/mail-services";
 import { syncMailboxV2, syncAllMailboxesV2 } from "@/services/mail-sync-v2";
 import {
   archiveMailThread,
@@ -45,17 +46,7 @@ import {
 
 const LIMIT = 20;
 const QUERY_LIMIT = 200;
-const SERVICES = [
-  { email: "contact@juncreatifs.org", label: "Contact", color: "bg-accent/15 text-accent" },
-  { email: "support@juncreatifs.org", label: "Support client", color: "bg-success/15 text-success" },
-  { email: "finance@juncreatifs.org", label: "Finance", color: "bg-warning/15 text-warning" },
-  { email: "travel@juncreatifs.org", label: "Voyages", color: "bg-cyan-500/15 text-cyan-400" },
-  { email: "documents@juncreatifs.org", label: "Documents", color: "bg-violet-500/15 text-violet-400" },
-  { email: "legal@juncreatifs.org", label: "Juridique", color: "bg-rose-500/15 text-rose-400" },
-  { email: "info@juncreatifs.org", label: "Informations", color: "bg-indigo-500/15 text-indigo-400" },
-  { email: "noreply@juncreatifs.org", label: "Automatique", color: "bg-neutral/15 text-ink-3" },
-] as const;
-type Service = (typeof SERVICES)[number];
+type Service = MailService;
 
 const FOLDERS = [
   { key: "INBOX", label: "Réception", icon: Inbox },
@@ -83,9 +74,12 @@ type Params = {
   alias?: string;
 };
 
-function serviceForThread(thread: { toEmails: string[]; fromEmail: string | null }): Service | undefined {
+function serviceForThread(
+  services: Service[],
+  thread: { toEmails: string[]; fromEmail: string | null },
+): Service | undefined {
   const addresses = [...thread.toEmails, thread.fromEmail || ""].map((value) => value.toLowerCase());
-  return SERVICES.find((service) => addresses.some((value) => value.includes(service.email)));
+  return services.find((service) => addresses.some((value) => value.includes(service.email)));
 }
 
 function ServiceBadge({ service }: { service: Service }) {
@@ -159,11 +153,8 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
     : "PRIMARY";
   const scopedIds = mailbox === "ALL" ? accountIds : [mailbox];
   const q = (searchParams.q || "").trim().toLowerCase();
-  const selectedAlias = SERVICES.some((service) => service.email === searchParams.alias)
-    ? searchParams.alias
-    : "";
   const threadQuery = searchParams.thread && accountIds.length ? searchParams.thread : null;
-  const [recent, cacheMap, activeThread] = await Promise.all([
+  const [recent, cacheMap, activeThread, SERVICES] = await Promise.all([
     scopedIds.length
       ? prisma.mailThread.findMany({
           where: { mailAccountId: { in: scopedIds } },
@@ -179,7 +170,11 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
           include: { account: true },
         })
       : Promise.resolve(null),
+    listMailServices(),
   ]);
+  const selectedAlias = SERVICES.some((service) => service.email === searchParams.alias)
+    ? searchParams.alias
+    : "";
   const stateIds = recent.map((t) => t.id);
   if (activeThread && !stateIds.includes(activeThread.id)) stateIds.push(activeThread.id);
   const [stateMap, conversationResult] = await Promise.all([
@@ -218,13 +213,13 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
   const serviceCounts = new Map(
     SERVICES.map((service) => [
       service.email,
-      folderThreads.filter((thread) => serviceForThread(thread)?.email === service.email).length,
+      folderThreads.filter((thread) => serviceForThread(SERVICES, thread)?.email === service.email).length,
     ]),
   );
   const threads = folderThreads
-    .filter((thread) => !selectedAlias || serviceForThread(thread)?.email === selectedAlias)
+    .filter((thread) => !selectedAlias || serviceForThread(SERVICES, thread)?.email === selectedAlias)
     .slice(0, LIMIT);
-  const activeService = activeThread ? serviceForThread(activeThread) : undefined;
+  const activeService = activeThread ? serviceForThread(SERVICES, activeThread) : undefined;
   const inboxUnread = scopedIds.reduce(
     (sum, id) =>
       sum +
@@ -400,7 +395,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
     threads.map((t) => {
       const s = stateMap.get(t.id)!;
       const unread = !s.isRead;
-      const service = serviceForThread(t);
+      const service = serviceForThread(SERVICES, t);
       return (
         <div
           key={t.id}

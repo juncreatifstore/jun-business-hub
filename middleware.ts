@@ -49,6 +49,7 @@ export async function middleware(req: NextRequest) {
   // and echo it to the client so support tickets can reference it.
   const headers = new Headers(req.headers);
   headers.set(REQUEST_ID_HEADER, id);
+  headers.set("x-pathname", pathname);
   return withRequestId(NextResponse.next({ request: { headers } }), id);
 }
 

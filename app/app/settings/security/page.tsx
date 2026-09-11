@@ -22,7 +22,11 @@ import { ShieldCheck, Smartphone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function SecurityPage({ searchParams }: { searchParams: { setup?: string } }) {
+export default async function SecurityPage({
+  searchParams,
+}: {
+  searchParams: { setup?: string; required?: string };
+}) {
   const user = await requireUser();
   const row = await prisma.user.findUnique({
     where: { id: user.id },
@@ -45,7 +49,11 @@ export default async function SecurityPage({ searchParams }: { searchParams: { s
     <div className="min-w-0">
       <PageHeader
         title="Sécurité"
-        subtitle="Authentification à deux facteurs et sessions actives de votre compte."
+        subtitle={
+          searchParams.required === "1"
+            ? "Votre rôle exige l’authentification à deux facteurs : activez-la ci-dessous pour accéder au hub."
+            : "Authentification à deux facteurs et sessions actives de votre compte."
+        }
       />
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>

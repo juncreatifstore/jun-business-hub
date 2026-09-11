@@ -10,7 +10,8 @@ import {
   getAccessibleMailboxIds,
   recordMailReliabilityEvent,
 } from "@/lib/mail-security";
-import { syncFolder } from "@/lib/google/gmail";
+import { syncFolder, backfillThreadRecipients } from "@/lib/google/gmail";
+import { EMAIL_ALIAS_DOMAIN, EMAIL_ALIAS_DESTINATION } from "@/lib/email-aliases";
 import { refreshGmailMailboxCache } from "@/lib/mail-gmail-cache";
 import { warmMailConversationCache } from "@/lib/mail-thread-cache";
 
@@ -191,12 +192,30 @@ export async function syncAllMailboxesUnattended() {
     where: { OR: [{ accessTokenEnc: { not: null } }, { refreshTokenEnc: { not: null } }] },
     select: { id: true, email: true },
   });
-  const results: { email: string; ok: boolean; created?: number; warmed?: number; error?: string }[] = [];
+  const results: {
+    email: string;
+    ok: boolean;
+    created?: number;
+    warmed?: number;
+    backfilled?: number;
+    error?: string;
+  }[] = [];
   for (const acc of accounts) {
     try {
       const r = await syncOne(acc.id);
       const w = await warmMailConversationCache(acc.id);
-      results.push({ email: acc.email, ok: true, created: r.created, warmed: w.warmed });
+      // Only the alias destination mailbox receives alias traffic worth backfilling.
+      const b =
+        acc.email.toLowerCase() === EMAIL_ALIAS_DESTINATION
+          ? await backfillThreadRecipients(acc.id, EMAIL_ALIAS_DOMAIN).catch(() => null)
+          : null;
+      results.push({
+        email: acc.email,
+        ok: true,
+        created: r.created,
+        warmed: w.warmed,
+        backfilled: b?.updated,
+      });
     } catch (e) {
       const msg = messageOf(e);
       await recordMailReliabilityEvent({ type: "SYNC_ERROR", accountId: acc.id, message: msg }).catch(

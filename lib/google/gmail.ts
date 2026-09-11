@@ -402,6 +402,59 @@ export async function syncFolder(
   return created;
 }
 
+/**
+ * One-off recipient backfill: threads synced before every recipient header was
+ * read (To only) may miss the alias they were sent to. Re-reads metadata for the
+ * most recent threads of a mailbox that carry no `@domain` recipient and
+ * refreshes `toEmails`. Cheap: format=metadata, ~50 calls max per run.
+ */
+export async function backfillThreadRecipients(accountId: string, domain: string, limit = 50) {
+  const { token } = await accessTokenFor(accountId);
+  const candidates = await prisma.mailThread.findMany({
+    where: { mailAccountId: accountId, gmailThreadId: { not: { startsWith: "local-" } } },
+    orderBy: { lastMessageAt: "desc" },
+    take: 400,
+    select: { id: true, gmailThreadId: true, toEmails: true, fromEmail: true },
+  });
+  // Threads already re-read are remembered so pure personal mail is not fetched on every run.
+  const doneKey = `mail.recipient_backfill.${accountId}`;
+  const doneRow = await prisma.appSetting.findUnique({ where: { key: doneKey }, select: { value: true } });
+  const done = new Set<string>(doneRow ? (JSON.parse(doneRow.value) as string[]) : []);
+  const todo = candidates
+    .filter((t) => !done.has(t.id) && !t.toEmails.some((e) => e.toLowerCase().endsWith(`@${domain}`)))
+    .slice(0, limit);
+  let updated = 0;
+  const fields = ["From", ...RECIPIENT_HEADERS].map((h) => `metadataHeaders=${h}`).join("&");
+  for (const t of todo) {
+    try {
+      const thread = await gmail<{ messages?: GmailMessage[] }>(
+        token,
+        `/threads/${encodeURIComponent(t.gmailThreadId)}?format=metadata&${fields}`,
+      );
+      const emails = new Set<string>();
+      for (const m of thread.messages ?? [])
+        for (const e of participantEmails(m, header(m, "From"))) emails.add(e);
+      const next = Array.from(emails);
+      if (next.length && next.length !== t.toEmails.length) {
+        await prisma.mailThread.update({ where: { id: t.id }, data: { toEmails: next } });
+        updated++;
+      }
+      done.add(t.id);
+    } catch {
+      /* skip this thread; the next run will retry */
+    }
+  }
+  if (todo.length) {
+    const value = JSON.stringify(Array.from(done).slice(-2000));
+    await prisma.appSetting.upsert({
+      where: { key: doneKey },
+      create: { key: doneKey, value },
+      update: { value },
+    });
+  }
+  return { considered: todo.length, updated };
+}
+
 export async function syncMailboxRecent(accountId: string, maxPerFolder = 250) {
   let total = 0;
   for (const folder of ["INBOX", "SENT", "DRAFTS", "IMPORTANT"] as const)

@@ -15,6 +15,7 @@ export type CurrentUser = {
   role: StaffRole;
   departmentId: string | null;
   extraPermissions: string[];
+  mfaEnabled: boolean;
 };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
@@ -37,8 +38,22 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     role: user.role as StaffRole,
     departmentId: user.departmentId,
     extraPermissions: user.extraPermissions.map((p) => p.permission.code),
+    mfaEnabled: Boolean(user.mfaEnabled && user.mfaSecret),
   };
 });
+
+/** Roles for which two-factor authentication is mandatory (README security stance). */
+export const MFA_REQUIRED_ROLES: ReadonlySet<StaffRole> = new Set<StaffRole>([
+  "SUPER_ADMIN",
+  "DIRECTOR",
+  "ADMIN",
+  "FINANCE",
+  "LEGAL",
+  "ACCOUNTANT",
+]);
+export function mfaRequiredFor(user: Pick<CurrentUser, "role" | "mfaEnabled">) {
+  return MFA_REQUIRED_ROLES.has(user.role) && !user.mfaEnabled;
+}
 
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();

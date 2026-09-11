@@ -1,6 +1,7 @@
 {
   "buildCommand": "prisma generate && next build",
   "framework": "nextjs",
+  "regions": ["cle1"],
   "crons": [
     {
       "path": "/api/cron/mail-sync",
