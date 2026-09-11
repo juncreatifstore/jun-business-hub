@@ -38,7 +38,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
     },
   });
   if (!client) notFound();
-  const { groups, missing, alerts, total, pending } = await clientDocumentGroups(client.id);
+  const { groups, missing, required, alerts, total, pending } = await clientDocumentGroups(client.id);
   const canUpload = can(user, "FILE_UPLOAD");
 
   return (
@@ -70,7 +70,9 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
         </Card>
         <Card className={missing.length ? "border-amber-200" : ""}>
           <CardContent className="pt-5">
-            <div className="text-xs uppercase tracking-wide text-muted2">Missing (baseline)</div>
+            <div className="text-xs uppercase tracking-wide text-muted2">
+              Missing <span className="normal-case">({required.length} required by open cases)</span>
+            </div>
             {missing.length ? (
               <ul className="mt-2 space-y-1 text-sm">
                 {missing.map((t) => (

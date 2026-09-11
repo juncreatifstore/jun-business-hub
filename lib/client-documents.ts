@@ -1,13 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { DOC_TYPE_LABELS, EXPIRING_DOC_TYPES, expiryStatus, type DocType } from "@/lib/file-extraction";
-
-/**
- * Standard pieces expected from a client. Per-case requirements will refine this
- * later; for now identity + contact proof + photo form the baseline, and travel
- * files are "nice to have".
- */
-export const BASELINE_DOC_TYPES: DocType[] = ["PASSPORT", "PHOTO", "BANK_STATEMENT", "EMPLOYMENT_LETTER"];
+import {
+  clientRequiredDocTypes,
+  loadRequirementProfiles,
+  profileForCaseType,
+} from "@/lib/document-requirements";
 
 export type ClientDocGroup = {
   docType: DocType;
@@ -27,11 +25,14 @@ export type ClientDocGroup = {
 };
 
 export async function clientDocumentGroups(clientId: string) {
-  const files = await prisma.file.findMany({
-    where: { clientId, archivedAt: null, isVault: false },
-    orderBy: { createdAt: "desc" },
-    include: { extraction: true },
-  });
+  const [files, required] = await Promise.all([
+    prisma.file.findMany({
+      where: { clientId, archivedAt: null, isVault: false },
+      orderBy: { createdAt: "desc" },
+      include: { extraction: true },
+    }),
+    clientRequiredDocTypes(clientId),
+  ]);
   const groups = new Map<DocType, ClientDocGroup>();
   for (const f of files) {
     const t = (f.extraction?.docType ?? "OTHER") as DocType;
@@ -51,7 +52,7 @@ export async function clientDocumentGroups(clientId: string) {
     groups.set(t, g);
   }
   const present = new Set(groups.keys());
-  const missing = BASELINE_DOC_TYPES.filter((t) => !present.has(t));
+  const missing = required.filter((t) => !present.has(t));
   const alerts = files
     .filter(
       (f) =>
@@ -68,15 +69,16 @@ export async function clientDocumentGroups(clientId: string) {
     }));
   const pending = files.filter((f) => !f.extraction).length;
   // Identity groups first, then the rest alphabetically.
-  const order = (t: DocType) => (BASELINE_DOC_TYPES.includes(t) ? BASELINE_DOC_TYPES.indexOf(t) : 100);
+  const order = (t: DocType) => (required.includes(t) ? required.indexOf(t) : 100);
   const sorted = Array.from(groups.values()).sort(
     (a, b) => order(a.docType) - order(b.docType) || a.label.localeCompare(b.label),
   );
-  return { groups: sorted, missing, alerts, total: files.length, pending };
+  return { groups: sorted, missing, required, alerts, total: files.length, pending };
 }
 
 /** One row per client with coverage figures, for the clients index. */
 export async function clientDocumentOverview() {
+  const profiles = await loadRequirementProfiles();
   const clients = await prisma.client.findMany({
     where: { archivedAt: null },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -87,6 +89,10 @@ export async function clientDocumentOverview() {
       lastName: true,
       status: true,
       nationality: true,
+      cases: {
+        where: { status: { in: ["OPEN", "IN_PROGRESS", "WAITING_CLIENT", "WAITING_INTERNAL"] } },
+        select: { type: true },
+      },
       files: {
         where: { archivedAt: null, isVault: false },
         select: { id: true, extraction: { select: { docType: true, expiresAt: true } } },
@@ -95,7 +101,12 @@ export async function clientDocumentOverview() {
   });
   return clients.map((c) => {
     const types = new Set(c.files.map((f) => f.extraction?.docType ?? "OTHER"));
-    const missing = BASELINE_DOC_TYPES.filter((t) => !types.has(t));
+    const req = new Set<DocType>();
+    const list = c.cases.length
+      ? c.cases.map((k) => profileForCaseType(profiles, k.type))
+      : [profileForCaseType(profiles, "")];
+    for (const p of list) for (const t of p.required) req.add(t);
+    const missing = Array.from(req).filter((t) => !types.has(t));
     let worst: ReturnType<typeof expiryStatus> = null;
     for (const f of c.files) {
       if (!f.extraction?.expiresAt || !EXPIRING_DOC_TYPES.has(f.extraction.docType as DocType)) continue;
