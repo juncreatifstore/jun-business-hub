@@ -174,11 +174,12 @@ export async function trashCloudFile(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").slice(0, 200);
   const returnTo = String(formData.get("returnTo") ?? `/app/drive/cloud?provider=${provider}`);
   const base = returnTo.startsWith("/app/drive") ? returnTo : `/app/drive/cloud?provider=${provider}`;
-  const toast = (key: "toast" | "toast_error", message: string): never =>
+  function toast(key: "toast" | "toast_error", message: string): never {
     redirect(`${base}${base.includes("?") ? "&" : "?"}${key}=${encodeURIComponent(message)}`);
-  if (!fileId) toast("toast_error", "Invalid file");
+  }
+  if (!fileId) return toast("toast_error", "Invalid file");
   const connection = await getCloudConnection(user.id, provider);
-  if (!connection) toast("toast_error", "Cloud not connected");
+  if (!connection) return toast("toast_error", "Cloud not connected");
   try {
     await trashCloudFileRemote(connection, fileId);
     await audit({
