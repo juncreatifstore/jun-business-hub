@@ -12,6 +12,7 @@ import { DriveBrowser } from "@/components/app/drive-browser";
 import { uploadFile, createFolder } from "@/services/files";
 import { FOLDER_TRASH_PREFIX, FOLDER_SHARE_PREFIX } from "@/lib/drive-folder-constants";
 import { getCloudConnection, isCloudAdmin } from "@/lib/drive-cloud";
+import { DriveSidebar } from "@/components/app/drive-sidebar";
 import { DOC_TYPE_LABELS, expiryStatus, listExpiringFiles, type DocType } from "@/lib/file-extraction";
 import {
   FolderOpen,
@@ -425,24 +426,7 @@ export default async function DrivePage(props: {
         subtitle="Company storage with intelligent search, secure sharing, advanced folders, recovery, versions and audit history."
       />
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside>
-          <nav className="sticky top-5 space-y-1 rounded-xl border border-line bg-white p-2 shadow-sm">
-            {NAV.map((item) => {
-              const Icon = item.icon;
-              const active = item.view === view;
-              return (
-                <Link
-                  key={item.view}
-                  href={driveUrl(item.view)}
-                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition ${active ? "bg-blue-50 text-electric" : "text-muted2 hover:bg-surface hover:text-ink"}`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
+        <DriveSidebar active={view} userId={user.id} role={user.role} />
         <main className="min-w-0">
           {view === "my" ? (
             <div className="mb-5 flex flex-wrap items-center gap-1 text-sm text-muted2">
