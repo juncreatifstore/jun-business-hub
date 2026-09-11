@@ -115,10 +115,19 @@ export async function verifyCloudOAuthState(state: string) {
   return { userId: payload.sub, provider: payload.provider as CloudProvider };
 }
 
+/** Callback URL registered with the provider; pinned to the public app URL when known. */
+export function cloudRedirectUri(provider: CloudProvider, requestUrl: string) {
+  const base = process.env.NEXT_PUBLIC_APP_URL || requestUrl;
+  return new URL(`/api/drive/cloud/${provider}/callback`, base).toString();
+}
+
 export function cloudOAuthConfig(provider: CloudProvider) {
   if (provider === "google") {
-    const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET;
+    // Dedicated Drive client if provided, otherwise the Workspace OAuth client
+    // already used for Gmail (same Google Cloud project; the Drive callback
+    // URI must be added to that client and the Drive API enabled).
+    const clientId = process.env.GOOGLE_DRIVE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_DRIVE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
     if (!clientId || !clientSecret) return null;
     return { clientId, clientSecret };
   }

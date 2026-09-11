@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { cloudOAuthConfig, isCloudAdmin, signCloudOAuthState, type CloudProvider } from "@/lib/drive-cloud";
+import {
+  cloudOAuthConfig,
+  cloudRedirectUri,
+  isCloudAdmin,
+  signCloudOAuthState,
+  type CloudProvider,
+} from "@/lib/drive-cloud";
 
 function providerOf(value: string): CloudProvider | null {
   return value === "google" || value === "microsoft" ? value : null;
@@ -18,7 +24,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ provider:
     return NextResponse.redirect(new URL(`/app/drive/cloud?error=${provider}_not_configured`, req.url));
 
   const state = await signCloudOAuthState(user.id, provider);
-  const redirectUri = new URL(`/api/drive/cloud/${provider}/callback`, req.url).toString();
+  const redirectUri = cloudRedirectUri(provider, req.url);
   let url: URL;
   if (provider === "google") {
     url = new URL("https://accounts.google.com/o/oauth2/v2/auth");

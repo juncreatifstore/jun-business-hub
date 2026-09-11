@@ -41,7 +41,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ provider:
   const config = cloudOAuthConfig(provider);
   if (!config)
     return NextResponse.redirect(new URL(`/app/drive/cloud?error=${provider}_not_configured`, req.url));
-  const redirectUri = new URL(`/api/drive/cloud/${provider}/callback`, req.url).toString();
+  const redirectUri = cloudRedirectUri(provider, req.url);
   const paramsBody = new URLSearchParams({
     client_id: config.clientId,
     client_secret: config.clientSecret,
