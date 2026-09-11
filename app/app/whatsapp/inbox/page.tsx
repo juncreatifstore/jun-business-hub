@@ -335,6 +335,8 @@ export default async function WhatsAppInboxPage(props: {
       ) : (
         <>
           <MobileInbox
+            canSaveToDrive={canSaveToDrive}
+            currentHref={currentHref}
             conversations={conversations}
             allCount={allConversations.length}
             counts={{
@@ -1546,6 +1548,8 @@ function MobileInbox({
   windowClosed,
   quickReplies,
   aiEnabled,
+  canSaveToDrive = false,
+  currentHref = "/app/whatsapp/inbox",
   transcripts,
   ban,
   backHref,
@@ -1573,6 +1577,8 @@ function MobileInbox({
   windowClosed: boolean;
   quickReplies: QuickReply[];
   aiEnabled: boolean;
+  canSaveToDrive?: boolean;
+  currentHref?: string;
   transcripts: Map<string, Transcript>;
   ban: { banned: boolean; reason?: string | null };
   backHref: string;
