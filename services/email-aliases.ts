@@ -12,6 +12,7 @@ import {
   listEmailAliases,
   type EmailAlias,
 } from "@/lib/email-aliases";
+import { listGoogleSendAsAliases } from "@/lib/google/gmail-aliases";
 
 function aliasesUrl(message: string, error = false) {
   const key = error ? "toast_error" : "toast";
@@ -106,4 +107,71 @@ export async function removeEmailAlias(address: string): Promise<void> {
   });
   revalidatePath("/app/settings/email/aliases");
   redirect(aliasesUrl(`${address} retiré de l’application. Supprimez-le aussi dans Google Workspace si nécessaire.`));
+}
+
+
+export async function syncEmailAliasesFromGoogle(): Promise<void> {
+  const user = await assertPermission("SETTINGS_MANAGE");
+  const account = await prisma.mailAccount.findUnique({
+    where: { email: EMAIL_ALIAS_DESTINATION },
+    select: { id: true, email: true, accessTokenEnc: true, refreshTokenEnc: true },
+  });
+  if (!account || (!account.accessTokenEnc && !account.refreshTokenEnc)) {
+    redirect(
+      aliasesUrl(
+        `Connectez d’abord ${EMAIL_ALIAS_DESTINATION} dans Paramètres → Intégration Email.`,
+        true,
+      ),
+    );
+  }
+
+  let googleAliases;
+  try {
+    googleAliases = await listGoogleSendAsAliases(account.id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Synchronisation Google impossible.";
+    redirect(aliasesUrl(message, true));
+  }
+
+  const existing = await listEmailAliases();
+  const existingByAddress = new Map(existing.map((alias) => [alias.address.toLowerCase(), alias]));
+  const domainSuffix = `@${EMAIL_ALIAS_DOMAIN}`;
+  const aliases: EmailAlias[] = googleAliases
+    .filter((entry) => {
+      const address = String(entry.sendAsEmail || "").trim().toLowerCase();
+      return !entry.isPrimary && address.endsWith(domainSuffix) && address !== EMAIL_ALIAS_DESTINATION;
+    })
+    .map((entry) => {
+      const address = entry.sendAsEmail.trim().toLowerCase();
+      return {
+        address,
+        destination: EMAIL_ALIAS_DESTINATION,
+        confirmed: entry.verificationStatus === "accepted",
+        createdAt: existingByAddress.get(address)?.createdAt || new Date().toISOString(),
+      };
+    })
+    .sort((a, b) => a.address.localeCompare(b.address));
+
+  await writeAliases(aliases);
+  await audit({
+    userId: user.id,
+    action: "EMAIL_ALIASES_SYNCED_FROM_GOOGLE",
+    resourceType: "AppSetting",
+    resourceId: EMAIL_ALIASES_SETTING_KEY,
+    before: { aliases: existing.map((alias) => alias.address) },
+    after: {
+      mailbox: account.email,
+      aliases: aliases.map((alias) => ({ address: alias.address, confirmed: alias.confirmed })),
+    },
+  });
+  revalidatePath("/app/settings/email/aliases");
+  revalidatePath("/app/mail/aliases");
+  revalidatePath("/app/mail/compose");
+  redirect(
+    aliasesUrl(
+      aliases.length
+        ? `${aliases.length} alias${aliases.length > 1 ? "s" : ""} synchronisé${aliases.length > 1 ? "s" : ""} depuis Google.`
+        : "Aucun alias d’envoi n’a encore été retourné par Google. Réessayez après la propagation.",
+    ),
+  );
 }
