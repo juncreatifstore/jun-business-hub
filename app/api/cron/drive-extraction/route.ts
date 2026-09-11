@@ -14,5 +14,5 @@ export async function GET(req: Request) {
   const started = Date.now();
   const result = await backfillFileExtractions(8, 90_000);
   logger.info("drive.extraction_backfill", { ms: Date.now() - started, ...result });
-  return NextResponse.json({ ok: true, ...result });
+  return NextResponse.json({ success: true, processed: result.processed, extracted: result.ok });
 }
