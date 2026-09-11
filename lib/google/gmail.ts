@@ -8,6 +8,7 @@ import { AUTOMATED_NO_REPLY_EMAIL } from "@/lib/email-aliases";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/admin.directory.user.alias.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
