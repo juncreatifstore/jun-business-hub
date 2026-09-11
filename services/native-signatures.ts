@@ -16,6 +16,8 @@ import {
 import { nativeSigningExpiry, nativeSigningUrl, verifyNativeSigningToken } from "@/lib/native-signature";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { resolveOtpSenderMailbox } from "@/lib/mail-otp-sender";
+import { AUTOMATED_NO_REPLY_EMAIL } from "@/lib/email-aliases";
 
 function initials(name: string) {
   return name
@@ -184,7 +186,7 @@ function requestExpiry(metaExpiresAt: string | undefined, sentAt: Date | null) {
 }
 
 async function primaryMailAccount() {
-  return prisma.mailAccount.findFirst({ orderBy: { createdAt: "asc" } });
+  return resolveOtpSenderMailbox();
 }
 
 async function sendSigningInvitation(input: {
@@ -209,6 +211,8 @@ async function sendSigningInvitation(input: {
     : `A document is ready for your secure electronic signature.`;
   const extra = input.message?.trim() ? `\n\nMessage from JUN:\n${input.message.trim()}` : "";
   return gmailSend(input.accountId, {
+    fromEmail: AUTOMATED_NO_REPLY_EMAIL,
+    automated: true,
     to: input.recipient.email,
     subject: `${input.reminder ? "Signature reminder" : "Signature requested"} — ${input.documentTitle} (${input.documentId})`,
     text: `Hello ${input.recipient.name},\n\n${intro}${extra}\n\nReview & sign securely:\n${link}\n\nFor your security, JUN will verify your email with a one-time code before displaying the document. This signing link expires on ${input.expiresAt.toISOString().slice(0, 10)}.\n\nIf the document is incorrect, you can decline it from the secure signing page.\n\nJUN CREATIF AND TRAVEL LLC`,
@@ -233,6 +237,8 @@ async function deliverCompletedPackage(input: {
   for (const recipient of input.recipients) {
     try {
       await gmailSend(input.accountId, {
+        fromEmail: AUTOMATED_NO_REPLY_EMAIL,
+        automated: true,
         to: recipient.email,
         subject: `Signed document completed — ${input.documentTitle} (${input.documentId})`,
         text: `Hello ${recipient.name},\n\nThe electronic signature process for ${input.documentId} is complete.\n\nAttached are:\n• the final signed PDF\n• the JUN electronic signature certificate / audit trail\n\nFinal PDF SHA-256:\n${input.pdfHash}\n\nPlease keep these files for your records.\n\nJUN CREATIF AND TRAVEL LLC`,
