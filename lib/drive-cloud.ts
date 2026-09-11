@@ -180,13 +180,61 @@ export async function refreshCloudConnection(connection: CloudConnection): Promi
   return next;
 }
 
-export async function listCloudFiles(connection: CloudConnection): Promise<CloudFile[]> {
+export type CloudCrumb = { id: string; name: string };
+
+/** Breadcrumb from the root to `folderId` (root itself excluded). Google only for now. */
+export async function cloudFolderPath(connection: CloudConnection, folderId: string): Promise<CloudCrumb[]> {
+  const c = await refreshCloudConnection(connection);
+  const crumbs: CloudCrumb[] = [];
+  let current: string | undefined = folderId;
+  for (let depth = 0; current && depth < 12; depth++) {
+    if (c.provider === "google") {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(current)}?fields=id,name,parents&supportsAllDrives=true`,
+        { headers: { Authorization: `Bearer ${c.accessToken}` } },
+      );
+      if (!res.ok) break;
+      const f = (await res.json()) as { id: string; name: string; parents?: string[] };
+      crumbs.unshift({ id: f.id, name: f.name });
+      current = f.parents?.[0];
+      if (!current) break;
+      // Stop at "My Drive" (its parent list is empty) — resolved on the next loop.
+    } else {
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(current)}`,
+        {
+          headers: { Authorization: `Bearer ${c.accessToken}` },
+        },
+      );
+      if (!res.ok) break;
+      const f = (await res.json()) as {
+        id: string;
+        name: string;
+        parentReference?: { id?: string; path?: string };
+      };
+      if (f.name === "root" && !f.parentReference?.id) break;
+      crumbs.unshift({ id: f.id, name: f.name });
+      current = f.parentReference?.id;
+    }
+  }
+  return crumbs;
+}
+
+/**
+ * Lists a folder (folders first, then files). Without `folderId`, Google
+ * returns the most recently modified items across the drive and OneDrive
+ * returns the root.
+ */
+export async function listCloudFiles(connection: CloudConnection, folderId?: string): Promise<CloudFile[]> {
   const c = await refreshCloudConnection(connection);
   if (c.provider === "google") {
     const q = new URL("https://www.googleapis.com/drive/v3/files");
-    q.searchParams.set("pageSize", "100");
-    q.searchParams.set("orderBy", "modifiedTime desc");
-    q.searchParams.set("q", "trashed = false");
+    q.searchParams.set("pageSize", "200");
+    q.searchParams.set("orderBy", folderId ? "folder,name" : "modifiedTime desc");
+    q.searchParams.set(
+      "q",
+      folderId ? `'${folderId.replace(/'/g, "\\'")}' in parents and trashed = false` : "trashed = false",
+    );
     q.searchParams.set("fields", "files(id,name,mimeType,size,modifiedTime,webViewLink)");
     q.searchParams.set("supportsAllDrives", "true");
     q.searchParams.set("includeItemsFromAllDrives", "true");
@@ -214,7 +262,9 @@ export async function listCloudFiles(connection: CloudConnection): Promise<Cloud
   }
 
   const res = await fetch(
-    "https://graph.microsoft.com/v1.0/me/drive/root/children?$top=100&$orderby=lastModifiedDateTime desc",
+    folderId
+      ? `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(folderId)}/children?$top=200&$orderby=name`
+      : "https://graph.microsoft.com/v1.0/me/drive/root/children?$top=100&$orderby=lastModifiedDateTime desc",
     { headers: { Authorization: `Bearer ${c.accessToken}` } },
   );
   if (!res.ok) throw new Error("Unable to list OneDrive files");

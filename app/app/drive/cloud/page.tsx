@@ -1,13 +1,24 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Cloud, DownloadCloud, ExternalLink, HardDrive, Link2, RefreshCw, Unplug } from "lucide-react";
+import {
+  Cloud,
+  DownloadCloud,
+  ExternalLink,
+  FolderOpen,
+  HardDrive,
+  Link2,
+  RefreshCw,
+  Unplug,
+} from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import {
+  cloudFolderPath,
   cloudOAuthConfig,
   cloudRedirectUri,
   getCloudConnection,
   isCloudAdmin,
   listCloudFiles,
+  type CloudCrumb,
   type CloudFile,
   type CloudProvider,
 } from "@/lib/drive-cloud";
@@ -24,13 +35,17 @@ function size(bytes: number | null) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-async function providerState(userId: string, provider: CloudProvider) {
+async function providerState(userId: string, provider: CloudProvider, folderId?: string) {
   const connection = await getCloudConnection(userId, provider);
   let files: CloudFile[] = [];
+  let crumbs: CloudCrumb[] = [];
   let error: string | null = null;
   if (connection) {
     try {
-      files = await listCloudFiles(connection);
+      [files, crumbs] = await Promise.all([
+        listCloudFiles(connection, folderId),
+        folderId ? cloudFolderPath(connection, folderId) : Promise.resolve([]),
+      ]);
     } catch (e) {
       error = e instanceof Error ? e.message : "Unable to load files";
     }
@@ -41,19 +56,31 @@ async function providerState(userId: string, provider: CloudProvider) {
     redirectUri: cloudRedirectUri(provider),
     connection,
     files,
+    crumbs,
+    folderId: folderId ?? null,
     error,
   };
 }
 
+function folderHref(provider: CloudProvider, folderId?: string | null) {
+  return folderId ? `/app/drive/cloud?${provider}Folder=${encodeURIComponent(folderId)}` : "/app/drive/cloud";
+}
+
 export default async function CloudDrivePage(props: {
-  searchParams: Promise<{ toast?: string; error?: string; connected?: string }>;
+  searchParams: Promise<{
+    toast?: string;
+    error?: string;
+    connected?: string;
+    googleFolder?: string;
+    microsoftFolder?: string;
+  }>;
 }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!isCloudAdmin(user.role)) redirect("/app/forbidden");
   const [google, microsoft] = await Promise.all([
-    providerState(user.id, "google"),
-    providerState(user.id, "microsoft"),
+    providerState(user.id, "google", searchParams.googleFolder),
+    providerState(user.id, "microsoft", searchParams.microsoftFolder),
   ]);
   const workspaceReady = googleWorkspaceConfigured();
   const workspaceStorageActive = (process.env.STORAGE_DRIVER || "").toUpperCase() === "GOOGLE_WORKSPACE";
@@ -141,9 +168,35 @@ export default async function CloudDrivePage(props: {
               </div>
               {state.connection ? (
                 <div className="mt-4">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted2">
-                    Recent files
-                  </div>
+                  <nav className="mb-2 flex flex-wrap items-center gap-1 text-xs" aria-label="Folder path">
+                    <Link
+                      prefetch={false}
+                      href={folderHref(state.provider)}
+                      className={
+                        state.folderId
+                          ? "font-semibold uppercase tracking-wide text-electric hover:underline"
+                          : "font-semibold uppercase tracking-wide text-muted2"
+                      }
+                    >
+                      {state.folderId ? "Recent" : "Recent files"}
+                    </Link>
+                    {state.crumbs.map((crumb, i) => (
+                      <span key={crumb.id} className="flex items-center gap-1">
+                        <span className="text-muted2">/</span>
+                        {i === state.crumbs.length - 1 ? (
+                          <span className="font-semibold text-ink">{crumb.name}</span>
+                        ) : (
+                          <Link
+                            prefetch={false}
+                            href={folderHref(state.provider, crumb.id)}
+                            className="text-electric hover:underline"
+                          >
+                            {crumb.name}
+                          </Link>
+                        )}
+                      </span>
+                    ))}
+                  </nav>
                   {state.error ? (
                     <div className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{state.error}</div>
                   ) : state.files.length ? (
@@ -155,7 +208,14 @@ export default async function CloudDrivePage(props: {
                         >
                           <div className="min-w-0 flex-1">
                             {f.isFolder ? (
-                              <div className="truncate text-sm font-medium">{f.name}</div>
+                              <Link
+                                prefetch={false}
+                                href={folderHref(state.provider, f.id)}
+                                className="flex items-center gap-2 truncate text-sm font-medium hover:text-electric hover:underline"
+                                title="Open folder"
+                              >
+                                <FolderOpen className="h-4 w-4 shrink-0 text-muted2" /> {f.name}
+                              </Link>
                             ) : (
                               <Link
                                 prefetch={false}
@@ -196,7 +256,7 @@ export default async function CloudDrivePage(props: {
                     </div>
                   ) : (
                     <p className="rounded-lg bg-surface p-3 text-xs text-muted2">
-                      No files returned from this account.
+                      {state.folderId ? "This folder is empty." : "No files returned from this account."}
                     </p>
                   )}
                 </div>
