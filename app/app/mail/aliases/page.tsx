@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccessibleMailboxIds } from "@/lib/mail-security";
 import { getMailThreadStateMap } from "@/lib/mail-thread-state";
 import { getMailOwnerMap, listMailSlaStates } from "@/lib/mail-operations";
-import { EMAIL_ALIASES_SETTING_KEY, type EmailAlias } from "@/services/email-aliases";
+import { EMAIL_ALIASES_SETTING_KEY, type EmailAlias } from "@/lib/email-aliases";
 import { assignAliasConversation, setAliasConversationStatus } from "@/services/mail-alias-center";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
