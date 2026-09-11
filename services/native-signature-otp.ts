@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { assertPermission } from "@/lib/auth";
 import { sha256 } from "@/lib/hash";
 import { resolveOtpSenderMailbox } from "@/lib/mail-otp-sender";
+import { AUTOMATED_NO_REPLY_EMAIL } from "@/lib/email-aliases";
 import {
   signatureRecipients,
   signatureRequestMeta,
@@ -147,6 +148,8 @@ export async function sendNativeVerificationCode(token: string): Promise<void> {
   const { gmailSend } = await import("@/lib/google/gmail");
   try {
     await gmailSend(account.id, {
+      fromEmail: AUTOMATED_NO_REPLY_EMAIL,
+      automated: true,
       to: recipient.email,
       subject: `Your JUN Secure Sign verification code — ${request.document.documentId}`,
       text: `Hello ${recipient.name},\n\nYour JUN Secure Sign verification code is:\n\n${code}\n\nThis code expires in 10 minutes. Do not share it with anyone.\n\nDocument: ${request.document.documentId} — ${request.document.title}\n\nIf you did not request this code, do not continue with the signature.\n\nJUN CREATIF AND TRAVEL LLC`,
@@ -160,7 +163,7 @@ export async function sendNativeVerificationCode(token: string): Promise<void> {
       after: {
         signer: recipient.email,
         recipientEmail: recipient.email,
-        fromEmail: account.email,
+        fromEmail: AUTOMATED_NO_REPLY_EMAIL,
         mailAccountId: account.id,
         attemptedAt: now.toISOString(),
         error: error instanceof Error ? error.message : String(error),
@@ -182,7 +185,7 @@ export async function sendNativeVerificationCode(token: string): Promise<void> {
       expiresInMinutes: 10,
       windowSendCount: sendCount + 1,
       mailAccountId: account.id,
-      fromEmail: account.email,
+      fromEmail: AUTOMATED_NO_REPLY_EMAIL,
       providerStatus: "ACCEPTED_BY_GMAIL_API",
     },
   }).catch(() => undefined);
