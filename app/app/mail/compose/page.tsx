@@ -16,7 +16,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
-import { listEmailAliases } from "@/lib/email-aliases";
+import { AUTOMATED_NO_REPLY_EMAIL, listEmailAliases } from "@/lib/email-aliases";
 
 export const dynamic = "force-dynamic";
 const MODES = ["NEW", "REPLY", "REPLY_ALL", "FORWARD"] as const;
@@ -66,7 +66,10 @@ export default async function ProfessionalComposePage({
       })
     : null;
   const confirmedAliases = (await listEmailAliases()).filter(
-    (alias) => alias.confirmed && alias.destination.toLowerCase() === account.email.toLowerCase(),
+    (alias) =>
+      alias.confirmed &&
+      alias.address.toLowerCase() !== AUTOMATED_NO_REPLY_EMAIL &&
+      alias.destination.toLowerCase() === account.email.toLowerCase(),
   );
   const allowedAliasAddresses = new Set(confirmedAliases.map((alias) => alias.address.toLowerCase()));
   const sourceAlias = source?.toEmails
