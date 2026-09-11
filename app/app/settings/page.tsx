@@ -84,7 +84,8 @@ export default async function SettingsPage() {
               <p className="mt-0.5 text-xs text-muted2">Meta Cloud API et automatisation</p>
             </div>
           </div>
-        </a>        <a
+        </a>
+        <a
           href="/app/settings/legal"
           className="group rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-4 transition hover:border-violet-400/40 hover:bg-violet-500/[0.07]"
         >
