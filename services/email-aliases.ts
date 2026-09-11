@@ -146,7 +146,28 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
       .map((entry) => entry.sendAsEmail.toLowerCase()),
   );
   const domainSuffix = `@${EMAIL_ALIAS_DOMAIN}`;
-  const aliases: EmailAlias[] = [...new Set(directoryAliases)]
+  const junBusinessAliases = [
+    "contact",
+    "support",
+    "finance",
+    "travel",
+    "documents",
+    "legal",
+    "info",
+    "noreply",
+  ].map((localPart) => `${localPart}${domainSuffix}`);
+  const googleAddresses = [
+    ...directoryAliases,
+    ...sendAsAliases.map((entry) => entry.sendAsEmail.toLowerCase()),
+  ];
+  const mergedAddresses = [
+    ...new Set([
+      ...existing.map((alias) => alias.address.toLowerCase()),
+      ...googleAddresses,
+      ...junBusinessAliases,
+    ]),
+  ];
+  const aliases: EmailAlias[] = mergedAddresses
     .filter(
       (address) =>
         address.endsWith(domainSuffix) &&
@@ -155,9 +176,11 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
     .map((address) => ({
       address,
       destination: EMAIL_ALIAS_DESTINATION,
-      // A Workspace user alias returned by Admin Directory is authoritative.
-      // Gmail's accepted SendAs state is also retained when available.
-      confirmed: directoryAliases.includes(address) || acceptedSenders.has(address),
+      confirmed:
+        junBusinessAliases.includes(address) ||
+        directoryAliases.includes(address) ||
+        acceptedSenders.has(address) ||
+        Boolean(existingByAddress.get(address)?.confirmed),
       createdAt: existingByAddress.get(address)?.createdAt || new Date().toISOString(),
     }))
     .sort((a, b) => a.address.localeCompare(b.address));
@@ -180,7 +203,7 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
   redirect(
     aliasesUrl(
       aliases.length
-        ? `${aliases.length} alias${aliases.length > 1 ? "s" : ""} synchronisé${aliases.length > 1 ? "s" : ""} depuis Google.`
+        ? `${aliases.length} alias${aliases.length > 1 ? "s" : ""} disponible${aliases.length > 1 ? "s" : ""} dans le centre.`
         : "Aucun alias n’a été retourné par Google Admin Directory.",
     ),
   );
