@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useFormState, useFormStatus } from "react-dom";
 import { useMemo, useState, useTransition } from "react";
 import { createDocumentD5 } from "@/services/document-create-d5";
@@ -314,12 +315,12 @@ export function DocumentCreateForm({
           ) : null}
           <div className="grid gap-2 sm:col-span-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
             <Submit />
-            <a
+            <Link
               href="/app/documents"
               className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-line px-4 text-sm font-medium hover:bg-surface sm:w-auto"
             >
               Annuler
-            </a>
+            </Link>
           </div>
         </section>
       </form>
@@ -367,12 +368,12 @@ export function DocumentCreateForm({
             </p>
           ) : null}
         </div>
-        <a
+        <Link
           href="/app/documents/templates"
-          className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-line bg-white px-3 text-center text-sm font-medium hover:bg-surface"
+          className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-line bg-surface-1 px-3 text-center text-sm font-medium hover:bg-surface"
         >
           Ouvrir la bibliothèque de modèles
-        </a>
+        </Link>
       </aside>
     </div>
   );
