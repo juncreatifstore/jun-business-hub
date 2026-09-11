@@ -15,7 +15,7 @@ import {
   removeEmailAlias,
   setEmailAliasConfirmed,
   type EmailAlias,
-} from "@/services/email-aliases";
+} from "@/lib/email-aliases";
 
 export const dynamic = "force-dynamic";
 
