@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -125,7 +126,11 @@ export async function listMailboxAccessRules() {
   return out;
 }
 
-export async function getAccessibleMailboxIds(user: CurrentUser, connectedOnly = false) {
+// Memoised per request: the mail page and its center component both call it.
+export const getAccessibleMailboxIds = cache(async function getAccessibleMailboxIds(
+  user: CurrentUser,
+  connectedOnly = false,
+) {
   const accounts = await prisma.mailAccount.findMany({
     where: connectedOnly
       ? { OR: [{ accessTokenEnc: { not: null } }, { refreshTokenEnc: { not: null } }] }
@@ -138,7 +143,7 @@ export async function getAccessibleMailboxIds(user: CurrentUser, connectedOnly =
   if (!rule) return all;
   const allowed = new Set(rule.accountIds);
   return all.filter((id) => allowed.has(id));
-}
+});
 export async function assertMailboxAccess(user: CurrentUser, accountId: string) {
   if (can(user, "EMAIL_MANAGE")) return;
   const rule = await getMailboxAccessRule(user.id);

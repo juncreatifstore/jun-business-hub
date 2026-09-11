@@ -413,6 +413,11 @@ type GmailAttachment = { filename: string; mimeType: string; data: Buffer | Uint
 function safeHeaderValue(value: string) {
   return value.replace(/[\r\n]/g, " ");
 }
+/** RFC 2047 encoded-word for non-ASCII header values (Subject); ASCII passes through. */
+function encodeHeaderWord(value: string) {
+  const v = safeHeaderValue(value);
+  return /^[\x20-\x7e]*$/.test(v) ? v : `=?UTF-8?B?${Buffer.from(v, "utf8").toString("base64")}?=`;
+}
 function safeFilename(value: string) {
   return value.replace(/[\r\n"\\]/g, "_").slice(0, 180) || "attachment";
 }
@@ -445,12 +450,12 @@ export async function gmailSend(
       `To: ${safeHeaderValue(input.to)}`,
       ...(input.replyTo ? [`Reply-To: ${safeHeaderValue(input.replyTo)}`] : []),
       ...(input.automated ? ["Auto-Submitted: auto-generated", "X-Auto-Response-Suppress: All"] : []),
-      `Subject: ${safeHeaderValue(input.subject)}`,
+      `Subject: ${encodeHeaderWord(input.subject)}`,
       "MIME-Version: 1.0",
     ];
   let message: string;
   if (!attachments.length)
-    message = `${[...common, 'Content-Type: text/plain; charset="UTF-8"'].join("\r\n")}\r\n\r\n${input.text}`;
+    message = `${[...common, 'Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: 8bit"].join("\r\n")}\r\n\r\n${input.text}`;
   else {
     const boundary = `jun_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
       parts = [

@@ -12,7 +12,7 @@ export default function ContactPage() {
         member, not a no-reply address.
       </p>
       <div className="mt-10">
-        <ContactForm />
+        <ContactForm turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
       </div>
     </div>
   );

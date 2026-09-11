@@ -5,6 +5,7 @@ import { Input, Textarea, Select, Field } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
 import { CONTACT_DEPARTMENTS } from "@/lib/contact-routing";
+import Script from "next/script";
 
 const initial: ContactState = { ok: false };
 
@@ -22,7 +23,7 @@ function Err({ errors, name }: { errors?: Record<string, string[]>; name: string
   return e ? <p className="mt-1 text-xs text-red-600">{e}</p> : null;
 }
 
-export function ContactForm() {
+export function ContactForm({ turnstileSiteKey }: { turnstileSiteKey?: string }) {
   const [state, action] = useFormState(submitContact, initial);
 
   if (state.ok) {
@@ -80,6 +81,19 @@ export function ContactForm() {
       </div>
       {state.message && !state.ok ? (
         <p className="text-sm text-red-600 sm:col-span-2">{state.message}</p>
+      ) : null}
+      {/* Honeypot: hidden from humans, filled by bots. */}
+      <div className="hidden" aria-hidden="true">
+        <label>
+          Website
+          <input name="website" type="text" tabIndex={-1} autoComplete="off" />
+        </label>
+      </div>
+      {turnstileSiteKey ? (
+        <div className="sm:col-span-2">
+          <div className="cf-turnstile" data-sitekey={turnstileSiteKey} data-theme="light" />
+          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+        </div>
       ) : null}
       <div className="sm:col-span-2">
         <Submit />

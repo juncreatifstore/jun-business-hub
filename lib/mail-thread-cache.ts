@@ -70,7 +70,7 @@ async function storeConversation(threadId: string, stamp: string, messages: Mail
 }
 
 /** Warm the cache for threads the team is likely to open next (called by the sync cron). */
-export async function warmMailConversationCache(accountId: string, limit = 12) {
+export async function warmMailConversationCache(accountId: string, limit = 24) {
   const threads = await prisma.mailThread.findMany({
     where: { mailAccountId: accountId, aiDraft: null },
     orderBy: [{ lastMessageAt: "desc" }],
