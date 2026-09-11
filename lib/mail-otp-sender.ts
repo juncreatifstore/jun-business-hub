@@ -6,6 +6,12 @@ import { EMAIL_ALIAS_DESTINATION } from "@/lib/email-aliases";
 export const OTP_SENDER_SETTING_KEY = "mail.otp.sender.accountId";
 
 export async function getOtpSenderAccountId(): Promise<string | null> {
+  const automated = await prisma.mailAccount.findUnique({
+    where: { email: EMAIL_ALIAS_DESTINATION },
+    select: { id: true, accessTokenEnc: true, refreshTokenEnc: true },
+  });
+  if (automated && (automated.accessTokenEnc || automated.refreshTokenEnc)) return automated.id;
+
   const row = await prisma.appSetting.findUnique({
     where: { key: OTP_SENDER_SETTING_KEY },
     select: { value: true },
