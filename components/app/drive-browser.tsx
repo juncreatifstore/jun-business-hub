@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
+  CloudUpload,
   Grid2X2,
   List as ListIcon,
   ArrowUpDown,
@@ -28,6 +29,7 @@ import {
 import { toggleFavorite, shareFile, deleteFile, restoreFile, permanentlyDeleteFile } from "@/services/files";
 import { moveFiles, trashFiles, restoreFiles, permanentlyDeleteFiles } from "@/services/drive-bulk";
 import { moveDriveFolder } from "@/services/drive-folders";
+import { exportFileToCloud } from "@/services/drive-cloud";
 import {
   DriveFileManager,
   type DriveVersionInfo,
@@ -80,6 +82,7 @@ export function DriveBrowser({
   returnTo,
   canDelete,
   canManage,
+  cloudProviders = [],
 }: {
   files: DriveBrowserFile[];
   folders: DriveBrowserFolder[];
@@ -89,6 +92,8 @@ export function DriveBrowser({
   returnTo: string;
   canDelete: boolean;
   canManage: boolean;
+  /** Connected clouds the current user can export files to. */
+  cloudProviders?: Array<"google" | "microsoft">;
 }) {
   const [layout, setLayout] = useState<"grid" | "list">("list");
   const [sort, setSort] = useState<"date" | "name" | "size" | "category">("date");
@@ -394,6 +399,7 @@ export function DriveBrowser({
                   </div>
                 </button>
                 <FileActions
+                  cloudProviders={cloudProviders}
                   file={f}
                   view={view}
                   returnTo={returnTo}
@@ -465,6 +471,7 @@ export function DriveBrowser({
                   </td>
                   <td className="p-3">
                     <FileActions
+                      cloudProviders={cloudProviders}
                       file={f}
                       view={view}
                       returnTo={returnTo}
@@ -569,6 +576,7 @@ function FileActions({
   returnTo,
   teamUsers,
   canDelete,
+  cloudProviders = [],
   onPreview,
   onDetails,
   onCopy,
@@ -578,6 +586,7 @@ function FileActions({
   returnTo: string;
   teamUsers: DriveTeamUser[];
   canDelete: boolean;
+  cloudProviders?: Array<"google" | "microsoft">;
   onPreview: () => void;
   onDetails: () => void;
   onCopy: () => void;
@@ -639,6 +648,21 @@ function FileActions({
           </button>
         </form>
       ) : null}
+      {view !== "trash"
+        ? cloudProviders.map((provider) => (
+            <form key={provider} action={exportFileToCloud}>
+              <input type="hidden" name="returnTo" value={returnTo} />
+              <input type="hidden" name="fileId" value={file.id} />
+              <input type="hidden" name="provider" value={provider} />
+              <button
+                className={subtleButton}
+                title={`Send a copy to ${provider === "google" ? "Google Drive" : "OneDrive"}`}
+              >
+                <CloudUpload className="h-4 w-4" />
+              </button>
+            </form>
+          ))
+        : null}
       {view !== "trash" && canDelete ? (
         <form action={deleteFile.bind(null, file.id)}>
           <input type="hidden" name="returnTo" value={returnTo} />

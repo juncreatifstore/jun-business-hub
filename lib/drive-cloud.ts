@@ -161,7 +161,7 @@ export async function refreshCloudConnection(connection: CloudConnection): Promi
   let endpoint = "https://oauth2.googleapis.com/token";
   if (connection.provider === "microsoft") {
     endpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-    params.set("scope", "offline_access User.Read Files.Read");
+    params.set("scope", "offline_access User.Read Files.ReadWrite");
   }
   const res = await fetch(endpoint, {
     method: "POST",
@@ -374,4 +374,149 @@ export async function downloadCloudFile(
     name: meta.name,
     mimeType: meta.file?.mimeType || res.headers.get("content-type") || "application/octet-stream",
   };
+}
+
+export type CloudFileDetails = {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number | null;
+  createdAt: string | null;
+  modifiedAt: string | null;
+  owner: string | null;
+  lastModifiedBy: string | null;
+  webUrl: string | null;
+  shared: boolean | null;
+  parentId: string | null;
+};
+
+/** Full metadata for one file, for the in-app viewer. */
+export async function getCloudFileDetails(
+  connection: CloudConnection,
+  fileId: string,
+): Promise<CloudFileDetails | null> {
+  const c = await refreshCloudConnection(connection);
+  if (c.provider === "google") {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size,createdTime,modifiedTime,webViewLink,shared,parents,owners(displayName,emailAddress),lastModifyingUser(displayName,emailAddress)&supportsAllDrives=true`,
+      { headers: { Authorization: `Bearer ${c.accessToken}` }, cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const m = (await res.json()) as {
+      id: string;
+      name: string;
+      mimeType: string;
+      size?: string;
+      createdTime?: string;
+      modifiedTime?: string;
+      webViewLink?: string;
+      shared?: boolean;
+      parents?: string[];
+      owners?: Array<{ displayName?: string; emailAddress?: string }>;
+      lastModifyingUser?: { displayName?: string; emailAddress?: string };
+    };
+    const who = (u?: { displayName?: string; emailAddress?: string }) =>
+      u ? [u.displayName, u.emailAddress].filter(Boolean).join(" · ") || null : null;
+    return {
+      id: m.id,
+      name: m.name,
+      mimeType: m.mimeType,
+      sizeBytes: m.size ? Number(m.size) : null,
+      createdAt: m.createdTime ?? null,
+      modifiedAt: m.modifiedTime ?? null,
+      owner: who(m.owners?.[0]),
+      lastModifiedBy: who(m.lastModifyingUser),
+      webUrl: m.webViewLink ?? null,
+      shared: m.shared ?? null,
+      parentId: m.parents?.[0] ?? null,
+    };
+  }
+  const res = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(fileId)}`, {
+    headers: { Authorization: `Bearer ${c.accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  const m = (await res.json()) as {
+    id: string;
+    name: string;
+    size?: number;
+    createdDateTime?: string;
+    lastModifiedDateTime?: string;
+    webUrl?: string;
+    file?: { mimeType?: string };
+    parentReference?: { id?: string };
+    createdBy?: { user?: { displayName?: string; email?: string } };
+    lastModifiedBy?: { user?: { displayName?: string; email?: string } };
+    shared?: unknown;
+  };
+  const who = (u?: { displayName?: string; email?: string }) =>
+    u ? [u.displayName, u.email].filter(Boolean).join(" · ") || null : null;
+  return {
+    id: m.id,
+    name: m.name,
+    mimeType: m.file?.mimeType ?? "application/octet-stream",
+    sizeBytes: typeof m.size === "number" ? m.size : null,
+    createdAt: m.createdDateTime ?? null,
+    modifiedAt: m.lastModifiedDateTime ?? null,
+    owner: who(m.createdBy?.user),
+    lastModifiedBy: who(m.lastModifiedBy?.user),
+    webUrl: m.webUrl ?? null,
+    shared: m.shared ? true : null,
+    parentId: m.parentReference?.id ?? null,
+  };
+}
+
+/** Uploads bytes into the connected cloud (Google: multipart; OneDrive: simple PUT ≤ 4 MB, else upload session). */
+export async function uploadCloudFile(
+  connection: CloudConnection,
+  input: { name: string; mimeType: string; data: Buffer; folderId?: string | null },
+): Promise<{ id: string; webUrl: string | null }> {
+  const c = await refreshCloudConnection(connection);
+  if (c.provider === "google") {
+    const boundary = `jun-${Date.now().toString(36)}`;
+    const meta = JSON.stringify({
+      name: input.name,
+      ...(input.folderId ? { parents: [input.folderId] } : {}),
+    });
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Type: ${input.mimeType}\r\n\r\n`),
+      input.data,
+      Buffer.from(`\r\n--${boundary}--`),
+    ]);
+    const res = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${c.accessToken}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`,
+        },
+        body: new Uint8Array(body),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        res.status === 403
+          ? "Google Drive refused the upload — disconnect and reconnect Google Drive to grant write access."
+          : `Google Drive upload failed (${res.status}) ${text.slice(0, 200)}`,
+      );
+    }
+    const out = (await res.json()) as { id: string; webViewLink?: string };
+    return { id: out.id, webUrl: out.webViewLink ?? null };
+  }
+  const target = input.folderId
+    ? `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(input.folderId)}:/${encodeURIComponent(input.name)}:/content`
+    : `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(input.name)}:/content`;
+  if (input.data.byteLength > 4 * 1024 * 1024)
+    throw new Error("OneDrive: files over 4 MB are not supported from this screen yet");
+  const res = await fetch(target, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${c.accessToken}`, "Content-Type": input.mimeType },
+    body: new Uint8Array(input.data),
+  });
+  if (!res.ok) throw new Error(`OneDrive upload failed (${res.status})`);
+  const out = (await res.json()) as { id: string; webUrl?: string };
+  return { id: out.id, webUrl: out.webUrl ?? null };
 }

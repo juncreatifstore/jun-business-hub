@@ -11,8 +11,11 @@ import {
   getCloudConnection,
   isCloudAdmin,
   removeCloudConnection,
+  uploadCloudFile,
   type CloudProvider,
 } from "@/lib/drive-cloud";
+import { can } from "@/lib/auth";
+import { audit } from "@/lib/audit";
 import { processDriveAutomation } from "@/lib/drive-automation";
 
 function safeProvider(value: string): CloudProvider | null {
@@ -97,4 +100,47 @@ export async function disconnectCloudProvider(formData: FormData): Promise<void>
     .catch(() => undefined);
   revalidatePath("/app/drive/cloud");
   cloudReturn(`${provider === "google" ? "Google Drive" : "OneDrive"} disconnected`);
+}
+
+/** Copies a JUN Drive file into the user's connected cloud (Google Drive / OneDrive). */
+export async function exportFileToCloud(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const provider = safeProvider(String(formData.get("provider") ?? "")) ?? "google";
+  const fileId = String(formData.get("fileId") ?? "").trim();
+  const folderId = String(formData.get("cloudFolderId") ?? "").trim() || null;
+  const returnTo = String(formData.get("returnTo") ?? "/app/drive");
+  const back = (message: string, error = false): never =>
+    redirect(
+      `${returnTo}${returnTo.includes("?") ? "&" : "?"}${error ? "toast_error" : "toast"}=${encodeURIComponent(message)}`,
+    );
+  if (!isCloudAdmin(user.role)) redirect("/app/forbidden");
+  if (!fileId) back("Invalid file", true);
+  const file = await prisma.file.findFirst({ where: { id: fileId, archivedAt: null } });
+  if (!file) back("File not found", true);
+  if (file.isVault ? !can(user, "VAULT_READ") : !can(user, "FILE_READ")) redirect("/app/forbidden");
+  const connection = await getCloudConnection(user.id, provider);
+  if (!connection)
+    back(
+      `${provider === "google" ? "Google Drive" : "OneDrive"} is not connected — open Drive › Connected Cloud`,
+      true,
+    );
+  try {
+    const data = await storage().download(file.storageKey);
+    const out = await uploadCloudFile(connection, {
+      name: file.name,
+      mimeType: file.mimeType,
+      data,
+      folderId,
+    });
+    await audit({
+      userId: user.id,
+      action: "FILE_EXPORTED_TO_CLOUD",
+      resourceType: "File",
+      resourceId: file.id,
+      after: { provider, cloudFileId: out.id, name: file.name },
+    });
+    back(`${file.name} sent to ${provider === "google" ? "Google Drive" : "OneDrive"}`);
+  } catch (e) {
+    back(e instanceof Error ? e.message : "Export to cloud failed", true);
+  }
 }

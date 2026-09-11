@@ -11,6 +11,7 @@ import { FileUploadForm } from "@/components/app/file-upload-form";
 import { DriveBrowser } from "@/components/app/drive-browser";
 import { uploadFile, createFolder } from "@/services/files";
 import { FOLDER_TRASH_PREFIX, FOLDER_SHARE_PREFIX } from "@/lib/drive-folder-constants";
+import { getCloudConnection, isCloudAdmin } from "@/lib/drive-cloud";
 import {
   FolderOpen,
   FolderPlus,
@@ -248,6 +249,15 @@ export default async function DrivePage(props: {
   const folders =
     view === "my" ? myFolders : view === "shared" ? sharedRootFolders : view === "trash" ? trashFolders : [];
   const teamLabel = new Map(teamUsers.map((u) => [u.id, `${u.firstName} ${u.lastName}`]));
+  const cloudProviders = isCloudAdmin(user.role)
+    ? (
+        await Promise.all(
+          (["google", "microsoft"] as const).map(async (p) =>
+            (await getCloudConnection(user.id, p)) ? p : null,
+          ),
+        )
+      ).filter((p): p is "google" | "microsoft" => p !== null)
+    : [];
   const sharesByFolder = new Map<string, Array<{ userId: string; label: string }>>();
   for (const s of allFolderShares) {
     const suffix = s.key.slice(FOLDER_SHARE_PREFIX.length);
@@ -537,6 +547,7 @@ export default async function DrivePage(props: {
                 label: f.parent ? `${f.parent.name} / ${f.name}` : f.name,
               }))}
               teamUsers={teamUsers.map((u) => ({ id: u.id, label: `${u.firstName} ${u.lastName}` }))}
+              cloudProviders={cloudProviders}
               view={view}
               returnTo={returnTo}
               canDelete={canDelete}
