@@ -580,7 +580,7 @@ model MailAccount {
 
 model MailThread {
   id            String   @id @default(cuid())
-  gmailThreadId String   @unique
+  gmailThreadId String
   mailAccountId String
   clientId      String?
   subject       String?
@@ -598,6 +598,7 @@ model MailThread {
   account       MailAccount @relation(fields: [mailAccountId], references: [id])
   client        Client?     @relation(fields: [clientId], references: [id])
 
+  @@unique([mailAccountId, gmailThreadId])
   @@index([mailAccountId, lastMessageAt(sort: Desc)])
 }
 

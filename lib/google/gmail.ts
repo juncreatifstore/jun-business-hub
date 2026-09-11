@@ -319,38 +319,37 @@ export async function syncFolder(
           .catch(() => null);
         continue;
       }
-      const existing = await prisma.mailThread.findFirst({
-        where: { gmailThreadId: m.threadId, mailAccountId: accountId },
+      // Atomic upsert on the (mailAccountId, gmailThreadId) unique key: the same
+      // Gmail thread may legitimately appear in several connected mailboxes
+      // (aliases of one Workspace box), and concurrent syncs must never race a
+      // findFirst()+create() into a unique-constraint failure.
+      const existing = Boolean(existingRow);
+      const thread = await prisma.mailThread.upsert({
+        where: { mailAccountId_gmailThreadId: { mailAccountId: accountId, gmailThreadId: m.threadId } },
+        update: {
+          subject,
+          snippet,
+          fromEmail: from.slice(0, 300) || null,
+          toEmails: emails,
+          lastMessageAt: when,
+          ...(client ? { clientId: client.id } : {}),
+          ...(folder === "IMPORTANT" ? { requiresAttention: true } : {}),
+          ...(folder === "DRAFTS" ? { aiDraft: body || m.snippet || "" } : {}),
+        },
+        create: {
+          gmailThreadId: m.threadId,
+          mailAccountId: accountId,
+          clientId: client?.id ?? null,
+          subject,
+          snippet,
+          fromEmail: from.slice(0, 300) || null,
+          toEmails: emails,
+          lastMessageAt: when,
+          requiresAttention: folder === "IMPORTANT",
+          aiDraft: folder === "DRAFTS" ? body || m.snippet || "" : null,
+        },
         select: { id: true },
       });
-      const thread = existing
-        ? await prisma.mailThread.update({
-            where: { id: existing.id },
-            data: {
-              subject,
-              snippet,
-              fromEmail: from.slice(0, 300) || null,
-              toEmails: emails,
-              lastMessageAt: when,
-              ...(client ? { clientId: client.id } : {}),
-              ...(folder === "IMPORTANT" ? { requiresAttention: true } : {}),
-              ...(folder === "DRAFTS" ? { aiDraft: body || m.snippet || "" } : {}),
-            },
-          })
-        : await prisma.mailThread.create({
-            data: {
-              gmailThreadId: m.threadId,
-              mailAccountId: accountId,
-              clientId: client?.id ?? null,
-              subject,
-              snippet,
-              fromEmail: from.slice(0, 300) || null,
-              toEmails: emails,
-              lastMessageAt: when,
-              requiresAttention: folder === "IMPORTANT",
-              aiDraft: folder === "DRAFTS" ? body || m.snippet || "" : null,
-            },
-          });
       await syncStateFromLabels(thread.id, m.labelIds);
       if (!existing) created++;
     }
