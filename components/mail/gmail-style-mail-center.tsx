@@ -205,9 +205,10 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
     if (folder === "STARRED") return s.starred && !s.trashed;
     if (folder === "INBOX") {
       const cached = cacheMap.get(t.mailAccountId)?.categoryByThreadId?.[t.gmailThreadId];
-      return (
-        visible(t) && !sent(t) && !t.aiDraft && (cached === category || (category === "PRIMARY" && !cached))
-      );
+      // Gmail shows mail it did not file under Promotions/Social/Updates in the
+      // Primary tab: "NONE" (uncategorised) and "not yet cached" both mean Primary.
+      const tab = cached && cached !== "NONE" ? cached : "PRIMARY";
+      return visible(t) && !sent(t) && !t.aiDraft && tab === category;
     }
     return visible(t);
   };
