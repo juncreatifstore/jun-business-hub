@@ -89,6 +89,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
     items: [
       { href: "/app/audit", label: "Journal d’audit", icon: ScrollText },
       { href: "/app/settings", label: "Paramètres", icon: Settings },
+      { href: "/app/settings/legal", label: "Pages légales", icon: FileText, superAdminOnly: true },
     ],
   },
 ];
