@@ -13,6 +13,7 @@ import {
   type MailComposeMode,
 } from "@/lib/mail-compose-meta";
 import { assertMailboxAccess } from "@/lib/mail-security";
+import { isAllowedSenderAddress } from "@/lib/email-aliases";
 
 const MODES: MailComposeMode[] = ["NEW", "REPLY", "REPLY_ALL", "FORWARD"];
 function bad(message: string, mailbox = "ALL", draftId?: string): never {
@@ -22,6 +23,7 @@ function bad(message: string, mailbox = "ALL", draftId?: string): never {
 }
 function values(formData: FormData) {
   const mailAccountId = String(formData.get("mailAccountId") || "").trim(),
+    fromEmail = String(formData.get("fromEmail") || "").trim().toLowerCase(),
     subject = String(formData.get("subject") || "")
       .trim()
       .slice(0, 200),
@@ -48,6 +50,7 @@ function values(formData: FormData) {
     ].slice(0, 10);
   return {
     mailAccountId,
+    fromEmail,
     subject,
     body,
     to,
@@ -79,6 +82,8 @@ async function validate(user: CurrentUser, d: ReturnType<typeof values>, draftId
     select: { id: true, email: true },
   });
   if (!account) bad("Selected mailbox is not connected", d.mailAccountId, draftId);
+  if (!(await isAllowedSenderAddress(account.email, d.fromEmail)))
+    bad("The selected sender alias is not active for this mailbox", d.mailAccountId, draftId);
   if (d.attachmentFileIds.length) {
     await assertPermission("FILE_READ");
     const allowed = await prisma.file.count({
@@ -115,7 +120,7 @@ export async function saveProfessionalMailDraft(formData: FormData) {
       clientId: emptyToNull(d.clientId) || source?.clientId || null,
       subject: d.subject,
       snippet: d.body.slice(0, 500),
-      fromEmail: account.email,
+      fromEmail: d.fromEmail || account.email,
       toEmails: d.to,
       aiLevel,
       aiSummary:
@@ -131,6 +136,7 @@ export async function saveProfessionalMailDraft(formData: FormData) {
   await saveMailComposeMeta({
     threadId: thread.id,
     mode: d.mode,
+    fromEmail: d.fromEmail || account.email,
     to: d.to,
     cc: d.cc,
     bcc: d.bcc,
@@ -149,6 +155,7 @@ export async function saveProfessionalMailDraft(formData: FormData) {
     after: {
       mailAccountId: d.mailAccountId,
       mailbox: account.email,
+      fromEmail: d.fromEmail || account.email,
       mode: d.mode,
       toCount: d.to.length,
       ccCount: d.cc.length,
@@ -189,6 +196,7 @@ export async function updateProfessionalMailDraft(threadId: string, formData: Fo
       clientId: emptyToNull(d.clientId) || source?.clientId || null,
       subject: d.subject,
       snippet: d.body.slice(0, 500),
+      fromEmail: d.fromEmail || undefined,
       toEmails: d.to,
       aiDraft: d.body,
       aiLevel,
@@ -204,6 +212,7 @@ export async function updateProfessionalMailDraft(threadId: string, formData: Fo
   await saveMailComposeMeta({
     threadId,
     mode: d.mode,
+    fromEmail: d.fromEmail,
     to: d.to,
     cc: d.cc,
     bcc: d.bcc,
@@ -221,6 +230,7 @@ export async function updateProfessionalMailDraft(threadId: string, formData: Fo
     resourceId: threadId,
     after: {
       mode: d.mode,
+      fromEmail: d.fromEmail,
       toCount: d.to.length,
       ccCount: d.cc.length,
       bccCount: d.bcc.length,
