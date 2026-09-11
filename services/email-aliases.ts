@@ -12,7 +12,10 @@ import {
   listEmailAliases,
   type EmailAlias,
 } from "@/lib/email-aliases";
-import { listGoogleSendAsAliases } from "@/lib/google/gmail-aliases";
+import {
+  listGoogleDirectoryAliases,
+  listGoogleSendAsAliases,
+} from "@/lib/google/gmail-aliases";
 
 function aliasesUrl(message: string, error = false) {
   const key = error ? "toast_error" : "toast";
@@ -125,31 +128,38 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
     );
   }
 
-  let googleAliases: Awaited<ReturnType<typeof listGoogleSendAsAliases>>;
+  let directoryAliases: string[];
+  let sendAsAliases: Awaited<ReturnType<typeof listGoogleSendAsAliases>> = [];
   try {
-    googleAliases = await listGoogleSendAsAliases(account.id);
+    directoryAliases = await listGoogleDirectoryAliases(account.id, account.email);
+    sendAsAliases = await listGoogleSendAsAliases(account.id).catch(() => []);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Synchronisation Google impossible.";
+    const message = error instanceof Error ? error.message : "Synchronisation Google Admin impossible.";
     redirect(aliasesUrl(message, true));
   }
 
   const existing = await listEmailAliases();
   const existingByAddress = new Map(existing.map((alias) => [alias.address.toLowerCase(), alias]));
+  const acceptedSenders = new Set(
+    sendAsAliases
+      .filter((entry) => entry.verificationStatus === "accepted" || entry.isPrimary)
+      .map((entry) => entry.sendAsEmail.toLowerCase()),
+  );
   const domainSuffix = `@${EMAIL_ALIAS_DOMAIN}`;
-  const aliases: EmailAlias[] = googleAliases
-    .filter((entry) => {
-      const address = String(entry.sendAsEmail || "").trim().toLowerCase();
-      return !entry.isPrimary && address.endsWith(domainSuffix) && address !== EMAIL_ALIAS_DESTINATION;
-    })
-    .map((entry) => {
-      const address = entry.sendAsEmail.trim().toLowerCase();
-      return {
-        address,
-        destination: EMAIL_ALIAS_DESTINATION,
-        confirmed: entry.verificationStatus === "accepted",
-        createdAt: existingByAddress.get(address)?.createdAt || new Date().toISOString(),
-      };
-    })
+  const aliases: EmailAlias[] = [...new Set(directoryAliases)]
+    .filter(
+      (address) =>
+        address.endsWith(domainSuffix) &&
+        address !== EMAIL_ALIAS_DESTINATION,
+    )
+    .map((address) => ({
+      address,
+      destination: EMAIL_ALIAS_DESTINATION,
+      // A Workspace user alias returned by Admin Directory is authoritative.
+      // Gmail's accepted SendAs state is also retained when available.
+      confirmed: true || acceptedSenders.has(address),
+      createdAt: existingByAddress.get(address)?.createdAt || new Date().toISOString(),
+    }))
     .sort((a, b) => a.address.localeCompare(b.address));
 
   await writeAliases(aliases);
@@ -171,7 +181,7 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
     aliasesUrl(
       aliases.length
         ? `${aliases.length} alias${aliases.length > 1 ? "s" : ""} synchronisé${aliases.length > 1 ? "s" : ""} depuis Google.`
-        : "Aucun alias d’envoi n’a encore été retourné par Google. Réessayez après la propagation.",
+        : "Aucun alias n’a été retourné par Google Admin Directory.",
     ),
   );
 }
