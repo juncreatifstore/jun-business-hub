@@ -46,14 +46,14 @@ import {
 const LIMIT = 20;
 const QUERY_LIMIT = 200;
 const SERVICES = [
-  { email: "contact@juncreatifs.org", label: "Contact", color: "bg-blue-500/15 text-blue-400" },
-  { email: "support@juncreatifs.org", label: "Support client", color: "bg-emerald-500/15 text-emerald-400" },
-  { email: "finance@juncreatifs.org", label: "Finance", color: "bg-amber-500/15 text-amber-400" },
+  { email: "contact@juncreatifs.org", label: "Contact", color: "bg-accent/15 text-accent" },
+  { email: "support@juncreatifs.org", label: "Support client", color: "bg-success/15 text-success" },
+  { email: "finance@juncreatifs.org", label: "Finance", color: "bg-warning/15 text-warning" },
   { email: "travel@juncreatifs.org", label: "Voyages", color: "bg-cyan-500/15 text-cyan-400" },
   { email: "documents@juncreatifs.org", label: "Documents", color: "bg-violet-500/15 text-violet-400" },
   { email: "legal@juncreatifs.org", label: "Juridique", color: "bg-rose-500/15 text-rose-400" },
   { email: "info@juncreatifs.org", label: "Informations", color: "bg-indigo-500/15 text-indigo-400" },
-  { email: "noreply@juncreatifs.org", label: "Automatique", color: "bg-slate-500/15 text-slate-400" },
+  { email: "noreply@juncreatifs.org", label: "Automatique", color: "bg-neutral/15 text-ink-3" },
 ] as const;
 type Service = (typeof SERVICES)[number];
 
@@ -712,7 +712,7 @@ function MessageCard({
         <span className="shrink-0 text-xs text-ink-3">{m.date.toLocaleString("fr-FR")}</span>
       </div>
       {/* Email bodies are rendered as light paper regardless of theme. */}
-      <div className="overflow-hidden bg-white p-0 text-slate-900 md:p-3" data-theme="light">
+      <div className="overflow-hidden bg-white p-0 text-ink md:p-3" data-theme="light">
         {m.htmlBody ? (
           <EmailHtmlFrame html={m.htmlBody} title={m.subject} />
         ) : (

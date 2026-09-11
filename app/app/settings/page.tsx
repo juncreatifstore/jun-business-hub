@@ -58,7 +58,7 @@ export default async function SettingsPage() {
           className="group rounded-2xl border border-line bg-ink/[0.025] p-4 transition hover:border-blue-400/30 hover:bg-ink/[0.04]"
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-accent">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
               <ShieldCheck className="h-5 w-5" />
             </span>
             <div className="min-w-0">
@@ -83,10 +83,10 @@ export default async function SettingsPage() {
         </a>
         <a
           href="/app/settings/whatsapp"
-          className="group rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 transition hover:border-emerald-400/40 hover:bg-emerald-500/[0.07]"
+          className="group rounded-2xl border border-emerald-500/20 bg-success/[0.04] p-4 transition hover:border-emerald-400/40 hover:bg-success/[0.07]"
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-success">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-success/10 text-success">
               <MessageCircle className="h-5 w-5" />
             </span>
             <div className="min-w-0">

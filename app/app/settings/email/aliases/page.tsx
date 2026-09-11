@@ -50,12 +50,12 @@ export default async function EmailAliasesPage({
       />
 
       {query.toast ? (
-        <div className="mb-5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-success">
+        <div className="mb-5 rounded-xl border border-emerald-500/25 bg-success/10 px-4 py-3 text-sm text-success">
           {query.toast}
         </div>
       ) : null}
       {query.toast_error ? (
-        <div className="mb-5 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="mb-5 rounded-xl border border-red-500/25 bg-danger/10 px-4 py-3 text-sm text-danger">
           {query.toast_error}
         </div>
       ) : null}
@@ -89,7 +89,7 @@ export default async function EmailAliasesPage({
         </a>
       </div>
 
-      <Card className="mb-6 border-amber-400/25 bg-amber-500/[0.05]">
+      <Card className="mb-6 border-amber-400/25 bg-warning/[0.05]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Route className="h-4 w-4 text-warning" />
@@ -120,7 +120,7 @@ export default async function EmailAliasesPage({
           <form action={addEmailAlias} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <label className="text-sm font-medium">
               Nouvelle adresse
-              <div className="mt-2 flex min-w-0 items-center rounded-xl border border-line bg-white focus-within:border-electric">
+              <div className="mt-2 flex min-w-0 items-center rounded-xl border border-line bg-surface-1 focus-within:border-electric">
                 <Input
                   name="localPart"
                   required
@@ -161,7 +161,7 @@ export default async function EmailAliasesPage({
                     <p className="mt-1 break-all text-sm text-muted2">→ {EMAIL_ALIAS_DESTINATION}</p>
                     <span
                       className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        alias.confirmed ? "bg-emerald-500/15 text-success" : "bg-amber-500/15 text-warning"
+                        alias.confirmed ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
                       }`}
                     >
                       {alias.confirmed ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}

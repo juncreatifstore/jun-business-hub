@@ -58,12 +58,12 @@ export default async function EmailSettingsPage({
         }
       />
       {reconnectRequired ? (
-        <div className="mb-6 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+        <div className="mb-6 rounded-2xl border border-amber-400/25 bg-warning/10 p-4 text-sm text-warning">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
             <div className="min-w-0 flex-1">
               <p className="font-semibold">Reconnexion Gmail requise</p>
-              <p className="mt-1 break-words text-amber-100/75">
+              <p className="mt-1 break-words text-warning/75">
                 Google a expiré ou révoqué le jeton d’autorisation
                 {reconnectAccount ? ` de ${reconnectAccount.email}` : " d’une boîte connectée"}. La
                 synchronisation ne peut pas reprendre tant qu’un nouveau jeton OAuth n’a pas été accordé.
@@ -101,7 +101,7 @@ export default async function EmailSettingsPage({
               </a>
             </>
           ) : (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+            <div className="rounded-xl border border-amber-500/30 bg-warning/10 p-4 text-sm">
               <p className="font-medium text-warning">IDENTIFIANTS GOOGLE REQUIS</p>
               <p className="mt-1 text-muted2">Configurez les variables d’environnement suivantes :</p>
               <pre className="registry-id mt-2 overflow-x-auto whitespace-pre-wrap break-all text-xs text-ink/70">
@@ -112,7 +112,7 @@ export default async function EmailSettingsPage({
           )}
         </CardContent>
       </Card>
-      <Card className="mb-6 border-blue-400/20 bg-blue-500/[0.04]">
+      <Card className="mb-6 border-blue-400/20 bg-accent/[0.04]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-accent" />
@@ -125,16 +125,16 @@ export default async function EmailSettingsPage({
             Une seule boîte peut être favorite à la fois.
           </p>
           {otpSender ? (
-            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/[0.06] p-3">
+            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-blue-400/20 bg-accent/[0.06] p-3">
               <Star className="h-4 w-4 shrink-0 fill-amber-400 text-warning" />
               <span className="min-w-0 break-all font-medium text-ink">
                 {otpSender.displayName || otpSender.email}
               </span>
-              <Badge className="bg-blue-500/15 text-accent">OTP / FAVORITE</Badge>
+              <Badge className="bg-accent/15 text-accent">OTP / FAVORITE</Badge>
               <span className="break-all text-xs text-muted2">{otpSender.email}</span>
             </div>
           ) : (
-            <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/[0.05] p-3 text-sm text-amber-100/80">
+            <div className="mt-3 rounded-xl border border-amber-400/20 bg-warning/[0.05] p-3 text-sm text-warning/80">
               Aucune boîte OTP favorite n’est définie. Tant que vous n’en choisissez pas une, JUN utilise
               temporairement la première boîte Gmail connectée.
             </div>
@@ -160,7 +160,7 @@ export default async function EmailSettingsPage({
                 return (
                   <div
                     key={a.id}
-                    className={`min-w-0 rounded-xl border p-4 ${isOtpSender ? "border-blue-400/25 bg-blue-500/[0.04]" : needsReconnect ? "border-amber-400/30 bg-amber-500/[0.06]" : "border-line"}`}
+                    className={`min-w-0 rounded-xl border p-4 ${isOtpSender ? "border-blue-400/25 bg-accent/[0.04]" : needsReconnect ? "border-amber-400/30 bg-warning/[0.06]" : "border-line"}`}
                   >
                     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                       <div className="min-w-0">
@@ -169,16 +169,16 @@ export default async function EmailSettingsPage({
                           <Badge
                             className={
                               needsReconnect
-                                ? "bg-amber-500/15 text-warning"
+                                ? "bg-warning/15 text-warning"
                                 : hasTokens
-                                  ? "bg-emerald-500/15 text-success"
-                                  : "bg-red-500/15 text-danger"
+                                  ? "bg-success/15 text-success"
+                                  : "bg-danger/15 text-danger"
                             }
                           >
                             {needsReconnect ? "RECONNEXION REQUISE" : hasTokens ? "CONNECTÉE" : "DÉCONNECTÉE"}
                           </Badge>
                           {isOtpSender ? (
-                            <Badge className="bg-blue-500/15 text-accent">
+                            <Badge className="bg-accent/15 text-accent">
                               <Star className="mr-1 h-3 w-3 fill-amber-400 text-warning" />
                               OTP FAVORITE
                             </Badge>

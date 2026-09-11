@@ -56,12 +56,12 @@ export default async function LegalSettingsPage({
       />
 
       {query.toast && (
-        <div className="mb-5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-success">
+        <div className="mb-5 rounded-xl border border-emerald-500/25 bg-success/10 px-4 py-3 text-sm text-success">
           {query.toast}
         </div>
       )}
       {query.toast_error && (
-        <div className="mb-5 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="mb-5 rounded-xl border border-red-500/25 bg-danger/10 px-4 py-3 text-sm text-danger">
           {query.toast_error}
         </div>
       )}
@@ -77,7 +77,7 @@ export default async function LegalSettingsPage({
           <Link
             key={document.kind}
             href={`?kind=${document.kind}&lang=${locale}`}
-            className={`rounded-lg border px-4 py-2 text-sm ${kind === document.kind ? "border-electric bg-electric text-white" : "border-line bg-white text-muted2 hover:border-electric"}`}
+            className={`rounded-lg border px-4 py-2 text-sm ${kind === document.kind ? "border-electric bg-electric text-white" : "border-line bg-surface-1 text-muted2 hover:border-electric"}`}
           >
             {document.label}
           </Link>
@@ -89,7 +89,7 @@ export default async function LegalSettingsPage({
           <Link
             key={language.code}
             href={`?kind=${kind}&lang=${language.code}`}
-            className={`rounded-full border px-4 py-2 text-sm ${locale === language.code ? "border-accent bg-accent text-white" : "border-line bg-white text-muted2 hover:border-accent"}`}
+            className={`rounded-full border px-4 py-2 text-sm ${locale === language.code ? "border-accent bg-accent text-white" : "border-line bg-surface-1 text-muted2 hover:border-accent"}`}
           >
             {language.label}
           </Link>
@@ -98,7 +98,7 @@ export default async function LegalSettingsPage({
 
       <form
         action={saveLegalContent}
-        className="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-7"
+        className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm sm:p-7"
       >
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="locale" value={locale} />

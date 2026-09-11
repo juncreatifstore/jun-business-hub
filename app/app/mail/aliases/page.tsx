@@ -23,17 +23,17 @@ const statusLabels: Record<string, string> = {
   RESOLVED: "Résolu",
 };
 const statusClasses: Record<string, string> = {
-  OPEN: "bg-blue-100 text-blue-800",
-  WAITING_CLIENT: "bg-amber-100 text-amber-800",
+  OPEN: "tint-accent text-accent",
+  WAITING_CLIENT: "tint-warning text-warning",
   WAITING_INTERNAL: "bg-violet-100 text-violet-800",
-  RESOLVED: "bg-emerald-100 text-emerald-800",
+  RESOLVED: "tint-success text-success",
 };
 const slaClasses: Record<string, string> = {
-  OVERDUE: "bg-red-100 text-red-700",
-  DUE_SOON: "bg-amber-100 text-amber-800",
-  ON_TRACK: "bg-emerald-100 text-emerald-800",
-  PAUSED: "bg-slate-100 text-ink-2",
-  RESOLVED: "bg-blue-100 text-blue-800",
+  OVERDUE: "tint-danger text-danger",
+  DUE_SOON: "tint-warning text-warning",
+  ON_TRACK: "tint-success text-success",
+  PAUSED: "bg-surface-2 text-ink-2",
+  RESOLVED: "tint-accent text-accent",
 };
 
 function parseAliases(value?: string): EmailAlias[] {
@@ -153,18 +153,18 @@ export default async function AliasMailCenterPage({
       />
 
       {query.toast ? (
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-success">
+        <div className="rounded-xl border border-emerald-500/25 bg-success/10 px-4 py-3 text-sm text-success">
           {query.toast}
         </div>
       ) : null}
       {query.toast_error ? (
-        <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <div className="rounded-xl border border-red-500/25 bg-danger/10 px-4 py-3 text-sm text-danger">
           {query.toast_error}
         </div>
       ) : null}
 
       {!aliases.length ? (
-        <Card className="border-amber-400/25 bg-amber-500/[0.05]">
+        <Card className="border-amber-400/25 bg-warning/[0.05]">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
             <div>
               <p className="font-semibold">Aucun alias configuré</p>
@@ -178,10 +178,10 @@ export default async function AliasMailCenterPage({
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={Inbox} label="Conversations actives" value={open} tone="text-blue-600" />
+        <Metric icon={Inbox} label="Conversations actives" value={open} tone="text-accent" />
         <Metric icon={UserRound} label="Non attribuées" value={unassigned} tone="text-violet-600" />
-        <Metric icon={AlertCircle} label="SLA en retard" value={overdue} tone="text-red-600" />
-        <Metric icon={CheckCircle2} label="Résolues" value={resolved} tone="text-emerald-600" />
+        <Metric icon={AlertCircle} label="SLA en retard" value={overdue} tone="text-danger" />
+        <Metric icon={CheckCircle2} label="Résolues" value={resolved} tone="text-success" />
       </div>
 
       <Card>
@@ -192,7 +192,7 @@ export default async function AliasMailCenterPage({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <Link
               href="/app/mail/aliases"
-              className={`rounded-xl border p-4 transition hover:border-electric ${selectedAlias === "ALL" ? "border-electric bg-blue-50" : "border-line"}`}
+              className={`rounded-xl border p-4 transition hover:border-electric ${selectedAlias === "ALL" ? "border-electric tint-accent" : "border-line"}`}
             >
               <p className="font-semibold">Tous les alias</p>
               <p className="mt-1 text-2xl font-bold">{threads.length}</p>
@@ -201,14 +201,12 @@ export default async function AliasMailCenterPage({
               <Link
                 key={alias.address}
                 href={`/app/mail/aliases?alias=${encodeURIComponent(alias.address)}`}
-                className={`rounded-xl border p-4 transition hover:border-electric ${selectedAlias === alias.address.toLowerCase() ? "border-electric bg-blue-50" : "border-line"}`}
+                className={`rounded-xl border p-4 transition hover:border-electric ${selectedAlias === alias.address.toLowerCase() ? "border-electric tint-accent" : "border-line"}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <Mail className="h-4 w-4 text-electric" />
                   <Badge
-                    className={
-                      alias.confirmed ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                    }
+                    className={alias.confirmed ? "tint-success text-success" : "tint-warning text-warning"}
                   >
                     {alias.confirmed ? "ACTIF" : "À CONFIGURER"}
                   </Badge>
@@ -267,7 +265,7 @@ export default async function AliasMailCenterPage({
                           {sla.status.replaceAll("_", " ")}
                         </Badge>
                       ) : null}
-                      <Badge className="bg-blue-50 text-blue-800">{matchedAlias}</Badge>
+                      <Badge className="tint-accent text-accent">{matchedAlias}</Badge>
                     </div>
                     <Link
                       href={`/app/mail?mailbox=${thread.mailAccountId}&thread=${thread.id}`}
