@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
+import { listEmailAliases } from "@/lib/email-aliases";
 
 export const dynamic = "force-dynamic";
 const MODES = ["NEW", "REPLY", "REPLY_ALL", "FORWARD"] as const;
@@ -26,7 +27,7 @@ function extractEmail(v: string) {
 export default async function ProfessionalComposePage({
   searchParams,
 }: {
-  searchParams: { mailbox?: string; source?: string; mode?: string; draft?: string };
+  searchParams: { mailbox?: string; source?: string; mode?: string; draft?: string; alias?: string };
 }) {
   const user = await requireUser();
   if (!can(user, "EMAIL_DRAFT")) redirect("/app/forbidden");
@@ -64,6 +65,19 @@ export default async function ProfessionalComposePage({
         include: { client: true },
       })
     : null;
+  const confirmedAliases = (await listEmailAliases()).filter(
+    (alias) => alias.confirmed && alias.destination.toLowerCase() === account.email.toLowerCase(),
+  );
+  const allowedAliasAddresses = new Set(confirmedAliases.map((alias) => alias.address.toLowerCase()));
+  const sourceAlias = source?.toEmails
+    .map((email) => email.toLowerCase())
+    .find((email) => allowedAliasAddresses.has(email));
+  const requestedAlias = String(searchParams.alias || "").toLowerCase();
+  const fromEmail =
+    draftMeta?.fromEmail ||
+    sourceAlias ||
+    (allowedAliasAddresses.has(requestedAlias) ? requestedAlias : "") ||
+    account.email;
   const conversation = source
     ? await getMailConversation(source.mailAccountId, source.gmailThreadId).catch(() => [])
     : [];
@@ -121,7 +135,7 @@ export default async function ProfessionalComposePage({
     <div className="space-y-5">
       <PageHeader
         title="Professional composer"
-        subtitle={`${mode.replaceAll("_", " ")} · ${account.displayName || account.email}${draft ? " · saved draft" : ""}`}
+        subtitle={`${mode.replaceAll("_", " ")} · Expéditeur : ${fromEmail}${draft ? " · brouillon enregistré" : ""}`}
         actions={
           <div className="flex gap-2">
             {draft && can(user, "EMAIL_SEND") ? (
@@ -144,17 +158,32 @@ export default async function ProfessionalComposePage({
             <input type="hidden" name="mode" value={mode} />
             <input type="hidden" name="sourceThreadId" value={source?.id || ""} />
             <input type="hidden" name="sourceGmailMessageId" value={sourceGmailMessageId} />
-            <Field label="From">
-              <Select name="mailAccountId" defaultValue={account.id} disabled={Boolean(draft)}>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.displayName ? `${a.displayName} · ` : ""}
-                    {a.email}
-                  </option>
-                ))}
-              </Select>
-              {draft ? <input type="hidden" name="mailAccountId" value={account.id} /> : null}
-            </Field>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Boîte Gmail connectée">
+                <Select name="mailAccountId" defaultValue={account.id} disabled={Boolean(draft)}>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.displayName ? `${a.displayName} · ` : ""}
+                      {a.email}
+                    </option>
+                  ))}
+                </Select>
+                {draft ? <input type="hidden" name="mailAccountId" value={account.id} /> : null}
+              </Field>
+              <Field label="Adresse expéditrice visible">
+                <Select name="fromEmail" defaultValue={fromEmail}>
+                  <option value={account.email}>{account.email} · boîte principale</option>
+                  {confirmedAliases.map((alias) => (
+                    <option key={alias.address} value={alias.address}>
+                      {alias.address} · alias
+                    </option>
+                  ))}
+                </Select>
+                <p className="mt-1 text-xs text-muted2">
+                  Les réponses utilisent automatiquement l’alias qui a reçu le message.
+                </p>
+              </Field>
+            </div>
             <Field label="To">
               <Input
                 name="to"
