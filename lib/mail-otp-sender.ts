@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { EMAIL_ALIAS_DESTINATION } from "@/lib/email-aliases";
 
 export const OTP_SENDER_SETTING_KEY = "mail.otp.sender.accountId";
 
@@ -14,6 +15,18 @@ export async function getOtpSenderAccountId(): Promise<string | null> {
 }
 
 export async function resolveOtpSenderMailbox() {
+  const automatedMailbox = await prisma.mailAccount.findUnique({
+    where: { email: EMAIL_ALIAS_DESTINATION },
+    select: {
+      id: true,
+      email: true,
+      displayName: true,
+      accessTokenEnc: true,
+      refreshTokenEnc: true,
+    },
+  });
+  if (automatedMailbox?.accessTokenEnc || automatedMailbox?.refreshTokenEnc) return automatedMailbox;
+
   const preferredId = await getOtpSenderAccountId();
 
   if (preferredId) {
