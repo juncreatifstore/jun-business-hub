@@ -523,7 +523,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               {CATEGORIES.map((c) => (
                 <Link
                   key={c.key}
-                  href={`/app/mail?mailbox=${encodeURIComponent(mailbox)}&folder=INBOX&category=${c.key}`}
+                  href={qp({ folder: "INBOX", category: c.key, thread: undefined })}
                   className={`shrink-0 border-b-2 py-1.5 text-xs font-medium ${
                     category === c.key ? "border-ink text-ink" : "border-transparent text-ink-3"
                   }`}
@@ -633,7 +633,7 @@ export async function GmailStyleMailCenterV6({ searchParams }: { searchParams: P
               {CATEGORIES.map((c) => (
                 <Link
                   key={c.key}
-                  href={`/app/mail?mailbox=${encodeURIComponent(mailbox)}&folder=INBOX&category=${c.key}`}
+                  href={qp({ folder: "INBOX", category: c.key, thread: undefined })}
                   className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition-colors ${
                     category === c.key
                       ? "border-accent font-medium text-ink"
