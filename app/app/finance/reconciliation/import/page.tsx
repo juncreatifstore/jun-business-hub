@@ -5,11 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 
-export default async function BankStatementImportPage({
-  searchParams,
-}: {
-  searchParams: { error?: string };
-}) {
+export default async function BankStatementImportPage(props: { searchParams: Promise<{ error?: string }> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("BANK_RECON_IMPORT");
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 sm:space-y-5">

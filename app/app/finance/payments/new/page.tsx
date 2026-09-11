@@ -6,11 +6,10 @@ import { getFinancePaymentAccounts } from "@/lib/finance-payment-accounts";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewPaymentPage({
-  searchParams,
-}: {
-  searchParams: { clientId?: string; caseId?: string };
+export default async function NewPaymentPage(props: {
+  searchParams: Promise<{ clientId?: string; caseId?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("PAYMENT_CREATE");
   const [clients, cases, paymentAccounts] = await Promise.all([
     prisma.client.findMany({

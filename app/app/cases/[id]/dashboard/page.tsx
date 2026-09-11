@@ -19,11 +19,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function CaseDashboardPage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
+export default async function CaseDashboardPage(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
   const user = await requireUser();
   if (!can(user, "CASE_READ")) redirect("/app/forbidden");
   const { id } = await Promise.resolve(params);

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const unread = await prisma.notification.count({ where: { userId: user.id, readAt: null } });
-  const theme = parseTheme(cookies().get(THEME_COOKIE)?.value);
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
     <AppShell
       user={{ firstName: user.firstName, lastName: user.lastName, role: user.role }}

@@ -33,13 +33,12 @@ const PUBLIC_DISABLED_PREFIX = "drive.public.disabled.";
 const PUBLIC_TOKEN_PREFIX = "drive.public.token.";
 const PUBLIC_EXPIRES_PREFIX = "drive.public.expires.";
 
-export default async function CaseDocumentsPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }> | { id: string };
-  searchParams: { q?: string; category?: string };
+export default async function CaseDocumentsPage(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
+  searchParams: Promise<{ q?: string; category?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireUser();
   if (!can(user, "CASE_READ")) redirect("/app/forbidden");
   const { id } = await Promise.resolve(params);

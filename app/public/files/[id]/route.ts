@@ -30,7 +30,8 @@ function parseRange(header: string | null, total: number) {
   return { start, end };
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const suppliedToken = req.nextUrl.searchParams.get("key");
   const download = req.nextUrl.searchParams.get("download") === "1";
   const file = await prisma.file.findFirst({

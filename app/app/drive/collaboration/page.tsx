@@ -9,11 +9,10 @@ import { ArrowLeft, CheckCircle2, Clock3, FolderOpen, FileText, MessageSquare, X
 
 export const dynamic = "force-dynamic";
 
-export default async function DriveCollaborationPage({
-  searchParams,
-}: {
-  searchParams: { type?: string; id?: string };
+export default async function DriveCollaborationPage(props: {
+  searchParams: Promise<{ type?: string; id?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "FILE_READ")) redirect("/app/forbidden");
   const selectedType =

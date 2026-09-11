@@ -71,13 +71,18 @@ function expiryFromRequest(expiresAt: string | undefined, sentAt: Date | null) {
   return nativeSigningExpiry(sentAt ?? new Date());
 }
 
-export default async function NativeSignPage({
-  params,
-  searchParams,
-}: {
-  params: { token: string };
-  searchParams?: { error?: string; done?: string; declined?: string; otp?: string; verified?: string };
+export default async function NativeSignPage(props: {
+  params: Promise<{ token: string }>;
+  searchParams?: Promise<{
+    error?: string;
+    done?: string;
+    declined?: string;
+    otp?: string;
+    verified?: string;
+  }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const token = params.token;
   const payload = await verifyNativeSigningToken(token);
   if (!payload) notFound();

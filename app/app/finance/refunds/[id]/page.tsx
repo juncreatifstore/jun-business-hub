@@ -20,13 +20,12 @@ import { RefundProofAISearch } from "@/components/app/refund-proof-ai-search";
 import { RefundInstallmentSchedule } from "@/components/app/refund-installment-schedule";
 import { FileCheck2, History, Scale, UserRoundCheck, WalletCards } from "lucide-react";
 export const dynamic = "force-dynamic";
-export default async function RefundDetailPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { toast?: string; toast_error?: string };
+export default async function RefundDetailPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ toast?: string; toast_error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requirePermission("REFUND_READ");
   await syncOverdueRefundInstallments(params.id);
   const [r, meta, assignees, auditRows] = await Promise.all([

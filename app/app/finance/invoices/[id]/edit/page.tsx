@@ -9,7 +9,8 @@ import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
-export default async function EditInvoicePage({ params }: { params: { id: string } }) {
+export default async function EditInvoicePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("INVOICE_READ");
   const [inv, clients, cases] = await Promise.all([
     getInvoice(params.id),

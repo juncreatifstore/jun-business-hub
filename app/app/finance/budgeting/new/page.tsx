@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { CalendarRange, Info } from "lucide-react";
 
-export default async function NewBudgetPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function NewBudgetPage(props: { searchParams: Promise<{ error?: string }> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("BUDGET_CREATE");
   const year = currentFiscalYear(new Date());
   return (

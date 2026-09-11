@@ -21,11 +21,10 @@ type ShareInfo = {
   canDirectPdf?: boolean;
 };
 
-export default async function WhatsAppSharePage({
-  searchParams,
-}: {
-  searchParams: { type?: string; id?: string };
+export default async function WhatsAppSharePage(props: {
+  searchParams: Promise<{ type?: string; id?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const type = String(searchParams.type || "");
   const id = String(searchParams.id || "");

@@ -25,18 +25,17 @@ function netReceived(amount: number, feeAmount?: number | null) {
   return Math.max(0, roundMoney(amount - Number(feeAmount || 0)));
 }
 
-export default async function PaymentsPage({
-  searchParams,
-}: {
-  searchParams: {
+export default async function PaymentsPage(props: {
+  searchParams: Promise<{
     status?: string;
     method?: string;
     currency?: string;
     q?: string;
     sort?: string;
     page?: string;
-  };
+  }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("PAYMENT_READ");
   const status = STATUSES.includes(String(searchParams.status)) ? String(searchParams.status) : "ALL";
   const method = METHODS.includes(String(searchParams.method)) ? String(searchParams.method) : "ALL";

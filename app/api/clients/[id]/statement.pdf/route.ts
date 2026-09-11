@@ -5,7 +5,8 @@ import { getClientFinancialAccount, type ClientStatementLanguage } from "@/lib/c
 import { renderClientStatementV2 } from "@/services/pdf/client-statement-v2";
 
 export const dynamic = "force-dynamic";
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   let allowed = can(user, "CLIENT_READ");

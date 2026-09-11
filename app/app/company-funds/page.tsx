@@ -50,7 +50,8 @@ export const dynamic = "force-dynamic";
 
 type SearchParams = { country?: string; currency?: string; period?: string };
 
-export default async function CompanyFundsPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function CompanyFundsPage(props: { searchParams?: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/app/forbidden");
   const filters = parseCompanyFundsFilters(searchParams);

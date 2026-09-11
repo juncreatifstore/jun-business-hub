@@ -25,11 +25,10 @@ const SLA_CLASS: Record<string, string> = {
   PAUSED: "bg-slate-100 text-ink-2",
   RESOLVED: "bg-blue-100 text-blue-800",
 };
-export default async function MailOperationsPage({
-  searchParams,
-}: {
-  searchParams: { filter?: string; q?: string };
+export default async function MailOperationsPage(props: {
+  searchParams: Promise<{ filter?: string; q?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "EMAIL_READ")) redirect("/app/forbidden");
   const accessibleIds = await getAccessibleMailboxIds(user, false);

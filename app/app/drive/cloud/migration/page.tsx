@@ -11,11 +11,10 @@ const FILE_MARKER = "drive.workspace.migrated.file.";
 const VERSION_MARKER = "drive.workspace.migrated.version.";
 const VERSION_PREFIX = "drive.version.";
 
-export default async function WorkspaceMigrationPage({
-  searchParams,
-}: {
-  searchParams: { toast?: string; toast_error?: string };
+export default async function WorkspaceMigrationPage(props: {
+  searchParams: Promise<{ toast?: string; toast_error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("SETTINGS_MANAGE");
   const [totalFiles, migratedFiles, totalVersions, migratedVersions] = await Promise.all([
     prisma.file.count(),

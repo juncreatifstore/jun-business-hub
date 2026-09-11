@@ -71,13 +71,12 @@ async function optionalLoad<T>(
   }
 }
 
-export default async function DriveIntelligenceActionsPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { success?: string; error?: string };
+export default async function DriveIntelligenceActionsPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireUser();
   if (!can(user, "FILE_READ")) notFound();
 

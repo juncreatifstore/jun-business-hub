@@ -36,11 +36,10 @@ function moneyList(rows: Array<{ currency: string; value: number }>) {
   return rows.map((r) => formatMoney(r.value, r.currency)).join(" · ");
 }
 
-export default async function Client360Page({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
+export default async function Client360Page(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
   const user = await requirePermission("CLIENT_READ");
   const resolved = await Promise.resolve(params);
   const id = resolved.id;

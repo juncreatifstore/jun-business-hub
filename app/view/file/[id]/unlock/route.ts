@@ -11,7 +11,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const form = await req.formData();
   const password = String(form.get("password") ?? "");
   const key = String(form.get("key") ?? "");

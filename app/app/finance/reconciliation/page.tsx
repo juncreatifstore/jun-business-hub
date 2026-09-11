@@ -12,11 +12,10 @@ import { ArrowRight, CheckCircle2, Download, FileUp, LockKeyhole, SearchX } from
 
 export const dynamic = "force-dynamic";
 
-export default async function ReconciliationPage({
-  searchParams,
-}: {
-  searchParams: { success?: string; error?: string };
+export default async function ReconciliationPage(props: {
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("BANK_RECON_READ");
   const [imports, transactions, matches, closes] = await Promise.all([
     listStatementImports(),

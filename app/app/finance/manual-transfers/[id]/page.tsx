@@ -13,7 +13,8 @@ import { ManualTransferActions } from "@/components/app/manual-transfer-actions"
 
 export const dynamic = "force-dynamic";
 
-export default async function ManualTransferOrderPage({ params }: { params: { id: string } }) {
+export default async function ManualTransferOrderPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("PAYMENT_READ");
   const order = await getManualTransferOrder(params.id);
   if (!order) notFound();

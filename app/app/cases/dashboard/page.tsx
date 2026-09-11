@@ -37,18 +37,17 @@ const STATUSES = [
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 const RISKS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
-export default async function CaseAdminDashboard({
-  searchParams,
-}: {
-  searchParams: {
+export default async function CaseAdminDashboard(props: {
+  searchParams: Promise<{
     q?: string;
     status?: string;
     owner?: string;
     priority?: string;
     risk?: string;
     overdue?: string;
-  };
+  }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("CASE_ADMIN");
   const [overview, users] = await Promise.all([
     getCaseAdminOverview(),

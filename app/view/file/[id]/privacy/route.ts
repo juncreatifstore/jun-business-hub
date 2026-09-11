@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { drivePrivacyCookieName, getDrivePrivacyPolicy, signDrivePrivacyConsent } from "@/lib/drive-privacy";
 import { requestPublicMeta } from "@/lib/drive-public-security";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const file = await prisma.file.findFirst({
     where: { id: params.id, isVault: false, archivedAt: null },
     select: { id: true, name: true },

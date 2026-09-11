@@ -83,7 +83,8 @@ function queryHref(params: SearchParams, patch: Partial<SearchParams>) {
   return `/app/signatures${qs ? `?${qs}` : ""}`;
 }
 
-export default async function SignaturesPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function SignaturesPage(props: { searchParams?: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("DOCUMENT_READ");
   const params = searchParams ?? {};
   const status = FILTERS.some((f) => f.key === params.status)

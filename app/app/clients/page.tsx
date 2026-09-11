@@ -30,7 +30,8 @@ function initials(firstName: string, lastName: string) {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-export default async function ClientsPage({ searchParams }: { searchParams: Params }) {
+export default async function ClientsPage(props: { searchParams: Promise<Params> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("CLIENT_READ");
   const q = searchParams.q?.trim();
   const status = searchParams.status;

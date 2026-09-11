@@ -43,7 +43,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function SignatureDetailPage({ params }: { params: { id: string } }) {
+export default async function SignatureDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   if (!can(user, "DOCUMENT_READ")) notFound();
 

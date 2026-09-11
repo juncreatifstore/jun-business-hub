@@ -6,7 +6,8 @@ import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await assertPermission("AI_USE");
   await assertPermission("FILE_READ");
   const file = await prisma.file.findFirst({

@@ -13,7 +13,8 @@ import { Bot, Sparkles } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function AIPage({ searchParams }: { searchParams: { c?: string } }) {
+export default async function AIPage(props: { searchParams: Promise<{ c?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "AI_USE")) redirect("/app/forbidden");
   const canApprove = can(user, "AI_APPROVE");

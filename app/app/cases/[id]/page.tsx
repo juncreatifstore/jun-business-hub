@@ -11,7 +11,8 @@ import { deleteCase } from "@/services/cases";
 
 export const dynamic = "force-dynamic";
 
-export default async function CaseDetailPage({ params }: { params: { id: string } }) {
+export default async function CaseDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   if (!can(user, "CASE_READ")) redirect("/app/forbidden");
 

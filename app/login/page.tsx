@@ -5,7 +5,8 @@ export const metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
+export default async function LoginPage(props: { searchParams: Promise<{ next?: string }> }) {
+  const searchParams = await props.searchParams;
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="hidden flex-col justify-between bg-night p-10 text-white lg:flex">

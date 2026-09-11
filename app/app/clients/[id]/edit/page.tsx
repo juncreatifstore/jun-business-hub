@@ -7,7 +7,8 @@ import { updateClient } from "@/services/clients";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditClientPage({ params }: { params: { id: string } }) {
+export default async function EditClientPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("CLIENT_UPDATE");
   const client = await prisma.client.findUnique({ where: { id: params.id }, include: { tags: true } });
   if (!client) notFound();

@@ -6,7 +6,8 @@ function providerOf(value: string): CloudProvider | null {
   return value === "google" || value === "microsoft" ? value : null;
 }
 
-export async function GET(req: NextRequest, { params }: { params: { provider: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ provider: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.redirect(new URL("/login", req.url));
   if (!isCloudAdmin(user.role)) return NextResponse.redirect(new URL("/app/forbidden", req.url));

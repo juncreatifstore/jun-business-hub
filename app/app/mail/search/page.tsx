@@ -27,11 +27,10 @@ const CATEGORIES = [
   PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"],
   DEPARTMENTS = ["TRAVEL", "FINANCE", "DOCUMENTS", "LEGAL", "CUSTOMER_SERVICE", "ADMINISTRATION"],
   STATUSES = ["OPEN", "WAITING_CLIENT", "WAITING_INTERNAL", "RESOLVED"];
-export default async function MailSearchPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | undefined>;
+export default async function MailSearchPage(props: {
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "EMAIL_READ")) redirect("/app/forbidden");
   const accessibleIds = await getAccessibleMailboxIds(user, false);

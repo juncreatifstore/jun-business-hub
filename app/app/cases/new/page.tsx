@@ -5,7 +5,8 @@ import { CaseForm } from "@/components/app/case-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewCasePage({ searchParams }: { searchParams: { clientId?: string } }) {
+export default async function NewCasePage(props: { searchParams: Promise<{ clientId?: string }> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("CASE_CREATE");
   const clients = await prisma.client.findMany({
     where: { status: { not: "ARCHIVED" } },

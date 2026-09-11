@@ -8,7 +8,8 @@ function csv(v: unknown) {
   return `"${s.replaceAll('"', '""')}"`;
 }
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(_: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await assertPermission("BUDGET_READ");
   const plan = await getBudgetPlan(params.id);
   if (!plan) return NextResponse.json({ error: "Budget not found" }, { status: 404 });

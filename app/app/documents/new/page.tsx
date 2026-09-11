@@ -15,11 +15,10 @@ type TemplateRow = {
   variables: unknown;
 };
 
-export default async function NewDocumentPage({
-  searchParams,
-}: {
-  searchParams: { clientId?: string; caseId?: string; type?: string; templateId?: string };
+export default async function NewDocumentPage(props: {
+  searchParams: Promise<{ clientId?: string; caseId?: string; type?: string; templateId?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("DOCUMENT_CREATE");
   const [clients, cases, templates] = await Promise.all([
     prisma.client.findMany({

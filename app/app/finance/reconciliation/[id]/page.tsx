@@ -24,13 +24,12 @@ function cashMovement(lines: { accountCode: string; debit: number; credit: numbe
   );
 }
 
-export default async function ReconciliationImportPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { success?: string; error?: string };
+export default async function ReconciliationImportPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requirePermission("BANK_RECON_READ");
   const record = await getStatementImport(params.id);
   if (!record) notFound();

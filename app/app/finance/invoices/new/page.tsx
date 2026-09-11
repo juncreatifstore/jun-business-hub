@@ -5,7 +5,8 @@ import { InvoiceForm } from "@/components/app/invoice-form";
 import { PageHeader } from "@/components/app/page-header";
 
 export const dynamic = "force-dynamic";
-export default async function NewInvoicePage({ searchParams }: { searchParams: { toast_error?: string } }) {
+export default async function NewInvoicePage(props: { searchParams: Promise<{ toast_error?: string }> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("INVOICE_CREATE");
   const [clients, cases] = await Promise.all([
     prisma.client.findMany({

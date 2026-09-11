@@ -42,7 +42,7 @@ export function MediaComposer({ phone, variant = "icon" }: { phone: string; vari
     }
   };
 
-  const pick = (ref: React.RefObject<HTMLInputElement>) => ref.current?.click();
+  const pick = (ref: React.RefObject<HTMLInputElement | null>) => ref.current?.click();
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     e.target.value = "";

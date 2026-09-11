@@ -37,11 +37,10 @@ async function providerState(userId: string, provider: CloudProvider) {
   return { provider, configured: Boolean(cloudOAuthConfig(provider)), connection, files, error };
 }
 
-export default async function CloudDrivePage({
-  searchParams,
-}: {
-  searchParams: { toast?: string; error?: string; connected?: string };
+export default async function CloudDrivePage(props: {
+  searchParams: Promise<{ toast?: string; error?: string; connected?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!isCloudAdmin(user.role)) redirect("/app/forbidden");
   const [google, microsoft] = await Promise.all([

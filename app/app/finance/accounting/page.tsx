@@ -8,11 +8,10 @@ import { BookOpen, FileSpreadsheet, LockKeyhole, RefreshCw } from "lucide-react"
 
 export const dynamic = "force-dynamic";
 
-export default async function AccountingLedgerPage({
-  searchParams,
-}: {
-  searchParams: { success?: string; error?: string };
+export default async function AccountingLedgerPage(props: {
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requirePermission("ACCOUNTING_READ");
   const [entries, closed] = await Promise.all([listJournalEntries(250), getClosedPeriods()]);
   const currencies = [...new Set(entries.map((e) => e.currency))].sort();

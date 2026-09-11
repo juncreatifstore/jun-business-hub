@@ -4,7 +4,8 @@ import { getOnlinePaymentSessionByToken, markOnlineSessionStatus } from "@/lib/f
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const session = await getOnlinePaymentSessionByToken(params.token);
   const destination = new URL(`/pay/${encodeURIComponent(params.token)}`, req.url);
   if (!session || session.provider !== "PAYPAL" || !session.providerSessionId) {

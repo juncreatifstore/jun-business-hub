@@ -24,7 +24,8 @@ const kindLabels: Record<string, string> = {
 };
 type SearchParams = { country?: string; currency?: string; period?: string };
 
-export default async function FinancialReservesPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function FinancialReservesPage(props: { searchParams?: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/app/forbidden");
   const filters = parseCompanyFundsFilters(searchParams);

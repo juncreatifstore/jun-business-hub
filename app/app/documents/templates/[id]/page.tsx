@@ -15,7 +15,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function TemplateDetailPage({ params }: { params: { id: string } }) {
+export default async function TemplateDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("DOCUMENT_READ");
   const rows = await prisma.$queryRaw<DocumentTemplateRow[]>`
     SELECT id,name,type::text AS type,content,category,language,description,variables,"isActive","isReference","sourceRef","createdById","createdAt","updatedAt"

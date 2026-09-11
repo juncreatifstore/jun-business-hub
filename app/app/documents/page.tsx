@@ -80,7 +80,8 @@ function attentionReason(doc: {
   return null;
 }
 
-export default async function DocumentsPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function DocumentsPage(props: { searchParams?: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   await requirePermission("DOCUMENT_READ");
   const params: SearchParams = searchParams ?? {};
   const q = (params.q ?? "").trim().toLowerCase();

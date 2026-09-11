@@ -6,8 +6,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { resourceType: string; resourceId: string } },
+  props: { params: Promise<{ resourceType: string; resourceId: string }> },
 ) {
+  const params = await props.params;
   const user = await assertPermission("FILE_READ");
   const resourceType =
     params.resourceType === "File" || params.resourceType === "Folder"

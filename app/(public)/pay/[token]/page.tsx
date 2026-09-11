@@ -3,13 +3,12 @@ import { getOnlinePaymentSessionByToken } from "@/lib/finance-online-payments";
 
 export const dynamic = "force-dynamic";
 
-export default async function PublicOnlinePaymentPage({
-  params,
-  searchParams,
-}: {
-  params: { token: string };
-  searchParams: { result?: string };
+export default async function PublicOnlinePaymentPage(props: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ result?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const session = await getOnlinePaymentSessionByToken(params.token);
   if (!session) notFound();
   const paid = session.status === "PAID";

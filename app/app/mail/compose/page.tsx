@@ -24,11 +24,10 @@ function extractEmail(v: string) {
   return (v.match(/[\w.+-]+@[\w.-]+\.\w+/) || [])[0]?.toLowerCase() || "";
 }
 
-export default async function ProfessionalComposePage({
-  searchParams,
-}: {
-  searchParams: { mailbox?: string; source?: string; mode?: string; draft?: string; alias?: string };
+export default async function ProfessionalComposePage(props: {
+  searchParams: Promise<{ mailbox?: string; source?: string; mode?: string; draft?: string; alias?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "EMAIL_DRAFT")) redirect("/app/forbidden");
   const accessibleIds = await getAccessibleMailboxIds(user, true);

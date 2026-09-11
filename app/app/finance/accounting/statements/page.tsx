@@ -17,11 +17,10 @@ function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default async function AccountingStatementsPage({
-  searchParams,
-}: {
-  searchParams: { from?: string; to?: string };
+export default async function AccountingStatementsPage(props: {
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("ACCOUNTING_READ");
   const range = parseRange(searchParams.from, searchParams.to);
   const [data, balance] = await Promise.all([

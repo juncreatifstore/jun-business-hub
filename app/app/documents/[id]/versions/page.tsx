@@ -25,13 +25,12 @@ function wordSet(value: string) {
   return value.toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-export default async function DocumentVersionsPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { left?: string; right?: string };
+export default async function DocumentVersionsPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ left?: string; right?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requirePermission("DOCUMENT_READ");
   const doc = await prisma.document.findUnique({
     where: { id: params.id },

@@ -6,11 +6,10 @@ import { formatDateTime } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function AccountingClosePage({
-  searchParams,
-}: {
-  searchParams: { success?: string; error?: string };
+export default async function AccountingClosePage(props: {
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requirePermission("ACCOUNTING_READ");
   const periods = (await getClosedPeriods()).sort((a, b) => b.period.localeCompare(a.period));
   const now = new Date();

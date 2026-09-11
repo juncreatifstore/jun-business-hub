@@ -35,11 +35,10 @@ function bytes(value: number) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default async function ClientDocumentsPage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
+export default async function ClientDocumentsPage(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
   const user = await requirePermission("CLIENT_READ");
   const { id } = await Promise.resolve(params);
   const [client, block] = await Promise.all([

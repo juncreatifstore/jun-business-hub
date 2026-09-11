@@ -7,11 +7,10 @@ import { saveFileDrivePrivacyPolicy, saveGlobalDrivePrivacyPolicy } from "@/serv
 
 export const dynamic = "force-dynamic";
 
-export default async function DrivePrivacyPage({
-  searchParams,
-}: {
-  searchParams: { toast?: string; toast_error?: string };
+export default async function DrivePrivacyPage(props: {
+  searchParams: Promise<{ toast?: string; toast_error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("SETTINGS_MANAGE");
   const [globalPolicy, files, overrides] = await Promise.all([
     getDrivePrivacyPolicy("__global_preview__"),

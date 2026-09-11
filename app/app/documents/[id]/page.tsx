@@ -48,7 +48,8 @@ function recipientCount(recipients: unknown): number {
   return 0;
 }
 
-export default async function DocumentDetailPage({ params }: { params: { id: string } }) {
+export default async function DocumentDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("DOCUMENT_READ");
   const doc = await prisma.document.findUnique({
     where: { id: params.id },

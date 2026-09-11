@@ -605,7 +605,7 @@ export async function completeJunNativeSignature(token: string, formData: FormDa
     signatureImageHash,
   };
   const complete = recipients.every((r) => Boolean(r.signedAt));
-  const reqMeta = requestMeta();
+  const reqMeta = await requestMeta();
   const ipHash = reqMeta.ip ? sha256(reqMeta.ip) : null;
 
   await prisma.$transaction([

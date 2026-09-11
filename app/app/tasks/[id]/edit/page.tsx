@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/app/page-header";
 import { TaskEditForm } from "@/components/app/task-edit-form";
 import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
-export default async function EditTaskPage({ params }: { params: { id: string } }) {
+export default async function EditTaskPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("TASK_UPDATE");
   const [t, users, clients, cases] = await Promise.all([
     prisma.task.findUnique({ where: { id: params.id } }),

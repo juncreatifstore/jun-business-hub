@@ -9,7 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 export const dynamic = "force-dynamic";
-export default async function EditRefundPage({ params }: { params: { id: string } }) {
+export default async function EditRefundPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("REFUND_READ");
   const [r, clients, cases, payments] = await Promise.all([
     prisma.refund.findUnique({ where: { id: params.id }, include: { installments: true } }),

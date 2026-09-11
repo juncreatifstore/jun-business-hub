@@ -11,13 +11,12 @@ import { StatusBadge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
-export default async function FinalizeDocumentPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { error?: string };
+export default async function FinalizeDocumentPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requirePermission("DOCUMENT_EDIT");
   const doc = await prisma.document.findUnique({
     where: { id: params.id },

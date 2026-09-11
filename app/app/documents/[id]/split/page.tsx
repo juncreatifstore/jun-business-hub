@@ -10,13 +10,12 @@ import { splitDocument } from "@/services/document-combine-split";
 
 export const dynamic = "force-dynamic";
 
-export default async function SplitPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams?: { error?: string };
+export default async function SplitPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requirePermission("DOCUMENT_CREATE");
   const doc = await prisma.document.findUnique({
     where: { id: params.id },

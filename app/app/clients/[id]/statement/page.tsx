@@ -123,13 +123,12 @@ function localDate(date: Date, lang: ClientStatementLanguage) {
   }).format(date);
 }
 
-export default async function ClientStatementPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { lang?: string };
+export default async function ClientStatementPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ lang?: string }>;
 }) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requirePermission("CLIENT_READ");
   const [client, account] = await Promise.all([
     prisma.client.findUnique({

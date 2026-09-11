@@ -6,11 +6,10 @@ import { HistoricalFinancialBackfillForm } from "@/components/app/historical-fin
 
 export const dynamic = "force-dynamic";
 
-export default async function HistoricalBackfillPage({
-  searchParams,
-}: {
-  searchParams: { clientId?: string };
+export default async function HistoricalBackfillPage(props: {
+  searchParams: Promise<{ clientId?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("PAYMENT_APPROVE");
   await requirePermission("REFUND_APPROVE");
 

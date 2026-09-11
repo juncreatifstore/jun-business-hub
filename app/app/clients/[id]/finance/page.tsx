@@ -14,11 +14,10 @@ import { AlertTriangle, Banknote, CircleDollarSign, ReceiptText, WalletCards } f
 
 export const dynamic = "force-dynamic";
 
-export default async function ClientFinancePage({
-  params,
-}: {
-  params: Promise<{ id: string }> | { id: string };
+export default async function ClientFinancePage(props: {
+  params: Promise<Promise<{ id: string }> | { id: string }>;
 }) {
+  const params = await props.params;
   const user = await requirePermission("CLIENT_READ");
   const { id } = await Promise.resolve(params);
   const [client, finance, block] = await Promise.all([

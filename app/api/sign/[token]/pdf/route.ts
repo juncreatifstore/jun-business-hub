@@ -7,7 +7,8 @@ import { renderDocumentPdf } from "@/services/pdf";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const payload = await verifyNativeSigningToken(params.token);
   if (!payload) return NextResponse.json({ error: "Invalid or expired signing link" }, { status: 401 });
 

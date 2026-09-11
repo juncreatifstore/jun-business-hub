@@ -5,7 +5,8 @@ import { getDrivePublicSecurity } from "@/lib/drive-public-security";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await assertPermission("FILE_READ");
   const file = await prisma.file.findFirst({
     where: { id: params.id, isVault: false },

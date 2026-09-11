@@ -5,7 +5,8 @@ import { getDriveIntelligence, indexDriveFile } from "@/lib/drive-intelligence";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await assertPermission("FILE_READ");
   const file = await prisma.file.findFirst({
     where: { id: params.id, isVault: false },

@@ -10,7 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/input";
 export const dynamic = "force-dynamic";
-export default async function EditExpensePage({ params }: { params: { id: string } }) {
+export default async function EditExpensePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePermission("EXPENSE_READ");
   const [e, clients, cases] = await Promise.all([
     getFinanceExpense(params.id),

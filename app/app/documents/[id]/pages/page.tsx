@@ -6,7 +6,8 @@ import { saveDocumentPages } from "@/services/document-pages";
 
 export const dynamic = "force-dynamic";
 
-export default async function DocumentPagesPage({ params }: { params: { id: string } }) {
+export default async function DocumentPagesPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requirePermission("DOCUMENT_READ");
   const doc = await prisma.document.findUnique({
     where: { id: params.id },

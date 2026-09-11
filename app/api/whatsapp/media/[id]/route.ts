@@ -16,7 +16,8 @@ export const runtime = "nodejs";
  * - first request pulls the file from Meta and caches it in our storage,
  *   so it stays available after Meta's ~30-day retention window
  */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requireUser();
   const id = params.id;
   if (!/^[0-9]{5,40}$/.test(id)) return new NextResponse("Bad id", { status: 400 });

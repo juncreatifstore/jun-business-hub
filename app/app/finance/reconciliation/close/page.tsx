@@ -5,11 +5,10 @@ import { closeBankReconciliationPeriodAction } from "@/services/finance-bank-rec
 import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export default async function BankReconciliationClosePage({
-  searchParams,
-}: {
-  searchParams: { success?: string; error?: string };
+export default async function BankReconciliationClosePage(props: {
+  searchParams: Promise<{ success?: string; error?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePermission("BANK_RECON_CLOSE");
   const [imports, closes] = await Promise.all([listStatementImports(), listBankPeriodCloses()]);
   const accounts = [

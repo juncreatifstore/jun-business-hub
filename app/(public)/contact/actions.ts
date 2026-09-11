@@ -7,7 +7,7 @@ import { headers } from "next/headers";
 export type ContactState = { ok: boolean; errors?: Record<string, string[]>; message?: string };
 
 export async function submitContact(_prev: ContactState, formData: FormData): Promise<ContactState> {
-  const ip = headers().get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   if (!(await rateLimitAsync(`contact:${ip}`, 5, 60_000))) {
     return { ok: false, message: "Too many requests. Try again in a minute." };
   }

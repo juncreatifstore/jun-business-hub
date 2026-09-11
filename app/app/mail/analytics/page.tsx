@@ -47,7 +47,8 @@ function Bars({ title, rows }: { title: string; rows: { name: string; count: num
     </Card>
   );
 }
-export default async function MailAnalyticsPage({ searchParams }: { searchParams: { period?: string } }) {
+export default async function MailAnalyticsPage(props: { searchParams: Promise<{ period?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!can(user, "EMAIL_READ")) redirect("/app/forbidden");
   const accessibleIds = await getAccessibleMailboxIds(user, false);
