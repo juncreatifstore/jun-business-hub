@@ -157,7 +157,7 @@ export async function syncEmailAliasesFromGoogle(): Promise<void> {
       destination: EMAIL_ALIAS_DESTINATION,
       // A Workspace user alias returned by Admin Directory is authoritative.
       // Gmail's accepted SendAs state is also retained when available.
-      confirmed: true || acceptedSenders.has(address),
+      confirmed: directoryAliases.includes(address) || acceptedSenders.has(address),
       createdAt: existingByAddress.get(address)?.createdAt || new Date().toISOString(),
     }))
     .sort((a, b) => a.address.localeCompare(b.address));
