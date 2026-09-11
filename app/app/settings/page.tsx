@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { saveSettings } from "@/services/settings";
-import { Mail, MessageCircle, ShieldCheck, Building2, Palette, FileBadge2, Hash, Save } from "lucide-react";
+import { Mail, MessageCircle, ShieldCheck, Building2, Palette, FileBadge2, Hash, Save, ScrollText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export default async function SettingsPage() {
         subtitle="Identité de l’entreprise, documents officiels, sécurité, communication, branding et numérotation."
       />
 
-      <div className="mb-5 grid gap-3 sm:mb-7 md:grid-cols-3">
+      <div className="mb-5 grid gap-3 sm:mb-7 md:grid-cols-4">
         <a
           href="/app/settings/security"
           className="group rounded-2xl border border-line bg-ink/[0.025] p-4 transition hover:border-blue-400/30 hover:bg-ink/[0.04]"
@@ -84,7 +84,21 @@ export default async function SettingsPage() {
               <p className="mt-0.5 text-xs text-muted2">Meta Cloud API et automatisation</p>
             </div>
           </div>
+        </a>        <a
+          href="/app/settings/legal"
+          className="group rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-4 transition hover:border-violet-400/40 hover:bg-violet-500/[0.07]"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
+              <ScrollText className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Pages légales</p>
+              <p className="mt-0.5 text-xs text-muted2">Google OAuth · 4 langues</p>
+            </div>
+          </div>
         </a>
+
       </div>
 
       <form
