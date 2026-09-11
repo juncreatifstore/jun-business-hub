@@ -116,9 +116,18 @@ export async function verifyCloudOAuthState(state: string) {
 }
 
 /** Callback URL registered with the provider; pinned to the public app URL when known. */
-export function cloudRedirectUri(provider: CloudProvider, requestUrl: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL || requestUrl;
-  return new URL(`/api/drive/cloud/${provider}/callback`, base).toString();
+export function cloudRedirectUri(provider: CloudProvider, requestUrl?: string) {
+  // Same origin as the Gmail callback already registered on the Google client,
+  // then the public app URL, then the incoming request.
+  let base = process.env.NEXT_PUBLIC_APP_URL || requestUrl || "";
+  if (provider === "google" && process.env.GOOGLE_REDIRECT_URI) {
+    try {
+      base = new URL(process.env.GOOGLE_REDIRECT_URI).origin;
+    } catch {
+      /* keep fallback */
+    }
+  }
+  return base ? new URL(`/api/drive/cloud/${provider}/callback`, base).toString() : "";
 }
 
 export function cloudOAuthConfig(provider: CloudProvider) {

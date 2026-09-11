@@ -4,6 +4,7 @@ import { Cloud, DownloadCloud, ExternalLink, HardDrive, Link2, RefreshCw, Unplug
 import { requireUser } from "@/lib/auth";
 import {
   cloudOAuthConfig,
+  cloudRedirectUri,
   getCloudConnection,
   isCloudAdmin,
   listCloudFiles,
@@ -34,7 +35,14 @@ async function providerState(userId: string, provider: CloudProvider) {
       error = e instanceof Error ? e.message : "Unable to load files";
     }
   }
-  return { provider, configured: Boolean(cloudOAuthConfig(provider)), connection, files, error };
+  return {
+    provider,
+    configured: Boolean(cloudOAuthConfig(provider)),
+    redirectUri: cloudRedirectUri(provider),
+    connection,
+    files,
+    error,
+  };
 }
 
 export default async function CloudDrivePage(props: {
@@ -98,7 +106,17 @@ export default async function CloudDrivePage(props: {
                   {state.connection ? (
                     <p className="mt-1 text-xs text-muted2">Connected as {state.connection.accountEmail}</p>
                   ) : (
-                    <p className="mt-1 text-xs text-muted2">Not connected</p>
+                    <>
+                      <p className="mt-1 text-xs text-muted2">Not connected</p>
+                      {state.redirectUri ? (
+                        <p className="mt-1 text-[11px] text-muted2">
+                          Redirect URI to authorize on the OAuth client:{" "}
+                          <code className="select-all rounded bg-surface-2 px-1 py-0.5">
+                            {state.redirectUri}
+                          </code>
+                        </p>
+                      ) : null}
+                    </>
                   )}
                 </div>
                 {state.connection ? (
