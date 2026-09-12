@@ -3,12 +3,21 @@ import { AlertTriangle, CheckCircle2, Circle, Clock3, ListChecks } from "lucide-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { caseChecklist } from "@/lib/document-requirements";
 import { DOC_TYPE_LABELS } from "@/lib/file-extraction";
+import { DocumentRequestsPanel } from "@/components/app/document-requests-panel";
+import { prisma } from "@/lib/prisma";
 
 /** Required / optional pieces for this case, resolved against case + client files. */
 export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; clientId: string }) {
   const data = await caseChecklist(caseId);
   if (!data) return null;
   const { profile, items, done, total } = data;
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { email: true, whatsapp: true, phone: true },
+  });
+  const missing = items
+    .filter((i) => i.required && (i.status === "missing" || i.status === "expired"))
+    .map((i) => i.docType);
   const pct = total ? Math.round((done / total) * 100) : 100;
   const icon = (s: (typeof items)[number]["status"]) =>
     s === "present" ? (
@@ -83,6 +92,17 @@ export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; 
             </li>
           ))}
         </ul>
+        <div className="px-5 pt-3">
+          <DocumentRequestsPanel
+            clientId={clientId}
+            caseId={caseId}
+            returnTo={`/app/cases/${caseId}`}
+            missing={missing}
+            hasEmail={Boolean(client?.email)}
+            hasWhatsApp={Boolean(client?.whatsapp || client?.phone)}
+            compact
+          />
+        </div>
         <div className="flex items-center justify-between px-5 py-3 text-xs text-muted2">
           <Link prefetch={false} href={`/app/drive/clients/${clientId}`} className="hover:text-electric">
             Client documents →

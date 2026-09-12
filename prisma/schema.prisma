@@ -213,6 +213,7 @@ model User {
   createdTasks      Task[]           @relation("TaskCreator")
   files             File[]
   documents         Document[]       @relation("DocumentAuthor")
+  documentRequests  DocumentRequest[]
   documentVersions  DocumentVersion[]
   signatures        SignatureRequest[] @relation("SignatureCreator")
   payments          Payment[]        @relation("PaymentRecorder")
@@ -305,6 +306,7 @@ model Client {
   cases      Case[]
   tasks      Task[]
   files      File[]
+  documentRequests DocumentRequest[]
   documents  Document[]
   payments   Payment[]
   refunds    Refund[]
@@ -369,6 +371,7 @@ model Case {
   files       File[]
   documents   Document[]
   payments    Payment[]
+  documentRequests DocumentRequest[]
   refunds     Refund[]
   activities  Activity[]
 
@@ -424,6 +427,36 @@ model Folder {
   parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id])
   children  Folder[] @relation("FolderTree")
   files     File[]
+}
+
+/// A request for documents sent to a client (secure upload link).
+model DocumentRequest {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  clientId      String
+  caseId        String?
+  requestedById String
+  /// [{ docType, required, label?, fileId?, receivedAt? }]
+  items         Json      @default("[]")
+  message       String?
+  language      String    @default("fr")
+  status        String    @default("PENDING") // PENDING | PARTIAL | COMPLETE | CANCELLED | EXPIRED
+  sentVia       String[]  @default([])
+  expiresAt     DateTime
+  remindAt      DateTime?
+  reminderCount Int       @default(0)
+  lastViewedAt  DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  client      Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  case        Case?  @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  requestedBy User   @relation(fields: [requestedById], references: [id])
+
+  @@index([clientId])
+  @@index([caseId])
+  @@index([status, remindAt])
 }
 
 /// Structured data extracted by AI from a Drive file (type + key fields).

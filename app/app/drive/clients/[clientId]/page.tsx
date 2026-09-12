@@ -10,6 +10,7 @@ import { uploadFile } from "@/services/files";
 import { FILE_CATEGORIES } from "@/lib/utils";
 import { clientDocumentGroups } from "@/lib/client-documents";
 import { DOC_TYPE_LABELS } from "@/lib/file-extraction";
+import { DocumentRequestsPanel } from "@/components/app/document-requests-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
       lastName: true,
       email: true,
       phone: true,
+      whatsapp: true,
       nationality: true,
       cases: { select: { id: true, caseNumber: true, title: true }, orderBy: { createdAt: "desc" } },
     },
@@ -184,6 +186,23 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
           )}
         </div>
         <div className="space-y-4">
+          {canUpload ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Request documents from the client</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DocumentRequestsPanel
+                  clientId={client.id}
+                  returnTo={`/app/drive/clients/${client.id}`}
+                  missing={missing}
+                  hasEmail={Boolean(client.email)}
+                  hasWhatsApp={Boolean(client.whatsapp || client.phone)}
+                  compact
+                />
+              </CardContent>
+            </Card>
+          ) : null}
           {canUpload ? (
             <Card>
               <CardHeader>

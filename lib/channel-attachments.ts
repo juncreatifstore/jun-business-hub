@@ -54,7 +54,7 @@ export type SaveToDriveInput = {
   data: Buffer;
   clientId?: string | null;
   caseId?: string | null;
-  source: { channel: "MAIL" | "WHATSAPP"; ref: string; from?: string | null };
+  source: { channel: "MAIL" | "WHATSAPP" | "PORTAL"; ref: string; from?: string | null };
 };
 
 /**
@@ -93,7 +93,13 @@ export async function saveChannelAttachmentToDrive(input: SaveToDriveInput) {
     create: { key: dedupeKey, value: file.id },
     update: { value: file.id },
   });
-  const note = `Reçu par ${input.source.channel === "MAIL" ? "e-mail" : "WhatsApp"}${input.source.from ? ` de ${input.source.from}` : ""}`;
+  const via =
+    input.source.channel === "MAIL"
+      ? "e-mail"
+      : input.source.channel === "WHATSAPP"
+        ? "WhatsApp"
+        : "le lien de dépôt";
+  const note = `Reçu par ${via}${input.source.from ? ` de ${input.source.from}` : ""}`;
   await prisma.appSetting.upsert({
     where: { key: `drive.note.${file.id}` },
     create: { key: `drive.note.${file.id}`, value: note },
