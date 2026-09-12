@@ -1,5 +1,6 @@
 "use server";
 
+import { listApprovedWhatsAppTemplates } from "@/lib/whatsapp";
 import { revalidatePath } from "next/cache";
 import { requireUser, assertPermission } from "@/lib/auth";
 import { logActivity } from "@/lib/audit";
@@ -465,21 +466,49 @@ export async function replyWhatsAppTemplate(phone: string, formData: FormData) {
   const user = await requireUser();
   assertStaff(user.role);
   const normalized = cleanPhone(phone);
+  const fail = (message: string): never =>
+    redirect(
+      `/app/whatsapp/inbox?phone=${encodeURIComponent(normalized)}&toast_error=${encodeURIComponent(message)}`,
+    );
   const template = String(formData.get("template") || "").trim();
   const language = String(formData.get("language") || "fr").trim();
-  if (!template) throw new Error("Aucun modèle sélectionné");
+  if (!template) return fail("Aucun modèle sélectionné");
   const params: string[] = [];
-  for (let i = 1; i <= 10; i++) {
+  const names: string[] = [];
+  for (let i = 1; i <= 20; i++) {
     const v = formData.get(`p${i}`);
     if (v === null) break;
     params.push(String(v).trim());
+    names.push(String(formData.get(`n${i}`) || String(i)));
   }
+  // Guard against a stale composer: the approved template must get exactly its variables.
+  const approved = (await listApprovedWhatsAppTemplates()).find(
+    (t) => t.name === template && t.language === language,
+  );
+  if (approved && approved.paramCount !== params.length)
+    return fail(
+      `Le modèle « ${template} » attend ${approved.paramCount} variable(s) (${approved.params.map((k) => `{{${k}}}`).join(", ")}), ${params.length} fournie(s). Rechargez la page et réessayez.`,
+    );
+  if (params.some((v) => !v)) return fail("Toutes les variables du modèle doivent être renseignées.");
   const origin = await conversationClient(normalized);
   if (origin?.clientId && (await isClientCommunicationBanned(origin.clientId))) {
-    throw new Error("Client banni — aucun message WhatsApp ne peut être envoyé");
+    return fail("Client banni — aucun message WhatsApp ne peut être envoyé");
   }
   const preview = String(formData.get("preview") || "").trim();
-  const result = await sendWhatsAppTemplate(normalized, template, language, params);
+  let result: Awaited<ReturnType<typeof sendWhatsAppTemplate>>;
+  try {
+    result = await sendWhatsAppTemplate(normalized, template, language, params, approved?.params ?? names);
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : "Envoi impossible";
+    const friendly = raw.includes("132000")
+      ? "Meta a refusé le modèle : le nombre de variables ne correspond pas au modèle approuvé. Rechargez la page pour recharger les modèles."
+      : raw.includes("132001")
+        ? "Ce modèle n’existe pas (ou pas dans cette langue) dans Meta WhatsApp Manager."
+        : raw.includes("131047") || raw.includes("131026")
+          ? "Impossible de joindre ce numéro sur WhatsApp."
+          : raw.replace(/^Meta WhatsApp API \d+: /, "").slice(0, 300);
+    return fail(friendly);
+  }
   const messageId = String(result.messages?.[0]?.id || `local-${Date.now()}`);
   await prisma.activity.create({
     data: {

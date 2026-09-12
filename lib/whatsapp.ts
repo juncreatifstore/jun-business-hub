@@ -124,6 +124,8 @@ export async function sendWhatsAppTemplate(
   templateName: string,
   languageCode: string,
   bodyParameters: string[] = [],
+  /** Placeholder names when the template uses named variables ({{customer_name}}). */
+  parameterNames: string[] = [],
 ) {
   const name = templateName.trim();
   if (!name)
@@ -143,7 +145,13 @@ export async function sendWhatsAppTemplate(
             components: [
               {
                 type: "body",
-                parameters: bodyParameters.map((text) => ({ type: "text", text: text.slice(0, 1024) })),
+                parameters: bodyParameters.map((text, i) => ({
+                  type: "text",
+                  text: text.slice(0, 1024),
+                  ...(parameterNames[i] && !/^\d+$/.test(parameterNames[i])
+                    ? { parameter_name: parameterNames[i] }
+                    : {}),
+                })),
               },
             ],
           }
@@ -299,10 +307,23 @@ export type ApprovedTemplate = {
   name: string;
   language: string;
   category: string;
-  /** Body text with {{1}} placeholders. */
+  /** Body text with {{1}} (positional) or {{name}} (named) placeholders. */
   body: string;
   paramCount: number;
+  /** Placeholder keys in body order: "1","2"… or "customer_name"… */
+  params: string[];
+  /** True when the template uses named variables (Meta default since 2025). */
+  namedParams: boolean;
 };
+
+/** Placeholder keys of a template body, in first-appearance order. */
+export function templatePlaceholders(body: string) {
+  const keys: string[] = [];
+  for (const m of body.matchAll(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g)) if (!keys.includes(m[1])) keys.push(m[1]);
+  const named = keys.some((k) => !/^\d+$/.test(k));
+  if (!named) keys.sort((a, b) => Number(a) - Number(b));
+  return { keys, named };
+}
 
 let templateCache: { at: number; items: ApprovedTemplate[] } | null = null;
 
@@ -328,9 +349,17 @@ export async function listApprovedWhatsAppTemplates(force = false): Promise<Appr
     };
     if (!r.ok) return templateCache?.items ?? [];
     const items: ApprovedTemplate[] = (data.data ?? []).map((t) => {
-      const body = t.components?.find((c) => c.type === "BODY")?.text ?? "";
-      const params = new Set(Array.from(body.matchAll(/\{\{(\d+)\}\}/g)).map((m) => Number(m[1])));
-      return { name: t.name, language: t.language, category: t.category, body, paramCount: params.size };
+      const body = t.components?.find((c) => c.type.toUpperCase() === "BODY")?.text ?? "";
+      const { keys, named } = templatePlaceholders(body);
+      return {
+        name: t.name,
+        language: t.language,
+        category: t.category,
+        body,
+        paramCount: keys.length,
+        params: keys,
+        namedParams: named,
+      };
     });
     templateCache = { at: Date.now(), items };
     return items;

@@ -25,18 +25,25 @@ export function TemplateComposer({
   windowClosed: boolean;
   compact?: boolean;
 }) {
-  const [name, setName] = useState(templates[0]?.name ?? "");
-  const tpl = useMemo(() => templates.find((t) => t.name === name) ?? templates[0], [templates, name]);
+  const idOf = (t: ApprovedTemplate) => `${t.name}::${t.language}`;
+  const [id, setId] = useState(templates[0] ? idOf(templates[0]) : "");
+  const tpl = useMemo(() => templates.find((t) => idOf(t) === id) ?? templates[0], [templates, id]);
   const [params, setParams] = useState<string[]>(() =>
     Array.from({ length: tpl?.paramCount ?? 0 }, (_, i) => defaults[i] ?? ""),
   );
 
-  const choose = (n: string) => {
-    setName(n);
-    const t = templates.find((x) => x.name === n);
+  const choose = (v: string) => {
+    setId(v);
+    const t = templates.find((x) => idOf(x) === v);
     setParams(Array.from({ length: t?.paramCount ?? 0 }, (_, i) => defaults[i] ?? ""));
   };
-  const preview = tpl ? tpl.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] || `[${i}]`) : "";
+  const keys = tpl?.params ?? [];
+  const preview = tpl
+    ? tpl.body.replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (_, k: string) => {
+        const idx = keys.indexOf(k);
+        return (idx >= 0 ? params[idx] : "") || `[${k}]`;
+      })
+    : "";
 
   if (!templates.length) {
     return (
@@ -56,27 +63,32 @@ export function TemplateComposer({
           Ce client n’a pas écrit depuis plus de 24 h : WhatsApp n’autorise que l’envoi d’un modèle approuvé.
         </p>
       ) : null}
-      <Select name="template" value={name} onChange={(e) => choose(e.target.value)} className="h-10">
+      <Select value={id} onChange={(e) => choose(e.target.value)} className="h-10">
         {templates.map((t) => (
-          <option key={`${t.name}-${t.language}`} value={t.name}>
+          <option key={idOf(t)} value={idOf(t)}>
             {t.name} · {t.language}
+            {t.paramCount ? ` · ${t.paramCount} variable${t.paramCount > 1 ? "s" : ""}` : ""}
           </option>
         ))}
       </Select>
+      <input type="hidden" name="template" value={tpl?.name ?? ""} />
       <input type="hidden" name="language" value={tpl?.language ?? "fr"} />
       <input type="hidden" name="preview" value={preview} />
       {params.length ? (
         <div className={compact ? "grid gap-2" : "grid gap-2 sm:grid-cols-2"}>
           {params.map((v, i) => (
-            <Input
-              key={i}
-              name={`p${i + 1}`}
-              value={v}
-              onChange={(e) => setParams((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
-              placeholder={`Variable {{${i + 1}}}`}
-              required
-              className="h-10"
-            />
+            <div key={i}>
+              <input type="hidden" name={`n${i + 1}`} value={keys[i] ?? String(i + 1)} />
+              <Input
+                name={`p${i + 1}`}
+                value={v}
+                onChange={(e) => setParams((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+                placeholder={`{{${keys[i] ?? i + 1}}}`}
+                aria-label={`Variable ${keys[i] ?? i + 1}`}
+                required
+                className="h-10"
+              />
+            </div>
           ))}
         </div>
       ) : null}
