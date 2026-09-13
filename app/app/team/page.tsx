@@ -27,8 +27,8 @@ export default async function TeamPage() {
   return (
     <div>
       <PageHeader
-        title="Team"
-        subtitle="Staff accounts, roles and access. Client-portal accounts are managed from each client page."
+        title="Équipe"
+        subtitle="Comptes du personnel, rôles et accès. Les comptes du portail client se gèrent depuis chaque fiche client."
       />
 
       <Card className="mb-8">

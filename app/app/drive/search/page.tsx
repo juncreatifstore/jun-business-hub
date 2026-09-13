@@ -27,9 +27,9 @@ export const dynamic = "force-dynamic";
 const SOURCES: Array<{ key: SearchSource; label: string; icon: typeof HardDrive }> = [
   { key: "JUN", label: "JUN Drive", icon: HardDrive },
   { key: "GOOGLE", label: "Google Drive", icon: Cloud },
-  { key: "MAIL", label: "Mail attachments", icon: Mail },
-  { key: "WHATSAPP", label: "WhatsApp media", icon: MessageCircle },
-  { key: "SIGNED", label: "Documents & signatures", icon: FileSignature },
+  { key: "MAIL", label: "Pièces jointes e-mail", icon: Mail },
+  { key: "WHATSAPP", label: "Médias WhatsApp", icon: MessageCircle },
+  { key: "SIGNED", label: "Documents et signatures", icon: FileSignature },
 ];
 
 function SourceIcon({ source }: { source: SearchSource }) {
@@ -93,12 +93,12 @@ export default async function DriveSmartSearchPage(props: {
           href="/app/drive"
           className="inline-flex items-center gap-2 text-sm text-muted2 hover:text-ink"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Drive
+          <ArrowLeft className="h-4 w-4" /> Retour au Drive
         </Link>
       </div>
       <PageHeader
-        title="Search everything"
-        subtitle="One search across JUN Drive, Google Drive, e-mail attachments, WhatsApp media and signed documents. Filter by client, document type or expiry. Vault content is never included."
+        title="Rechercher partout"
+        subtitle="Une seule recherche sur JUN Drive, Google Drive, pièces jointes e-mail, médias WhatsApp et documents signés. Filtres par client, type et expiration. Le coffre-fort n’est jamais inclus."
       />
 
       <Card className="mb-6">
@@ -119,7 +119,7 @@ export default async function DriveSmartSearchPage(props: {
                 defaultValue={clientId ?? ""}
                 className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
               >
-                <option value="">Any client</option>
+                <option value="">Tout client</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.firstName} {c.lastName} · {c.internalId}
@@ -131,7 +131,7 @@ export default async function DriveSmartSearchPage(props: {
                 defaultValue={docType ?? ""}
                 className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
               >
-                <option value="">Any document type</option>
+                <option value="">Tout type de document</option>
                 {DOC_TYPES.filter((t) => t !== "OTHER").map((t) => (
                   <option key={t} value={t}>
                     {DOC_TYPE_LABELS[t]}
@@ -143,15 +143,15 @@ export default async function DriveSmartSearchPage(props: {
                 defaultValue={searchParams.expires ?? ""}
                 className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
               >
-                <option value="">Any expiry</option>
-                <option value="expired">Already expired</option>
-                <option value="30">Expires within 30 days</option>
-                <option value="90">Expires within 90 days</option>
+                <option value="">Toute expiration</option>
+                <option value="expired">Déjà expiré</option>
+                <option value="30">Expire sous 30 jours</option>
+                <option value="90">Expire sous 90 jours</option>
               </select>
-              <Button type="submit">Search</Button>
+              <Button type="submit">Rechercher</Button>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs">
-              <span className="text-muted2">Sources:</span>
+              <span className="text-muted2">Sources :</span>
               {SOURCES.filter((s) => s.key !== "GOOGLE" || cloudAdmin).map((s) => (
                 <label key={s.key} className="inline-flex items-center gap-1.5">
                   <input
@@ -169,7 +169,7 @@ export default async function DriveSmartSearchPage(props: {
               {can(user, "AI_USE") ? (
                 <span className="ml-auto">
                   <Button type="submit" formAction={reindexDriveLibrary} variant="secondary" size="sm">
-                    <RefreshCw className="h-3.5 w-3.5" /> Reindex JUN Drive
+                    <RefreshCw className="h-3.5 w-3.5" /> Réindexer JUN Drive
                   </Button>
                 </span>
               ) : null}
@@ -215,7 +215,7 @@ export default async function DriveSmartSearchPage(props: {
                 <span
                   className={`text-xs ${r.expiry === "expired" ? "font-medium text-red-700" : r.expiry === "critical" || r.expiry === "soon" ? "text-amber-700" : "text-muted2"}`}
                 >
-                  {r.expiry === "expired" ? "expired " : "exp. "}
+                  {r.expiry === "expired" ? "expiré le " : "exp. "}
                   {r.expiresAt.toLocaleDateString("fr-FR")}
                 </span>
               ) : null}

@@ -24,8 +24,8 @@ export default async function ExpensesPage() {
   return (
     <div>
       <PageHeader
-        title="Expenses & Accounts Payable"
-        subtitle="Vendor bills, approvals, due dates and outgoing payments."
+        title="Dépenses et fournisseurs"
+        subtitle="Factures fournisseurs, approbations, échéances et décaissements."
         actionHref="/app/finance/expenses/new"
         actionLabel="New expense"
       />

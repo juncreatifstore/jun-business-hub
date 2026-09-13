@@ -51,16 +51,16 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
         href="/app/drive/clients"
         className="inline-flex items-center gap-1 text-xs text-muted2 hover:text-ink"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> All clients
+        <ArrowLeft className="h-3.5 w-3.5" /> Tous les clients
       </Link>
       <PageHeader
-        eyebrow="Client documents"
+        eyebrow="Documents du client"
         title={`${client.firstName} ${client.lastName}`}
         subtitle={[client.internalId, client.nationality, client.email, client.phone]
           .filter(Boolean)
           .join(" · ")}
         actionHref={`/app/clients/${client.id}`}
-        actionLabel="Open client record"
+        actionLabel="Ouvrir la fiche client"
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -68,13 +68,14 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
           <CardContent className="pt-5">
             <div className="text-xs uppercase tracking-wide text-muted2">Documents</div>
             <div className="mt-1 text-2xl font-semibold">{total}</div>
-            {pending ? <div className="text-xs text-muted2">{pending} awaiting analysis</div> : null}
+            {pending ? <div className="text-xs text-muted2">{pending} en attente d’analyse</div> : null}
           </CardContent>
         </Card>
         <Card className={missing.length ? "border-amber-200" : ""}>
           <CardContent className="pt-5">
             <div className="text-xs uppercase tracking-wide text-muted2">
-              Missing <span className="normal-case">({required.length} required by open cases)</span>
+              Missing{" "}
+              <span className="normal-case">({required.length} requises par les dossiers ouverts)</span>
             </div>
             {missing.length ? (
               <ul className="mt-2 space-y-1 text-sm">
@@ -85,7 +86,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
                 ))}
               </ul>
             ) : (
-              <div className="mt-1 text-sm text-emerald-700">Complete</div>
+              <div className="mt-1 text-sm text-emerald-700">Complet</div>
             )}
           </CardContent>
         </Card>
@@ -112,13 +113,13 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
                     ) : (
                       <Clock3 className="h-3.5 w-3.5" />
                     )}
-                    {DOC_TYPE_LABELS[a.docType]} · {a.status === "expired" ? "expired " : ""}
+                    {DOC_TYPE_LABELS[a.docType]} · {a.status === "expired" ? "expiré le " : ""}
                     {d(a.expiresAt)}
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="mt-1 text-sm text-muted2">Nothing expiring within 90 days</div>
+              <div className="mt-1 text-sm text-muted2">Rien n’expire sous 90 jours</div>
             )}
           </CardContent>
         </Card>
@@ -128,7 +129,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
         <div className="space-y-4">
           {groups.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted2">
-              No document yet for this client. Upload one on the right — it will be typed automatically.
+              Aucun document pour ce client. Déposez-en un à droite : il sera typé automatiquement.
             </div>
           ) : (
             groups.map((g) => (
@@ -163,7 +164,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
                                   : "text-muted2"
                             }`}
                           >
-                            {f.expiry === "expired" ? "expired " : "exp. "}
+                            {f.expiry === "expired" ? "expiré le " : "exp. "}
                             {d(f.expiresAt)}
                           </span>
                         ) : null}
@@ -190,7 +191,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
           {canUpload ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Request documents from the client</CardTitle>
+                <CardTitle className="text-base">Demander des documents au client</CardTitle>
               </CardHeader>
               <CardContent>
                 <DocumentRequestsPanel
@@ -208,7 +209,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Upload className="h-4 w-4" /> Add a document
+                  <Upload className="h-4 w-4" /> Ajouter un document
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -229,7 +230,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
           {client.cases.length ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Cases</CardTitle>
+                <CardTitle className="text-base">Dossiers</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-1 text-sm">

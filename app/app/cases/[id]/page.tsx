@@ -44,11 +44,11 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
         actions={
           <div className="flex gap-2">
             <Link href={`/app/clients/${c.clientId}`}>
-              <Button variant="secondary">View client</Button>
+              <Button variant="secondary">Voir le client</Button>
             </Link>
             {can(user, "CASE_UPDATE") ? (
               <Link href={`/app/cases/${c.id}/edit`}>
-                <Button variant="primary">Edit case</Button>
+                <Button variant="primary">Modifier le dossier</Button>
               </Link>
             ) : null}
           </div>
@@ -59,7 +59,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Case overview</CardTitle>
+              <CardTitle>Vue d’ensemble</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -72,25 +72,25 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
                 </Link>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Status</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">Statut</p>
                 <div className="mt-1">
                   <StatusBadge status={c.status} />
                 </div>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Priority</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">Priorité</p>
                 <p className="mt-1">{c.priority}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Owner</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">Responsable</p>
                 <p className="mt-1">{c.owner ? `${c.owner.firstName} ${c.owner.lastName}` : "Unassigned"}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Due date</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">Échéance</p>
                 <p className="mt-1">{formatDate(c.dueDate)}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Created</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">Créé le</p>
                 <p className="mt-1">{formatDate(c.createdAt)}</p>
               </div>
               {c.description ? (
@@ -104,7 +104,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
 
           <Card>
             <CardHeader>
-              <CardTitle>Tasks</CardTitle>
+              <CardTitle>Tâches</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {c.tasks.length === 0 ? (
@@ -217,11 +217,11 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
 
           <Card>
             <CardHeader>
-              <CardTitle>Activity</CardTitle>
+              <CardTitle>Activité</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {c.activities.length === 0 ? (
-                <p className="p-5 text-sm text-muted2">No activity yet.</p>
+                <p className="p-5 text-sm text-muted2">Aucune activité.</p>
               ) : (
                 <ul className="divide-y divide-line">
                   {c.activities.map((a) => (
@@ -242,7 +242,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Team</CardTitle>
+              <CardTitle>Équipe</CardTitle>
             </CardHeader>
             <CardContent>
               {c.members.length === 0 ? (
@@ -265,7 +265,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
             </CardHeader>
             <CardContent>
               {c.notes.length === 0 ? (
-                <p className="text-sm text-muted2">No notes yet.</p>
+                <p className="text-sm text-muted2">Aucune note.</p>
               ) : (
                 <ul className="space-y-4">
                   {c.notes.map((n) => (
@@ -284,17 +284,17 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
           {can(user, "CASE_UPDATE") ? (
             <Card>
               <CardHeader>
-                <CardTitle>Delete service</CardTitle>
+                <CardTitle>Supprimer le service</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                  Permanent deletion is only allowed when this service has no payments, refunds, invoices,
-                  expenses, documents or files. Otherwise cancel or archive it to preserve the financial
-                  record.
+                  La suppression définitive n’est possible que si ce service n’a ni paiement, ni
+                  remboursement, ni facture, ni dépense, ni document, ni fichier. Sinon, annulez-le ou
+                  archivez-le pour préserver l’historique financier.
                 </div>
                 <form action={deleteCase.bind(null, c.id)} className="mt-4 space-y-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted2">Deletion reason</label>
+                    <label className="mb-1 block text-xs font-medium text-muted2">Motif de suppression</label>
                     <textarea
                       name="reason"
                       required

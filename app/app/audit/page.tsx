@@ -41,7 +41,7 @@ export default async function AuditPage(props: { searchParams: Promise<{ q?: str
   return (
     <div>
       <PageHeader
-        title="Audit log"
+        title="Journal d’audit"
         subtitle="Append-only record of every sensitive action. Entries are never edited or deleted."
       />
 
@@ -72,7 +72,7 @@ export default async function AuditPage(props: { searchParams: Promise<{ q?: str
       {logs.length === 0 ? (
         <EmptyState
           icon={ScrollText}
-          title="No audit entries"
+          title="Aucune entrée d’audit"
           description={
             q || type
               ? "Nothing matches these filters."

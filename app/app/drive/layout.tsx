@@ -29,16 +29,16 @@ export default async function DriveLayout({ children }: { children: React.ReactN
     <div className="text-ink" data-drive-release="phase12-drive-workflows-2026-09-12">
       <div className="mb-4 flex flex-wrap items-center gap-1 border-b border-line pb-3">
         <Link prefetch={false} href="/app/drive" className={tab}>
-          <HardDrive className="h-4 w-4" /> Files
+          <HardDrive className="h-4 w-4" /> Fichiers
         </Link>
         <Link prefetch={false} href="/app/drive/clients" className={tab}>
-          <Users className="h-4 w-4" /> By client
+          <Users className="h-4 w-4" /> Par client
         </Link>
         <Link prefetch={false} href="/app/drive/collaboration" className={tab}>
           <MessageSquare className="h-4 w-4" /> Collaboration
         </Link>
         <Link prefetch={false} href="/app/drive/search" className={`${tab} ml-auto`}>
-          <Search className="h-4 w-4" /> Search everything
+          <Search className="h-4 w-4" /> Rechercher partout
         </Link>
         {admin ? (
           <details className="group relative">
@@ -48,20 +48,20 @@ export default async function DriveLayout({ children }: { children: React.ReactN
             </summary>
             <div className="absolute right-0 z-30 mt-1 w-72 rounded-xl border border-line bg-white p-1.5 shadow-lg">
               <Link prefetch={false} href="/app/drive/automation" className={item}>
-                <GitBranch className="h-4 w-4 text-emerald-700" /> Automation & expiration rules
+                <GitBranch className="h-4 w-4 text-emerald-700" /> Automatisation et règles d’expiration
               </Link>
               <Link prefetch={false} href="/app/drive/clients/requirements" className={item}>
-                <ListChecks className="h-4 w-4 text-electric" /> Document checklists by case type
+                <ListChecks className="h-4 w-4 text-electric" /> Checklists par type de dossier
               </Link>
               <Link prefetch={false} href="/app/drive/enterprise" className={item}>
                 <ShieldCheck className="h-4 w-4 text-amber-700" /> Enterprise: quota, retention, sharing,
                 watermark
               </Link>
               <Link prefetch={false} href="/app/drive/privacy" className={item}>
-                <FileLock2 className="h-4 w-4 text-rose-700" /> Privacy policies
+                <FileLock2 className="h-4 w-4 text-rose-700" /> Politiques de confidentialité
               </Link>
               <Link prefetch={false} href="/app/drive/cloud" className={item}>
-                <Cloud className="h-4 w-4 text-sky-700" /> Cloud connections
+                <Cloud className="h-4 w-4 text-sky-700" /> Connexions cloud
               </Link>
             </div>
           </details>

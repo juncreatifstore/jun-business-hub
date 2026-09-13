@@ -23,13 +23,13 @@ export default async function ReceiptsPage() {
   return (
     <div>
       <PageHeader
-        title="Receipts"
-        subtitle="Official payment receipts with QR verification, proof tracking and controlled void status."
+        title="Reçus"
+        subtitle="Reçus officiels avec vérification QR, suivi des preuves et annulation contrôlée."
       />
       {payments.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
-          title="No receipts yet"
+          title="Aucun reçu"
           description="Confirm a pending payment and its receipt will appear here."
           actionHref="/app/finance/payments"
           actionLabel="Go to payments"

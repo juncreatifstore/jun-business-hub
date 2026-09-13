@@ -218,10 +218,10 @@ export function DriveBrowser({
   }
   function copyPublic(file: DriveBrowserFile) {
     if (file.publicDisabled) {
-      window.alert("This public link is disabled. Enable it from Manage file first.");
+      window.alert("Ce lien public est désactivé. Activez-le depuis Gérer le fichier.");
       return;
     }
-    navigator.clipboard.writeText(publicUrl(file)).then(() => window.alert("Public link copied"));
+    navigator.clipboard.writeText(publicUrl(file)).then(() => window.alert("Lien public copié"));
   }
   const bulkJson = JSON.stringify(selectedIds);
 
@@ -230,7 +230,11 @@ export function DriveBrowser({
       {folders.length ? (
         <section className="mb-7">
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted2">
-            {view === "trash" ? "Trashed folders" : view === "shared" ? "Shared folders" : "Folders"}
+            {view === "trash"
+              ? "Dossiers à la corbeille"
+              : view === "shared"
+                ? "Dossiers partagés"
+                : "Folders"}
           </h3>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {folders.map((folder) => (
@@ -284,7 +288,7 @@ export function DriveBrowser({
                       type="button"
                       onClick={() => setFolderManage(folder)}
                       className={subtleButton}
-                      title="Manage folder"
+                      title="Gérer le dossier"
                     >
                       <Settings2 className="h-4 w-4" />
                     </button>
@@ -308,7 +312,8 @@ export function DriveBrowser({
             onClick={toggleAll}
             className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-white px-3 text-xs text-muted2 hover:bg-surface hover:text-ink"
           >
-            {allSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />} Select all
+            {allSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />} Tout
+            sélectionner
           </button>
           <select
             value={sort}
@@ -316,15 +321,15 @@ export function DriveBrowser({
             className={`h-9 px-2 text-xs ${selectClass}`}
           >
             <option value="date">Date</option>
-            <option value="name">Name</option>
-            <option value="size">Size</option>
-            <option value="category">Category</option>
+            <option value="name">Nom</option>
+            <option value="size">Taille</option>
+            <option value="category">Catégorie</option>
           </select>
           <button
             type="button"
             onClick={() => setDirection((d) => (d === "asc" ? "desc" : "asc"))}
             className="rounded-lg border border-line bg-white p-2 text-muted2 hover:bg-surface hover:text-ink"
-            title="Reverse sort"
+            title="Inverser le tri"
           >
             <ArrowUpDown className="h-4 w-4" />
           </button>
@@ -467,11 +472,11 @@ export function DriveBrowser({
             <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted2">
               <tr>
                 <th className="w-10 p-3"></th>
-                <th className="p-3">Name</th>
-                <th className="p-3">Category</th>
+                <th className="p-3">Nom</th>
+                <th className="p-3">Catégorie</th>
                 <th className="p-3">Linked to</th>
-                <th className="p-3">Size</th>
-                <th className="p-3">Uploaded</th>
+                <th className="p-3">Taille</th>
+                <th className="p-3">Déposé le</th>
                 <th className="p-3">Actions</th>
               </tr>
             </thead>
@@ -610,7 +615,7 @@ function FileThumb({ file, onPreview }: { file: DriveBrowserFile; onPreview: () 
               ? "Audio"
               : file.mimeType.startsWith("video/")
                 ? "Video"
-                : "File preview"}
+                : "Aperçu du fichier"}
           </span>
         </div>
       )}
@@ -795,7 +800,7 @@ function PreviewModal({ file, onClose }: { file: DriveBrowserFile; onClose: () =
               rel="noreferrer"
               className="rounded-md border border-line px-2.5 py-1.5 text-xs hover:bg-surface"
             >
-              Open full file
+              Ouvrir le fichier
             </a>
             <button onClick={onClose} className="rounded-md p-2 text-muted2 hover:bg-surface">
               <X className="h-5 w-5" />
@@ -824,9 +829,9 @@ function PreviewModal({ file, onClose }: { file: DriveBrowserFile; onClose: () =
           ) : (
             <div className="flex h-full flex-col items-center justify-center p-8 text-center">
               <FileText className="mb-4 h-14 w-14 text-muted2" />
-              <h3 className="font-medium">Browser preview not available for this format</h3>
+              <h3 className="font-medium">Aperçu non disponible pour ce format dans le navigateur</h3>
               <p className="mt-2 max-w-md text-sm text-muted2">
-                Use Open full file. Connected Google Drive/OneDrive items can also use the provider-native
+                Use Ouvrir le fichier. Connected Google Drive/OneDrive items can also use the provider-native
                 preview.
               </p>
             </div>
@@ -872,17 +877,17 @@ function DetailsPanel({
         <dl className="mt-5 grid grid-cols-[110px_1fr] gap-y-3 text-sm">
           <dt className="text-muted2">Type</dt>
           <dd>{file.mimeType}</dd>
-          <dt className="text-muted2">Category</dt>
+          <dt className="text-muted2">Catégorie</dt>
           <dd>{file.category.replace(/_/g, " ")}</dd>
-          <dt className="text-muted2">Size</dt>
+          <dt className="text-muted2">Taille</dt>
           <dd>{humanSize(file.sizeBytes)}</dd>
-          <dt className="text-muted2">Uploaded</dt>
+          <dt className="text-muted2">Déposé le</dt>
           <dd>{formatDate(file.createdAt)}</dd>
-          <dt className="text-muted2">Uploaded by</dt>
+          <dt className="text-muted2">Déposé par</dt>
           <dd>{file.uploadedBy}</dd>
           <dt className="text-muted2">Client</dt>
           <dd>{file.clientLabel || "—"}</dd>
-          <dt className="text-muted2">Case</dt>
+          <dt className="text-muted2">Dossier</dt>
           <dd>{file.caseNumber || "—"}</dd>
           <dt className="text-muted2">Document</dt>
           <dd>
@@ -894,59 +899,59 @@ function DetailsPanel({
                 <span className="text-xs text-muted2">{Math.round(file.extraction.confidence * 100)}%</span>
               </span>
             ) : file.extraction?.error ? (
-              <span className="text-xs text-amber-700">Analysis failed — retry from Intelligence</span>
+              <span className="text-xs text-amber-700">Analyse échouée — relancer depuis Intelligence</span>
             ) : (
               <span className="text-xs text-muted2">Analysis pending</span>
             )}
           </dd>
           {file.extraction?.holderName ? (
             <>
-              <dt className="text-muted2">Holder</dt>
+              <dt className="text-muted2">Titulaire</dt>
               <dd>{file.extraction.holderName}</dd>
             </>
           ) : null}
           {file.extraction?.documentNumber ? (
             <>
-              <dt className="text-muted2">Number</dt>
+              <dt className="text-muted2">Numéro</dt>
               <dd className="font-mono text-xs">{file.extraction.documentNumber}</dd>
             </>
           ) : null}
           {file.extraction?.issuingCountry || file.extraction?.issuer ? (
             <>
-              <dt className="text-muted2">Issued by</dt>
+              <dt className="text-muted2">Émis par</dt>
               <dd>{[file.extraction.issuer, file.extraction.issuingCountry].filter(Boolean).join(" · ")}</dd>
             </>
           ) : null}
           {file.extraction?.issuedAt ? (
             <>
-              <dt className="text-muted2">Issued</dt>
+              <dt className="text-muted2">Émis le</dt>
               <dd>{formatDate(file.extraction.issuedAt)}</dd>
             </>
           ) : null}
           {file.extraction?.expiresAt ? (
             <>
-              <dt className="text-muted2">Expires</dt>
+              <dt className="text-muted2">Expire le</dt>
               <dd className={expiryClass(file.extraction.expiry)}>
                 {formatDate(file.extraction.expiresAt)}
                 {file.extraction.expiry === "expired"
-                  ? " · expired"
+                  ? " · expiré"
                   : file.extraction.expiry === "critical"
-                    ? " · within 30 days"
+                    ? " · sous 30 jours"
                     : file.extraction.expiry === "soon"
-                      ? " · within 90 days"
+                      ? " · sous 90 jours"
                       : ""}
               </dd>
             </>
           ) : null}
           {file.extraction?.amount ? (
             <>
-              <dt className="text-muted2">Amount</dt>
+              <dt className="text-muted2">Montant</dt>
               <dd>{file.extraction.amount}</dd>
             </>
           ) : null}
           {file.extraction?.reference ? (
             <>
-              <dt className="text-muted2">Reference</dt>
+              <dt className="text-muted2">Référence</dt>
               <dd className="font-mono text-xs">{file.extraction.reference}</dd>
             </>
           ) : null}
@@ -959,11 +964,11 @@ function DetailsPanel({
             >
               {file.commentCount
                 ? `${file.commentCount} comment${file.commentCount > 1 ? "s" : ""}`
-                : "Add a comment"}{" "}
-              · approvals
+                : "Ajouter un commentaire"}{" "}
+              · approbations
             </Link>
           </dd>
-          <dt className="text-muted2">Public link</dt>
+          <dt className="text-muted2">Lien public</dt>
           <dd className={file.publicDisabled ? "text-red-600" : "text-emerald-700"}>
             {file.publicDisabled ? "Disabled" : "Active"}
           </dd>
@@ -972,7 +977,7 @@ function DetailsPanel({
         </dl>
         {file.extraction && Object.keys(file.extraction.fields).length ? (
           <div className="mt-5 rounded-lg border border-line bg-surface p-3">
-            <div className="mb-2 text-xs font-medium text-muted2">Extracted fields</div>
+            <div className="mb-2 text-xs font-medium text-muted2">Champs extraits</div>
             <dl className="grid grid-cols-[130px_1fr] gap-y-1.5 text-xs">
               {Object.entries(file.extraction.fields).map(([k, v]) => (
                 <Fragment key={k}>
@@ -987,7 +992,7 @@ function DetailsPanel({
         ) : null}
         {file.note ? (
           <div className="mt-5 rounded-lg border border-line bg-surface p-3">
-            <div className="mb-1 text-xs font-medium text-muted2">Internal note</div>
+            <div className="mb-1 text-xs font-medium text-muted2">Note interne</div>
             <p className="whitespace-pre-wrap text-sm">{file.note}</p>
           </div>
         ) : null}

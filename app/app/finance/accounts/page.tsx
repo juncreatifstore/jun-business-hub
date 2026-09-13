@@ -25,8 +25,8 @@ export default async function PaymentAccountsPage() {
   return (
     <div>
       <PageHeader
-        title="Payment Accounts"
-        subtitle="Control where payments are received, which methods are operational, and the fees attached to each receiving account."
+        title="Comptes de paiement"
+        subtitle="Où les paiements sont reçus, quels moyens sont opérationnels, et les frais rattachés à chaque compte receveur."
       />
 
       <div className="mb-5 grid gap-3 md:grid-cols-3">

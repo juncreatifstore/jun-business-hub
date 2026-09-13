@@ -6,7 +6,7 @@ import { DOC_TYPE_LABELS } from "@/lib/file-extraction";
 import { DocumentRequestsPanel } from "@/components/app/document-requests-panel";
 import { prisma } from "@/lib/prisma";
 
-/** Required / optional pieces for this case, resolved against case + client files. */
+/** Required / optional pieces for this case, resolved against case + fiche clients. */
 export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; clientId: string }) {
   const data = await caseChecklist(caseId);
   if (!data) return null;
@@ -34,11 +34,11 @@ export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; 
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
-          <ListChecks className="h-4 w-4" /> Document checklist
+          <ListChecks className="h-4 w-4" /> Checklist documentaire
           <span className="text-xs font-normal text-muted2">· {profile.label}</span>
         </CardTitle>
         <span className={`text-xs font-medium ${pct === 100 ? "text-emerald-700" : "text-muted2"}`}>
-          {done}/{total} required
+          {done}/{total} requises
         </span>
       </CardHeader>
       <CardContent className="p-0">
@@ -54,7 +54,7 @@ export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; 
               {icon(i.status)}
               <span className={i.required ? "font-medium" : "text-muted2"}>
                 {DOC_TYPE_LABELS[i.docType]}
-                {!i.required ? <span className="ml-1 text-[11px]">optional</span> : null}
+                {!i.required ? <span className="ml-1 text-[11px]">facultatif</span> : null}
               </span>
               <span className="ml-auto flex items-center gap-2 text-xs text-muted2">
                 {i.fileId ? (
@@ -68,7 +68,7 @@ export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; 
                       {i.fileName}
                     </a>
                     {i.source === "client" ? (
-                      <span className="rounded bg-surface px-1">client file</span>
+                      <span className="rounded bg-surface px-1">fiche client</span>
                     ) : null}
                     {i.expiresAt ? (
                       <span
@@ -80,13 +80,13 @@ export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; 
                               : ""
                         }
                       >
-                        {i.status === "expired" ? "expired " : "exp. "}
+                        {i.status === "expired" ? "expiré le " : "exp. "}
                         {i.expiresAt.toLocaleDateString("fr-FR")}
                       </span>
                     ) : null}
                   </>
                 ) : i.required ? (
-                  <span className="text-amber-700">missing</span>
+                  <span className="text-amber-700">manquant</span>
                 ) : null}
               </span>
             </li>
@@ -105,10 +105,10 @@ export async function CaseChecklistCard({ caseId, clientId }: { caseId: string; 
         </div>
         <div className="flex items-center justify-between px-5 py-3 text-xs text-muted2">
           <Link prefetch={false} href={`/app/drive/clients/${clientId}`} className="hover:text-electric">
-            Client documents →
+            Documents du client →
           </Link>
           <Link prefetch={false} href="/app/drive/clients/requirements" className="hover:text-electric">
-            Edit checklists
+            Modifier les checklists
           </Link>
         </div>
       </CardContent>

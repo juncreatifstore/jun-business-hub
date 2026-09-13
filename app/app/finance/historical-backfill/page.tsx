@@ -28,8 +28,8 @@ export default async function HistoricalBackfillPage(props: {
   return (
     <div className="max-w-7xl space-y-5">
       <PageHeader
-        title="Historical finance backfill"
-        subtitle="Enter old payments and refunds that happened before they were recorded in JUN — all in one audited batch."
+        title="Reprise de l’historique financier"
+        subtitle="Saisir les anciens paiements et remboursements antérieurs à JUN, en un lot audité."
       />
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
         Use this page only for late historical entry. Payments entered here become <strong>CONFIRMED</strong>{" "}

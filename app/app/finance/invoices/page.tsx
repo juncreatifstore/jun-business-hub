@@ -24,8 +24,8 @@ export default async function InvoicesPage() {
   return (
     <div>
       <PageHeader
-        title="Invoices & Accounts Receivable"
-        subtitle="Client invoices, balances due, aging, reminders and payment collection."
+        title="Factures et créances clients"
+        subtitle="Factures clients, soldes dus, ancienneté, relances et recouvrement."
         actionHref="/app/finance/invoices/new"
         actionLabel="New invoice"
       />

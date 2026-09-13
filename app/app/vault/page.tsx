@@ -34,8 +34,8 @@ export default async function VaultPage(props: { searchParams: Promise<{ cat?: s
   return (
     <div>
       <PageHeader
-        title="Company Vault"
-        subtitle="Restricted area for corporate documents. Every access is written to the audit log."
+        title="Coffre-fort de l’entreprise"
+        subtitle="Espace restreint pour les documents de l’entreprise. Chaque accès est inscrit au journal d’audit."
       />
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -70,7 +70,7 @@ export default async function VaultPage(props: { searchParams: Promise<{ cat?: s
       {files.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
-          title="Vault is empty"
+          title="Le coffre est vide"
           description={
             cat
               ? `No documents under “${cat}”.`

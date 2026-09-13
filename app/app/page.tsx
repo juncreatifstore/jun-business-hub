@@ -132,7 +132,7 @@ export default async function DashboardPage() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent sm:text-[11px] sm:tracking-[0.2em]">
               JUN Business Hub · Control Center
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Dashboard</h1>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Tableau de bord</h1>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-ink-3 sm:text-sm">
               Bienvenue, {user.firstName}. Clients, opérations, finance, signatures et communications en un
               coup d’œil.
@@ -261,7 +261,7 @@ export default async function DashboardPage() {
                   href="/app/company-funds"
                   className="flex items-center justify-between rounded-xl border border-blue-500/15 bg-blue-500/[0.06] px-3.5 py-3 text-sm text-accent hover:bg-blue-500/[0.1] sm:px-4"
                 >
-                  <span>Company Funds</span>
+                  <span>Trésorerie</span>
                   <ChevronRight className="h-4 w-4" />
                 </Link>
               ) : null}

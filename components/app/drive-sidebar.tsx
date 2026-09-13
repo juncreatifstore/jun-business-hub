@@ -6,11 +6,11 @@ export type DriveSidebarActive =
   "my" | "recent" | "starred" | "shared" | "trash" | `cloud:${CloudProvider}` | "cloud";
 
 const NAV = [
-  { key: "my", label: "My Drive", icon: HardDrive, href: "/app/drive" },
-  { key: "recent", label: "Recent", icon: Clock3, href: "/app/drive?view=recent" },
-  { key: "starred", label: "Starred", icon: Star, href: "/app/drive?view=starred" },
-  { key: "shared", label: "Shared with me", icon: Users, href: "/app/drive?view=shared" },
-  { key: "trash", label: "Trash", icon: Trash2, href: "/app/drive?view=trash" },
+  { key: "my", label: "Mon Drive", icon: HardDrive, href: "/app/drive" },
+  { key: "recent", label: "Récents", icon: Clock3, href: "/app/drive?view=recent" },
+  { key: "starred", label: "Favoris", icon: Star, href: "/app/drive?view=starred" },
+  { key: "shared", label: "Partagés avec moi", icon: Users, href: "/app/drive?view=shared" },
+  { key: "trash", label: "Corbeille", icon: Trash2, href: "/app/drive?view=trash" },
 ] as const;
 
 const CLOUD_LABEL: Record<CloudProvider, string> = { google: "Google Drive", microsoft: "OneDrive" };
@@ -67,7 +67,7 @@ export async function DriveSidebar({
             {item(
               "cloud",
               "/app/drive/cloud",
-              connected.length ? "Manage connections" : "Connect a cloud",
+              connected.length ? "Gérer les connexions" : "Connecter un cloud",
               Link2,
             )}
           </>

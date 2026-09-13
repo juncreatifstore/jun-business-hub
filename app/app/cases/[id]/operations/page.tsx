@@ -139,7 +139,7 @@ export default async function CaseOperationsPage(props: {
           {can(user, "CASE_UPDATE") ? (
             <form action={updateCaseStatus.bind(null, id)} className="flex flex-wrap items-end gap-2">
               <div>
-                <label className="mb-1 block text-xs text-muted2">Case status</label>
+                <label className="mb-1 block text-xs text-muted2">Statut du dossier</label>
                 <Select name="status" defaultValue={c.status} className="w-52">
                   {CASE_STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -164,13 +164,13 @@ export default async function CaseOperationsPage(props: {
                 (e-mail, WhatsApp si conversation ouverte)
                 <input type="hidden" name="notifyClient" value="off" />
               </label>
-              <Button variant="outline">Update status</Button>
+              <Button variant="outline">Mettre à jour</Button>
             </form>
           ) : (
             <StatusBadge status={c.status} />
           )}
           <div className="text-xs text-muted2">
-            Priority: <strong>{c.priority}</strong> · Due: <strong>{formatDate(c.dueDate)}</strong>
+            Priorité : <strong>{c.priority}</strong> · Échéance : <strong>{formatDate(c.dueDate)}</strong>
           </div>
         </CardContent>
       </Card>

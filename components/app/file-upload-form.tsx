@@ -10,7 +10,7 @@ function VaultSubmitBtn() {
   return (
     <Button type="submit" variant="primary" disabled={pending}>
       <UploadCloud className="mr-2 h-4 w-4" />
-      {pending ? "Uploading…" : "Upload"}
+      {pending ? "Envoi…" : "Upload"}
     </Button>
   );
 }
@@ -184,7 +184,7 @@ export function FileUploadForm({
       <input type="hidden" name="isVault" value={isVault ? "1" : "0"} />
       {!isVault ? <input type="hidden" name="folderId" value={folderId ?? ""} /> : null}
       <div className="lg:col-span-2">
-        <Field label="File">
+        <Field label="Fichier">
           <Input
             ref={fileRef}
             type="file"
@@ -200,12 +200,12 @@ export function FileUploadForm({
         </Field>
         {!isVault ? (
           <p className="mt-1 text-[11px] text-muted2">
-            Audio, video, PDF, images and Office files · direct upload up to 2 GB.
+            Audio, vidéo, PDF, images et fichiers Office · dépôt direct jusqu’à 2 Go.
           </p>
         ) : null}
       </div>
       {isVault && vaultCategories ? (
-        <Field label="Vault category">
+        <Field label="Catégorie du coffre">
           <Select name="vaultCategory" required>
             {vaultCategories.map((c) => (
               <option key={c} value={c}>
@@ -215,7 +215,7 @@ export function FileUploadForm({
           </Select>
         </Field>
       ) : (
-        <Field label="Category">
+        <Field label="Catégorie">
           <Select name="category" defaultValue="OTHER">
             {categories.map((c) => (
               <option key={c} value={c}>
@@ -226,9 +226,9 @@ export function FileUploadForm({
         </Field>
       )}
       {!isVault && clients ? (
-        <Field label="Link to client (optional)">
+        <Field label="Lier à un client (facultatif)">
           <Select name="clientId" defaultValue={defaultClientId ?? ""}>
-            <option value="">— None —</option>
+            <option value="">— Aucun —</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
@@ -238,9 +238,9 @@ export function FileUploadForm({
         </Field>
       ) : null}
       {!isVault && cases ? (
-        <Field label="Link to case (optional)">
+        <Field label="Lier à un dossier (facultatif)">
           <Select name="caseId" defaultValue="">
-            <option value="">— None —</option>
+            <option value="">— Aucun —</option>
             {cases.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
@@ -259,7 +259,7 @@ export function FileUploadForm({
             ) : (
               <UploadCloud className="mr-2 h-4 w-4" />
             )}
-            {uploading ? "Uploading…" : "Upload"}
+            {uploading ? "Envoi…" : "Upload"}
           </Button>
         )}
       </div>

@@ -21,13 +21,13 @@ export default async function DepartmentsPage() {
   return (
     <div>
       <PageHeader
-        title="Departments"
-        subtitle="Organizational structure of JUN CREATIF AND TRAVEL LLC. Departments are seeded and assigned from the Team page."
+        title="Départements"
+        subtitle="Organisation de JUN CREATIF AND TRAVEL LLC. Les départements sont créés et affectés depuis la page Équipe."
       />
       {departments.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="No departments"
+          title="Aucun département"
           description="Run the database seed (npm run db:seed) to create the nine standard departments."
         />
       ) : (

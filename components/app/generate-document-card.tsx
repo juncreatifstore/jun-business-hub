@@ -44,10 +44,10 @@ export async function GenerateDocumentCard({
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
-          <FilePlus2 className="h-4 w-4" /> Generate a document
+          <FilePlus2 className="h-4 w-4" /> Générer un document
         </CardTitle>
         <span className="inline-flex items-center gap-1 text-[11px] text-muted2">
-          <Sparkles className="h-3 w-3" /> pre-filled from the client’s documents
+          <Sparkles className="h-3 w-3" /> pré-rempli depuis les documents du client
         </span>
       </CardHeader>
       <CardContent>
@@ -68,10 +68,11 @@ export async function GenerateDocumentCard({
         </div>
         <div className="mt-3 flex items-center justify-between text-xs text-muted2">
           <span>
-            Passport number, dates, employer, trip… are filled automatically when the pieces are on file.
+            Numéro de passeport, dates, employeur, voyage… sont remplis automatiquement quand les pièces sont
+            au dossier.
           </span>
           <Link prefetch={false} href={params()} className="text-electric hover:underline">
-            All templates →
+            Tous les modèles →
           </Link>
         </div>
       </CardContent>

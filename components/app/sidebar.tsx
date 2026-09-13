@@ -34,11 +34,11 @@ import {
 
 type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean; sectionRoot?: boolean };
 const sections: { label: string | null; items: NavItem[] }[] = [
-  { label: null, items: [{ href: "/app", label: "Dashboard", icon: LayoutDashboard }] },
+  { label: null, items: [{ href: "/app", label: "Tableau de bord", icon: LayoutDashboard }] },
   {
     label: "Communication",
     items: [
-      { href: "/app/whatsapp/inbox", label: "WhatsApp Inbox", icon: MessageCircle },
+      { href: "/app/whatsapp/inbox", label: "Boîte WhatsApp", icon: MessageCircle },
       { href: "/app/mail", label: "Mail", icon: Mail },
       { href: "/app/notifications", label: "Notifications", icon: Bell },
     ],
@@ -57,7 +57,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
       { href: "/app/drive", label: "Drive", icon: HardDrive },
       { href: "/app/documents", label: "Documents", icon: FileText },
       { href: "/app/signatures", label: "Signatures", icon: PenTool },
-      { href: "/app/vault", label: "Vault", icon: Lock },
+      { href: "/app/vault", label: "Coffre-fort", icon: Lock },
     ],
   },
   {
@@ -69,7 +69,7 @@ const sections: { label: string | null; items: NavItem[] }[] = [
       { href: "/app/finance/reports", label: "Rapports", icon: BarChart3 },
       {
         href: "/app/company-funds",
-        label: "Company Funds",
+        label: "Trésorerie",
         icon: Landmark,
         superAdminOnly: true,
         sectionRoot: true,

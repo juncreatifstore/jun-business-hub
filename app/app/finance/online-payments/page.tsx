@@ -63,8 +63,8 @@ export default async function OnlinePaymentsPage() {
   return (
     <div>
       <PageHeader
-        title="Online Payments"
-        subtitle="Secure checkout links, provider confirmation and webhook-driven payment status."
+        title="Paiements en ligne"
+        subtitle="Liens de paiement sécurisés, confirmation du prestataire et statut piloté par webhook."
       />
       <div className="mb-5 grid gap-3 md:grid-cols-3">
         <Metric label="Pending checkout" value={String(pending)} />

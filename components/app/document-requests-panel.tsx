@@ -50,7 +50,8 @@ export async function DocumentRequestsPanel({
             <input key={t} type="hidden" name="docType" value={t} />
           ))}
           <div className="text-sm font-medium">
-            Request the {missing.length} missing document{missing.length > 1 ? "s" : ""} from the client
+            Demander au client le{missing.length > 1 ? "s" : ""} {missing.length} document
+            {missing.length > 1 ? "s" : ""} manquant{missing.length > 1 ? "s" : ""}
           </div>
           <div className="flex flex-wrap gap-1">
             {missing.map((t) => (
@@ -69,11 +70,11 @@ export async function DocumentRequestsPanel({
             <label className={`inline-flex items-center gap-1.5 ${hasEmail ? "" : "opacity-50"}`}>
               <input type="checkbox" name="via_email" defaultChecked={hasEmail} disabled={!hasEmail} />{" "}
               <Mail className="h-3.5 w-3.5" /> E-mail
-              {!hasEmail ? " (no address)" : ""}
+              {!hasEmail ? " (pas d’adresse)" : ""}
             </label>
             <label className={`inline-flex items-center gap-1.5 ${hasWhatsApp ? "" : "opacity-50"}`}>
               <input type="checkbox" name="via_whatsapp" defaultChecked={false} disabled={!hasWhatsApp} />{" "}
-              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp{!hasWhatsApp ? " (no number)" : ""}
+              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp{!hasWhatsApp ? " (pas de numéro)" : ""}
             </label>
             <label className="inline-flex items-center gap-1.5">
               <select
@@ -86,7 +87,7 @@ export async function DocumentRequestsPanel({
               </select>
             </label>
             <button className="ml-auto inline-flex items-center gap-1 rounded-lg bg-electric px-3 py-1.5 text-xs font-medium text-white">
-              <Send className="h-3.5 w-3.5" /> Send request
+              <Send className="h-3.5 w-3.5" /> Envoyer la demande
             </button>
           </div>
           <p className="text-[11px] text-muted2">
@@ -108,11 +109,11 @@ export async function DocumentRequestsPanel({
                   {r.status.toLowerCase()}
                 </span>
                 <span className="text-muted2">
-                  {got}/{items.length} received · sent {r.createdAt.toLocaleDateString("fr-FR")}
+                  {got}/{items.length} reçu(s) · envoyée le {r.createdAt.toLocaleDateString("fr-FR")}
                   {r.sentVia.length
                     ? ` via ${r.sentVia.map((v) => (v === "EMAIL" ? "e-mail" : "WhatsApp")).join(", ")}`
                     : ""}
-                  {r.reminderCount ? ` · ${r.reminderCount} reminder${r.reminderCount > 1 ? "s" : ""}` : ""}
+                  {r.reminderCount ? ` · ${r.reminderCount} rappel${r.reminderCount > 1 ? "s" : ""}` : ""}
                   {r.lastViewedAt ? ` · opened ${r.lastViewedAt.toLocaleDateString("fr-FR")}` : ""}
                 </span>
                 <span className="ml-auto flex items-center gap-1">
@@ -130,9 +131,9 @@ export async function DocumentRequestsPanel({
                         ) : null}
                         <button
                           className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1.5 hover:bg-surface"
-                          title="Send a reminder now"
+                          title="Send a rappel now"
                         >
-                          <Send className="h-3.5 w-3.5" /> Remind
+                          <Send className="h-3.5 w-3.5" /> Relancer
                         </button>
                       </form>
                       <form action={cancelDocumentRequest}>
@@ -140,7 +141,7 @@ export async function DocumentRequestsPanel({
                         <input type="hidden" name="returnTo" value={returnTo} />
                         <button
                           className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1.5 text-muted2 hover:bg-red-50 hover:text-red-700"
-                          title="Cancel this request"
+                          title="Annuler cette demande"
                         >
                           <XCircle className="h-3.5 w-3.5" />
                         </button>

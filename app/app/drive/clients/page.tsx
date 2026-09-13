@@ -27,14 +27,14 @@ export default async function DriveClientsPage(props: {
     <div className="space-y-5 text-ink">
       <PageHeader
         eyebrow="Drive"
-        title="Documents by client"
-        subtitle="Each client's file, grouped by document type, with what is missing and what is expiring."
+        title="Documents par client"
+        subtitle="Le dossier documentaire de chaque client : pièces par type, manquantes et expirations."
       />
       <form method="get" className="flex flex-wrap items-center gap-2">
         <input
           name="q"
           defaultValue={searchParams.q ?? ""}
-          placeholder="Search a client…"
+          placeholder="Rechercher un client…"
           className="h-10 min-w-64 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
         />
         <select
@@ -42,19 +42,19 @@ export default async function DriveClientsPage(props: {
           defaultValue={only}
           className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
         >
-          <option value="all">All clients</option>
-          <option value="issues">Only with missing or expiring documents</option>
+          <option value="all">Tous les clients</option>
+          <option value="issues">Seulement avec pièces manquantes ou expirations</option>
         </select>
         <button className="h-10 rounded-lg border border-line bg-white px-3 text-sm hover:bg-surface">
           Filter
         </button>
         <span className="ml-auto text-xs text-muted2">
-          {rows.length} client{rows.length === 1 ? "" : "s"} · {issues} with attention needed
+          {rows.length} client{rows.length === 1 ? "" : "s"} · {issues} à traiter
         </span>
       </form>
 
       {rows.length === 0 ? (
-        <EmptyState icon={Users} title="No clients" description="No client matches this filter." />
+        <EmptyState icon={Users} title="Aucun client" description="Aucun client ne correspond à ce filtre." />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line bg-white">
           <table className="w-full text-sm">
@@ -62,8 +62,8 @@ export default async function DriveClientsPage(props: {
               <tr>
                 <th className="p-3">Client</th>
                 <th className="p-3">Documents</th>
-                <th className="p-3">Missing</th>
-                <th className="p-3">Expiry</th>
+                <th className="p-3">Manquants</th>
+                <th className="p-3">Expiration</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -84,7 +84,7 @@ export default async function DriveClientsPage(props: {
                   </td>
                   <td className="p-3 text-muted2">
                     {c.total}
-                    {c.total ? <span className="text-xs"> · {c.typed} typed</span> : null}
+                    {c.total ? <span className="text-xs"> · {c.typed} typés</span> : null}
                   </td>
                   <td className="p-3">
                     {c.missing.length ? (
@@ -100,19 +100,19 @@ export default async function DriveClientsPage(props: {
                       </div>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Baseline complete
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Pièces de base complètes
                       </span>
                     )}
                   </td>
                   <td className="p-3">
                     {c.worstExpiry === "expired" ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700">
-                        <AlertTriangle className="h-3.5 w-3.5" /> Expired document
+                        <AlertTriangle className="h-3.5 w-3.5" /> Document expiré
                       </span>
                     ) : c.worstExpiry === "critical" ? (
-                      <span className="text-xs font-medium text-amber-800">Expires within 30 days</span>
+                      <span className="text-xs font-medium text-amber-800">Expire sous 30 jours</span>
                     ) : c.worstExpiry === "soon" ? (
-                      <span className="text-xs text-amber-700">Expires within 90 days</span>
+                      <span className="text-xs text-amber-700">Expire sous 90 jours</span>
                     ) : (
                       <span className="text-xs text-muted2">—</span>
                     )}

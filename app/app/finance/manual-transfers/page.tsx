@@ -33,8 +33,8 @@ export default async function ManualTransfersPage() {
   return (
     <div>
       <PageHeader
-        title="Manual Transfer Orders"
-        subtitle="Generate professional Western Union and bank-transfer instructions with fees, route and net amount calculated before the transaction."
+        title="Ordres de transfert manuel"
+        subtitle="Instructions Western Union et virement avec frais, trajet et montant net calculés avant la transaction."
       />
       <div className="mb-4 flex justify-end">
         <Link href="/app/finance/manual-transfers/receivers">

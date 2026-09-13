@@ -99,11 +99,11 @@ function driveUrl(view: DriveView, folderId?: string, q?: string, category?: str
 }
 
 const NAV: Array<{ view: DriveView; label: string; icon: typeof HardDrive }> = [
-  { view: "my", label: "My Drive", icon: HardDrive },
-  { view: "recent", label: "Recent", icon: Clock3 },
-  { view: "starred", label: "Starred", icon: Star },
-  { view: "shared", label: "Shared with me", icon: Users },
-  { view: "trash", label: "Trash", icon: Trash2 },
+  { view: "my", label: "Mon Drive", icon: HardDrive },
+  { view: "recent", label: "Récents", icon: Clock3 },
+  { view: "starred", label: "Favoris", icon: Star },
+  { view: "shared", label: "Partagés avec moi", icon: Users },
+  { view: "trash", label: "Corbeille", icon: Trash2 },
 ];
 
 export default async function DrivePage(props: {
@@ -362,7 +362,7 @@ export default async function DrivePage(props: {
 
   const currentFolder = breadcrumbs?.[breadcrumbs.length - 1];
   const returnTo = driveUrl(view, folderId, q, category);
-  const viewLabel = NAV.find((item) => item.view === view)?.label ?? "My Drive";
+  const viewLabel = NAV.find((item) => item.view === view)?.label ?? "Mon Drive";
   const extractions = await prisma.fileExtraction.findMany({
     where: { fileId: { in: files.map((f) => f.id) } },
   });
@@ -436,7 +436,7 @@ export default async function DrivePage(props: {
     <div>
       <PageHeader
         title="Drive"
-        subtitle="Company storage with intelligent search, secure sharing, advanced folders, recovery, versions and audit history."
+        subtitle="Stockage de l’entreprise : recherche intelligente, partage sécurisé, dossiers, récupération, versions et historique d’audit."
       />
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <DriveSidebar active={view} userId={user.id} role={user.role} />
@@ -471,7 +471,7 @@ export default async function DrivePage(props: {
             <div className="mb-6 grid gap-4 xl:grid-cols-[300px_1fr]">
               <Card>
                 <CardHeader>
-                  <CardTitle>New folder</CardTitle>
+                  <CardTitle>Nouveau dossier</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <form action={createFolder} className="space-y-3">
@@ -480,19 +480,19 @@ export default async function DrivePage(props: {
                       name="name"
                       required
                       maxLength={120}
-                      placeholder="Folder name"
+                      placeholder="Nom du dossier"
                       className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-electric"
                     />
                     <Button type="submit" variant="secondary">
                       <FolderPlus className="mr-2 h-4 w-4" />
-                      Create folder
+                      Créer le dossier
                     </Button>
                   </form>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle>Upload to {currentFolder?.name ?? "My Drive"}</CardTitle>
+                  <CardTitle>Déposer dans {currentFolder?.name ?? "Mon Drive"}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <FileUploadForm
@@ -515,7 +515,9 @@ export default async function DrivePage(props: {
             <input
               name="q"
               defaultValue={q}
-              placeholder={view === "my" ? "Search this folder…" : `Search ${viewLabel.toLowerCase()}…`}
+              placeholder={
+                view === "my" ? "Rechercher dans ce dossier…" : `Rechercher dans ${viewLabel.toLowerCase()}…`
+              }
               className="h-10 min-w-64 rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-electric"
             />
             <select
@@ -523,7 +525,7 @@ export default async function DrivePage(props: {
               defaultValue={category ?? ""}
               className="h-10 rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-electric"
             >
-              <option value="">All categories</option>
+              <option value="">Toutes les catégories</option>
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c.replace(/_/g, " ")}
@@ -553,7 +555,7 @@ export default async function DrivePage(props: {
                   href="/app/drive/automation"
                   className="text-xs text-amber-800 underline-offset-2 hover:underline"
                 >
-                  Expiration rules
+                  Règles d’expiration
                 </Link>
               </div>
               <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
@@ -597,21 +599,21 @@ export default async function DrivePage(props: {
               }
               title={
                 view === "trash"
-                  ? "Trash is empty"
+                  ? "La corbeille est vide"
                   : view === "starred"
-                    ? "No starred files"
+                    ? "Aucun favori"
                     : view === "shared"
-                      ? "Nothing shared with you"
-                      : "No files"
+                      ? "Rien de partagé avec vous"
+                      : "Aucun fichier"
               }
               description={
                 q || category
-                  ? "Nothing matches these filters."
+                  ? "Rien ne correspond à ces filtres."
                   : view === "recent"
-                    ? "Recently uploaded files will appear here."
+                    ? "Les fichiers récemment déposés apparaîtront ici."
                     : view === "my"
-                      ? "Upload a file or create a subfolder."
-                      : "This view is empty."
+                      ? "Déposez un fichier ou créez un sous-dossier."
+                      : "Cette vue est vide."
               }
             />
           ) : (
