@@ -688,6 +688,24 @@ model RefundInstallment {
   @@unique([refundId, number])
 }
 
+/// Per-thread mail state (read/star/archive/trash/snooze/workflow).
+model MailThreadState {
+  threadId       String    @id
+  thread         MailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  isRead         Boolean   @default(false)
+  starred        Boolean   @default(false)
+  archived       Boolean   @default(false)
+  trashed        Boolean   @default(false)
+  snoozedUntil   DateTime?
+  workflowStatus String    @default("OPEN")
+  updatedAt      DateTime  @default(now())
+  updatedById    String?
+
+  @@index([workflowStatus])
+  @@index([archived, trashed, isRead])
+  @@index([snoozedUntil])
+}
+
 model MailAccount {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -720,6 +738,8 @@ model MailThread {
   updatedAt     DateTime @updatedAt
   account       MailAccount @relation(fields: [mailAccountId], references: [id])
   client        Client?     @relation(fields: [clientId], references: [id])
+
+  state         MailThreadState?
 
   @@unique([mailAccountId, gmailThreadId])
   @@index([mailAccountId, lastMessageAt(sort: Desc)])

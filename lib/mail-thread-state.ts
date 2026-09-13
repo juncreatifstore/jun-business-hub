@@ -1,7 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 
-const PREFIX = "mail.thread.state.";
 export type MailWorkflowStatus = "OPEN" | "WAITING_CLIENT" | "WAITING_INTERNAL" | "RESOLVED";
 export type MailThreadState = {
   threadId: string;
@@ -15,9 +14,34 @@ export type MailThreadState = {
   updatedById: string | null;
 };
 
-function key(threadId: string) {
-  return `${PREFIX}${threadId}`;
+type Row = {
+  threadId: string;
+  isRead: boolean;
+  starred: boolean;
+  archived: boolean;
+  trashed: boolean;
+  snoozedUntil: Date | null;
+  workflowStatus: string;
+  updatedAt: Date;
+  updatedById: string | null;
+};
+
+const WORKFLOW: ReadonlySet<string> = new Set(["OPEN", "WAITING_CLIENT", "WAITING_INTERNAL", "RESOLVED"]);
+
+function fromRow(r: Row): MailThreadState {
+  return {
+    threadId: r.threadId,
+    isRead: r.isRead,
+    starred: r.starred,
+    archived: r.archived,
+    trashed: r.trashed,
+    snoozedUntil: r.snoozedUntil ? r.snoozedUntil.toISOString() : null,
+    workflowStatus: (WORKFLOW.has(r.workflowStatus) ? r.workflowStatus : "OPEN") as MailWorkflowStatus,
+    updatedAt: r.updatedAt.toISOString(),
+    updatedById: r.updatedById,
+  };
 }
+
 export function defaultMailThreadState(threadId: string): MailThreadState {
   return {
     threadId,
@@ -31,48 +55,74 @@ export function defaultMailThreadState(threadId: string): MailThreadState {
     updatedById: null,
   };
 }
+
 export async function getMailThreadState(threadId: string) {
-  const row = await prisma.appSetting.findUnique({ where: { key: key(threadId) }, select: { value: true } });
-  if (!row) return defaultMailThreadState(threadId);
-  try {
-    return {
-      ...defaultMailThreadState(threadId),
-      ...(JSON.parse(row.value) as Partial<MailThreadState>),
-      threadId,
-    };
-  } catch {
-    return defaultMailThreadState(threadId);
-  }
+  const row = await prisma.mailThreadState.findUnique({ where: { threadId } });
+  return row ? fromRow(row) : defaultMailThreadState(threadId);
 }
+
 export async function getMailThreadStateMap(threadIds: string[]) {
-  if (!threadIds.length) return new Map<string, MailThreadState>();
-  const rows = await prisma.appSetting.findMany({
-    where: { key: { in: threadIds.map(key) } },
-    select: { key: true, value: true },
-  });
   const map = new Map<string, MailThreadState>();
+  if (!threadIds.length) return map;
   for (const id of threadIds) map.set(id, defaultMailThreadState(id));
-  for (const row of rows) {
-    const id = row.key.slice(PREFIX.length);
-    try {
-      map.set(id, {
-        ...defaultMailThreadState(id),
-        ...(JSON.parse(row.value) as Partial<MailThreadState>),
-        threadId: id,
-      });
-    } catch {}
-  }
+  const rows = await prisma.mailThreadState.findMany({ where: { threadId: { in: threadIds } } });
+  for (const r of rows) map.set(r.threadId, fromRow(r));
   return map;
 }
+
 export async function saveMailThreadState(state: MailThreadState) {
-  const value = JSON.stringify(state);
-  await prisma.appSetting.upsert({
-    where: { key: key(state.threadId) },
-    create: { key: key(state.threadId), value },
-    update: { value },
-  });
+  const data = {
+    isRead: state.isRead,
+    starred: state.starred,
+    archived: state.archived,
+    trashed: state.trashed,
+    snoozedUntil: state.snoozedUntil ? new Date(state.snoozedUntil) : null,
+    workflowStatus: WORKFLOW.has(state.workflowStatus) ? state.workflowStatus : "OPEN",
+    updatedAt: state.updatedAt ? new Date(state.updatedAt) : new Date(),
+    updatedById: state.updatedById,
+  };
+  try {
+    await prisma.mailThreadState.upsert({
+      where: { threadId: state.threadId },
+      create: { threadId: state.threadId, ...data },
+      update: data,
+    });
+  } catch {
+    // Thread no longer exists (FK) — state is meaningless without it.
+  }
   return state;
 }
+
+/** Threads matching flags, for list views that filter on state in SQL. */
+export async function findThreadIdsByState(where: {
+  mailAccountIds?: string[];
+  isRead?: boolean;
+  starred?: boolean;
+  archived?: boolean;
+  trashed?: boolean;
+  workflowStatus?: MailWorkflowStatus[];
+  snoozed?: boolean;
+}) {
+  const now = new Date();
+  const rows = await prisma.mailThreadState.findMany({
+    where: {
+      ...(where.isRead !== undefined ? { isRead: where.isRead } : {}),
+      ...(where.starred !== undefined ? { starred: where.starred } : {}),
+      ...(where.archived !== undefined ? { archived: where.archived } : {}),
+      ...(where.trashed !== undefined ? { trashed: where.trashed } : {}),
+      ...(where.workflowStatus?.length ? { workflowStatus: { in: where.workflowStatus } } : {}),
+      ...(where.snoozed === true
+        ? { snoozedUntil: { gt: now } }
+        : where.snoozed === false
+          ? { OR: [{ snoozedUntil: null }, { snoozedUntil: { lte: now } }] }
+          : {}),
+      ...(where.mailAccountIds?.length ? { thread: { mailAccountId: { in: where.mailAccountIds } } } : {}),
+    },
+    select: { threadId: true },
+  });
+  return rows.map((r) => r.threadId);
+}
+
 export function isSnoozed(state: MailThreadState, now = Date.now()) {
   return Boolean(state.snoozedUntil && new Date(state.snoozedUntil).getTime() > now);
 }
