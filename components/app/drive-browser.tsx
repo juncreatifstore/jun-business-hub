@@ -764,11 +764,14 @@ function FileActions({
     </div>
   );
 }
+const OFFICE_PREVIEW =
+  /^(application\/(msword|rtf|vnd\.ms-excel|vnd\.ms-powerpoint|vnd\.openxmlformats-officedocument\.[a-z.]+|vnd\.oasis\.opendocument\.[a-z]+)|text\/csv)$/;
 function PreviewModal({ file, onClose }: { file: DriveBrowserFile; onClose: () => void }) {
   const src = `/api/files/${file.id}`;
   const isImage = file.mimeType.startsWith("image/");
   const isVideo = file.mimeType.startsWith("video/");
   const isAudio = file.mimeType.startsWith("audio/");
+  const isOffice = OFFICE_PREVIEW.test(file.mimeType);
   const isFrame = file.mimeType === "application/pdf" || file.mimeType.startsWith("text/");
   return (
     <div
@@ -816,6 +819,8 @@ function PreviewModal({ file, onClose }: { file: DriveBrowserFile; onClose: () =
             </div>
           ) : isFrame ? (
             <iframe src={src} title={file.name} className="h-full w-full bg-white" />
+          ) : isOffice ? (
+            <iframe src={`${src}/preview`} title={file.name} className="h-full w-full bg-white" />
           ) : (
             <div className="flex h-full flex-col items-center justify-center p-8 text-center">
               <FileText className="mb-4 h-14 w-14 text-muted2" />

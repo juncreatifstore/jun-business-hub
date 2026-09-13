@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { downloadCloudFile, getCloudConnection, isCloudAdmin, type CloudProvider } from "@/lib/drive-cloud";
+import { isOfficeMime, officeToPdf } from "@/lib/office-preview";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,21 @@ export async function GET(
   try {
     const download = req.nextUrl.searchParams.get("download") === "1";
     const file = await downloadCloudFile(connection, params.fileId, { forPreview: !download });
+    if (!download && isOfficeMime(file.mimeType)) {
+      const pdf = await officeToPdf({ data: file.data, mimeType: file.mimeType, name: file.name }).catch(
+        () => null,
+      );
+      if (pdf) {
+        return new NextResponse(new Uint8Array(pdf), {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Length": String(pdf.length),
+            "Content-Disposition": `inline; filename="${file.name.replace(/[\r\n"]/g, "_")}.pdf"`,
+            "Cache-Control": "private, no-store",
+          },
+        });
+      }
+    }
     const disposition = download ? "attachment" : "inline";
     const safeName = file.name.replace(/[\r\n"]/g, "_");
     return new NextResponse(new Uint8Array(file.data), {

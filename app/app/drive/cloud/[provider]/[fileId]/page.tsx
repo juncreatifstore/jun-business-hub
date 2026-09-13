@@ -22,7 +22,12 @@ function providerOf(value: string): CloudProvider | null {
 
 /** Which viewer the browser can render inline for this MIME type. */
 function viewerKind(mime: string): "pdf" | "image" | "video" | "audio" | "text" | "none" {
-  if (mime === "application/pdf" || mime.startsWith("application/vnd.google-apps.")) return "pdf";
+  if (
+    mime === "application/pdf" ||
+    mime.startsWith("application/vnd.google-apps.") ||
+    OFFICE_PREVIEWABLE.has(mime)
+  )
+    return "pdf";
   if (mime.startsWith("image/")) return "image";
   if (mime.startsWith("video/")) return "video";
   if (mime.startsWith("audio/")) return "audio";
