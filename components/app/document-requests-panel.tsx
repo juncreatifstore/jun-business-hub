@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { Link2, Mail, MessageCircle, Send, XCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { parseItems, requestUrl, docLabel } from "@/lib/document-requests";
@@ -27,6 +28,7 @@ export async function DocumentRequestsPanel({
   hasWhatsApp: boolean;
   compact?: boolean;
 }) {
+  const t = await tr();
   const requests = await prisma.documentRequest.findMany({
     where: { clientId, ...(caseId ? { caseId } : {}), status: { in: ["PENDING", "PARTIAL", "COMPLETE"] } },
     orderBy: { createdAt: "desc" },
@@ -63,18 +65,22 @@ export async function DocumentRequestsPanel({
           <textarea
             name="message"
             rows={2}
-            placeholder="Message personnel (facultatif)…"
+            placeholder={t(
+              t("Message personnel (facultatif)…", "Personal message (optional)…"),
+              "Personal message (optional)…",
+            )}
             className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-electric"
           />
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <label className={`inline-flex items-center gap-1.5 ${hasEmail ? "" : "opacity-50"}`}>
               <input type="checkbox" name="via_email" defaultChecked={hasEmail} disabled={!hasEmail} />{" "}
               <Mail className="h-3.5 w-3.5" /> E-mail
-              {!hasEmail ? " (pas d’adresse)" : ""}
+              {!hasEmail ? t(" (pas d’adresse)", " (no address)") : ""}
             </label>
             <label className={`inline-flex items-center gap-1.5 ${hasWhatsApp ? "" : "opacity-50"}`}>
               <input type="checkbox" name="via_whatsapp" defaultChecked={false} disabled={!hasWhatsApp} />{" "}
-              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp{!hasWhatsApp ? " (pas de numéro)" : ""}
+              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              {!hasWhatsApp ? t(" (pas de numéro)", " (no number)") : ""}
             </label>
             <label className="inline-flex items-center gap-1.5">
               <select
@@ -87,7 +93,7 @@ export async function DocumentRequestsPanel({
               </select>
             </label>
             <button className="ml-auto inline-flex items-center gap-1 rounded-lg bg-electric px-3 py-1.5 text-xs font-medium text-white">
-              <Send className="h-3.5 w-3.5" /> Envoyer la demande
+              <Send className="h-3.5 w-3.5" /> {t(t("Envoyer la demande", "Send request"), "Send request")}
             </button>
           </div>
           <p className="text-[11px] text-muted2">
@@ -109,7 +115,8 @@ export async function DocumentRequestsPanel({
                   {r.status.toLowerCase()}
                 </span>
                 <span className="text-muted2">
-                  {got}/{items.length} reçu(s) · envoyée le {r.createdAt.toLocaleDateString("fr-FR")}
+                  {got}/{items.length} {t("reçu(s) · envoyée le", "received · sent")}{" "}
+                  {r.createdAt.toLocaleDateString("fr-FR")}
                   {r.sentVia.length
                     ? ` via ${r.sentVia.map((v) => (v === "EMAIL" ? "e-mail" : "WhatsApp")).join(", ")}`
                     : ""}
@@ -133,7 +140,7 @@ export async function DocumentRequestsPanel({
                           className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1.5 hover:bg-surface"
                           title="Send a rappel now"
                         >
-                          <Send className="h-3.5 w-3.5" /> Relancer
+                          <Send className="h-3.5 w-3.5" /> {t(t("Relancer", "Remind"), "Remind")}
                         </button>
                       </form>
                       <form action={cancelDocumentRequest}>
@@ -141,7 +148,7 @@ export async function DocumentRequestsPanel({
                         <input type="hidden" name="returnTo" value={returnTo} />
                         <button
                           className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1.5 text-muted2 hover:bg-red-50 hover:text-red-700"
-                          title="Annuler cette demande"
+                          title={t(t("Annuler cette demande", "Cancel this request"), "Cancel this request")}
                         >
                           <XCircle className="h-3.5 w-3.5" />
                         </button>

@@ -132,17 +132,30 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
         actionLabel={t(t("Nouveau remboursement", "New refund"), "New refund")}
       />
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Metric icon={SearchCheck} label="À réviser" value={review} />
-        <Metric icon={Clock3} label="Approuvés / à payer" value={approved} />
-        <Metric icon={WalletCards} label="Partiellement payés" value={paying} />
-        <Metric icon={AlertTriangle} label="Échéances en retard" value={overdue} />
-        <Metric icon={CheckCircle2} label="Terminés" value={completed} />
+        <Metric icon={SearchCheck} label={t(t("À réviser", "To review"), "To review")} value={review} />
+        <Metric
+          icon={Clock3}
+          label={t(t("Approuvés / à payer", "Approved / to pay"), "Approved / to pay")}
+          value={approved}
+        />
+        <Metric
+          icon={WalletCards}
+          label={t(t("Partiellement payés", "Partially paid"), "Partially paid")}
+          value={paying}
+        />
+        <Metric
+          icon={AlertTriangle}
+          label={t(t("Échéances en retard", "Overdue installments"), "Overdue installments")}
+          value={overdue}
+        />
+        <Metric icon={CheckCircle2} label={t(t("Terminés", "Completed"), "Completed")} value={completed} />
       </div>
       <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="rounded-2xl border border-line bg-white">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <div className="flex items-center gap-2 font-semibold">
-              <Inbox className="h-4 w-4 text-electric" /> Demandes clients
+              <Inbox className="h-4 w-4 text-electric" />{" "}
+              {t(t("Demandes clients", "Client claims"), "Client claims")}
               <span className="rounded-full bg-surface px-2 text-xs font-medium text-muted2">
                 {claims.filter((c) => c.status !== "SENT").length} à traiter ·{" "}
                 {claims.filter((c) => c.status === "SENT").length} en attente du client
@@ -152,28 +165,37 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
           {claimStats ? (
             <div className="grid grid-cols-2 gap-2 border-b border-line px-4 py-3 text-xs sm:grid-cols-4">
               <div>
-                <div className="text-muted2">90 derniers jours</div>
-                <div className="text-base font-semibold">{claimStats.total} demandes</div>
+                <div className="text-muted2">{t(t("90 derniers jours", "Last 90 days"), "Last 90 days")}</div>
+                <div className="text-base font-semibold">
+                  {claimStats.total} {t("demandes", "claims")}
+                </div>
               </div>
               <div>
-                <div className="text-muted2">Délai moyen de décision</div>
+                <div className="text-muted2">
+                  {t(t("Délai moyen de décision", "Average decision time"), "Average decision time")}
+                </div>
                 <div className="text-base font-semibold">
                   {claimStats.avgDays === null ? "—" : `${claimStats.avgDays.toFixed(1)} j`}
                 </div>
               </div>
               <div>
-                <div className="text-muted2">Taux d’acceptation</div>
+                <div className="text-muted2">
+                  {t(t("Taux d’acceptation", "Acceptance rate"), "Acceptance rate")}
+                </div>
                 <div className="text-base font-semibold">
                   {claimStats.acceptRate === null ? "—" : `${Math.round(claimStats.acceptRate * 100)} %`}
                   {claimStats.partial ? (
                     <span className="ml-1 text-xs font-normal text-muted2">
-                      ({claimStats.partial} partiel{claimStats.partial > 1 ? "s" : ""})
+                      ({claimStats.partial} {t("partiel", "partial")}
+                      {claimStats.partial > 1 ? "s" : ""})
                     </span>
                   ) : null}
                 </div>
               </div>
               <div>
-                <div className="text-muted2">En retard (SLA 5 j)</div>
+                <div className="text-muted2">
+                  {t(t("En retard (SLA 5 j)", "Overdue (5-day SLA)"), "Overdue (5-day SLA)")}
+                </div>
                 <div className={`text-base font-semibold ${claimStats.overdue ? "text-red-700" : ""}`}>
                   {claimStats.overdue}
                 </div>
@@ -194,10 +216,10 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
                     }`}
                   >
                     {c.status === "SENT"
-                      ? "lien envoyé"
+                      ? t("lien envoyé", "link sent")
                       : c.status === "SUBMITTED"
-                        ? "à examiner"
-                        : "en examen"}
+                        ? t("à examiner", "to review")
+                        : t("en examen", "under review")}
                   </span>
                   <Link
                     prefetch={false}
@@ -209,7 +231,7 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
                   <span className="text-muted2">
                     {c.amount
                       ? `${c.currency} ${Number(c.amount).toFixed(2)} · ${reasonLabel(c.reasonCode)}`
-                      : "en attente du formulaire"}
+                      : t("en attente du formulaire", "waiting for the form")}
                     {c.payment ? ` · ${c.payment.reference}` : ""}
                   </span>
                   <span className="ml-auto text-xs text-muted2">
@@ -220,7 +242,13 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
             </ul>
           ) : (
             <p className="px-4 py-6 text-sm text-muted2">
-              Aucune demande client en cours. Envoyez un formulaire à droite.
+              {t(
+                t(
+                  "Aucune demande client en cours. Envoyez un formulaire à droite.",
+                  "No client claim in progress. Send a form on the right.",
+                ),
+                "No client claim in progress. Send a form on the right.",
+              )}
             </p>
           )}
         </div>

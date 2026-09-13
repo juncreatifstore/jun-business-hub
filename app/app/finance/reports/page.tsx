@@ -24,7 +24,7 @@ export default async function ReportsPage() {
           href="/app/finance/reports/monthly"
           className="font-semibold text-electric hover:underline"
         >
-          Rapport mensuel →
+          {t(t("Rapport mensuel →", "Monthly report →"), "Monthly report →")}
         </Link>{" "}
         <span className="text-muted2">
           encaissements, remboursements, dépenses, demandes clients et résultat net par devise, exportable en

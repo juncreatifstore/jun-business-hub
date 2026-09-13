@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { Mail, MessageCircle, Send } from "lucide-react";
 import { sendRefundClaimForm } from "@/services/refund-claims";
 
@@ -5,7 +6,7 @@ type ClientOpt = { id: string; label: string; email: string | null; phone: strin
 type PaymentOpt = { id: string; clientId: string; label: string };
 
 /** "Send a refund request form to a client" — client picker (or fixed client), optional payment, channels. */
-export function RefundClaimSendPanel({
+export async function RefundClaimSendPanel({
   clients,
   payments,
   fixedClient,
@@ -18,6 +19,7 @@ export function RefundClaimSendPanel({
   returnTo: string;
   compact?: boolean;
 }) {
+  const t = await tr();
   const hasEmail = fixedClient ? Boolean(fixedClient.email) : true;
   const hasPhone = fixedClient ? Boolean(fixedClient.phone) : true;
   return (
@@ -28,7 +30,12 @@ export function RefundClaimSendPanel({
       <input type="hidden" name="returnTo" value={returnTo} />
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="font-semibold">Envoyer un formulaire de demande de remboursement</div>
+          <div className="font-semibold">
+            {t(
+              t("Envoyer un formulaire de demande de remboursement", "Send a refund request form"),
+              "Send a refund request form",
+            )}
+          </div>
           <p className="text-xs text-muted2">
             Le client reçoit un lien sécurisé : montant, motif, mode de remboursement, justificatifs. La
             demande arrive ici pour examen.
@@ -40,7 +47,9 @@ export function RefundClaimSendPanel({
           <input type="hidden" name="clientId" value={fixedClient.id} />
         ) : (
           <label className="text-sm">
-            <span className="mb-1 block text-xs font-medium text-muted2">Client</span>
+            <span className="mb-1 block text-xs font-medium text-muted2">
+              {t(t("Client", "Client"), t("Client", "Client"))}
+            </span>
             <select
               name="clientId"
               required
@@ -48,7 +57,7 @@ export function RefundClaimSendPanel({
               defaultValue=""
             >
               <option value="" disabled>
-                Choisir un client…
+                {t(t("Choisir un client…", "Choose a client…"), "Choose a client…")}
               </option>
               {(clients ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
@@ -59,13 +68,23 @@ export function RefundClaimSendPanel({
           </label>
         )}
         <label className="text-sm">
-          <span className="mb-1 block text-xs font-medium text-muted2">Paiement concerné (facultatif)</span>
+          <span className="mb-1 block text-xs font-medium text-muted2">
+            {t(
+              t("Paiement concerné (facultatif)", "Payment concerned (optional)"),
+              "Payment concerned (optional)",
+            )}
+          </span>
           <select
             name="paymentId"
             className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
             defaultValue=""
           >
-            <option value="">Le client choisira parmi ses paiements</option>
+            <option value="">
+              {t(
+                t("Le client choisira parmi ses paiements", "The client will choose among their payments"),
+                "The client will choose among their payments",
+              )}
+            </option>
             {(payments ?? [])
               .filter((p) => !fixedClient || p.clientId === fixedClient.id)
               .map((p) => (
@@ -79,7 +98,10 @@ export function RefundClaimSendPanel({
       <textarea
         name="message"
         rows={2}
-        placeholder="Message personnel (facultatif)…"
+        placeholder={t(
+          t("Message personnel (facultatif)…", "Personal message (optional)…"),
+          "Personal message (optional)…",
+        )}
         className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-electric"
       />
       <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -100,7 +122,7 @@ export function RefundClaimSendPanel({
           <option value="en">English</option>
         </select>
         <button className="ml-auto inline-flex items-center gap-1 rounded-lg bg-electric px-3 py-2 text-xs font-medium text-white">
-          <Send className="h-3.5 w-3.5" /> Envoyer le formulaire
+          <Send className="h-3.5 w-3.5" /> {t(t("Envoyer le formulaire", "Send the form"), "Send the form")}
         </button>
       </div>
     </form>

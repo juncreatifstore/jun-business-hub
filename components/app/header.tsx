@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { Menu, Search, Bell, Plus, LogOut, ChevronDown, Command, Settings, UserRound } from "lucide-react";
 import { logout } from "@/app/login/actions";
 import { ThemeToggle } from "./theme";
-import { LangToggle } from "./lang";
+import { LangToggle, useLang } from "./lang";
+import { L } from "@/lib/i18n-labels";
 import { CommandPalette } from "./command-palette";
 
 const quickCreate = [
@@ -26,6 +27,7 @@ export function Header({
   unread: number;
   onMenu: () => void;
 }) {
+  const { lang } = useLang();
   const [commandOpen, setCommandOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -70,7 +72,7 @@ export function Header({
         >
           <Search className="h-4 w-4 shrink-0 text-ink-3" />
           <span className="min-w-0 flex-1 truncate text-sm text-ink-3">
-            Rechercher ou lancer une commande…
+            {L("Rechercher ou lancer une commande…", lang)}
           </span>
           <span className="hidden shrink-0 items-center gap-1 rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-2xs text-ink-3 sm:flex">
             <Command className="h-3 w-3" /> K
@@ -84,15 +86,15 @@ export function Header({
               setProfileOpen(false);
             }}
             className="flex h-9 items-center gap-2 rounded-lg bg-accent px-3 text-sm font-medium text-accent-fg shadow-card transition hover:bg-accent/90 sm:px-4"
-            aria-label="Créer"
+            aria-label={L("Créer", lang)}
           >
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Créer</span>
+            <span className="hidden sm:inline">{L("Créer", lang)}</span>
             <ChevronDown className="hidden h-3.5 w-3.5 opacity-75 sm:block" />
           </button>
           {createOpen ? (
             <div className="absolute right-0 mt-2 w-60 overflow-hidden rounded-xl border border-line bg-surface-3 py-1.5 shadow-pop">
-              <p className="px-4 pb-1.5 pt-2 text-xs text-ink-3">Créer rapidement</p>
+              <p className="px-4 pb-1.5 pt-2 text-xs text-ink-3">{L("Créer rapidement", lang)}</p>
               {quickCreate.map((item) => (
                 <Link
                   key={item.href}
@@ -100,7 +102,7 @@ export function Header({
                   onClick={() => setCreateOpen(false)}
                   className="block px-4 py-2 text-sm text-ink transition hover:bg-surface-2"
                 >
-                  {item.label}
+                  {L(item.label, lang)}
                 </Link>
               ))}
             </div>

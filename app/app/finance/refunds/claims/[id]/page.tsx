@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, FileText, XCircle } from "lucide-react";
@@ -26,15 +27,15 @@ import { CopyLinkButton } from "@/components/app/copy-link-button";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_FR: Record<string, string> = {
-  SENT: "Lien envoyé, en attente du client",
-  SUBMITTED: "Soumise — à examiner",
-  UNDER_REVIEW: "En cours d’examen",
-  NEEDS_INFO: "Complément demandé au client",
-  CONVERTED: "Acceptée — remboursement créé",
-  REJECTED: "Refusée",
-  EXPIRED: "Expirée",
-  CANCELLED: "Annulée",
+const STATUS_LABELS: Record<string, [string, string]> = {
+  SENT: ["Lien envoyé, en attente du client", "Link sent, waiting for the client"],
+  SUBMITTED: ["Soumise — à examiner", "Submitted — to review"],
+  UNDER_REVIEW: ["En cours d’examen", "Under review"],
+  NEEDS_INFO: ["Complément demandé au client", "Information requested from the client"],
+  CONVERTED: ["Acceptée — remboursement créé", "Accepted — refund created"],
+  REJECTED: ["Refusée", "Declined"],
+  EXPIRED: ["Expirée", "Expired"],
+  CANCELLED: ["Annulée", "Cancelled"],
 };
 
 export default async function RefundClaimPage(props: {
@@ -43,6 +44,7 @@ export default async function RefundClaimPage(props: {
 }) {
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "REFUND_READ")) redirect("/app/forbidden");
   const c = await prisma.refundClaim.findUnique({
     where: { id },
@@ -147,14 +149,14 @@ export default async function RefundClaimPage(props: {
         href="/app/finance/refunds"
         className="inline-flex items-center gap-1 text-xs text-muted2 hover:text-ink"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Remboursements
+        <ArrowLeft className="h-3.5 w-3.5" /> {t(t("Remboursements", "Refunds"), "Refunds")}
       </Link>
       <PageHeader
-        eyebrow="Demande client"
+        eyebrow={t(t("Demande client", "Client claim"), "Client claim")}
         title={`${c.client.firstName} ${c.client.lastName} — ${c.currency ?? ""} ${c.amount ? Number(c.amount).toFixed(2) : "—"}`}
-        subtitle={`${STATUS_FR[c.status] ?? c.status}${c.dueAt && open ? ` · échéance ${c.dueAt.toLocaleDateString("fr-FR")}${overdue ? " (en retard)" : ""}` : ""}${c.assignedTo ? ` · responsable ${c.assignedTo.firstName} ${c.assignedTo.lastName}` : " · non assignée"}`}
+        subtitle={`${STATUS_LABELS[c.status] ? t(...STATUS_LABELS[c.status]) : c.status}${c.dueAt && open ? ` · échéance ${c.dueAt.toLocaleDateString("fr-FR")}${overdue ? " (en retard)" : ""}` : ""}${c.assignedTo ? ` · responsable ${c.assignedTo.firstName} ${c.assignedTo.lastName}` : " · non assignée"}`}
         actionHref={`/app/clients/${c.client.id}`}
-        actionLabel="Fiche client"
+        actionLabel={t(t(t("Fiche client", "Client record"), "Client record"), "Client record")}
       />
       {sp.toast ? <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{sp.toast}</p> : null}
       {sp.toast_error ? (
@@ -166,30 +168,39 @@ export default async function RefundClaimPage(props: {
           {c.submittedAt && sub.identity ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">1. Identité déclarée</CardTitle>
+                <CardTitle className="text-base">
+                  {t(t("1. Identité déclarée", "1. Declared identity"), "1. Declared identity")}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">
-                  <dt className="text-muted2">Nom complet</dt>
+                  <dt className="text-muted2">{t(t("Nom complet", "Full name"), "Full name")}</dt>
                   <dd className="font-medium">{sub.identity.fullName}</dd>
-                  <dt className="text-muted2">Date de naissance</dt>
+                  <dt className="text-muted2">
+                    {t(t("Date de naissance", "Date of birth"), "Date of birth")}
+                  </dt>
                   <dd>{sub.identity.dateOfBirth}</dd>
-                  <dt className="text-muted2">Pièce</dt>
+                  <dt className="text-muted2">{t(t("Pièce", "ID document"), "ID document")}</dt>
                   <dd>
                     {ID_LABEL[sub.identity.idType] ?? sub.identity.idType} ·{" "}
                     <span className="font-mono">{sub.identity.idNumber}</span>
                   </dd>
-                  <dt className="text-muted2">Fiche client</dt>
+                  <dt className="text-muted2">
+                    {t(t(t("Fiche client", "Client record"), "Client record"), "Client record")}
+                  </dt>
                   <dd>
                     {c.client.firstName} {c.client.lastName} · {c.client.internalId}
                     {sub.identity.fullName.toLowerCase().replace(/\s+/g, " ") !==
                     `${c.client.firstName} ${c.client.lastName}`.toLowerCase().replace(/\s+/g, " ") ? (
                       <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
-                        nom différent de la fiche
+                        {t(
+                          t("nom différent de la fiche", "name differs from the record"),
+                          "name differs from the record",
+                        )}
                       </span>
                     ) : (
                       <span className="ml-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">
-                        cohérent
+                        {t(t("cohérent", "consistent"), "consistent")}
                       </span>
                     )}
                   </dd>
@@ -229,7 +240,9 @@ export default async function RefundClaimPage(props: {
                 ) : null}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <div className="mb-1 text-xs font-medium text-muted2">Pièce d’identité</div>
+                    <div className="mb-1 text-xs font-medium text-muted2">
+                      {t(t("Pièce d’identité", "ID document"), "ID document")}
+                    </div>
                     <div className="grid gap-2">
                       {byRole("ID").map((f) => (
                         <Thumb key={f.fileId} f={f} />
@@ -237,7 +250,9 @@ export default async function RefundClaimPage(props: {
                     </div>
                   </div>
                   <div>
-                    <div className="mb-1 text-xs font-medium text-muted2">Selfie avec la pièce</div>
+                    <div className="mb-1 text-xs font-medium text-muted2">
+                      {t(t("Selfie avec la pièce", "Selfie with the ID"), "Selfie with the ID")}
+                    </div>
                     <div className="grid gap-2">
                       {byRole("SELFIE").map((f) => (
                         <Thumb key={f.fileId} f={f} />
@@ -251,23 +266,30 @@ export default async function RefundClaimPage(props: {
           {c.submittedAt && sub.payment ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">2. Paiement déclaré et preuve</CardTitle>
+                <CardTitle className="text-base">
+                  {t(
+                    t("2. Paiement déclaré et preuve", "2. Declared payment and proof"),
+                    "2. Declared payment and proof",
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">
-                  <dt className="text-muted2">Payé le</dt>
+                  <dt className="text-muted2">{t(t("Payé le", "Paid on"), "Paid on")}</dt>
                   <dd>{sub.payment.paidOn}</dd>
-                  <dt className="text-muted2">Montant payé</dt>
+                  <dt className="text-muted2">{t(t("Montant payé", "Amount paid"), "Amount paid")}</dt>
                   <dd className="font-medium">
                     {sub.payment.currency} {Number(sub.payment.paidAmount).toFixed(2)}
                   </dd>
-                  <dt className="text-muted2">Moyen</dt>
+                  <dt className="text-muted2">{t(t("Moyen", "Method"), "Method")}</dt>
                   <dd>{METHOD_LABEL[sub.payment.method] ?? sub.payment.method}</dd>
-                  <dt className="text-muted2">Référence</dt>
+                  <dt className="text-muted2">{t(t("Référence", "Reference"), "Reference")}</dt>
                   <dd className="font-mono text-xs">{sub.payment.reference || "—"}</dd>
-                  <dt className="text-muted2">Payé à</dt>
+                  <dt className="text-muted2">{t(t("Payé à", "Paid to"), "Paid to")}</dt>
                   <dd>{sub.payment.paidTo}</dd>
-                  <dt className="text-muted2">Dans nos registres</dt>
+                  <dt className="text-muted2">
+                    {t(t("Dans nos registres", "In our records"), "In our records")}
+                  </dt>
                   <dd>
                     {c.payment ? (
                       <>
@@ -280,7 +302,10 @@ export default async function RefundClaimPage(props: {
                         </Link>
                         {Math.abs(Number(c.payment.amount) - Number(sub.payment.paidAmount)) > 0.005 ? (
                           <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
-                            montant déclaré différent
+                            {t(
+                              t("montant déclaré différent", "declared amount differs"),
+                              "declared amount differs",
+                            )}
                           </span>
                         ) : null}
                       </>
@@ -292,7 +317,9 @@ export default async function RefundClaimPage(props: {
                   </dd>
                 </dl>
                 <div>
-                  <div className="mb-1 text-xs font-medium text-muted2">Preuves de paiement</div>
+                  <div className="mb-1 text-xs font-medium text-muted2">
+                    {t(t("Preuves de paiement", "Payment proofs"), "Payment proofs")}
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-3">
                     {byRole("PAYMENT_PROOF").map((f) => (
                       <Thumb key={f.fileId} f={f} />
@@ -305,23 +332,29 @@ export default async function RefundClaimPage(props: {
           {c.submittedAt && sub.service ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">3. Service concerné</CardTitle>
+                <CardTitle className="text-base">
+                  {t(t("3. Service concerné", "3. Service concerned"), "3. Service concerned")}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">
-                  <dt className="text-muted2">Type</dt>
+                  <dt className="text-muted2">{t(t("Type", "Type"), t("Type", "Type"))}</dt>
                   <dd>{SERVICE_LABEL[sub.service.type] ?? sub.service.type}</dd>
-                  <dt className="text-muted2">Description</dt>
+                  <dt className="text-muted2">
+                    {t(t("Description", "Description"), t("Description", "Description"))}
+                  </dt>
                   <dd className="whitespace-pre-wrap">{sub.service.description}</dd>
                   {sub.service.caseReference ? (
                     <>
-                      <dt className="text-muted2">Dossier indiqué</dt>
+                      <dt className="text-muted2">{t(t("Dossier indiqué", "Case given"), "Case given")}</dt>
                       <dd>{sub.service.caseReference}</dd>
                     </>
                   ) : null}
                   {sub.service.date ? (
                     <>
-                      <dt className="text-muted2">Date du service</dt>
+                      <dt className="text-muted2">
+                        {t(t("Date du service", "Service date"), "Service date")}
+                      </dt>
                       <dd>{sub.service.date}</dd>
                     </>
                   ) : null}
@@ -332,15 +365,17 @@ export default async function RefundClaimPage(props: {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                {c.submittedAt && sub.identity ? "4. Motif et montant" : "Demande"}
+                {c.submittedAt && sub.identity
+                  ? t("4. Motif et montant", "4. Reason and amount")
+                  : t("Demande", "Request")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {c.submittedAt ? (
                 <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[160px_1fr]">
-                  <dt className="text-muted2">Soumise le</dt>
+                  <dt className="text-muted2">{t(t("Soumise le", "Submitted on"), "Submitted on")}</dt>
                   <dd>{c.submittedAt.toLocaleString("fr-FR")}</dd>
-                  <dt className="text-muted2">Paiement</dt>
+                  <dt className="text-muted2">{t(t("Paiement", "Payment"), "Payment")}</dt>
                   <dd>
                     {c.payment ? (
                       <Link
@@ -352,18 +387,22 @@ export default async function RefundClaimPage(props: {
                         {c.payment.createdAt.toLocaleDateString("fr-FR")}
                       </Link>
                     ) : (
-                      "Non précisé"
+                      t("Non précisé", "Not specified")
                     )}
                   </dd>
-                  <dt className="text-muted2">Montant demandé</dt>
+                  <dt className="text-muted2">
+                    {t(t("Montant demandé", "Requested amount"), "Requested amount")}
+                  </dt>
                   <dd className="font-semibold">
                     {c.currency} {Number(c.amount).toFixed(2)}
                   </dd>
-                  <dt className="text-muted2">Motif</dt>
+                  <dt className="text-muted2">{t(t("Motif", "Reason"), "Reason")}</dt>
                   <dd>{reasonLabel(c.reasonCode)}</dd>
-                  <dt className="text-muted2">Explications</dt>
+                  <dt className="text-muted2">{t(t("Explications", "Details"), "Details")}</dt>
                   <dd className="whitespace-pre-wrap">{c.reason}</dd>
-                  <dt className="text-muted2">Mode de remboursement</dt>
+                  <dt className="text-muted2">
+                    {t(t("Mode de remboursement", "Refund method"), "Refund method")}
+                  </dt>
                   <dd>
                     {payoutLabel(c.payoutMethod)}
                     {c.payoutMethod === "BANK_TRANSFER" ? (
@@ -377,7 +416,7 @@ export default async function RefundClaimPage(props: {
                       <div className="mt-1 text-xs text-muted2">{details.other}</div>
                     ) : null}
                   </dd>
-                  <dt className="text-muted2">Contact</dt>
+                  <dt className="text-muted2">{t(t("Contact", "Contact"), t("Contact", "Contact"))}</dt>
                   <dd>
                     {c.contactEmail}
                     {c.contactPhone ? ` · ${c.contactPhone}` : ""}
@@ -400,7 +439,7 @@ export default async function RefundClaimPage(props: {
                         ))}
                       </ul>
                     ) : (
-                      "Aucun"
+                      t("Aucun", "None")
                     )}
                   </dd>
                 </dl>
@@ -422,7 +461,12 @@ export default async function RefundClaimPage(props: {
           {info ? (
             <Card className={c.status === "NEEDS_INFO" ? "border-amber-200" : ""}>
               <CardHeader>
-                <CardTitle className="text-base">Complément demandé au client</CardTitle>
+                <CardTitle className="text-base">
+                  {t(
+                    t("Complément demandé au client", "Information requested from the client"),
+                    "Information requested from the client",
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p className="whitespace-pre-wrap rounded-lg bg-surface p-3">{info.message}</p>
@@ -456,7 +500,12 @@ export default async function RefundClaimPage(props: {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-amber-800">En attente de la réponse du client.</p>
+                  <p className="text-xs text-amber-800">
+                    {t(
+                      t("En attente de la réponse du client.", "Waiting for the client’s reply."),
+                      "Waiting for the client’s reply.",
+                    )}
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -464,7 +513,9 @@ export default async function RefundClaimPage(props: {
           {decision ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Montant décidé</CardTitle>
+                <CardTitle className="text-base">
+                  {t(t("Montant décidé", "Decided amount"), "Decided amount")}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p>
@@ -478,7 +529,7 @@ export default async function RefundClaimPage(props: {
                   </strong>
                   {decision.approvedAmount < decision.requestedAmount - 0.005 ? (
                     <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
-                      partiel
+                      {t(t("partiel", "partial"), "partial")}
                     </span>
                   ) : null}
                 </p>
@@ -516,7 +567,7 @@ export default async function RefundClaimPage(props: {
           {c.decisionNote || c.refund ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Décision</CardTitle>
+                <CardTitle className="text-base">{t(t("Décision", "Decision"), "Decision")}</CardTitle>
               </CardHeader>
               <CardContent className="text-sm">
                 {c.refund ? (
@@ -547,7 +598,9 @@ export default async function RefundClaimPage(props: {
           {open ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Responsable & délai</CardTitle>
+                <CardTitle className="text-base">
+                  {t(t("Responsable & délai", "Owner & deadline"), "Owner & deadline")}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <form action={assignClaim} className="flex gap-2">
@@ -557,7 +610,7 @@ export default async function RefundClaimPage(props: {
                     defaultValue={c.assignedToId ?? ""}
                     className="h-9 flex-1 rounded-lg border border-line bg-white px-2 text-sm"
                   >
-                    <option value="">— Non assignée —</option>
+                    <option value="">{t(t("— Non assignée —", "— Unassigned —"), "— Unassigned —")}</option>
                     {staff.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.firstName} {u.lastName}
@@ -565,7 +618,7 @@ export default async function RefundClaimPage(props: {
                     ))}
                   </select>
                   <button className="rounded-lg border border-line px-3 text-xs hover:bg-surface">
-                    Assigner
+                    {t(t("Assigner", "Assign"), "Assign")}
                   </button>
                 </form>
                 <p className={`text-xs ${overdue ? "font-medium text-red-700" : "text-muted2"}`}>
@@ -579,7 +632,7 @@ export default async function RefundClaimPage(props: {
           {open && canDecide && c.submittedAt ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Décider</CardTitle>
+                <CardTitle className="text-base">{t(t("Décider", "Decide"), "Decide")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <PartialDecisionForm
@@ -592,19 +645,27 @@ export default async function RefundClaimPage(props: {
                   <form action={markClaimUnderReview}>
                     <input type="hidden" name="id" value={c.id} />
                     <button className="w-full rounded-lg border border-line px-3 py-2 text-sm hover:bg-surface">
-                      Marquer « en cours d’examen »
+                      {t(
+                        t("Marquer « en cours d’examen »", "Mark as “under review”"),
+                        "Mark as “under review”",
+                      )}
                     </button>
                   </form>
                 ) : null}
                 <form action={askClaimInformation} className="space-y-2 border-t border-line pt-3">
                   <input type="hidden" name="id" value={c.id} />
-                  <div className="text-xs font-medium">Demander un complément au client</div>
+                  <div className="text-xs font-medium">
+                    {t(
+                      t("Demander un complément au client", "Request more information from the client"),
+                      "Request more information from the client",
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-2 text-xs">
                     {[
-                      ["identity", "Identité"],
-                      ["payment", "Preuve de paiement"],
-                      ["service", "Service"],
-                      ["reason", "Motif / justificatifs"],
+                      ["identity", t("Identité", "Identity")],
+                      ["payment", t("Preuve de paiement", "Payment proof")],
+                      ["service", t("Service", "Service")],
+                      ["reason", t("Motif / justificatifs", "Reason / evidence")],
                     ].map(([k, l]) => (
                       <label key={k} className="inline-flex items-center gap-1">
                         <input type="checkbox" name="steps" value={k} /> {l}
@@ -615,11 +676,17 @@ export default async function RefundClaimPage(props: {
                     name="message"
                     rows={2}
                     required
-                    placeholder="Ce qui manque ou est illisible…"
+                    placeholder={t(
+                      t("Ce qui manque ou est illisible…", "What is missing or unreadable…"),
+                      "What is missing or unreadable…",
+                    )}
                     className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-electric"
                   />
                   <button className="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm text-amber-800 hover:bg-amber-50">
-                    Envoyer la demande de complément
+                    {t(
+                      t("Envoyer la demande de complément", "Send the information request"),
+                      "Send the information request",
+                    )}
                   </button>
                 </form>
                 {can(user, "REFUND_APPROVE") ? (
@@ -628,11 +695,21 @@ export default async function RefundClaimPage(props: {
                     <textarea
                       name="note"
                       rows={2}
-                      placeholder="Motif du refus (envoyé au client)…"
+                      placeholder={t(
+                        t(
+                          "Motif du refus (envoyé au client)…",
+                          "Reason for the refusal (sent to the client)…",
+                        ),
+                        "Reason for the refusal (sent to the client)…",
+                      )}
                       className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-electric"
                     />
                     <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700 hover:bg-red-50">
-                      <XCircle className="h-4 w-4" /> Refuser et informer le client
+                      <XCircle className="h-4 w-4" />{" "}
+                      {t(
+                        t("Refuser et informer le client", "Decline and inform the client"),
+                        "Decline and inform the client",
+                      )}
                     </button>
                   </form>
                 ) : null}
@@ -641,7 +718,7 @@ export default async function RefundClaimPage(props: {
           ) : null}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Contexte</CardTitle>
+              <CardTitle className="text-base">{t(t("Contexte", "Context"), "Context")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm text-muted2">
               <div>

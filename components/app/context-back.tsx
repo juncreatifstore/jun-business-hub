@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useLang } from "@/components/app/lang";
+import { L } from "@/lib/i18n-labels";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, ChevronRight, Home } from "lucide-react";
 
@@ -73,15 +75,16 @@ const labels: Record<string, string> = {
   "execution-evidence": "Preuves",
 };
 
-function prettySegment(segment: string) {
-  if (labels[segment]) return labels[segment];
-  if (/^[0-9a-f-]{20,}$/i.test(segment) || segment.length > 24) return "Détail";
+function prettySegment(segment: string, lang: "fr" | "en" = "fr") {
+  if (labels[segment]) return L(labels[segment], lang);
+  if (/^[0-9a-f-]{20,}$/i.test(segment) || segment.length > 24) return lang === "en" ? "Detail" : "Détail";
   return decodeURIComponent(segment)
     .replaceAll("-", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export function ContextBack() {
+  const { lang } = useLang();
   const pathname = usePathname();
   const router = useRouter();
   if (!pathname || ROOTS.has(pathname)) return null;
@@ -89,7 +92,7 @@ export function ContextBack() {
   const parts = pathname.split("/").filter(Boolean);
   const crumbs = parts.slice(1).map((segment, index) => ({
     segment,
-    label: prettySegment(segment),
+    label: prettySegment(segment, lang),
     href: `/${parts.slice(0, index + 2).join("/")}`,
   }));
 
@@ -116,7 +119,7 @@ export function ContextBack() {
           <li className="shrink-0">
             <Link href="/app" className="flex items-center gap-1 text-ink-3 transition hover:text-accent">
               <Home className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Accueil</span>
+              <span className="hidden sm:inline">{L("Accueil", lang)}</span>
             </Link>
           </li>
           {crumbs.map((crumb, index) => {

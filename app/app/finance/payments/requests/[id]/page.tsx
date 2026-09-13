@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CheckCircle2, FileText } from "lucide-react";
@@ -14,13 +15,13 @@ import {
 } from "@/services/payment-requests";
 
 export const dynamic = "force-dynamic";
-const STATUS: Record<string, string> = {
-  SENT: "Lien envoyé",
-  VIEWED: "Lien ouvert par le client",
-  PROOF_SUBMITTED: "Preuve reçue — à confirmer",
-  PAID: "Payé et confirmé",
-  CANCELLED: "Annulée",
-  EXPIRED: "Expirée",
+const STATUS: Record<string, [string, string]> = {
+  SENT: ["Lien envoyé", "Link sent"],
+  VIEWED: ["Lien ouvert par le client", "Link opened by the client"],
+  PROOF_SUBMITTED: ["Preuve reçue — à confirmer", "Proof received — to confirm"],
+  PAID: ["Payé et confirmé", "Paid and confirmed"],
+  CANCELLED: ["Annulée", "Cancelled"],
+  EXPIRED: ["Expirée", "Expired"],
 };
 
 export default async function PaymentRequestReviewPage(props: {
@@ -29,6 +30,7 @@ export default async function PaymentRequestReviewPage(props: {
 }) {
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "PAYMENT_READ")) redirect("/app/forbidden");
   const r = await prisma.paymentRequest.findUnique({
     where: { id },
@@ -61,14 +63,14 @@ export default async function PaymentRequestReviewPage(props: {
         href="/app/finance/payments"
         className="inline-flex items-center gap-1 text-xs text-muted2 hover:text-ink"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Paiements
+        <ArrowLeft className="h-3.5 w-3.5" /> {t(t("Paiements", "Payments"), "Payments")}
       </Link>
       <PageHeader
-        eyebrow="Demande de paiement"
+        eyebrow={t(t("Demande de paiement", "Payment request"), "Payment request")}
         title={`${r.client.firstName} ${r.client.lastName} — ${r.currency} ${Number(r.amount).toFixed(2)}`}
-        subtitle={`${r.description} · ${STATUS[r.status] ?? r.status}${r.dueAt ? ` · échéance ${r.dueAt.toLocaleDateString("fr-FR")}` : ""}`}
+        subtitle={`${r.description} · ${STATUS[r.status] ? t(...STATUS[r.status]) : r.status}${r.dueAt ? ` · ${t("échéance", "due")} ${r.dueAt.toLocaleDateString("fr-FR")}` : ""}`}
         actionHref={`/app/clients/${r.client.id}`}
-        actionLabel="Fiche client"
+        actionLabel={t(t("Fiche client", "Client record"), "Client record")}
       />
       {sp.toast ? <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{sp.toast}</p> : null}
       {sp.toast_error ? (
@@ -78,34 +80,46 @@ export default async function PaymentRequestReviewPage(props: {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Preuve déposée par le client</CardTitle>
+              <CardTitle className="text-base">
+                {t(
+                  t("Preuve déposée par le client", "Proof deposited by the client"),
+                  "Proof deposited by the client",
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {proof ? (
                 <>
                   <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">
-                    <dt className="text-muted2">Déposée le</dt>
+                    <dt className="text-muted2">{t(t("Déposée le", "Deposited on"), "Deposited on")}</dt>
                     <dd>{new Date(proof.submittedAt).toLocaleString("fr-FR")}</dd>
-                    <dt className="text-muted2">Moyen</dt>
+                    <dt className="text-muted2">{t(t("Moyen", "Method"), "Method")}</dt>
                     <dd>{payMethodLabel(proof.method)}</dd>
-                    <dt className="text-muted2">Montant déclaré</dt>
+                    <dt className="text-muted2">
+                      {t(t("Montant déclaré", "Declared amount"), "Declared amount")}
+                    </dt>
                     <dd className="font-semibold">
                       {r.currency} {proof.amount.toFixed(2)}
                       {amountMismatch ? (
                         <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
-                          différent du montant demandé
+                          {t(
+                            t("différent du montant demandé", "differs from the requested amount"),
+                            "differs from the requested amount",
+                          )}
                         </span>
                       ) : null}
                     </dd>
-                    <dt className="text-muted2">Date du paiement</dt>
+                    <dt className="text-muted2">
+                      {t(t("Date du paiement", "Payment date"), "Payment date")}
+                    </dt>
                     <dd>{proof.paidOn}</dd>
-                    <dt className="text-muted2">Payeur</dt>
+                    <dt className="text-muted2">{t(t("Payeur", "Payer"), "Payer")}</dt>
                     <dd>{proof.payerName}</dd>
-                    <dt className="text-muted2">Référence</dt>
+                    <dt className="text-muted2">{t(t("Référence", "Reference"), "Reference")}</dt>
                     <dd className="font-mono text-xs">{proof.reference || "—"}</dd>
                     {proof.note ? (
                       <>
-                        <dt className="text-muted2">Note</dt>
+                        <dt className="text-muted2">{t(t("Note", "Note"), t("Note", "Note"))}</dt>
                         <dd>{proof.note}</dd>
                       </>
                     ) : null}
@@ -157,7 +171,7 @@ export default async function PaymentRequestReviewPage(props: {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Traiter</CardTitle>
+              <CardTitle className="text-base">{t(t("Traiter", "Process"), "Process")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               {r.payment ? (
@@ -179,7 +193,8 @@ export default async function PaymentRequestReviewPage(props: {
                 <form action={confirmPaymentRequestPayment}>
                   <input type="hidden" name="id" value={r.id} />
                   <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-electric px-3 py-2.5 text-sm font-medium text-white">
-                    <CheckCircle2 className="h-4 w-4" /> Confirmer le paiement
+                    <CheckCircle2 className="h-4 w-4" />{" "}
+                    {t(t("Confirmer le paiement", "Confirm the payment"), "Confirm the payment")}
                   </button>
                   <p className="mt-1 text-[11px] text-muted2">
                     Vérifiez la preuve (montant, date, bénéficiaire) ; la confirmation émet le reçu et informe
@@ -193,14 +208,14 @@ export default async function PaymentRequestReviewPage(props: {
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="returnTo" value={here} />
                     <button className="w-full rounded-lg border border-line px-3 py-2 hover:bg-surface">
-                      Envoyer un rappel
+                      {t(t("Envoyer un rappel", "Send a reminder"), "Send a reminder")}
                     </button>
                   </form>
                   <form action={cancelPaymentRequest}>
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="returnTo" value={here} />
                     <button className="w-full rounded-lg border border-red-200 px-3 py-2 text-red-700 hover:bg-red-50">
-                      Annuler la demande
+                      {t(t("Annuler la demande", "Cancel the request"), "Cancel the request")}
                     </button>
                   </form>
                 </>
@@ -209,7 +224,7 @@ export default async function PaymentRequestReviewPage(props: {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Contexte</CardTitle>
+              <CardTitle className="text-base">{t(t("Contexte", "Context"), "Context")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm text-muted2">
               <div>

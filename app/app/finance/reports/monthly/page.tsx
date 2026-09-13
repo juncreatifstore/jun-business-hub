@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
@@ -23,10 +24,15 @@ const money = (n: number, c: string) =>
 export default async function MonthlyReportPage(props: { searchParams: Promise<{ month?: string }> }) {
   const sp = await props.searchParams;
   await requirePermission("PAYMENT_READ");
+  const t = await tr();
   const r = await buildMonthlyReport(sp.month);
   const prev = monthKey(new Date(Date.UTC(r.start.getUTCFullYear(), r.start.getUTCMonth() - 1, 1)));
   const next = monthKey(new Date(Date.UTC(r.start.getUTCFullYear(), r.start.getUTCMonth() + 1, 1)));
-  const label = r.start.toLocaleDateString("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" });
+  const label = r.start.toLocaleDateString(t("fr-FR", "en-US"), {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
   const Lines = ({
     lines,
     empty,
@@ -56,19 +62,25 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
         href="/app/finance/reports"
         className="inline-flex items-center gap-1 text-xs text-muted2 hover:text-ink"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Rapports
+        <ArrowLeft className="h-3.5 w-3.5" /> {t(t("Rapports", "Reports"), "Reports")}
       </Link>
       <PageHeader
         eyebrow="Finance"
-        title={`Rapport mensuel — ${label}`}
-        subtitle="Encaissements confirmés, remboursements versés, dépenses payées, demandes clients et résultat net par devise. Les devises ne sont jamais additionnées."
+        title={`${t("Rapport mensuel", "Monthly report")} — ${label}`}
+        subtitle={t(
+          t(
+            "Encaissements confirmés, remboursements versés, dépenses payées, demandes clients et résultat net par devise. Les devises ne sont jamais additionnées.",
+            "Confirmed inflows, refunds paid, expenses paid, client requests and net result per currency. Currencies are never added together.",
+          ),
+          "Confirmed inflows, refunds paid, expenses paid, client requests and net result per currency. Currencies are never added together.",
+        )}
         actions={
           <div className="flex items-center gap-2">
             <Link
               prefetch={false}
               href={`/app/finance/reports/monthly?month=${prev}`}
               className="rounded-lg border border-line p-2 hover:bg-surface"
-              title="Mois précédent"
+              title={t(t("Mois précédent", "Previous month"), "Previous month")}
             >
               <ChevronLeft className="h-4 w-4" />
             </Link>
@@ -80,14 +92,14 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
                 className="h-9 rounded-lg border border-line bg-white px-2 text-sm"
               />
               <button className="h-9 rounded-lg border border-line px-3 text-sm hover:bg-surface">
-                Voir
+                {t(t("Voir", "View"), "View")}
               </button>
             </form>
             <Link
               prefetch={false}
               href={`/app/finance/reports/monthly?month=${next}`}
               className="rounded-lg border border-line p-2 hover:bg-surface"
-              title="Mois suivant"
+              title={t(t("Mois suivant", "Next month"), "Next month")}
             >
               <ChevronRight className="h-4 w-4" />
             </Link>
@@ -104,31 +116,51 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Encaissements confirmés</CardTitle>
+            <CardTitle className="text-sm">
+              {t(t("Encaissements confirmés", "Confirmed inflows"), "Confirmed inflows")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <Lines lines={r.paymentsConfirmed} empty="Aucun encaissement confirmé" />
+            <Lines
+              lines={r.paymentsConfirmed}
+              empty={t(t("Aucun encaissement confirmé", "No confirmed inflow"), "No confirmed inflow")}
+            />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Remboursements versés</CardTitle>
+            <CardTitle className="text-sm">
+              {t(t("Remboursements versés", "Refunds paid"), "Refunds paid")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <Lines lines={r.refundsPaid} empty="Aucun versement" />
+            <Lines lines={r.refundsPaid} empty={t(t("Aucun versement", "No payout"), "No payout")} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Dépenses payées</CardTitle>
+            <CardTitle className="text-sm">
+              {t(t("Dépenses payées", "Expenses paid"), "Expenses paid")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <Lines lines={r.expenses} empty="Aucune dépense payée" />
+            <Lines
+              lines={r.expenses}
+              empty={t(t("Aucune dépense payée", "No expense paid"), "No expense paid")}
+            />
           </CardContent>
         </Card>
         <Card className="border-electric/30">
           <CardHeader>
-            <CardTitle className="text-sm">Résultat net (encaissé − remboursé − dépensé)</CardTitle>
+            <CardTitle className="text-sm">
+              {t(
+                t(
+                  "Résultat net (encaissé − remboursé − dépensé)",
+                  "Net result (inflows − refunds − expenses)",
+                ),
+                "Net result (inflows − refunds − expenses)",
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {r.net.length ? (
@@ -152,7 +184,12 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Encaissements par moyen de paiement</CardTitle>
+            <CardTitle className="text-sm">
+              {t(
+                t("Encaissements par moyen de paiement", "Inflows by payment method"),
+                "Inflows by payment method",
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {r.paymentsByMethod.length ? (
@@ -174,7 +211,9 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Top clients du mois</CardTitle>
+            <CardTitle className="text-sm">
+              {t(t("Top clients du mois", "Top clients this month"), "Top clients this month")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {r.topClients.length ? (
@@ -195,21 +234,27 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Demandes de remboursement</CardTitle>
+            <CardTitle className="text-sm">
+              {t(t("Demandes de remboursement", "Refund claims"), "Refund claims")}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <div className="text-xs text-muted2">Soumises</div>
+              <div className="text-xs text-muted2">{t(t("Soumises", "Submitted"), "Submitted")}</div>
               <div className="text-lg font-semibold">{r.claims.submitted}</div>
             </div>
             <div>
-              <div className="text-xs text-muted2">Acceptées / refusées</div>
+              <div className="text-xs text-muted2">
+                {t(t("Acceptées / refusées", "Accepted / declined"), "Accepted / declined")}
+              </div>
               <div className="text-lg font-semibold">
                 {r.claims.converted} / {r.claims.rejected}
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted2">Partielles · retenues</div>
+              <div className="text-xs text-muted2">
+                {t(t("Partielles · retenues", "Partial · retained"), "Partial · retained")}
+              </div>
               <div className="text-lg font-semibold">
                 {r.claims.partial}
                 {r.claims.retained.length ? (
@@ -220,41 +265,62 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted2">Délai moyen de décision</div>
+              <div className="text-xs text-muted2">
+                {t(t("Délai moyen de décision", "Average decision time"), "Average decision time")}
+              </div>
               <div className="text-lg font-semibold">
                 {r.claims.avgDecisionDays === null ? "—" : `${r.claims.avgDecisionDays.toFixed(1)} j`}
               </div>
             </div>
             <div className="col-span-2 border-t border-line pt-2">
-              <div className="text-xs text-muted2">Remboursements approuvés dans le mois</div>
+              <div className="text-xs text-muted2">
+                {t(
+                  t("Remboursements approuvés dans le mois", "Refunds approved this month"),
+                  "Refunds approved this month",
+                )}
+              </div>
               <Lines lines={r.refundsApproved} empty="—" />
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Demandes de paiement & encours</CardTitle>
+            <CardTitle className="text-sm">
+              {t(
+                t("Demandes de paiement & encours", "Payment requests & outstanding"),
+                "Payment requests & outstanding",
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <div className="text-xs text-muted2">Envoyées / payées</div>
+              <div className="text-xs text-muted2">
+                {t(t("Envoyées / payées", "Sent / paid"), "Sent / paid")}
+              </div>
               <div className="text-lg font-semibold">
                 {r.paymentRequests.sent} / {r.paymentRequests.paid}
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted2">Ouvertes · en retard</div>
+              <div className="text-xs text-muted2">
+                {t(t("Ouvertes · en retard", "Open · overdue"), "Open · overdue")}
+              </div>
               <div className="text-lg font-semibold">
                 {r.paymentRequests.open}{" "}
                 <span
                   className={`text-xs font-normal ${r.paymentRequests.overdue ? "text-red-700" : "text-muted2"}`}
                 >
-                  ({r.paymentRequests.overdue} en retard)
+                  ({r.paymentRequests.overdue} {t("en retard", "overdue")})
                 </span>
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted2">Délai preuve → confirmation</div>
+              <div className="text-xs text-muted2">
+                {t(
+                  t("Délai preuve → confirmation", "Proof → confirmation time"),
+                  "Proof → confirmation time",
+                )}
+              </div>
               <div className="text-lg font-semibold">
                 {r.paymentRequests.avgConfirmDays === null
                   ? "—"
@@ -262,7 +328,9 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted2">Paiements créés en attente</div>
+              <div className="text-xs text-muted2">
+                {t(t("Paiements créés en attente", "Payments created, pending"), "Payments created, pending")}
+              </div>
               <Lines lines={r.paymentsPending} empty="—" />
             </div>
           </CardContent>
@@ -272,7 +340,9 @@ export default async function MonthlyReportPage(props: { searchParams: Promise<{
       {r.daily.length ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Encaissements par jour</CardTitle>
+            <CardTitle className="text-sm">
+              {t(t("Encaissements par jour", "Inflows per day"), "Inflows per day")}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex h-40 items-end gap-1">

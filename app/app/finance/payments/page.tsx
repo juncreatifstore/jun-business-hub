@@ -160,7 +160,8 @@ export default async function PaymentsPage(props: {
         <div className="rounded-2xl border border-line bg-white">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <div className="flex items-center gap-2 font-semibold">
-              <Inbox className="h-4 w-4 text-electric" /> Demandes de paiement
+              <Inbox className="h-4 w-4 text-electric" />{" "}
+              {t(t("Demandes de paiement", "Payment requests"), "Payment requests")}
               <span className="rounded-full bg-surface px-2 text-xs font-medium text-muted2">
                 {requests.filter((r) => r.status === "PROOF_SUBMITTED").length} preuve(s) à confirmer ·{" "}
                 {requests.filter((r) => r.status !== "PROOF_SUBMITTED").length} en attente
@@ -177,10 +178,10 @@ export default async function PaymentsPage(props: {
                       className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${r.status === "PROOF_SUBMITTED" ? "bg-amber-50 text-amber-800" : r.status === "VIEWED" ? "bg-blue-50 text-blue-800" : "bg-surface text-muted2"}`}
                     >
                       {r.status === "PROOF_SUBMITTED"
-                        ? "preuve reçue"
+                        ? t("preuve reçue", "proof received")
                         : r.status === "VIEWED"
-                          ? "lien ouvert"
-                          : "lien envoyé"}
+                          ? t("lien ouvert", "link opened")
+                          : t("lien envoyé", "link sent")}
                     </span>
                     <Link
                       prefetch={false}
@@ -195,7 +196,9 @@ export default async function PaymentsPage(props: {
                     </span>
                     {r.dueAt ? (
                       <span className={`text-[11px] ${late ? "font-medium text-red-700" : "text-muted2"}`}>
-                        {late ? "en retard" : `avant le ${r.dueAt.toLocaleDateString("fr-FR")}`}
+                        {late
+                          ? t("en retard", "overdue")
+                          : `${t("avant le", "by")} ${r.dueAt.toLocaleDateString("fr-FR")}`}
                       </span>
                     ) : null}
                     <span className="ml-auto text-xs text-muted2">
@@ -206,12 +209,23 @@ export default async function PaymentsPage(props: {
               })}
             </ul>
           ) : (
-            <p className="px-4 py-6 text-sm text-muted2">Aucune demande de paiement en cours.</p>
+            <p className="px-4 py-6 text-sm text-muted2">
+              {t(
+                t("Aucune demande de paiement en cours.", "No open payment request."),
+                "No open payment request.",
+              )}
+            </p>
           )}
           {can(user, "SETTINGS_MANAGE") ? (
             <details className="border-t border-line px-4 py-3 text-sm">
               <summary className="cursor-pointer font-medium">
-                Instructions de paiement affichées aux clients
+                {t(
+                  t(
+                    "Instructions de paiement affichées aux clients",
+                    "Payment instructions shown to clients",
+                  ),
+                  "Payment instructions shown to clients",
+                )}
               </summary>
               <form action={savePaymentInstructionsAction} className="mt-3 grid gap-3 sm:grid-cols-2">
                 {PAY_METHODS.filter((m) => m.code !== "ONLINE").map((m) => (
@@ -236,7 +250,7 @@ export default async function PaymentsPage(props: {
                 ))}
                 <div className="sm:col-span-2">
                   <Button type="submit" variant="secondary" size="sm">
-                    Enregistrer les instructions
+                    {t(t("Enregistrer les instructions", "Save instructions"), "Save instructions")}
                   </Button>
                 </div>
               </form>
@@ -320,7 +334,7 @@ export default async function PaymentsPage(props: {
       {payments.length === 0 ? (
         <EmptyState
           icon={CreditCard}
-          title="Aucun paiement correspondant"
+          title={t(t("Aucun paiement correspondant", "No matching payment"), "No matching payment")}
           description="Modifiez les filtres ou enregistrez un nouveau paiement."
           actionHref="/app/finance/payments/new"
           actionLabel={t(t("Enregistrer un paiement", "Record a payment"), "Record a payment")}

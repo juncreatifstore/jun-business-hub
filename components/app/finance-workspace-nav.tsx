@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useLang } from "@/components/app/lang";
+import { L } from "@/lib/i18n-labels";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -48,6 +50,7 @@ function isActive(pathname: string, href: string) {
 }
 
 export function FinanceWorkspaceNav() {
+  const { lang } = useLang();
   const pathname = usePathname();
   const secondaryActive = secondary.some(({ href }) => isActive(pathname, href));
 
@@ -65,7 +68,7 @@ export function FinanceWorkspaceNav() {
                   className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] font-semibold transition sm:gap-2 sm:px-3 sm:text-xs ${active ? "bg-electric text-white shadow-sm" : "text-muted2 hover:bg-surface hover:text-ink"}`}
                 >
                   <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  {label}
+                  {L(label, lang)}
                 </Link>
               );
             })}
@@ -88,7 +91,7 @@ export function FinanceWorkspaceNav() {
                   className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium ${active ? "bg-electric/[0.08] text-electric" : "text-ink hover:bg-surface"}`}
                 >
                   <Icon className="h-4 w-4" />
-                  {label}
+                  {L(label, lang)}
                 </Link>
               );
             })}
