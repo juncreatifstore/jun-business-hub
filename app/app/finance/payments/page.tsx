@@ -10,7 +10,11 @@ import { Button } from "@/components/ui/button";
 import { ListCount, Pagination, RecordCard, RecordField } from "@/components/ui/record-list";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { getPaymentCoreMetaMap, paymentBalance } from "@/lib/finance-payment-core";
-import { CircleDollarSign, Clock3, CreditCard, FileCheck2, Search } from "lucide-react";
+import { CircleDollarSign, Clock3, CreditCard, FileCheck2, Search, Inbox } from "lucide-react";
+import { PaymentRequestSendPanel } from "@/components/app/payment-request-send-panel";
+import { PAY_METHODS, getPaymentInstructions, payMethodLabel } from "@/lib/payment-requests";
+import { savePaymentInstructionsAction } from "@/services/payment-requests";
+import { can } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 const STATUSES = ["PENDING", "CONFIRMED", "REJECTED", "REFUNDED", "PARTIALLY_REFUNDED"];
@@ -36,7 +40,7 @@ export default async function PaymentsPage(props: {
   }>;
 }) {
   const searchParams = await props.searchParams;
-  await requirePermission("PAYMENT_READ");
+  const user = await requirePermission("PAYMENT_READ");
   const status = STATUSES.includes(String(searchParams.status)) ? String(searchParams.status) : "ALL";
   const method = METHODS.includes(String(searchParams.method)) ? String(searchParams.method) : "ALL";
   const currency = String(searchParams.currency || "")
@@ -72,6 +76,24 @@ export default async function PaymentsPage(props: {
       : sort === "AMOUNT_ASC"
         ? [{ amount: "asc" }, { createdAt: "desc" }]
         : [{ paidAt: "desc" }, { createdAt: "desc" }];
+  const [requests, reqClients, instructions] = await Promise.all([
+    prisma.paymentRequest.findMany({
+      where: { status: { in: ["SENT", "VIEWED", "PROOF_SUBMITTED"] } },
+      orderBy: [{ status: "desc" }, { dueAt: "asc" }, { createdAt: "desc" }],
+      take: 30,
+      include: {
+        client: { select: { firstName: true, lastName: true } },
+        payment: { select: { reference: true } },
+      },
+    }),
+    prisma.client.findMany({
+      where: { archivedAt: null },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true, internalId: true, email: true, phone: true },
+      take: 500,
+    }),
+    getPaymentInstructions(),
+  ]);
   const [payments, pendingCount, confirmedPayments, proofCount] = await Promise.all([
     prisma.payment.findMany({
       where,
@@ -126,6 +148,103 @@ export default async function PaymentsPage(props: {
         actionHref="/app/finance/payments/new"
         actionLabel="Enregistrer un paiement"
       />
+      <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="rounded-2xl border border-line bg-white">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <div className="flex items-center gap-2 font-semibold">
+              <Inbox className="h-4 w-4 text-electric" /> Demandes de paiement
+              <span className="rounded-full bg-surface px-2 text-xs font-medium text-muted2">
+                {requests.filter((r) => r.status === "PROOF_SUBMITTED").length} preuve(s) à confirmer ·{" "}
+                {requests.filter((r) => r.status !== "PROOF_SUBMITTED").length} en attente
+              </span>
+            </div>
+          </div>
+          {requests.length ? (
+            <ul className="divide-y divide-line">
+              {requests.map((r) => {
+                const late = r.dueAt && r.dueAt.getTime() < Date.now() && r.status !== "PROOF_SUBMITTED";
+                return (
+                  <li key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${r.status === "PROOF_SUBMITTED" ? "bg-amber-50 text-amber-800" : r.status === "VIEWED" ? "bg-blue-50 text-blue-800" : "bg-surface text-muted2"}`}
+                    >
+                      {r.status === "PROOF_SUBMITTED"
+                        ? "preuve reçue"
+                        : r.status === "VIEWED"
+                          ? "lien ouvert"
+                          : "lien envoyé"}
+                    </span>
+                    <Link
+                      prefetch={false}
+                      href={`/app/finance/payments/requests/${r.id}`}
+                      className="font-medium hover:text-electric"
+                    >
+                      {r.client.firstName} {r.client.lastName}
+                    </Link>
+                    <span className="text-muted2">
+                      {r.currency} {Number(r.amount).toFixed(2)} · {r.description}
+                      {r.payment ? ` · ${r.payment.reference}` : ""}
+                    </span>
+                    {r.dueAt ? (
+                      <span className={`text-[11px] ${late ? "font-medium text-red-700" : "text-muted2"}`}>
+                        {late ? "en retard" : `avant le ${r.dueAt.toLocaleDateString("fr-FR")}`}
+                      </span>
+                    ) : null}
+                    <span className="ml-auto text-xs text-muted2">
+                      {r.createdAt.toLocaleDateString("fr-FR")}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="px-4 py-6 text-sm text-muted2">Aucune demande de paiement en cours.</p>
+          )}
+          {can(user, "SETTINGS_MANAGE") ? (
+            <details className="border-t border-line px-4 py-3 text-sm">
+              <summary className="cursor-pointer font-medium">
+                Instructions de paiement affichées aux clients
+              </summary>
+              <form action={savePaymentInstructionsAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+                {PAY_METHODS.filter((m) => m.code !== "ONLINE").map((m) => (
+                  <label key={m.code} className="text-xs">
+                    <span className="mb-1 block font-medium text-muted2">{payMethodLabel(m.code)}</span>
+                    <textarea
+                      name={`instr_${m.code}`}
+                      rows={3}
+                      defaultValue={instructions[m.code] ?? ""}
+                      placeholder={
+                        m.code === "BANK_TRANSFER"
+                          ? "Banque, titulaire, IBAN/compte, SWIFT, motif à indiquer…"
+                          : m.code === "ZELLE"
+                            ? "Adresse e-mail ou téléphone Zelle, nom du bénéficiaire…"
+                            : m.code === "CASH"
+                              ? "Adresse de l’agence, horaires…"
+                              : "Numéro, bénéficiaire…"
+                      }
+                      className="w-full rounded-lg border border-line bg-white px-2 py-1.5 outline-none focus:border-electric"
+                    />
+                  </label>
+                ))}
+                <div className="sm:col-span-2">
+                  <Button type="submit" variant="secondary" size="sm">
+                    Enregistrer les instructions
+                  </Button>
+                </div>
+              </form>
+            </details>
+          ) : null}
+        </div>
+        <PaymentRequestSendPanel
+          returnTo="/app/finance/payments"
+          clients={reqClients.map((c) => ({
+            id: c.id,
+            label: `${c.firstName} ${c.lastName} · ${c.internalId}`,
+            email: c.email,
+            phone: c.phone,
+          }))}
+        />
+      </div>
       <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Metric
           icon={CircleDollarSign}

@@ -216,6 +216,7 @@ model User {
   documentRequests  DocumentRequest[]
   refundClaims      RefundClaim[]    @relation("RefundClaimRequester")
   assignedRefundClaims RefundClaim[] @relation("RefundClaimAssignee")
+  paymentRequests   PaymentRequest[] @relation("PaymentRequestRequester")
   documentVersions  DocumentVersion[]
   signatures        SignatureRequest[] @relation("SignatureCreator")
   payments          Payment[]        @relation("PaymentRecorder")
@@ -376,6 +377,8 @@ model Case {
   payments    Payment[]
   documentRequests DocumentRequest[]
   refundClaims RefundClaim[]
+  paymentRequests PaymentRequest[]
+  paymentRequests PaymentRequest[]
   refunds     Refund[]
   activities  Activity[]
 
@@ -595,6 +598,7 @@ model Payment {
   files       File[]
   refunds     Refund[]
   refundClaims RefundClaim[]
+  paymentRequests PaymentRequest[]
 }
 
 model Refund {
@@ -618,6 +622,42 @@ model Refund {
   installments RefundInstallment[]
   files       File[]
   claim       RefundClaim?
+}
+
+/// A payment asked from a client through a secure link (online or with proof).
+model PaymentRequest {
+  id             String    @id @default(cuid())
+  token          String    @unique
+  clientId       String
+  caseId         String?
+  requestedById  String
+  amount         Decimal   @db.Decimal(12, 2)
+  currency       String    @default("USD")
+  description    String
+  language       String    @default("fr")
+  message        String?
+  allowedMethods String[]  @default([])
+  onlineUrl      String?
+  dueAt          DateTime?
+  status         String    @default("SENT") // SENT | VIEWED | PROOF_SUBMITTED | PAID | CANCELLED | EXPIRED
+  sentVia        String[]  @default([])
+  expiresAt      DateTime
+  viewedAt       DateTime?
+  /// { method, reference, paidOn, amount, note, fileIds, submittedAt, ip }
+  proof          Json?
+  paymentId      String?
+  reminderCount  Int       @default(0)
+  remindAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  case        Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  requestedBy User     @relation("PaymentRequestRequester", fields: [requestedById], references: [id])
+  payment     Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status, dueAt])
 }
 
 /// A refund claim submitted by a client through a secure form link.

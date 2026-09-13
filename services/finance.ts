@@ -154,6 +154,8 @@ export async function confirmPayment(paymentId: string) {
     clientId: payment.clientId,
     caseId: payment.caseId,
   });
+  const { markPaymentRequestPaid } = await import("@/lib/payment-requests");
+  await markPaymentRequestPaid(paymentId).catch(() => null);
   revalidatePath(`/app/finance/payments/${paymentId}`);
   revalidatePath("/app/finance/payments");
   revalidatePath("/app/finance/receipts");

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getClientFinancialAccount } from "@/lib/client-financial-account";
 import { getClientBlock } from "@/lib/client-transaction-block";
 import { RefundClaimSendPanel } from "@/components/app/refund-claim-send-panel";
+import { PaymentRequestSendPanel } from "@/components/app/payment-request-send-panel";
 import { archiveClient } from "@/services/clients";
 import { ClientWorkspaceHeader } from "@/components/app/client-workspace-header";
 import { Badge } from "@/components/ui/badge";
@@ -241,6 +242,19 @@ export default async function ClientProfilePage(props: {
         </Card>
       </div>
 
+      {can(user, "PAYMENT_CREATE") ? (
+        <div className="mb-4">
+          <PaymentRequestSendPanel
+            returnTo={`/app/clients/${client.id}`}
+            fixedClient={{
+              id: client.id,
+              label: `${client.firstName} ${client.lastName}`,
+              email: client.email,
+              phone: client.whatsapp || client.phone,
+            }}
+          />
+        </div>
+      ) : null}
       {can(user, "REFUND_CREATE") ? (
         <div className="mb-4">
           <RefundClaimSendPanel

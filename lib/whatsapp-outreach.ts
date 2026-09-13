@@ -160,6 +160,16 @@ export async function handleOutreachFailure(messageId: string, reason: string) {
           message: `${c.message ?? ""}\n[${note}]`.trim(),
         },
       });
+  } else if (meta.kind === "PAYMENT_REQUEST") {
+    const r = await prisma.paymentRequest.findUnique({
+      where: { id: meta.recordId },
+      select: { sentVia: true },
+    });
+    if (r)
+      await prisma.paymentRequest.update({
+        where: { id: meta.recordId },
+        data: { sentVia: r.sentVia.filter((v) => v !== "WHATSAPP") },
+      });
   } else if (meta.kind === "DOCUMENT_REQUEST") {
     const r = await prisma.documentRequest.findUnique({
       where: { id: meta.recordId },
@@ -178,7 +188,7 @@ export async function handleOutreachFailure(messageId: string, reason: string) {
           userId: meta.userId,
           type: "WHATSAPP_DELIVERY_FAILED",
           title: "WhatsApp non délivré",
-          body: `${note} — ${meta.kind === "REFUND_CLAIM" ? "formulaire de remboursement" : meta.kind === "DOCUMENT_REQUEST" ? "demande de documents" : meta.kind} vers ${meta.to}. Envoyez par e-mail ou via un modèle approuvé.`,
+          body: `${note} — ${meta.kind === "REFUND_CLAIM" ? "formulaire de remboursement" : meta.kind === "DOCUMENT_REQUEST" ? "demande de documents" : meta.kind === "PAYMENT_REQUEST" ? "demande de paiement" : meta.kind} vers ${meta.to}. Envoyez par e-mail ou via un modèle approuvé.`,
         },
       })
       .catch(() => null);
