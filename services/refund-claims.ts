@@ -126,6 +126,8 @@ export async function attachRefundToClaim(claimId: string, refundId: string, use
     data: { status: "CONVERTED", refundId, decidedById: userId, decidedAt: new Date() },
   });
   if (!res.count) return;
+  const { completeAutoTask } = await import("@/lib/auto-tasks");
+  await completeAutoTask(`claim:${claimId}`).catch(() => null);
   // Every document of the claim (client uploads, complements, staff proofs) is attached to the refund file.
   const c = await prisma.refundClaim.findUnique({
     where: { id: claimId },

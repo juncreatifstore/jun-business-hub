@@ -285,6 +285,10 @@ export async function attachReceivedFile(requestId: string, index: number, fileI
   if (!items[index]) return null;
   items[index] = { ...items[index], fileId, fileName, receivedAt: new Date().toISOString() };
   const status = statusOf(items);
+  if (status === "COMPLETE") {
+    const { completeAutoTask } = await import("@/lib/auto-tasks");
+    await completeAutoTask(`docreq-chase:${requestId}`).catch(() => null);
+  }
   return prisma.documentRequest.update({
     where: { id: requestId },
     data: {

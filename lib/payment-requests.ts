@@ -288,6 +288,16 @@ export async function submitPaymentProof(id: string, proof: PaymentProof) {
         body: `${r.currency} ${proof.amount.toFixed(2)} · ${payMethodLabel(proof.method)} · ${reference} — à confirmer`,
       })),
     });
+  const { taskPaymentProofSubmitted } = await import("@/lib/auto-tasks");
+  await taskPaymentProofSubmitted({
+    requestId: r.id,
+    clientId: r.clientId,
+    caseId: r.caseId,
+    requesterId: r.requestedById,
+    clientName: `${r.client.firstName} ${r.client.lastName}`,
+    amount: `${r.currency} ${proof.amount.toFixed(2)}`,
+    reference,
+  }).catch(() => null);
   const to = r.client.email;
   if (to) {
     const fr = r.language === "fr";
@@ -318,6 +328,8 @@ export async function markPaymentRequestPaid(paymentId: string) {
   });
   if (!r) return;
   await prisma.paymentRequest.update({ where: { id: r.id }, data: { status: "PAID", remindAt: null } });
+  const { completeAutoTask } = await import("@/lib/auto-tasks");
+  await completeAutoTask(`payreq:${r.id}`).catch(() => null);
   if (r.client.email) {
     const fr = r.language === "fr";
     try {

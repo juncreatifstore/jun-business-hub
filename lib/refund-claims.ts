@@ -316,6 +316,16 @@ export async function submitClaim(id: string, s: ClaimSubmission) {
     await prisma.notification.createMany({
       data: staff.map((u) => ({ userId: u.id, type: "REFUND_CLAIM_SUBMITTED", title, body })),
     });
+  const { taskRefundClaimSubmitted } = await import("@/lib/auto-tasks");
+  await taskRefundClaimSubmitted({
+    claimId: claim.id,
+    clientId: claim.clientId,
+    caseId: claim.caseId,
+    requesterId: claim.requestedById,
+    clientName: `${claim.client.firstName} ${claim.client.lastName}`,
+    amount: `${claim.currency} ${Number(claim.amount).toFixed(2)}`,
+    dueAt: claim.dueAt,
+  }).catch(() => null);
   // Acknowledgement to the client
   const to = claim.contactEmail || claim.client.email;
   if (to) {

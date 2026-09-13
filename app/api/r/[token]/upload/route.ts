@@ -5,6 +5,7 @@ import { MAX_UPLOAD_BYTES } from "@/lib/storage";
 import { attachReceivedFile, parseItems, docLabel } from "@/lib/document-requests";
 import { saveChannelAttachmentToDrive } from "@/lib/channel-attachments";
 import { logActivity } from "@/lib/audit";
+import { taskDocumentReceived } from "@/lib/auto-tasks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -85,6 +86,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ token: s
       clientId: r.clientId,
       caseId: r.caseId ?? undefined,
     });
+    await taskDocumentReceived({
+      requestId: r.id,
+      index,
+      clientId: r.clientId,
+      caseId: r.caseId,
+      requesterId: r.requestedById,
+      docLabel: docLabel(items[index].docType, "fr"),
+      clientName: `${r.client.firstName} ${r.client.lastName}`,
+      fileId,
+    }).catch(() => null);
     return NextResponse.json({ ok: true, fileName: name });
   } catch (e) {
     return NextResponse.json(
