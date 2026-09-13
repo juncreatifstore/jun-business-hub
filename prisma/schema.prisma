@@ -376,7 +376,6 @@ model Case {
   documentRequests DocumentRequest[]
   refundClaims RefundClaim[]
   refunds     Refund[]
-  refundClaims RefundClaim[]
   activities  Activity[]
 
   @@index([clientId])
@@ -590,6 +589,7 @@ model Payment {
   recordedBy  User          @relation("PaymentRecorder", fields: [recordedById], references: [id])
   files       File[]
   refunds     Refund[]
+  refundClaims RefundClaim[]
 }
 
 model Refund {
