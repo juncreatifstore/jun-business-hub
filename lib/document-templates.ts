@@ -96,7 +96,9 @@ export async function buildAutomaticTemplateContext(args: {
       ? prisma.case.findUnique({ where: { id: args.caseId }, select: { caseNumber: true, title: true } })
       : null,
   ]);
+  const fromDocs = args.clientId ? await extractedTemplateContext(args.clientId) : {};
   return {
+    ...fromDocs,
     "company.name": "JUN CREATIF AND TRAVEL LLC",
     "client.first_name": esc(client?.firstName),
     "client.last_name": esc(client?.lastName),
@@ -111,6 +113,82 @@ export async function buildAutomaticTemplateContext(args: {
     "date.today": new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "UTC" }).format(new Date()),
     "document.title": args.documentTitle,
   };
+}
+
+const fmtDate = (d: Date | null | undefined) =>
+  d ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "UTC" }).format(d) : "";
+
+/**
+ * Template values taken from the client's typed documents (most recent of
+ * each type wins). Keys stay empty when no document of that type exists, so
+ * the editor flags them as unresolved instead of inventing values.
+ */
+export async function extractedTemplateContext(clientId: string): Promise<Record<string, string>> {
+  const rows = await prisma.fileExtraction.findMany({
+    where: { file: { clientId, archivedAt: null, isVault: false }, error: null },
+    orderBy: { extractedAt: "desc" },
+    select: {
+      docType: true,
+      documentNumber: true,
+      issuingCountry: true,
+      issuer: true,
+      issuedAt: true,
+      expiresAt: true,
+      dateOfBirth: true,
+      amount: true,
+      currency: true,
+      reference: true,
+      fields: true,
+    },
+  });
+  const first = (type: string) => rows.find((r) => r.docType === type);
+  const f = (r: (typeof rows)[number] | undefined, key: string) => {
+    const v = (r?.fields as Record<string, unknown> | null)?.[key];
+    return v === null || v === undefined || typeof v === "object" ? "" : String(v);
+  };
+  const passport = first("PASSPORT");
+  const nid = first("NATIONAL_ID");
+  const visa = first("VISA");
+  const residence = first("RESIDENCE_PERMIT");
+  const employment = first("EMPLOYMENT_LETTER") ?? first("PAY_SLIP");
+  const flight = first("FLIGHT_TICKET");
+  const hotel = first("HOTEL_BOOKING");
+  const insurance = first("TRAVEL_INSURANCE");
+  const bank = first("BANK_STATEMENT");
+  const birth = first("BIRTH_CERTIFICATE");
+  const dob = passport?.dateOfBirth ?? nid?.dateOfBirth ?? birth?.dateOfBirth ?? null;
+  return {
+    "passport.number": esc(passport?.documentNumber),
+    "passport.issuing_country": esc(passport?.issuingCountry),
+    "passport.issue_date": fmtDate(passport?.issuedAt),
+    "passport.expiry_date": fmtDate(passport?.expiresAt),
+    "client.date_of_birth": fmtDate(dob),
+    "client.place_of_birth":
+      f(birth, "placeOfBirth") || f(passport, "placeOfBirth") || f(passport, "placeOfIssue"),
+    "id.number": esc(nid?.documentNumber),
+    "visa.number": esc(visa?.documentNumber),
+    "visa.expiry_date": fmtDate(visa?.expiresAt),
+    "residence.number": esc(residence?.documentNumber),
+    "residence.expiry_date": fmtDate(residence?.expiresAt),
+    "employer.name": f(employment, "employer") || esc(employment?.issuer),
+    "employer.monthly_income": f(employment, "monthlyIncome")
+      ? `${f(employment, "monthlyIncome")} ${f(employment, "currency") || esc(employment?.currency)}`.trim()
+      : "",
+    "trip.from": f(flight, "travelFrom"),
+    "trip.to": f(flight, "travelTo"),
+    "trip.departure_date": fmtDate(parseIso(f(flight, "departureDate"))),
+    "trip.return_date": fmtDate(parseIso(f(flight, "returnDate"))),
+    "trip.booking_reference": f(flight, "bookingReference") || esc(flight?.reference),
+    "hotel.name": esc(hotel?.issuer) || f(hotel, "issuer"),
+    "insurance.company": esc(insurance?.issuer),
+    "insurance.expiry_date": fmtDate(insurance?.expiresAt),
+    "bank.name": esc(bank?.issuer),
+  };
+}
+function parseIso(v: string) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export function renderTemplateContent(

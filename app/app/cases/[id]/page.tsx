@@ -5,6 +5,7 @@ import { requireUser, can } from "@/lib/auth";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { CaseChecklistCard } from "@/components/app/case-checklist-card";
+import { GenerateDocumentCard } from "@/components/app/generate-document-card";
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/utils";
@@ -128,6 +129,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
           </Card>
 
           <CaseChecklistCard caseId={c.id} clientId={c.clientId} />
+          <GenerateDocumentCard clientId={c.clientId} caseId={c.id} caseType={c.type} />
 
           <Card>
             <CardHeader>

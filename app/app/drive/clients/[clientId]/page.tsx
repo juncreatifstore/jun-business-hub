@@ -11,6 +11,7 @@ import { FILE_CATEGORIES } from "@/lib/utils";
 import { clientDocumentGroups } from "@/lib/client-documents";
 import { DOC_TYPE_LABELS } from "@/lib/file-extraction";
 import { DocumentRequestsPanel } from "@/components/app/document-requests-panel";
+import { GenerateDocumentCard } from "@/components/app/generate-document-card";
 
 export const dynamic = "force-dynamic";
 
@@ -224,6 +225,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
               </CardContent>
             </Card>
           ) : null}
+          <GenerateDocumentCard clientId={client.id} caseId={client.cases[0]?.id ?? null} />
           {client.cases.length ? (
             <Card>
               <CardHeader>
