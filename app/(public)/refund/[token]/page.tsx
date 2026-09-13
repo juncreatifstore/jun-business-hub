@@ -33,11 +33,7 @@ export default async function RefundClaimPage(props: { params: Promise<{ token: 
             : "This link is no longer valid. Contact us for a new one."}
         </div>
       ) : c.submitted ? (
-        <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          {fr
-            ? "Votre demande a bien été envoyée. Vous avez reçu un accusé de réception par e-mail ; nous revenons vers vous rapidement."
-            : "Your request was submitted. You received an acknowledgement by e-mail; we will get back to you shortly."}
-        </div>
+        <ClaimTracking t={c.tracking} fr={fr} />
       ) : (
         <ClaimForm
           token={token}
@@ -55,5 +51,105 @@ export default async function RefundClaimPage(props: { params: Promise<{ token: 
         {c.expiresAt.toLocaleDateString(fr ? "fr-FR" : "en-US")}.
       </p>
     </main>
+  );
+}
+
+function ClaimTracking({
+  t,
+  fr,
+}: {
+  t: NonNullable<Awaited<ReturnType<typeof getPublicClaim>>>["tracking"];
+  fr: boolean;
+}) {
+  const d = (v: Date | null | undefined) => (v ? v.toLocaleDateString(fr ? "fr-FR" : "en-US") : "");
+  const steps = [
+    {
+      key: "submitted",
+      label: fr ? "Demande reçue" : "Request received",
+      done: Boolean(t.submittedAt),
+      date: t.submittedAt,
+    },
+    {
+      key: "review",
+      label: fr ? "Examen par notre équipe" : "Under review",
+      done: ["UNDER_REVIEW", "CONVERTED", "REJECTED"].includes(t.status),
+      date: t.status === "SUBMITTED" ? null : (t.decidedAt ?? null),
+    },
+    {
+      key: "decision",
+      label:
+        t.status === "REJECTED"
+          ? fr
+            ? "Décision : refusée"
+            : "Decision: declined"
+          : t.status === "CONVERTED"
+            ? fr
+              ? "Décision : acceptée"
+              : "Decision: approved"
+            : fr
+              ? "Décision"
+              : "Decision",
+      done: ["CONVERTED", "REJECTED"].includes(t.status),
+      date: t.decidedAt,
+    },
+    ...(t.refund
+      ? [
+          {
+            key: "payout",
+            label:
+              t.refund.status === "PAID"
+                ? fr
+                  ? "Remboursement versé"
+                  : "Refund paid"
+                : t.refund.paid > 0
+                  ? fr
+                    ? `Versé ${t.refund.currency} ${t.refund.paid.toFixed(2)} sur ${t.refund.amount.toFixed(2)}`
+                    : `Paid ${t.refund.currency} ${t.refund.paid.toFixed(2)} of ${t.refund.amount.toFixed(2)}`
+                  : fr
+                    ? "Versement en préparation"
+                    : "Payout in preparation",
+            done: t.refund.status === "PAID",
+            date: t.refund.status === "PAID" ? t.refund.lastPaidAt : t.refund.nextDue,
+          },
+        ]
+      : []),
+  ];
+  return (
+    <div className="mt-6 rounded-xl border border-line bg-white p-5">
+      <div className="text-sm font-semibold">{fr ? "Suivi de votre demande" : "Request status"}</div>
+      <ol className="mt-4 space-y-3">
+        {steps.map((s) => (
+          <li key={s.key} className="flex items-start gap-3 text-sm">
+            <span
+              className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 ${s.done ? (t.status === "REJECTED" && s.key === "decision" ? "border-red-500 bg-red-500" : "border-emerald-500 bg-emerald-500") : "border-line"}`}
+            />
+            <div>
+              <div className={s.done ? "font-medium" : "text-muted2"}>{s.label}</div>
+              {s.date ? (
+                <div className="text-xs text-muted2">
+                  {s.key === "payout" && t.refund?.status !== "PAID"
+                    ? fr
+                      ? "Prochaine échéance : "
+                      : "Next due: "
+                    : ""}
+                  {d(s.date)}
+                </div>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {t.decisionNote ? <p className="mt-4 rounded-lg bg-surface p-3 text-sm">{t.decisionNote}</p> : null}
+      {t.refund ? (
+        <p className="mt-4 text-xs text-muted2">
+          {fr ? "Dossier de remboursement" : "Refund file"} {t.refund.number}
+        </p>
+      ) : null}
+      <p className="mt-2 text-xs text-muted2">
+        {fr
+          ? "Cette page se met à jour automatiquement ; gardez le lien."
+          : "This page updates automatically; keep the link."}
+      </p>
+    </div>
   );
 }

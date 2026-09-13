@@ -167,9 +167,45 @@ export async function getPublicClaim(token: string) {
         take: 20,
         select: { id: true, reference: true, amount: true, currency: true, createdAt: true },
       });
+  const refund = c.refundId
+    ? await prisma.refund.findUnique({
+        where: { id: c.refundId },
+        select: {
+          refundNumber: true,
+          status: true,
+          amount: true,
+          currency: true,
+          installments: {
+            select: { amount: true, dueDate: true, paidAt: true, status: true },
+            orderBy: { number: "asc" },
+          },
+        },
+      })
+    : null;
   return {
     id: c.id,
     firstName: c.client.firstName,
+    tracking: {
+      status: c.status as ClaimStatus,
+      submittedAt: c.submittedAt,
+      decidedAt: c.decidedAt,
+      decisionNote: c.status === "REJECTED" ? c.decisionNote : null,
+      refund: refund
+        ? {
+            number: refund.refundNumber,
+            status: refund.status,
+            amount: Number(refund.amount),
+            currency: refund.currency,
+            paid: refund.installments.filter((i) => i.paidAt).reduce((s, i) => s + Number(i.amount), 0),
+            nextDue: refund.installments.find((i) => !i.paidAt)?.dueDate ?? null,
+            lastPaidAt:
+              refund.installments
+                .filter((i) => i.paidAt)
+                .map((i) => i.paidAt!)
+                .sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+          }
+        : null,
+    },
     email: c.client.email,
     phone: c.client.phone,
     language: c.language,
