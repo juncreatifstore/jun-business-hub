@@ -11,7 +11,18 @@ import { ListCount, Pagination, RecordCard, RecordField } from "@/components/ui/
 import { formatDate, formatMoney } from "@/lib/utils";
 import { refundPaidTotal, refundRemaining } from "@/lib/finance-refund-workflow";
 import { syncOverdueRefundInstallments } from "@/lib/finance-refund-installments";
-import { AlertTriangle, CheckCircle2, Clock3, Search, SearchCheck, Undo2, WalletCards } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Inbox,
+  Search,
+  SearchCheck,
+  Undo2,
+  WalletCards,
+} from "lucide-react";
+import { RefundClaimSendPanel } from "@/components/app/refund-claim-send-panel";
+import { reasonLabel } from "@/lib/refund-claims";
 
 export const dynamic = "force-dynamic";
 const STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PARTIALLY_PAID", "PAID", "REJECTED", "CANCELLED"];
@@ -41,6 +52,29 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
         }
       : {}),
   };
+  const [claims, claimClients, claimPayments] = await Promise.all([
+    prisma.refundClaim.findMany({
+      where: { status: { in: ["SENT", "SUBMITTED", "UNDER_REVIEW"] } },
+      orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }],
+      take: 30,
+      include: {
+        client: { select: { firstName: true, lastName: true } },
+        payment: { select: { reference: true } },
+      },
+    }),
+    prisma.client.findMany({
+      where: { archivedAt: null },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true, internalId: true, email: true, phone: true },
+      take: 500,
+    }),
+    prisma.payment.findMany({
+      where: { status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED"] } },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+      select: { id: true, clientId: true, reference: true, amount: true, currency: true },
+    }),
+  ]);
   const [allRefunds, total] = await Promise.all([
     prisma.refund.findMany({
       orderBy: { createdAt: "desc" },
@@ -94,6 +128,77 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
         <Metric icon={WalletCards} label="Partiellement payés" value={paying} />
         <Metric icon={AlertTriangle} label="Échéances en retard" value={overdue} />
         <Metric icon={CheckCircle2} label="Terminés" value={completed} />
+      </div>
+      <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="rounded-2xl border border-line bg-white">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <div className="flex items-center gap-2 font-semibold">
+              <Inbox className="h-4 w-4 text-electric" /> Demandes clients
+              <span className="rounded-full bg-surface px-2 text-xs font-medium text-muted2">
+                {claims.filter((c) => c.status !== "SENT").length} à traiter ·{" "}
+                {claims.filter((c) => c.status === "SENT").length} en attente du client
+              </span>
+            </div>
+          </div>
+          {claims.length ? (
+            <ul className="divide-y divide-line">
+              {claims.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                      c.status === "SUBMITTED"
+                        ? "bg-amber-50 text-amber-800"
+                        : c.status === "UNDER_REVIEW"
+                          ? "bg-blue-50 text-blue-800"
+                          : "bg-surface text-muted2"
+                    }`}
+                  >
+                    {c.status === "SENT"
+                      ? "lien envoyé"
+                      : c.status === "SUBMITTED"
+                        ? "à examiner"
+                        : "en examen"}
+                  </span>
+                  <Link
+                    prefetch={false}
+                    href={`/app/finance/refunds/claims/${c.id}`}
+                    className="font-medium hover:text-electric"
+                  >
+                    {c.client.firstName} {c.client.lastName}
+                  </Link>
+                  <span className="text-muted2">
+                    {c.amount
+                      ? `${c.currency} ${Number(c.amount).toFixed(2)} · ${reasonLabel(c.reasonCode)}`
+                      : "en attente du formulaire"}
+                    {c.payment ? ` · ${c.payment.reference}` : ""}
+                  </span>
+                  <span className="ml-auto text-xs text-muted2">
+                    {(c.submittedAt ?? c.createdAt).toLocaleDateString("fr-FR")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-6 text-sm text-muted2">
+              Aucune demande client en cours. Envoyez un formulaire à droite.
+            </p>
+          )}
+        </div>
+        <RefundClaimSendPanel
+          returnTo="/app/finance/refunds"
+          clients={claimClients.map((c) => ({
+            id: c.id,
+            label: `${c.firstName} ${c.lastName} · ${c.internalId}`,
+            email: c.email,
+            phone: c.phone,
+          }))}
+          payments={claimPayments.map((p) => ({
+            id: p.id,
+            clientId: p.clientId,
+            label: `${p.reference} · ${p.currency} ${Number(p.amount).toFixed(2)}`,
+          }))}
+          compact
+        />
       </div>
       {duplicateGroups > 0 ? (
         <div className="mb-5 rounded-2xl border border-amber-500/20 bg-amber-500/[0.08] p-4 text-sm">

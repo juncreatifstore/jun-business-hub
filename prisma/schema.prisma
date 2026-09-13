@@ -214,6 +214,7 @@ model User {
   files             File[]
   documents         Document[]       @relation("DocumentAuthor")
   documentRequests  DocumentRequest[]
+  refundClaims      RefundClaim[]    @relation("RefundClaimRequester")
   documentVersions  DocumentVersion[]
   signatures        SignatureRequest[] @relation("SignatureCreator")
   payments          Payment[]        @relation("PaymentRecorder")
@@ -307,6 +308,7 @@ model Client {
   tasks      Task[]
   files      File[]
   documentRequests DocumentRequest[]
+  refundClaims RefundClaim[]
   documents  Document[]
   payments   Payment[]
   refunds    Refund[]
@@ -372,7 +374,9 @@ model Case {
   documents   Document[]
   payments    Payment[]
   documentRequests DocumentRequest[]
+  refundClaims RefundClaim[]
   refunds     Refund[]
+  refundClaims RefundClaim[]
   activities  Activity[]
 
   @@index([clientId])
@@ -608,6 +612,50 @@ model Refund {
   createdBy   User         @relation("RefundCreator", fields: [createdById], references: [id])
   installments RefundInstallment[]
   files       File[]
+  claim       RefundClaim?
+}
+
+/// A refund claim submitted by a client through a secure form link.
+model RefundClaim {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  clientId      String
+  caseId        String?
+  paymentId     String?
+  requestedById String
+  language      String    @default("fr")
+  message       String?
+  status        String    @default("SENT") // SENT | SUBMITTED | UNDER_REVIEW | CONVERTED | REJECTED | EXPIRED | CANCELLED
+  sentVia       String[]  @default([])
+  expiresAt     DateTime
+  // Client's submission
+  submittedAt   DateTime?
+  amount        Decimal?  @db.Decimal(12, 2)
+  currency      String?
+  reasonCode    String?
+  reason        String?
+  payoutMethod  String?   // ORIGINAL | BANK_TRANSFER | CASH | OTHER
+  payoutDetails Json      @default("{}")
+  contactEmail  String?
+  contactPhone  String?
+  fileIds       String[]  @default([])
+  clientIp      String?
+  // Staff decision
+  refundId      String?   @unique
+  decisionNote  String?
+  decidedById   String?
+  decidedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  case        Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  payment     Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  requestedBy User     @relation("RefundClaimRequester", fields: [requestedById], references: [id])
+  refund      Refund?  @relation(fields: [refundId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([status, createdAt])
 }
 
 model RefundInstallment {

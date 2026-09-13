@@ -6,7 +6,14 @@ import { RefundForm } from "@/components/app/refund-form";
 export const dynamic = "force-dynamic";
 
 export default async function NewRefundPage(props: {
-  searchParams: Promise<{ clientId?: string; caseId?: string }>;
+  searchParams: Promise<{
+    clientId?: string;
+    caseId?: string;
+    paymentId?: string;
+    amount?: string;
+    reason?: string;
+    claimId?: string;
+  }>;
 }) {
   const searchParams = await props.searchParams;
   await requirePermission("REFUND_CREATE");
@@ -59,6 +66,10 @@ export default async function NewRefundPage(props: {
         cases={cases}
         payments={refundables}
         defaultClientId={searchParams.clientId}
+        defaultPaymentId={searchParams.paymentId}
+        defaultAmount={searchParams.amount ? Number(searchParams.amount) || undefined : undefined}
+        defaultReason={searchParams.reason}
+        claimId={searchParams.claimId}
         defaultCaseId={searchParams.caseId}
       />
     </div>

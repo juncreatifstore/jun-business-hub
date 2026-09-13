@@ -168,6 +168,11 @@ export async function createRefundWorkflow(_prev: FormState, formData: FormData)
   revalidatePath(`/app/clients/${d.clientId}`);
   revalidatePath(`/app/clients/${d.clientId}/account`);
   revalidatePath(`/app/clients/${d.clientId}/statement`);
+  const claimId = String(formData.get("claimId") ?? "").trim();
+  if (claimId) {
+    const { attachRefundToClaim } = await import("@/services/refund-claims");
+    await attachRefundToClaim(claimId, refund.id, user.id).catch(() => null);
+  }
   redirect(`/app/finance/refunds/${refund.id}?toast=${encodeURIComponent("Refund request created")}`);
 }
 

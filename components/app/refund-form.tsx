@@ -20,6 +20,10 @@ export function RefundForm({
   payments,
   defaultClientId,
   defaultCaseId,
+  defaultPaymentId,
+  defaultAmount,
+  defaultReason,
+  claimId,
 }: {
   clients: { id: string; firstName: string; lastName: string; internalId: string }[];
   cases: { id: string; caseNumber: string; title: string; clientId: string }[];
@@ -33,10 +37,15 @@ export function RefundForm({
   }[];
   defaultClientId?: string;
   defaultCaseId?: string;
+  defaultPaymentId?: string;
+  defaultAmount?: number;
+  defaultReason?: string;
+  /** When creating from a client claim: links and closes the claim. */
+  claimId?: string;
 }) {
   const [state, action] = useFormState(createRefundWorkflow, {});
   const [clientId, setClientId] = useState(defaultClientId ?? "");
-  const [paymentId, setPaymentId] = useState("");
+  const [paymentId, setPaymentId] = useState(defaultPaymentId ?? "");
   const err = (k: string) => state.errors?.[k]?.[0];
   const clientPayments = payments.filter((p) => p.clientId === clientId && p.available > 0);
   const clientCases = cases.filter((c) => c.clientId === clientId);
@@ -47,6 +56,7 @@ export function RefundForm({
 
   return (
     <form action={action} className="grid w-full min-w-0 max-w-3xl gap-4 sm:grid-cols-2 sm:gap-5">
+      {claimId ? <input type="hidden" name="claimId" value={claimId} /> : null}
       <div className="min-w-0 sm:col-span-2">
         <Field label="Client">
           <Select
@@ -113,6 +123,7 @@ export function RefundForm({
             step="0.01"
             min="0.01"
             max={selectedPayment?.available}
+            defaultValue={defaultAmount ? defaultAmount.toFixed(2) : undefined}
             required
           />
         </Field>
@@ -157,7 +168,7 @@ export function RefundForm({
       </div>
       <div className="min-w-0 sm:col-span-2">
         <Field label="Motif" hint="Expliquez ce qui est remboursé et pourquoi">
-          <Textarea name="reason" rows={4} required />
+          <Textarea name="reason" rows={4} required defaultValue={defaultReason ?? ""} />
         </Field>
         {err("reason") && <p className="mt-1 text-xs text-red-600">{err("reason")}</p>}
       </div>
