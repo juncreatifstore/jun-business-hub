@@ -8,6 +8,7 @@ import { whatsAppWindowOpen } from "@/lib/whatsapp-outreach";
 import { appBaseUrl } from "@/lib/document-requests";
 import { caseChecklist } from "@/lib/document-requirements";
 import { DOC_TYPE_LABELS } from "@/lib/file-extraction";
+import { renderEmail } from "@/lib/email-template";
 
 const FR: Record<string, { title: string; body: string }> = {
   OPEN: {
@@ -103,10 +104,27 @@ export async function notifyClientCaseStatus(caseId: string, status: string, not
           ? `\n\nPièces attendues : ${missing.join(", ")}.`
           : `\n\nExpected documents: ${missing.join(", ")}.`;
   }
-  const portal = c.client.account?.isEnabled
-    ? `\n\n${lang === "fr" ? "Votre espace client" : "Your client portal"} : ${appBaseUrl()}/client`
-    : "";
-  const text = `${lang === "fr" ? "Bonjour" : "Hello"} ${c.client.firstName},\n\n${t.body}${missingLine}${note ? `\n\n${note}` : ""}${portal}\n\n${lang === "fr" ? "Dossier" : "Case"} ${c.caseNumber} — ${c.title}\nJUN CREATIF AND TRAVEL LLC`;
+  const { html, text, short } = renderEmail({
+    lang,
+    preheader: `${lang === "fr" ? "Dossier" : "Case"} ${c.caseNumber}`,
+    title: t.title,
+    greeting: `${lang === "fr" ? "Bonjour" : "Hello"} ${c.client.firstName},`,
+    blocks: [
+      { type: "p", text: t.body },
+      ...(missingLine ? [{ type: "note" as const, text: missingLine.trim() }] : []),
+      ...(note ? [{ type: "note" as const, text: note }] : []),
+      { type: "table", rows: [[lang === "fr" ? "Dossier" : "Case", `${c.caseNumber} — ${c.title}`]] },
+      ...(c.client.account?.isEnabled
+        ? [
+            {
+              type: "button" as const,
+              label: lang === "fr" ? "Ouvrir mon espace client" : "Open my client portal",
+              url: `${appBaseUrl()}/client`,
+            },
+          ]
+        : []),
+    ],
+  });
   const sent: string[] = [];
   if (c.client.email) {
     try {
@@ -117,6 +135,7 @@ export async function notifyClientCaseStatus(caseId: string, status: string, not
         to: `${c.client.firstName} ${c.client.lastName} <${c.client.email}>`,
         subject: `${t.title} — ${c.caseNumber}`,
         text,
+        html,
       });
       sent.push("EMAIL");
     } catch {}
@@ -124,7 +143,7 @@ export async function notifyClientCaseStatus(caseId: string, status: string, not
   const phone = c.client.whatsapp || c.client.phone;
   if (phone && (await whatsAppWindowOpen(phone).catch(() => false))) {
     try {
-      await sendWhatsAppText(phone, text);
+      await sendWhatsAppText(phone, short);
       sent.push("WHATSAPP");
     } catch {}
   }

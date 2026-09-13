@@ -488,6 +488,8 @@ export async function gmailSend(
     to: string;
     subject: string;
     text: string;
+    /** Optional HTML version (sent as multipart/alternative with the text). */
+    html?: string;
     fromEmail?: string;
     replyTo?: string;
     automated?: boolean;
@@ -507,17 +509,30 @@ export async function gmailSend(
       "MIME-Version: 1.0",
     ];
   let message: string;
-  if (!attachments.length)
-    message = `${[...common, 'Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: 8bit"].join("\r\n")}\r\n\r\n${input.text}`;
-  else {
-    const boundary = `jun_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
-      parts = [
-        `--${boundary}`,
+  // Body: plain text, or text + HTML as multipart/alternative.
+  const altBoundary = `alt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+  const bodyHeaders = input.html
+    ? [`Content-Type: multipart/alternative; boundary="${altBoundary}"`]
+    : ['Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: 8bit"];
+  const bodyContent = input.html
+    ? [
+        `--${altBoundary}`,
         'Content-Type: text/plain; charset="UTF-8"',
         "Content-Transfer-Encoding: 8bit",
         "",
         input.text,
-      ];
+        `--${altBoundary}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: 8bit",
+        "",
+        input.html,
+        `--${altBoundary}--`,
+      ].join("\r\n")
+    : input.text;
+  if (!attachments.length) message = `${[...common, ...bodyHeaders].join("\r\n")}\r\n\r\n${bodyContent}`;
+  else {
+    const boundary = `jun_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`,
+      parts = [`--${boundary}`, ...bodyHeaders, "", bodyContent];
     for (const attachment of attachments) {
       const filename = safeFilename(attachment.filename);
       parts.push(

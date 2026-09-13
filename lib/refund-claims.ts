@@ -7,6 +7,7 @@ import { resolveOtpSenderMailbox } from "@/lib/mail-otp-sender";
 import { gmailSend } from "@/lib/google/gmail";
 import { sendWhatsAppLink } from "@/lib/whatsapp-outreach";
 import { appBaseUrl } from "@/lib/document-requests";
+import { renderEmail, type EmailBlock } from "@/lib/email-template";
 
 export type ClaimStatus =
   "SENT" | "SUBMITTED" | "UNDER_REVIEW" | "CONVERTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
@@ -81,31 +82,42 @@ export async function deliverRefundClaimLink(claimId: string, channels: Array<"E
   const pay = c.payment
     ? ` (${c.payment.reference} · ${c.payment.currency} ${Number(c.payment.amount).toFixed(2)})`
     : "";
-  const text = fr
-    ? [
-        `Bonjour ${c.client.firstName},`,
-        "",
-        `Pour formuler votre demande de remboursement${pay}, merci de remplir ce formulaire sécurisé, sans créer de compte :`,
-        url,
-        "",
-        c.message ? `${c.message}\n` : "",
-        "Vous pourrez indiquer le montant, le motif, le mode de remboursement souhaité et joindre vos justificatifs.",
-        `Le lien est valable jusqu’au ${until}.`,
-        "",
-        "JUN CREATIF AND TRAVEL LLC",
-      ].join("\n")
-    : [
-        `Hello ${c.client.firstName},`,
-        "",
-        `To file your refund request${pay}, please complete this secure form (no account needed):`,
-        url,
-        "",
-        c.message ? `${c.message}\n` : "",
-        "You can state the amount, the reason, your preferred refund method and attach supporting documents.",
-        `The link is valid until ${until}.`,
-        "",
-        "JUN CREATIF AND TRAVEL LLC",
-      ].join("\n");
+  const { html, text, short } = renderEmail({
+    lang: fr ? "fr" : "en",
+    preheader: fr ? "Formulaire de demande de remboursement" : "Refund request form",
+    title: fr ? "Votre demande de remboursement" : "Your refund request",
+    greeting: fr ? `Bonjour ${c.client.firstName},` : `Hello ${c.client.firstName},`,
+    blocks: [
+      {
+        type: "p",
+        text: fr
+          ? `Pour formuler votre demande de remboursement${pay}, merci de remplir ce formulaire sécurisé, sans créer de compte.`
+          : `To file your refund request${pay}, please complete this secure form (no account needed).`,
+      },
+      ...(c.message ? [{ type: "note" as const, text: c.message.replace("[reminded]", "").trim() }] : []),
+      { type: "button", label: fr ? "Remplir le formulaire" : "Complete the form", url },
+      {
+        type: "list",
+        items: fr
+          ? [
+              "Paiement concerné et preuve",
+              "Motif et justificatifs",
+              "Mode de remboursement souhaité",
+              "Vérification d’identité",
+            ]
+          : [
+              "Payment concerned and proof",
+              "Reason and evidence",
+              "Preferred refund method",
+              "Identity verification",
+            ],
+      },
+      {
+        type: "p",
+        text: fr ? `Le lien est valable jusqu’au ${until}.` : `The link is valid until ${until}.`,
+      },
+    ],
+  });
   const sent: string[] = [];
   const errors: string[] = [];
   if (channels.includes("EMAIL")) {
@@ -119,6 +131,7 @@ export async function deliverRefundClaimLink(claimId: string, channels: Array<"E
           to: `${c.client.firstName} ${c.client.lastName} <${c.client.email}>`,
           subject: fr ? "Votre demande de remboursement — formulaire" : "Your refund request — form",
           text,
+          html,
         });
         sent.push("EMAIL");
       } catch (e) {
@@ -135,7 +148,7 @@ export async function deliverRefundClaimLink(claimId: string, channels: Array<"E
           firstName: c.client.firstName,
           url,
           subject: fr ? "votre demande de remboursement" : "your refund request",
-          text,
+          text: short,
           language: c.language,
           kind: "REFUND_CLAIM",
           recordId: c.id,
@@ -332,14 +345,40 @@ export async function submitClaim(id: string, s: ClaimSubmission) {
     try {
       const account = await resolveOtpSenderMailbox();
       const fr = claim.language === "fr";
+      const ref = claim.id.slice(-8).toUpperCase();
+      const rows: [string, string][] = [
+        [fr ? "Référence" : "Reference", ref],
+        [fr ? "Montant demandé" : "Amount requested", `${claim.currency} ${Number(claim.amount).toFixed(2)}`],
+        [fr ? "Motif" : "Reason", reasonLabel(claim.reasonCode, fr ? "fr" : "en")],
+      ];
+      if (claim.payment) rows.push([fr ? "Paiement" : "Payment", claim.payment.reference]);
+      const { html, text } = renderEmail({
+        lang: fr ? "fr" : "en",
+        title: fr ? "Demande de remboursement reçue" : "Refund request received",
+        greeting: fr ? `Bonjour ${claim.client.firstName},` : `Hello ${claim.client.firstName},`,
+        blocks: [
+          {
+            type: "p",
+            text: fr
+              ? "Nous avons bien reçu votre demande de remboursement. Notre équipe finance l’examine et vous répondra sous 5 jours ouvrés."
+              : "We received your refund request. Our finance team is reviewing it and will reply within 5 business days.",
+          },
+          { type: "table", rows },
+          {
+            type: "button",
+            label: fr ? "Suivre ma demande" : "Track my request",
+            url: claimUrl(claim.token),
+          },
+        ],
+        meta: `${fr ? "Référence" : "Reference"} ${ref}`,
+      });
       await gmailSend(account.id, {
         fromEmail: AUTOMATED_NO_REPLY_EMAIL,
         automated: true,
         to,
-        subject: fr ? "Demande de remboursement reçue" : "Refund request received",
-        text: fr
-          ? `Bonjour ${claim.client.firstName},\n\nNous avons bien reçu votre demande de remboursement de ${claim.currency} ${Number(claim.amount).toFixed(2)} (motif : ${reasonLabel(claim.reasonCode, "fr")}).\nRéférence : ${claim.id.slice(-8).toUpperCase()}\n\nNotre équipe finance l’examine et vous répondra sous 5 jours ouvrés.\n\nJUN CREATIF AND TRAVEL LLC`
-          : `Hello ${claim.client.firstName},\n\nWe received your refund request of ${claim.currency} ${Number(claim.amount).toFixed(2)} (reason: ${reasonLabel(claim.reasonCode, "en")}).\nReference: ${claim.id.slice(-8).toUpperCase()}\n\nOur finance team is reviewing it and will reply within 5 business days.\n\nJUN CREATIF AND TRAVEL LLC`,
+        subject: fr ? `Demande de remboursement reçue — ${ref}` : `Refund request received — ${ref}`,
+        text,
+        html,
       });
     } catch {}
   }
@@ -360,33 +399,91 @@ export async function notifyClaimDecision(
     },
   });
   if (!c) return;
-  const d = c.decision as ClaimDecision | null;
-  const isPartial = Boolean(d && c.amount && d.approvedAmount < Number(c.amount) - 0.005);
-  const svcFr = d?.renderedServices?.length
-    ? `\nServices déjà rendus :\n${d.renderedServices.map((s) => `  • ${s.description} — ${c.currency} ${s.amount.toFixed(2)}`).join("\n")}`
-    : "";
-  const svcEn = d?.renderedServices?.length
-    ? `\nServices already delivered:\n${d.renderedServices.map((s) => `  • ${s.description} — ${c.currency} ${s.amount.toFixed(2)}`).join("\n")}`
-    : "";
-  const partialFr =
-    isPartial && d
-      ? `\n\nMontant demandé : ${c.currency} ${Number(c.amount).toFixed(2)} — montant accepté : ${c.currency} ${d.approvedAmount.toFixed(2)}.${d.partialReason ? `\nMotif de la retenue : ${d.partialReason}` : ""}${svcFr}\nLes justificatifs sont consultables sur votre page de suivi.`
-      : "";
-  const partialEn =
-    isPartial && d
-      ? `\n\nRequested: ${c.currency} ${Number(c.amount).toFixed(2)} — approved: ${c.currency} ${d.approvedAmount.toFixed(2)}.${d.partialReason ? `\nReason for the deduction: ${d.partialReason}` : ""}${svcEn}\nSupporting documents are available on your tracking page.`
-      : "";
   const to = c.contactEmail || c.client.email;
   if (!to) return;
   const fr = c.language === "fr";
-  const text =
+  const d = c.decision as ClaimDecision | null;
+  const isPartial = Boolean(d && c.amount && d.approvedAmount < Number(c.amount) - 0.005);
+  const blocks: EmailBlock[] =
     decision === "REJECTED"
-      ? fr
-        ? `Bonjour ${c.client.firstName},\n\nAprès examen, nous ne pouvons pas donner suite à votre demande de remboursement.${note ? `\n\nMotif : ${note}` : ""}\n\nVous pouvez nous répondre pour toute question.\n\nJUN CREATIF AND TRAVEL LLC`
-        : `Hello ${c.client.firstName},\n\nAfter review, we are unable to approve your refund request.${note ? `\n\nReason: ${note}` : ""}\n\nReply to this e-mail if you have any question.\n\nJUN CREATIF AND TRAVEL LLC`
-      : fr
-        ? `Bonjour ${c.client.firstName},\n\nVotre demande de remboursement a été acceptée. Dossier ${c.refund?.refundNumber ?? ""} · ${c.refund?.currency ?? ""} ${c.refund ? Number(c.refund.amount).toFixed(2) : ""}.${partialFr}${note ? `\n\n${note}` : ""}\n\nNous vous tiendrons informé du versement.\n\nJUN CREATIF AND TRAVEL LLC`
-        : `Hello ${c.client.firstName},\n\nYour refund request has been approved. File ${c.refund?.refundNumber ?? ""} · ${c.refund?.currency ?? ""} ${c.refund ? Number(c.refund.amount).toFixed(2) : ""}.${partialEn}${note ? `\n\n${note}` : ""}\n\nWe will keep you posted on the payout.\n\nJUN CREATIF AND TRAVEL LLC`;
+      ? [
+          {
+            type: "p",
+            text: fr
+              ? "Après examen, nous ne pouvons pas donner suite à votre demande de remboursement."
+              : "After review, we are unable to approve your refund request.",
+          },
+          ...(note ? [{ type: "note" as const, text: `${fr ? "Motif" : "Reason"} : ${note}` }] : []),
+          {
+            type: "p",
+            text: fr
+              ? "Vous pouvez répondre à cet e-mail pour toute question."
+              : "Reply to this e-mail if you have any question.",
+          },
+        ]
+      : [
+          {
+            type: "p",
+            text: fr
+              ? "Votre demande de remboursement a été acceptée."
+              : "Your refund request has been approved.",
+          },
+          {
+            type: "table",
+            rows: [
+              [fr ? "Dossier" : "File", c.refund?.refundNumber ?? ""],
+              [
+                fr ? "Montant accepté" : "Approved amount",
+                `${c.refund?.currency ?? ""} ${c.refund ? Number(c.refund.amount).toFixed(2) : ""}`,
+              ],
+              ...(isPartial && d
+                ? ([
+                    [
+                      fr ? "Montant demandé" : "Requested amount",
+                      `${c.currency} ${Number(c.amount).toFixed(2)}`,
+                    ],
+                    [fr ? "Motif de la retenue" : "Reason for the deduction", d.partialReason ?? "—"],
+                  ] as [string, string][])
+                : []),
+            ],
+          },
+          ...(isPartial && d?.renderedServices?.length
+            ? [
+                {
+                  type: "list" as const,
+                  items: d.renderedServices.map(
+                    (x) =>
+                      `${fr ? "Service rendu" : "Service delivered"} : ${x.description} — ${c.currency} ${x.amount.toFixed(2)}`,
+                  ),
+                },
+              ]
+            : []),
+          ...(note ? [{ type: "note" as const, text: note }] : []),
+          {
+            type: "button",
+            label: fr ? "Suivre mon remboursement" : "Track my refund",
+            url: claimUrl(c.token),
+          },
+          {
+            type: "p",
+            text: fr
+              ? "Nous vous tiendrons informé de chaque versement."
+              : "We will keep you posted on each payout.",
+          },
+        ];
+  const { html, text } = renderEmail({
+    lang: fr ? "fr" : "en",
+    title:
+      decision === "REJECTED"
+        ? fr
+          ? "Votre demande de remboursement"
+          : "Your refund request"
+        : fr
+          ? "Remboursement accepté"
+          : "Refund approved",
+    greeting: fr ? `Bonjour ${c.client.firstName},` : `Hello ${c.client.firstName},`,
+    blocks,
+  });
   try {
     const account = await resolveOtpSenderMailbox();
     await gmailSend(account.id, {
@@ -395,6 +492,7 @@ export async function notifyClaimDecision(
       to,
       subject: fr ? "Votre demande de remboursement" : "Your refund request",
       text,
+      html,
     });
   } catch {}
 }
@@ -521,6 +619,27 @@ export async function requestClaimInformation(
     const fr = c.language === "fr";
     try {
       const account = await resolveOtpSenderMailbox();
+      const { html, text } = renderEmail({
+        lang: fr ? "fr" : "en",
+        title: fr
+          ? "Complément demandé sur votre demande de remboursement"
+          : "More information needed on your refund request",
+        greeting: fr ? `Bonjour ${c.client.firstName},` : `Hello ${c.client.firstName},`,
+        blocks: [
+          {
+            type: "p",
+            text: fr
+              ? "Pour instruire votre demande, nous avons besoin d’un complément :"
+              : "To process your request, we need more information:",
+          },
+          { type: "note", text: message },
+          {
+            type: "button",
+            label: fr ? "Répondre et joindre les éléments" : "Reply and attach the items",
+            url: claimUrl(c.token),
+          },
+        ],
+      });
       await gmailSend(account.id, {
         fromEmail: AUTOMATED_NO_REPLY_EMAIL,
         automated: true,
@@ -528,9 +647,8 @@ export async function requestClaimInformation(
         subject: fr
           ? "Votre demande de remboursement — complément demandé"
           : "Your refund request — more information needed",
-        text: fr
-          ? `Bonjour ${c.client.firstName},\n\nPour instruire votre demande de remboursement, nous avons besoin d’un complément :\n\n${message}\n\nRépondez et joignez les éléments via votre lien :\n${claimUrl(c.token)}\n\nJUN CREATIF AND TRAVEL LLC`
-          : `Hello ${c.client.firstName},\n\nTo process your refund request we need more information:\n\n${message}\n\nReply and attach the items through your link:\n${claimUrl(c.token)}\n\nJUN CREATIF AND TRAVEL LLC`,
+        text,
+        html,
       });
     } catch {}
   }

@@ -8,6 +8,7 @@ import { AUTOMATED_NO_REPLY_EMAIL } from "@/lib/email-aliases";
 import { resolveOtpSenderMailbox } from "@/lib/mail-otp-sender";
 import { gmailSend } from "@/lib/google/gmail";
 import { logger } from "@/lib/logger";
+import { renderEmail } from "@/lib/email-template";
 
 /** Cloudflare Turnstile — enforced only when TURNSTILE_SECRET_KEY is configured. */
 async function verifyTurnstile(token: string, ip: string) {
@@ -82,24 +83,37 @@ export async function submitContact(_prev: ContactState, formData: FormData): Pr
         "Reply to this email to answer the visitor directly.",
       ].join("\n"),
     });
+    const ack = renderEmail({
+      lang: "en",
+      title: "We received your message",
+      greeting: `Hello ${d.firstName},`,
+      blocks: [
+        {
+          type: "p",
+          text: `Thank you for contacting JUN CREATIF AND TRAVEL LLC. Your request has been routed to our ${route.label} team and a named team member will reply to you shortly.`,
+        },
+        {
+          type: "table",
+          rows: [
+            ["Reference", id],
+            ["Subject", d.subject],
+            ["Department", route.label],
+          ],
+        },
+        {
+          type: "p",
+          text: `If you need to add anything, simply reply to this email — it reaches ${route.alias}.`,
+        },
+      ],
+    });
     await gmailSend(account.id, {
       fromEmail: AUTOMATED_NO_REPLY_EMAIL,
       automated: true,
       to: `${d.firstName} ${d.lastName} <${d.email}>`,
       replyTo: route.alias,
       subject: `We received your message — ${d.subject}`,
-      text: [
-        `Hello ${d.firstName},`,
-        "",
-        `Thank you for contacting JUN CREATIF AND TRAVEL LLC. Your request has been routed to our ${route.label} team and a named team member will reply to you shortly.`,
-        "",
-        `Reference: ${id}`,
-        `Subject: ${d.subject}`,
-        "",
-        `If you need to add anything, simply reply to this email — it reaches ${route.alias}.`,
-        "",
-        "JUN CREATIF AND TRAVEL LLC",
-      ].join("\n"),
+      text: ack.text,
+      html: ack.html,
     }).catch((error) => logger.warn("contact.ack_delivery_failed", { id, error }));
   } catch (error) {
     logger.warn("contact.alias_delivery_failed", { id, department: d.department, alias: route.alias, error });

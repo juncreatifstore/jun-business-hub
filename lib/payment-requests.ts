@@ -8,6 +8,7 @@ import { gmailSend } from "@/lib/google/gmail";
 import { sendWhatsAppLink } from "@/lib/whatsapp-outreach";
 import { appBaseUrl } from "@/lib/document-requests";
 import { nextNumber } from "@/lib/sequence";
+import { renderEmail } from "@/lib/email-template";
 
 export const PAY_METHODS = [
   { code: "BANK_TRANSFER", fr: "Virement bancaire", en: "Bank transfer", hub: "BANK_TRANSFER" },
@@ -115,33 +116,46 @@ export async function deliverPaymentRequest(
   const url = paymentRequestUrl(r.token);
   const amount = `${r.currency} ${Number(r.amount).toFixed(2)}`;
   const due = r.dueAt ? r.dueAt.toLocaleDateString(fr ? "fr-FR" : "en-US") : null;
-  const text = fr
-    ? [
-        `Bonjour ${r.client.firstName},`,
-        "",
-        reminder
-          ? `Rappel : le paiement de ${amount} pour « ${r.description} » est attendu${due ? ` avant le ${due}` : ""}.`
-          : `Un paiement de ${amount} est demandé pour « ${r.description} »${due ? `, avant le ${due}` : ""}.`,
-        "",
-        "Choisissez votre moyen de paiement et envoyez-nous la preuve via ce lien sécurisé :",
-        url,
-        "",
-        r.message ? `${r.message}\n` : "",
-        "JUN CREATIF AND TRAVEL LLC",
-      ].join("\n")
-    : [
-        `Hello ${r.client.firstName},`,
-        "",
-        reminder
-          ? `Reminder: the payment of ${amount} for "${r.description}" is due${due ? ` by ${due}` : ""}.`
-          : `A payment of ${amount} is requested for "${r.description}"${due ? `, due by ${due}` : ""}.`,
-        "",
-        "Choose your payment method and send us the proof through this secure link:",
-        url,
-        "",
-        r.message ? `${r.message}\n` : "",
-        "JUN CREATIF AND TRAVEL LLC",
-      ].join("\n");
+  const { html, text, short } = renderEmail({
+    lang: fr ? "fr" : "en",
+    preheader: fr ? `Paiement de ${amount} demandé` : `Payment of ${amount} requested`,
+    title: reminder
+      ? fr
+        ? `Rappel : paiement de ${amount}`
+        : `Reminder: payment of ${amount}`
+      : fr
+        ? `Paiement demandé : ${amount}`
+        : `Payment requested: ${amount}`,
+    greeting: fr ? `Bonjour ${r.client.firstName},` : `Hello ${r.client.firstName},`,
+    blocks: [
+      {
+        type: "p",
+        text: reminder
+          ? fr
+            ? `Le paiement pour « ${r.description} » est attendu${due ? ` avant le ${due}` : ""}.`
+            : `The payment for "${r.description}" is due${due ? ` by ${due}` : ""}.`
+          : fr
+            ? `Un paiement est demandé pour « ${r.description} »${due ? `, avant le ${due}` : ""}.`
+            : `A payment is requested for "${r.description}"${due ? `, due by ${due}` : ""}.`,
+      },
+      {
+        type: "table",
+        rows: [
+          [fr ? "Montant" : "Amount", amount],
+          [fr ? "Objet" : "Purpose", r.description],
+          ...(due ? [[fr ? "Échéance" : "Due date", due] as [string, string]] : []),
+        ],
+      },
+      ...(r.message ? [{ type: "note" as const, text: r.message }] : []),
+      { type: "button", label: fr ? "Payer ou envoyer la preuve" : "Pay or send the proof", url },
+      {
+        type: "p",
+        text: fr
+          ? "Choisissez votre moyen de paiement (en ligne, virement, Zelle, MonCash, espèces…), suivez les instructions, puis déposez la preuve. Vous recevrez votre reçu dès confirmation."
+          : "Choose your payment method (online, bank transfer, Zelle, MonCash, cash…), follow the instructions, then upload the proof. You will receive your receipt once confirmed.",
+      },
+    ],
+  });
   const sent: string[] = [];
   const errors: string[] = [];
   if (channels.includes("EMAIL")) {
@@ -157,6 +171,7 @@ export async function deliverPaymentRequest(
             ? `${reminder ? "Rappel — " : ""}Paiement demandé : ${amount} — ${r.description}`
             : `${reminder ? "Reminder — " : ""}Payment requested: ${amount} — ${r.description}`,
           text,
+          html,
         });
         sent.push("EMAIL");
       } catch (e) {
@@ -303,14 +318,36 @@ export async function submitPaymentProof(id: string, proof: PaymentProof) {
     const fr = r.language === "fr";
     try {
       const account = await resolveOtpSenderMailbox();
+      const { html, text } = renderEmail({
+        lang: fr ? "fr" : "en",
+        title: fr ? "Preuve de paiement reçue" : "Payment proof received",
+        greeting: fr ? `Bonjour ${r.client.firstName},` : `Hello ${r.client.firstName},`,
+        blocks: [
+          {
+            type: "p",
+            text: fr
+              ? "Nous avons bien reçu votre preuve de paiement. Notre équipe la vérifie ; vous recevrez votre reçu dès confirmation."
+              : "We received your payment proof. Our team is verifying it; you will receive your receipt once confirmed.",
+          },
+          {
+            type: "table",
+            rows: [
+              [fr ? "Référence" : "Reference", reference],
+              [fr ? "Montant" : "Amount", `${r.currency} ${proof.amount.toFixed(2)}`],
+              [fr ? "Moyen" : "Method", payMethodLabel(proof.method, fr ? "fr" : "en")],
+              [fr ? "Objet" : "Purpose", r.description],
+            ],
+          },
+        ],
+        meta: `${fr ? "Référence" : "Reference"} ${reference}`,
+      });
       await gmailSend(account.id, {
         fromEmail: AUTOMATED_NO_REPLY_EMAIL,
         automated: true,
         to,
-        subject: fr ? "Preuve de paiement reçue" : "Payment proof received",
-        text: fr
-          ? `Bonjour ${r.client.firstName},\n\nNous avons bien reçu votre preuve de paiement de ${r.currency} ${proof.amount.toFixed(2)} (${payMethodLabel(proof.method)}). Référence : ${reference}.\nNotre équipe la vérifie ; vous recevrez votre reçu dès confirmation.\n\nJUN CREATIF AND TRAVEL LLC`
-          : `Hello ${r.client.firstName},\n\nWe received your payment proof of ${r.currency} ${proof.amount.toFixed(2)} (${payMethodLabel(proof.method, "en")}). Reference: ${reference}.\nOur team is verifying it; you will receive your receipt once confirmed.\n\nJUN CREATIF AND TRAVEL LLC`,
+        subject: fr ? `Preuve de paiement reçue — ${reference}` : `Payment proof received — ${reference}`,
+        text,
+        html,
       });
     } catch {}
   }
@@ -334,6 +371,35 @@ export async function markPaymentRequestPaid(paymentId: string) {
     const fr = r.language === "fr";
     try {
       const account = await resolveOtpSenderMailbox();
+      const { html, text } = renderEmail({
+        lang: fr ? "fr" : "en",
+        title: fr ? "Paiement confirmé" : "Payment confirmed",
+        greeting: fr ? `Bonjour ${r.client.firstName},` : `Hello ${r.client.firstName},`,
+        blocks: [
+          {
+            type: "p",
+            text: fr
+              ? `Votre paiement pour « ${r.description} » est confirmé. Merci !`
+              : `Your payment for "${r.description}" is confirmed. Thank you!`,
+          },
+          {
+            type: "table",
+            rows: [
+              [fr ? "Référence" : "Reference", r.payment?.reference ?? ""],
+              [
+                fr ? "Montant" : "Amount",
+                `${r.payment?.currency ?? r.currency} ${Number(r.payment?.amount ?? r.amount).toFixed(2)}`,
+              ],
+            ],
+          },
+          {
+            type: "p",
+            text: fr
+              ? "Votre reçu officiel est disponible auprès de notre équipe et dans votre espace client."
+              : "Your official receipt is available from our team and in your client portal.",
+          },
+        ],
+      });
       await gmailSend(account.id, {
         fromEmail: AUTOMATED_NO_REPLY_EMAIL,
         automated: true,
@@ -341,9 +407,8 @@ export async function markPaymentRequestPaid(paymentId: string) {
         subject: fr
           ? `Paiement confirmé — ${r.payment?.reference ?? ""}`
           : `Payment confirmed — ${r.payment?.reference ?? ""}`,
-        text: fr
-          ? `Bonjour ${r.client.firstName},\n\nVotre paiement de ${r.payment?.currency ?? r.currency} ${Number(r.payment?.amount ?? r.amount).toFixed(2)} pour « ${r.description} » est confirmé (référence ${r.payment?.reference ?? ""}).\n\nMerci,\nJUN CREATIF AND TRAVEL LLC`
-          : `Hello ${r.client.firstName},\n\nYour payment of ${r.payment?.currency ?? r.currency} ${Number(r.payment?.amount ?? r.amount).toFixed(2)} for "${r.description}" is confirmed (reference ${r.payment?.reference ?? ""}).\n\nThank you,\nJUN CREATIF AND TRAVEL LLC`,
+        text,
+        html,
       });
     } catch {}
   }

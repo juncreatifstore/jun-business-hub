@@ -9,6 +9,7 @@ import { resolveOtpSenderMailbox } from "@/lib/mail-otp-sender";
 import { gmailSend } from "@/lib/google/gmail";
 import { sendWhatsAppLink } from "@/lib/whatsapp-outreach";
 import { logger } from "@/lib/logger";
+import { renderEmail } from "@/lib/email-template";
 
 export type RequestItem = {
   docType: DocType;
@@ -118,7 +119,7 @@ export async function createDocumentRequest(input: {
   });
 }
 
-function bodyText(input: {
+function buildMessage(input: {
   firstName: string;
   items: RequestItem[];
   message: string | null;
@@ -129,48 +130,46 @@ function bodyText(input: {
 }) {
   const fr = input.lang === "fr";
   const missing = input.items.filter((i) => !i.fileId);
-  const list = missing
-    .map(
-      (i) =>
-        `  • ${docLabel(i.docType, input.lang)}${i.required ? "" : fr ? " (facultatif)" : " (optional)"}`,
-    )
-    .join("\n");
   const until = input.expiresAt.toLocaleDateString(fr ? "fr-FR" : "en-US");
-  return fr
-    ? [
-        `Bonjour ${input.firstName},`,
-        "",
-        input.reminder
-          ? "Petit rappel : il nous manque encore les documents suivants pour avancer sur votre dossier :"
-          : "Pour avancer sur votre dossier, merci de nous transmettre les documents suivants :",
-        list,
-        "",
-        input.message ? `${input.message}\n` : "",
-        "Déposez-les en toute sécurité, sans créer de compte, via ce lien :",
-        input.url,
-        "",
-        `Le lien est valable jusqu’au ${until}. Photos ou PDF acceptés (15 Mo max par fichier).`,
-        "",
-        "JUN CREATIF AND TRAVEL LLC",
-      ]
-        .filter((l) => l !== null)
-        .join("\n")
-    : [
-        `Hello ${input.firstName},`,
-        "",
-        input.reminder
-          ? "A quick reminder: we still need the following documents to move your case forward:"
-          : "To move your case forward, please send us the following documents:",
-        list,
-        "",
-        input.message ? `${input.message}\n` : "",
-        "Upload them securely, no account needed, through this link:",
-        input.url,
-        "",
-        `The link is valid until ${until}. Photos or PDF accepted (15 MB max per file).`,
-        "",
-        "JUN CREATIF AND TRAVEL LLC",
-      ].join("\n");
+  const items = missing.map(
+    (i) => `${docLabel(i.docType, input.lang)}${i.required ? "" : fr ? " (facultatif)" : " (optional)"}`,
+  );
+  const email = renderEmail({
+    lang: fr ? "fr" : "en",
+    preheader: fr
+      ? `${missing.length} document(s) à nous transmettre`
+      : `${missing.length} document(s) to send us`,
+    title: input.reminder
+      ? fr
+        ? "Rappel : documents à nous transmettre"
+        : "Reminder: documents to send us"
+      : fr
+        ? "Documents à nous transmettre"
+        : "Documents to send us",
+    greeting: fr ? `Bonjour ${input.firstName},` : `Hello ${input.firstName},`,
+    blocks: [
+      {
+        type: "p",
+        text: input.reminder
+          ? fr
+            ? "Petit rappel : il nous manque encore les documents suivants pour avancer sur votre dossier."
+            : "A quick reminder: we still need the following documents to move your case forward."
+          : fr
+            ? "Pour avancer sur votre dossier, merci de nous transmettre les documents suivants :"
+            : "To move your case forward, please send us the following documents:",
+      },
+      { type: "list", items },
+      ...(input.message ? [{ type: "note" as const, text: input.message }] : []),
+      { type: "button", label: fr ? "Déposer mes documents" : "Upload my documents", url: input.url },
+      {
+        type: "p",
+        text: fr
+          ? `Dépôt sécurisé, sans créer de compte. Photos ou PDF acceptés (15 Mo max par fichier). Lien valable jusqu’au ${until}.`
+          : `Secure upload, no account needed. Photos or PDF accepted (15 MB max per file). Link valid until ${until}.`,
+      },
+    ],
+  });
+  return email;
 }
 
 /** Sends (or re-sends) the request by e-mail and/or WhatsApp; returns the channels that worked. */
@@ -188,7 +187,7 @@ export async function deliverDocumentRequest(
   if (!r) throw new Error("Request not found");
   const items = parseItems(r.items);
   const url = requestUrl(r.token);
-  const text = bodyText({
+  const { html, text } = buildMessage({
     firstName: r.client.firstName,
     items,
     message: r.message,
@@ -213,6 +212,7 @@ export async function deliverDocumentRequest(
               ? `${reminder ? "Rappel — " : ""}Documents à nous transmettre — ${r.client.firstName}`
               : `${reminder ? "Reminder — " : ""}Documents needed — ${r.client.firstName}`,
           text,
+          html,
         });
         sent.push("EMAIL");
       } catch (e) {
@@ -230,7 +230,7 @@ export async function deliverDocumentRequest(
           firstName: r.client.firstName,
           url,
           subject: r.language === "fr" ? "vos documents à transmettre" : "your documents",
-          text,
+          text: short,
           language: r.language,
           kind: "DOCUMENT_REQUEST",
           recordId: r.id,
