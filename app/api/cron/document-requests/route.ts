@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { processDocumentRequestReminders } from "@/lib/document-requests";
-import { processRefundClaimReminders } from "@/lib/refund-claims";
+import { processRefundClaimReminders, processClaimSlaAlerts } from "@/lib/refund-claims";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const result = await processDocumentRequestReminders();
   const refunds = await processRefundClaimReminders().catch(() => ({ due: 0, reminded: 0 }));
-  logger.info("document_requests.cron", { ...result, refundClaims: refunds });
-  return NextResponse.json({ success: true, ...result, refundClaims: refunds });
+  const sla = await processClaimSlaAlerts().catch(() => ({ due: 0, alerted: 0 }));
+  logger.info("document_requests.cron", { ...result, refundClaims: refunds, sla });
+  return NextResponse.json({ success: true, ...result, refundClaims: refunds, sla });
 }

@@ -5,8 +5,23 @@ import { requireUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { reasonLabel, payoutLabel, claimUrl, type ClaimDetails } from "@/lib/refund-claims";
-import { markClaimUnderReview, rejectClaim } from "@/services/refund-claims";
+import {
+  reasonLabel,
+  payoutLabel,
+  claimUrl,
+  identityCheck,
+  type ClaimDetails,
+  type ClaimDecision,
+  type InfoRequest,
+} from "@/lib/refund-claims";
+import {
+  markClaimUnderReview,
+  rejectClaim,
+  assignClaim,
+  askClaimInformation,
+  decideClaimAmount,
+} from "@/services/refund-claims";
+import { PartialDecisionForm } from "@/components/app/refund-claim-decision-form";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +30,7 @@ const STATUS_FR: Record<string, string> = {
   SENT: "Lien envoyé, en attente du client",
   SUBMITTED: "Soumise — à examiner",
   UNDER_REVIEW: "En cours d’examen",
+  NEEDS_INFO: "Complément demandé au client",
   CONVERTED: "Acceptée — remboursement créé",
   REJECTED: "Refusée",
   EXPIRED: "Expirée",
@@ -38,9 +54,27 @@ export default async function RefundClaimPage(props: {
       case: { select: { id: true, caseNumber: true, title: true } },
       refund: { select: { id: true, refundNumber: true, status: true } },
       requestedBy: { select: { firstName: true, lastName: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true } },
     },
   });
   if (!c) notFound();
+  const [staff, idCheck] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        status: "ACTIVE",
+        role: { in: ["SUPER_ADMIN", "DIRECTOR", "FINANCE", "ACCOUNTANT", "ADMIN"] },
+      },
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: { firstName: "asc" },
+    }),
+    identityCheck(c.id).catch(() => null),
+  ]);
+  const info = c.infoRequest as InfoRequest | null;
+  const decision = c.decision as ClaimDecision | null;
+  const overdue =
+    c.dueAt &&
+    c.dueAt.getTime() < Date.now() &&
+    ["SUBMITTED", "UNDER_REVIEW", "NEEDS_INFO"].includes(c.status);
   const files = c.fileIds.length
     ? await prisma.file.findMany({
         where: { id: { in: c.fileIds } },
@@ -100,7 +134,7 @@ export default async function RefundClaimPage(props: {
         <span className="max-w-[90%] truncate px-2">{f.name}</span>
       </a>
     );
-  const open = ["SUBMITTED", "UNDER_REVIEW"].includes(c.status);
+  const open = ["SUBMITTED", "UNDER_REVIEW", "NEEDS_INFO"].includes(c.status);
   const canDecide = can(user, "REFUND_APPROVE") || can(user, "REFUND_CREATE");
   const createHref = `/app/finance/refunds/new?clientId=${c.clientId}${c.paymentId ? `&paymentId=${c.paymentId}` : ""}${c.caseId ? `&caseId=${c.caseId}` : ""}&amount=${c.amount ? Number(c.amount) : ""}&reason=${encodeURIComponent(`${reasonLabel(c.reasonCode)} — ${c.reason ?? ""}`)}&claimId=${c.id}`;
 
@@ -116,7 +150,7 @@ export default async function RefundClaimPage(props: {
       <PageHeader
         eyebrow="Demande client"
         title={`${c.client.firstName} ${c.client.lastName} — ${c.currency ?? ""} ${c.amount ? Number(c.amount).toFixed(2) : "—"}`}
-        subtitle={STATUS_FR[c.status] ?? c.status}
+        subtitle={`${STATUS_FR[c.status] ?? c.status}${c.dueAt && open ? ` · échéance ${c.dueAt.toLocaleDateString("fr-FR")}${overdue ? " (en retard)" : ""}` : ""}${c.assignedTo ? ` · responsable ${c.assignedTo.firstName} ${c.assignedTo.lastName}` : " · non assignée"}`}
         actionHref={`/app/clients/${c.client.id}`}
         actionLabel="Fiche client"
       />
@@ -158,6 +192,39 @@ export default async function RefundClaimPage(props: {
                     )}
                   </dd>
                 </dl>
+                {idCheck ? (
+                  idCheck.pending ? (
+                    <p className="rounded-lg bg-surface p-2 text-xs text-muted2">
+                      Contrôle IA de la pièce en cours (lecture du document)…
+                    </p>
+                  ) : (
+                    <div className="rounded-lg border border-line p-3">
+                      <div className="mb-1 text-xs font-medium text-muted2">
+                        Contrôle IA de la pièce ({idCheck.docType}){idCheck.expired ? " · pièce expirée" : ""}
+                      </div>
+                      <table className="w-full text-xs">
+                        <tbody>
+                          {idCheck.checks.map((k) => (
+                            <tr key={k.label} className="border-t border-line">
+                              <td className="py-1 pr-2 text-muted2">{k.label}</td>
+                              <td className="py-1 pr-2">{k.declared}</td>
+                              <td className="py-1 pr-2 text-muted2">{k.extracted}</td>
+                              <td className="py-1 text-right">
+                                {k.ok === null ? (
+                                  <span className="text-muted2">non lu</span>
+                                ) : k.ok ? (
+                                  <span className="text-emerald-700">✓ cohérent</span>
+                                ) : (
+                                  <span className="font-medium text-red-700">✗ écart</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                ) : null}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <div className="mb-1 text-xs font-medium text-muted2">Pièce d’identité</div>
@@ -350,6 +417,100 @@ export default async function RefundClaimPage(props: {
               )}
             </CardContent>
           </Card>
+          {info ? (
+            <Card className={c.status === "NEEDS_INFO" ? "border-amber-200" : ""}>
+              <CardHeader>
+                <CardTitle className="text-base">Complément demandé au client</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p className="whitespace-pre-wrap rounded-lg bg-surface p-3">{info.message}</p>
+                <p className="text-xs text-muted2">
+                  Demandé le {new Date(info.askedAt).toLocaleString("fr-FR")}
+                  {info.steps?.length ? ` · sections : ${info.steps.join(", ")}` : ""}
+                </p>
+                {info.replies?.length ? (
+                  <ul className="space-y-2">
+                    {info.replies.map((r, i) => (
+                      <li key={i} className="rounded-lg border border-line p-3">
+                        <div className="text-xs text-muted2">
+                          Réponse du client · {new Date(r.at).toLocaleString("fr-FR")}
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap">{r.text}</p>
+                        {r.fileIds.length ? (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                            {r.fileIds.map((fid) => (
+                              <Thumb
+                                key={fid}
+                                f={{
+                                  fileId: fid,
+                                  name: fileById.get(fid)?.name ?? "Pièce jointe",
+                                  mime: fileById.get(fid)?.mimeType ?? "",
+                                }}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-amber-800">En attente de la réponse du client.</p>
+                )}
+              </CardContent>
+            </Card>
+          ) : null}
+          {decision ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Montant décidé</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p>
+                  Demandé{" "}
+                  <strong>
+                    {c.currency} {decision.requestedAmount.toFixed(2)}
+                  </strong>{" "}
+                  → accepté{" "}
+                  <strong>
+                    {c.currency} {decision.approvedAmount.toFixed(2)}
+                  </strong>
+                  {decision.approvedAmount < decision.requestedAmount - 0.005 ? (
+                    <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
+                      partiel
+                    </span>
+                  ) : null}
+                </p>
+                {decision.partialReason ? (
+                  <p className="whitespace-pre-wrap text-muted2">
+                    Motif de la retenue : {decision.partialReason}
+                  </p>
+                ) : null}
+                {decision.renderedServices?.length ? (
+                  <ul className="list-inside list-disc text-muted2">
+                    {decision.renderedServices.map((s, i) => (
+                      <li key={i}>
+                        {s.description} — {c.currency} {s.amount.toFixed(2)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {decision.proofFileIds?.length ? (
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {decision.proofFileIds.map((fid) => (
+                      <Thumb
+                        key={fid}
+                        f={{
+                          fileId: fid,
+                          name: fileById.get(fid)?.name ?? "Preuve",
+                          mime: fileById.get(fid)?.mimeType ?? "",
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
           {c.decisionNote || c.refund ? (
             <Card>
               <CardHeader>
@@ -381,23 +542,50 @@ export default async function RefundClaimPage(props: {
         </div>
 
         <div className="space-y-4">
-          {open && canDecide ? (
+          {open ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Traiter</CardTitle>
+                <CardTitle className="text-base">Responsable & délai</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <form action={assignClaim} className="flex gap-2">
+                  <input type="hidden" name="id" value={c.id} />
+                  <select
+                    name="assignedToId"
+                    defaultValue={c.assignedToId ?? ""}
+                    className="h-9 flex-1 rounded-lg border border-line bg-white px-2 text-sm"
+                  >
+                    <option value="">— Non assignée —</option>
+                    {staff.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="rounded-lg border border-line px-3 text-xs hover:bg-surface">
+                    Assigner
+                  </button>
+                </form>
+                <p className={`text-xs ${overdue ? "font-medium text-red-700" : "text-muted2"}`}>
+                  Objectif : réponse sous 5 jours ouvrés
+                  {c.dueAt ? ` → ${c.dueAt.toLocaleDateString("fr-FR")}` : ""}
+                  {overdue ? " · en retard" : ""}
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+          {open && canDecide && c.submittedAt ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Décider</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Link
-                  prefetch={false}
-                  href={createHref}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-electric px-3 py-2.5 text-sm font-medium text-white"
-                >
-                  <CheckCircle2 className="h-4 w-4" /> Accepter → créer le remboursement
-                </Link>
-                <p className="text-[11px] text-muted2">
-                  Ouvre le formulaire de remboursement pré-rempli (client, paiement, montant, motif) avec les
-                  contrôles habituels de solde ; la demande sera clôturée et le client informé.
-                </p>
+                <PartialDecisionForm
+                  claimId={c.id}
+                  currency={c.currency ?? "USD"}
+                  requested={Number(c.amount)}
+                  action={decideClaimAmount}
+                />
                 {c.status === "SUBMITTED" ? (
                   <form action={markClaimUnderReview}>
                     <input type="hidden" name="id" value={c.id} />
@@ -406,6 +594,32 @@ export default async function RefundClaimPage(props: {
                     </button>
                   </form>
                 ) : null}
+                <form action={askClaimInformation} className="space-y-2 border-t border-line pt-3">
+                  <input type="hidden" name="id" value={c.id} />
+                  <div className="text-xs font-medium">Demander un complément au client</div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {[
+                      ["identity", "Identité"],
+                      ["payment", "Preuve de paiement"],
+                      ["service", "Service"],
+                      ["reason", "Motif / justificatifs"],
+                    ].map(([k, l]) => (
+                      <label key={k} className="inline-flex items-center gap-1">
+                        <input type="checkbox" name="steps" value={k} /> {l}
+                      </label>
+                    ))}
+                  </div>
+                  <textarea
+                    name="message"
+                    rows={2}
+                    required
+                    placeholder="Ce qui manque ou est illisible…"
+                    className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-electric"
+                  />
+                  <button className="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm text-amber-800 hover:bg-amber-50">
+                    Envoyer la demande de complément
+                  </button>
+                </form>
                 {can(user, "REFUND_APPROVE") ? (
                   <form action={rejectClaim} className="space-y-2 border-t border-line pt-3">
                     <input type="hidden" name="id" value={c.id} />

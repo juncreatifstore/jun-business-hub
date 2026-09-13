@@ -215,6 +215,7 @@ model User {
   documents         Document[]       @relation("DocumentAuthor")
   documentRequests  DocumentRequest[]
   refundClaims      RefundClaim[]    @relation("RefundClaimRequester")
+  assignedRefundClaims RefundClaim[] @relation("RefundClaimAssignee")
   documentVersions  DocumentVersion[]
   signatures        SignatureRequest[] @relation("SignatureCreator")
   payments          Payment[]        @relation("PaymentRecorder")
@@ -642,6 +643,14 @@ model RefundClaim {
   contactPhone  String?
   fileIds       String[]  @default([])
   clientIp      String?
+  // Processing
+  assignedToId  String?
+  dueAt         DateTime?
+  slaAlertedAt  DateTime?
+  /// { message, steps: string[], askedAt, askedById, replies: [{ at, text, fileIds }] }
+  infoRequest   Json?
+  /// { approvedAmount, partialReason, renderedServices: [{ description, amount }], proofFileIds, note }
+  decision      Json?
   // Staff decision
   refundId      String?   @unique
   decisionNote  String?
@@ -654,10 +663,12 @@ model RefundClaim {
   case        Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
   payment     Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   requestedBy User     @relation("RefundClaimRequester", fields: [requestedById], references: [id])
+  assignedTo  User?    @relation("RefundClaimAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   refund      Refund?  @relation(fields: [refundId], references: [id], onDelete: SetNull)
 
   @@index([clientId])
   @@index([status, createdAt])
+  @@index([assignedToId])
 }
 
 model RefundInstallment {

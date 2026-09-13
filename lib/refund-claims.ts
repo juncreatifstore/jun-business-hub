@@ -191,11 +191,24 @@ export async function getPublicClaim(token: string) {
     id: c.id,
     firstName: c.client.firstName,
     fullName: `${c.client.firstName} ${c.client.lastName}`.trim(),
+    infoRequest: c.status === "NEEDS_INFO" ? (c.infoRequest as InfoRequest | null) : null,
     tracking: {
       status: c.status as ClaimStatus,
       submittedAt: c.submittedAt,
       decidedAt: c.decidedAt,
       decisionNote: c.status === "REJECTED" ? c.decisionNote : null,
+      partial: (() => {
+        const d = c.decision as ClaimDecision | null;
+        if (!d || !c.amount || d.approvedAmount >= Number(c.amount) - 0.005) return null;
+        return {
+          requested: Number(c.amount),
+          approved: d.approvedAmount,
+          currency: c.currency ?? "USD",
+          reason: d.partialReason,
+          services: d.renderedServices ?? [],
+          proofFileIds: d.proofFileIds ?? [],
+        };
+      })(),
       refund: refund
         ? {
             number: refund.refundNumber,
@@ -273,6 +286,7 @@ export async function submitClaim(id: string, s: ClaimSubmission) {
     data: {
       status: "SUBMITTED",
       submittedAt: new Date(),
+      dueAt: addBusinessDays(new Date(), 5),
       paymentId: s.paymentId,
       amount: new Prisma.Decimal(s.amount.toFixed(2)),
       currency: s.currency,
@@ -345,8 +359,8 @@ export async function notifyClaimDecision(
         ? `Bonjour ${c.client.firstName},\n\nAprès examen, nous ne pouvons pas donner suite à votre demande de remboursement.${note ? `\n\nMotif : ${note}` : ""}\n\nVous pouvez nous répondre pour toute question.\n\nJUN CREATIF AND TRAVEL LLC`
         : `Hello ${c.client.firstName},\n\nAfter review, we are unable to approve your refund request.${note ? `\n\nReason: ${note}` : ""}\n\nReply to this e-mail if you have any question.\n\nJUN CREATIF AND TRAVEL LLC`
       : fr
-        ? `Bonjour ${c.client.firstName},\n\nVotre demande de remboursement a été acceptée. Dossier ${c.refund?.refundNumber ?? ""} · ${c.refund?.currency ?? ""} ${c.refund ? Number(c.refund.amount).toFixed(2) : ""}.${note ? `\n\n${note}` : ""}\n\nNous vous tiendrons informé du versement.\n\nJUN CREATIF AND TRAVEL LLC`
-        : `Hello ${c.client.firstName},\n\nYour refund request has been approved. File ${c.refund?.refundNumber ?? ""} · ${c.refund?.currency ?? ""} ${c.refund ? Number(c.refund.amount).toFixed(2) : ""}.${note ? `\n\n${note}` : ""}\n\nWe will keep you posted on the payout.\n\nJUN CREATIF AND TRAVEL LLC`;
+        ? `Bonjour ${c.client.firstName},\n\nVotre demande de remboursement a été acceptée. Dossier ${c.refund?.refundNumber ?? ""} · ${c.refund?.currency ?? ""} ${c.refund ? Number(c.refund.amount).toFixed(2) : ""}.${partialFr}${note ? `\n\n${note}` : ""}\n\nNous vous tiendrons informé du versement.\n\nJUN CREATIF AND TRAVEL LLC`
+        : `Hello ${c.client.firstName},\n\nYour refund request has been approved. File ${c.refund?.refundNumber ?? ""} · ${c.refund?.currency ?? ""} ${c.refund ? Number(c.refund.amount).toFixed(2) : ""}.${partialEn}${note ? `\n\n${note}` : ""}\n\nWe will keep you posted on the payout.\n\nJUN CREATIF AND TRAVEL LLC`;
   try {
     const account = await resolveOtpSenderMailbox();
     await gmailSend(account.id, {
@@ -429,4 +443,243 @@ export async function requestRefundFormByEmail(email: string, reference: string 
   });
   await deliverRefundClaimLink(claim.id, ["EMAIL"]).catch(() => null);
   return { matched: true };
+}
+
+export function addBusinessDays(from: Date, days: number) {
+  const d = new Date(from);
+  let n = 0;
+  while (n < days) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) n++;
+  }
+  return d;
+}
+
+export type InfoRequest = {
+  message: string;
+  steps: string[];
+  askedAt: string;
+  askedById: string;
+  replies: Array<{ at: string; text: string; fileIds: string[] }>;
+};
+export type ClaimDecision = {
+  approvedAmount: number;
+  requestedAmount: number;
+  partialReason: string | null;
+  renderedServices: Array<{ description: string; amount: number }>;
+  proofFileIds: string[];
+  note: string | null;
+  decidedAt: string;
+  decidedById: string;
+};
+
+/** Asks the client for more information; the form link reopens on a complement step. */
+export async function requestClaimInformation(
+  id: string,
+  askedById: string,
+  message: string,
+  steps: string[],
+) {
+  const c = await prisma.refundClaim.findUnique({
+    where: { id },
+    include: { client: { select: { firstName: true, email: true } } },
+  });
+  if (!c) throw new Error("Claim not found");
+  const info: InfoRequest = { message, steps, askedAt: new Date().toISOString(), askedById, replies: [] };
+  await prisma.refundClaim.update({
+    where: { id },
+    data: { status: "NEEDS_INFO", infoRequest: info as unknown as Prisma.InputJsonValue },
+  });
+  const to = c.contactEmail || c.client.email;
+  if (to) {
+    const fr = c.language === "fr";
+    try {
+      const account = await resolveOtpSenderMailbox();
+      await gmailSend(account.id, {
+        fromEmail: AUTOMATED_NO_REPLY_EMAIL,
+        automated: true,
+        to,
+        subject: fr
+          ? "Votre demande de remboursement — complément demandé"
+          : "Your refund request — more information needed",
+        text: fr
+          ? `Bonjour ${c.client.firstName},\n\nPour instruire votre demande de remboursement, nous avons besoin d’un complément :\n\n${message}\n\nRépondez et joignez les éléments via votre lien :\n${claimUrl(c.token)}\n\nJUN CREATIF AND TRAVEL LLC`
+          : `Hello ${c.client.firstName},\n\nTo process your refund request we need more information:\n\n${message}\n\nReply and attach the items through your link:\n${claimUrl(c.token)}\n\nJUN CREATIF AND TRAVEL LLC`,
+      });
+    } catch {}
+  }
+}
+
+/** Client reply to an information request. */
+export async function answerClaimInformation(id: string, text: string, fileIds: string[]) {
+  const c = await prisma.refundClaim.findUnique({
+    where: { id },
+    select: {
+      infoRequest: true,
+      fileIds: true,
+      assignedToId: true,
+      requestedById: true,
+      client: { select: { firstName: true, lastName: true } },
+    },
+  });
+  if (!c) return;
+  const info = (c.infoRequest ?? {
+    message: "",
+    steps: [],
+    askedAt: "",
+    askedById: "",
+    replies: [],
+  }) as InfoRequest;
+  info.replies = [...(info.replies ?? []), { at: new Date().toISOString(), text, fileIds }];
+  await prisma.refundClaim.update({
+    where: { id },
+    data: {
+      status: "UNDER_REVIEW",
+      infoRequest: info as unknown as Prisma.InputJsonValue,
+      fileIds: [...c.fileIds, ...fileIds],
+    },
+  });
+  const notify = c.assignedToId ?? c.requestedById;
+  await prisma.notification
+    .create({
+      data: {
+        userId: notify,
+        type: "REFUND_CLAIM_INFO_REPLIED",
+        title: `Complément reçu — ${c.client.firstName} ${c.client.lastName}`,
+        body: text.slice(0, 200),
+      },
+    })
+    .catch(() => null);
+}
+
+/** Cron: SLA alerts (due within 24 h or overdue) to the assignee, else finance staff. */
+export async function processClaimSlaAlerts() {
+  const soon = new Date(Date.now() + 24 * 3600_000);
+  const due = await prisma.refundClaim.findMany({
+    where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] }, dueAt: { lte: soon }, slaAlertedAt: null },
+    take: 30,
+    select: {
+      id: true,
+      dueAt: true,
+      assignedToId: true,
+      amount: true,
+      currency: true,
+      client: { select: { firstName: true, lastName: true } },
+    },
+  });
+  let alerted = 0;
+  for (const c of due) {
+    const overdue = c.dueAt && c.dueAt.getTime() < Date.now();
+    const targets = c.assignedToId
+      ? [c.assignedToId]
+      : (
+          await prisma.user.findMany({
+            where: { role: { in: ["SUPER_ADMIN", "FINANCE", "DIRECTOR"] }, status: "ACTIVE" },
+            select: { id: true },
+          })
+        ).map((u) => u.id);
+    if (targets.length)
+      await prisma.notification.createMany({
+        data: targets.map((userId) => ({
+          userId,
+          type: overdue ? "REFUND_CLAIM_SLA_OVERDUE" : "REFUND_CLAIM_SLA_DUE",
+          title: overdue
+            ? "Demande de remboursement en retard"
+            : "Demande de remboursement à traiter sous 24 h",
+          body: `${c.client.firstName} ${c.client.lastName} · ${c.currency ?? ""} ${c.amount ? Number(c.amount).toFixed(2) : ""} · échéance ${c.dueAt?.toLocaleDateString("fr-FR") ?? ""}`,
+        })),
+      });
+    await prisma.refundClaim.update({ where: { id: c.id }, data: { slaAlertedAt: new Date() } });
+    alerted++;
+  }
+  return { due: due.length, alerted };
+}
+
+/** Compares the declared identity with what AI extracted from the uploaded ID document. */
+export async function identityCheck(claimId: string) {
+  const c = await prisma.refundClaim.findUnique({
+    where: { id: claimId },
+    select: { submission: true, client: { select: { firstName: true, lastName: true } } },
+  });
+  if (!c) return null;
+  const sub = (c.submission ?? {}) as Partial<ClaimDetails>;
+  const idFile = (sub.files ?? []).find((f) => f.role === "ID");
+  if (!idFile || !sub.identity) return null;
+  const x = await prisma.fileExtraction.findUnique({ where: { fileId: idFile.fileId } });
+  if (!x)
+    return {
+      pending: true as const,
+      checks: [] as Array<{ label: string; declared: string; extracted: string; ok: boolean | null }>,
+    };
+  const norm = (v: string) =>
+    v
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  const nameOk = x.holderName
+    ? norm(sub.identity.fullName).includes(norm(x.holderName).slice(0, 12)) ||
+      norm(x.holderName).includes(norm(sub.identity.fullName).slice(0, 12))
+    : null;
+  const numOk = x.documentNumber ? norm(x.documentNumber) === norm(sub.identity.idNumber) : null;
+  const dobOk = x.dateOfBirth ? x.dateOfBirth.toISOString().slice(0, 10) === sub.identity.dateOfBirth : null;
+  const expired = x.expiresAt ? x.expiresAt.getTime() < Date.now() : null;
+  return {
+    pending: false as const,
+    docType: x.docType,
+    expired,
+    checks: [
+      { label: "Nom", declared: sub.identity.fullName, extracted: x.holderName ?? "—", ok: nameOk },
+      { label: "Numéro", declared: sub.identity.idNumber, extracted: x.documentNumber ?? "—", ok: numOk },
+      {
+        label: "Date de naissance",
+        declared: sub.identity.dateOfBirth,
+        extracted: x.dateOfBirth ? x.dateOfBirth.toISOString().slice(0, 10) : "—",
+        ok: dobOk,
+      },
+      {
+        label: "Fiche client",
+        declared: `${c.client.firstName} ${c.client.lastName}`,
+        extracted: x.holderName ?? "—",
+        ok: x.holderName ? norm(x.holderName).includes(norm(c.client.lastName)) : null,
+      },
+    ],
+  };
+}
+
+/** Stats for the refunds page. */
+export async function refundClaimStats() {
+  const since = new Date(Date.now() - 90 * 86_400_000);
+  const rows = await prisma.refundClaim.findMany({
+    where: { createdAt: { gte: since } },
+    select: { status: true, submittedAt: true, decidedAt: true, dueAt: true, amount: true, decision: true },
+  });
+  const by: Record<string, number> = {};
+  for (const r of rows) by[r.status] = (by[r.status] ?? 0) + 1;
+  const decided = rows.filter(
+    (r) => r.submittedAt && r.decidedAt && ["CONVERTED", "REJECTED"].includes(r.status),
+  );
+  const avgDays = decided.length
+    ? decided.reduce((s, r) => s + (r.decidedAt!.getTime() - r.submittedAt!.getTime()) / 86_400_000, 0) /
+      decided.length
+    : null;
+  const accepted = rows.filter((r) => r.status === "CONVERTED").length;
+  const partial = rows.filter((r) => {
+    const d = r.decision as ClaimDecision | null;
+    return d && r.amount && d.approvedAmount < Number(r.amount) - 0.005;
+  }).length;
+  const overdue = rows.filter(
+    (r) =>
+      ["SUBMITTED", "UNDER_REVIEW", "NEEDS_INFO"].includes(r.status) &&
+      r.dueAt &&
+      r.dueAt.getTime() < Date.now(),
+  ).length;
+  return {
+    total: rows.length,
+    by,
+    avgDays,
+    acceptRate: decided.length ? accepted / decided.length : null,
+    partial,
+    overdue,
+  };
 }

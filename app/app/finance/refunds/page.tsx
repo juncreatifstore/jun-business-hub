@@ -22,7 +22,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { RefundClaimSendPanel } from "@/components/app/refund-claim-send-panel";
-import { reasonLabel } from "@/lib/refund-claims";
+import { reasonLabel, refundClaimStats } from "@/lib/refund-claims";
 
 export const dynamic = "force-dynamic";
 const STATUSES = ["REQUESTED", "UNDER_REVIEW", "APPROVED", "PARTIALLY_PAID", "PAID", "REJECTED", "CANCELLED"];
@@ -75,6 +75,7 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
       select: { id: true, clientId: true, reference: true, amount: true, currency: true },
     }),
   ]);
+  const claimStats = await refundClaimStats().catch(() => null);
   const [allRefunds, total] = await Promise.all([
     prisma.refund.findMany({
       orderBy: { createdAt: "desc" },
@@ -140,6 +141,37 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
               </span>
             </div>
           </div>
+          {claimStats ? (
+            <div className="grid grid-cols-2 gap-2 border-b border-line px-4 py-3 text-xs sm:grid-cols-4">
+              <div>
+                <div className="text-muted2">90 derniers jours</div>
+                <div className="text-base font-semibold">{claimStats.total} demandes</div>
+              </div>
+              <div>
+                <div className="text-muted2">Délai moyen de décision</div>
+                <div className="text-base font-semibold">
+                  {claimStats.avgDays === null ? "—" : `${claimStats.avgDays.toFixed(1)} j`}
+                </div>
+              </div>
+              <div>
+                <div className="text-muted2">Taux d’acceptation</div>
+                <div className="text-base font-semibold">
+                  {claimStats.acceptRate === null ? "—" : `${Math.round(claimStats.acceptRate * 100)} %`}
+                  {claimStats.partial ? (
+                    <span className="ml-1 text-xs font-normal text-muted2">
+                      ({claimStats.partial} partiel{claimStats.partial > 1 ? "s" : ""})
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div>
+                <div className="text-muted2">En retard (SLA 5 j)</div>
+                <div className={`text-base font-semibold ${claimStats.overdue ? "text-red-700" : ""}`}>
+                  {claimStats.overdue}
+                </div>
+              </div>
+            </div>
+          ) : null}
           {claims.length ? (
             <ul className="divide-y divide-line">
               {claims.map((c) => (

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPublicClaim, REASON_CODES, PAYOUT_METHODS } from "@/lib/refund-claims";
 import { ClaimForm } from "./claim-form";
+import { ComplementForm } from "./complement-form";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,12 @@ export default async function RefundClaimPage(props: { params: Promise<{ token: 
             : "This link is no longer valid. Contact us for a new one."}
         </div>
       ) : c.submitted ? (
-        <ClaimTracking t={c.tracking} fr={fr} />
+        <>
+          {c.infoRequest ? (
+            <ComplementForm token={token} language={c.language} message={c.infoRequest.message} />
+          ) : null}
+          <ClaimTracking t={c.tracking} fr={fr} token={token} />
+        </>
       ) : (
         <ClaimForm
           token={token}
@@ -58,9 +64,11 @@ export default async function RefundClaimPage(props: { params: Promise<{ token: 
 function ClaimTracking({
   t,
   fr,
+  token,
 }: {
   t: NonNullable<Awaited<ReturnType<typeof getPublicClaim>>>["tracking"];
   fr: boolean;
+  token: string;
 }) {
   const d = (v: Date | null | undefined) => (v ? v.toLocaleDateString(fr ? "fr-FR" : "en-US") : "");
   const steps = [
@@ -141,6 +149,46 @@ function ClaimTracking({
         ))}
       </ol>
       {t.decisionNote ? <p className="mt-4 rounded-lg bg-surface p-3 text-sm">{t.decisionNote}</p> : null}
+      {t.partial ? (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+          <div className="font-medium">
+            {fr ? "Remboursement partiel" : "Partial refund"} : {t.partial.currency}{" "}
+            {t.partial.approved.toFixed(2)} {fr ? "sur" : "of"} {t.partial.requested.toFixed(2)}
+          </div>
+          {t.partial.reason ? (
+            <p className="mt-1">
+              {fr ? "Motif de la retenue" : "Reason for the deduction"} : {t.partial.reason}
+            </p>
+          ) : null}
+          {t.partial.services.length ? (
+            <ul className="mt-1 list-inside list-disc">
+              {t.partial.services.map((s, i) => (
+                <li key={i}>
+                  {s.description} — {t.partial!.currency} {s.amount.toFixed(2)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {t.partial.proofFileIds.length ? (
+            <p className="mt-1 text-xs">
+              {fr ? "Justificatifs des services rendus" : "Proof of services delivered"} :{" "}
+              {t.partial.proofFileIds
+                .map((id, i) => (
+                  <a
+                    key={id}
+                    href={`/api/refund-proof/${id}?t=${token}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-electric underline"
+                  >
+                    {fr ? "pièce" : "document"} {i + 1}
+                  </a>
+                ))
+                .reduce<React.ReactNode[]>((acc, el, i) => (i ? [...acc, ", ", el] : [el]), [])}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {t.refund ? (
         <p className="mt-4 text-xs text-muted2">
           {fr ? "Dossier de remboursement" : "Refund file"} {t.refund.number}

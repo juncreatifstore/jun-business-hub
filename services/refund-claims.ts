@@ -118,3 +118,154 @@ export async function attachRefundToClaim(claimId: string, refundId: string, use
   });
   await notifyClaimDecision(claimId, "CONVERTED", null).catch(() => null);
 }
+
+export async function assignClaim(formData: FormData): Promise<void> {
+  const user = await assertPermission("REFUND_READ");
+  const id = String(formData.get("id") ?? "");
+  const assignedToId = String(formData.get("assignedToId") ?? "").trim() || null;
+  await prisma.refundClaim.update({ where: { id }, data: { assignedToId } });
+  if (assignedToId && assignedToId !== user.id)
+    await prisma.notification
+      .create({
+        data: {
+          userId: assignedToId,
+          type: "REFUND_CLAIM_ASSIGNED",
+          title: "Demande de remboursement assignée",
+          body: `Vous êtes responsable de la demande ${id.slice(-8).toUpperCase()}`,
+        },
+      })
+      .catch(() => null);
+  await audit({
+    userId: user.id,
+    action: "REFUND_CLAIM_ASSIGNED",
+    resourceType: "RefundClaim",
+    resourceId: id,
+    after: { assignedToId },
+  });
+  revalidatePath(`/app/finance/refunds/claims/${id}`);
+  redirect(
+    `/app/finance/refunds/claims/${id}?toast=${encodeURIComponent(assignedToId ? "Responsable défini" : "Assignation retirée")}`,
+  );
+}
+
+export async function askClaimInformation(formData: FormData): Promise<void> {
+  const user = await assertPermission("REFUND_READ");
+  const id = String(formData.get("id") ?? "");
+  const message = String(formData.get("message") ?? "")
+    .trim()
+    .slice(0, 1500);
+  const steps = formData.getAll("steps").map(String).filter(Boolean);
+  if (message.length < 5)
+    redirect(
+      `/app/finance/refunds/claims/${id}?toast_error=${encodeURIComponent("Précisez ce que vous demandez au client")}`,
+    );
+  await requestClaimInformation(id, user.id, message, steps);
+  await audit({
+    userId: user.id,
+    action: "REFUND_CLAIM_INFO_REQUESTED",
+    resourceType: "RefundClaim",
+    resourceId: id,
+    after: { steps },
+  });
+  revalidatePath(`/app/finance/refunds/claims/${id}`);
+  redirect(`/app/finance/refunds/claims/${id}?toast=${encodeURIComponent("Complément demandé au client")}`);
+}
+
+/**
+ * Records the decision (full or partial amount, reason for the deduction,
+ * services already delivered with amounts, staff proof files) and moves on
+ * to the refund form pre-filled with the approved amount.
+ */
+export async function decideClaimAmount(formData: FormData): Promise<void> {
+  const user = await assertPermission("REFUND_CREATE");
+  const id = String(formData.get("id") ?? "");
+  const c = await prisma.refundClaim.findUnique({
+    where: { id },
+    include: { client: { select: { firstName: true, lastName: true } } },
+  });
+  if (!c || !c.amount)
+    redirect(`/app/finance/refunds/claims/${id}?toast_error=${encodeURIComponent("Demande introuvable")}`);
+  const requested = Number(c.amount);
+  const approved = Number(String(formData.get("approvedAmount") ?? "").replace(",", "."));
+  if (!Number.isFinite(approved) || approved <= 0 || approved > requested + 0.005)
+    redirect(
+      `/app/finance/refunds/claims/${id}?toast_error=${encodeURIComponent("Montant accepté invalide (0 < montant ≤ demandé)")}`,
+    );
+  const partial = approved < requested - 0.005;
+  const partialReason =
+    String(formData.get("partialReason") ?? "")
+      .trim()
+      .slice(0, 1500) || null;
+  const services: ClaimDecision["renderedServices"] = [];
+  for (let i = 0; i < 8; i++) {
+    const desc = String(formData.get(`svc${i}_desc`) ?? "")
+      .trim()
+      .slice(0, 200);
+    const amt = Number(String(formData.get(`svc${i}_amount`) ?? "").replace(",", "."));
+    if (desc && Number.isFinite(amt) && amt > 0)
+      services.push({ description: desc, amount: Math.round(amt * 100) / 100 });
+  }
+  if (partial && !partialReason)
+    redirect(
+      `/app/finance/refunds/claims/${id}?toast_error=${encodeURIComponent("Indiquez la raison de la retenue")}`,
+    );
+  // Staff proof files (services delivered) → Drive, linked to the client
+  const proofFileIds: string[] = [];
+  const uploads = formData
+    .getAll("proofs")
+    .filter((f): f is File => f instanceof File && f.size > 0)
+    .slice(0, 6);
+  for (const [i, f] of uploads.entries()) {
+    if (f.size > 15 * 1024 * 1024) continue;
+    const key = makeStorageKey("drive", f.name);
+    await storage().upload(key, Buffer.from(await f.arrayBuffer()), f.type || "application/octet-stream");
+    const file = await prisma.file.create({
+      data: {
+        name: `Preuve de service rendu ${uploads.length > 1 ? i + 1 : ""} — remboursement — ${c.client.firstName} ${c.client.lastName}`
+          .replace(/\s+/g, " ")
+          .slice(0, 200),
+        storageKey: key,
+        mimeType: f.type || "application/octet-stream",
+        sizeBytes: f.size,
+        category: "REFUND",
+        isVault: false,
+        clientId: c.clientId,
+        caseId: c.caseId,
+        uploadedById: user.id,
+      },
+    });
+    proofFileIds.push(file.id);
+  }
+  const decision: ClaimDecision = {
+    approvedAmount: Math.round(approved * 100) / 100,
+    requestedAmount: requested,
+    partialReason: partial ? partialReason : null,
+    renderedServices: services,
+    proofFileIds,
+    note:
+      String(formData.get("note") ?? "")
+        .trim()
+        .slice(0, 1000) || null,
+    decidedAt: new Date().toISOString(),
+    decidedById: user.id,
+  };
+  await prisma.refundClaim.update({
+    where: { id },
+    data: {
+      decision: decision as unknown as Prisma.InputJsonValue,
+      status: "UNDER_REVIEW",
+      assignedToId: c.assignedToId ?? user.id,
+    },
+  });
+  await audit({
+    userId: user.id,
+    action: "REFUND_CLAIM_DECIDED",
+    resourceType: "RefundClaim",
+    resourceId: id,
+    after: { approved: decision.approvedAmount, requested, partial, services: services.length },
+  });
+  const reason = `${partial ? `Remboursement partiel (${c.currency} ${decision.approvedAmount.toFixed(2)} sur ${requested.toFixed(2)}) — ${partialReason}` : "Remboursement intégral accepté"}${services.length ? ` — services rendus : ${services.map((s) => `${s.description} (${s.amount.toFixed(2)})`).join(", ")}` : ""} — demande client : ${c.reason ?? ""}`;
+  redirect(
+    `/app/finance/refunds/new?clientId=${c.clientId}${c.paymentId ? `&paymentId=${c.paymentId}` : ""}${c.caseId ? `&caseId=${c.caseId}` : ""}&amount=${decision.approvedAmount}&reason=${encodeURIComponent(reason.slice(0, 1900))}&claimId=${c.id}`,
+  );
+}

@@ -13,7 +13,7 @@
     },
     {
       "path": "/api/cron/document-requests",
-      "schedule": "0 14 * * *"
+      "schedule": "0 */6 * * *"
     }
   ]
 }
