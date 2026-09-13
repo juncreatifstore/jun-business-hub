@@ -12,6 +12,10 @@
       "schedule": "17 * * * *"
     },
     {
+      "path": "/api/cron/drive-backup",
+      "schedule": "37 * * * *"
+    },
+    {
       "path": "/api/cron/document-requests",
       "schedule": "0 */6 * * *"
     }

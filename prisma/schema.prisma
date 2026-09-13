@@ -504,6 +504,10 @@ model File {
   refundId      String?
   uploadedById  String
   archivedAt    DateTime?
+  /// Off-site copy (Google Drive file id) and when it was made
+  backupRef     String?
+  backupAt      DateTime?
+  backupError   String?
   createdAt     DateTime     @default(now())
   folder        Folder?      @relation(fields: [folderId], references: [id])
   client        Client?      @relation(fields: [clientId], references: [id])

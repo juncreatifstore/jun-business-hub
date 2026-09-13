@@ -13,6 +13,10 @@ import { requireUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getDriveEnterpriseReport } from "@/lib/drive-enterprise";
 import { PageHeader } from "@/components/app/page-header";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { driveBackupStatus } from "@/lib/drive-backup";
+import { runDriveBackupNow } from "@/services/drive-backup";
 import {
   saveDriveEnterpriseSettings,
   runDriveRetentionMaintenance,
@@ -68,6 +72,7 @@ export default async function DriveEnterprisePage() {
 
   return (
     <div className="space-y-6">
+      <BackupCard />
       <PageHeader
         title="Drive Enterprise"
         subtitle="Capacity, governance, retention, secure public access and controlled archive downloads."
@@ -381,5 +386,66 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1 block">{label}</span>
       {children}
     </label>
+  );
+}
+
+async function BackupCard() {
+  const st = await driveBackupStatus();
+  const pct = st.total ? Math.round((st.backedUp / st.total) * 100) : 100;
+  return (
+    <Card className={`mb-5 ${!st.connected ? "border-amber-200" : st.errors ? "border-amber-200" : ""}`}>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base">Sauvegarde hors site (Google Drive)</CardTitle>
+        <form action={runDriveBackupNow}>
+          <Button type="submit" variant="secondary" size="sm" disabled={!st.connected}>
+            Lancer maintenant
+          </Button>
+        </form>
+      </CardHeader>
+      <CardContent className="grid gap-3 text-sm sm:grid-cols-4">
+        <div>
+          <div className="text-xs text-muted2">Destination</div>
+          <div>{st.connected ? `Google Drive de ${st.account}` : "Aucun Google Drive connecté"}</div>
+          {st.rootFolderId ? (
+            <a
+              href={`https://drive.google.com/drive/folders/${st.rootFolderId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-electric hover:underline"
+            >
+              Ouvrir le dossier de sauvegarde
+            </a>
+          ) : null}
+        </div>
+        <div>
+          <div className="text-xs text-muted2">Fichiers copiés</div>
+          <div className="text-lg font-semibold">
+            {st.backedUp} / {st.total} <span className="text-xs font-normal text-muted2">({pct} %)</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-muted2">Dernier passage</div>
+          <div>{st.lastRunAt ? new Date(st.lastRunAt).toLocaleString("fr-FR") : "jamais"}</div>
+          {st.lastResult ? (
+            <div className="text-xs text-muted2">
+              {st.lastResult.copied} copié(s) · {st.lastResult.failed} échec(s) · {st.lastResult.pending}{" "}
+              restant(s)
+            </div>
+          ) : null}
+        </div>
+        <div>
+          <div className="text-xs text-muted2">À surveiller</div>
+          <div className={st.errors ? "text-amber-800" : ""}>{st.errors} en erreur</div>
+          {st.tooBig ? (
+            <div className="text-xs text-muted2">{st.tooBig} fichier(s) &gt; 200 Mo non copiés</div>
+          ) : null}
+        </div>
+        <p className="text-xs text-muted2 sm:col-span-4">
+          Toutes les heures, les fichiers sans copie sont envoyés dans « JUN Business Hub — Sauvegarde / année
+          / mois », nommés avec le client. Les fichiers supprimés du hub ne sont pas supprimés de la
+          sauvegarde.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
