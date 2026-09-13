@@ -4,6 +4,7 @@ import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getClientFinancialAccount } from "@/lib/client-financial-account";
 import { getClientBlock } from "@/lib/client-transaction-block";
+import { RefundClaimSendPanel } from "@/components/app/refund-claim-send-panel";
 import { archiveClient } from "@/services/clients";
 import { ClientWorkspaceHeader } from "@/components/app/client-workspace-header";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,12 @@ export default async function ClientProfilePage(props: {
   if (legacyTab && legacyTab !== "overview" && legacyTabRoute[legacyTab])
     redirect(`/app/clients/${params.id}/${legacyTabRoute[legacyTab]}`);
 
+  const clientPayments = await prisma.payment.findMany({
+    where: { clientId: params.id, status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED"] } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, clientId: true, reference: true, amount: true, currency: true },
+  });
   const [client, account, block] = await Promise.all([
     prisma.client.findUnique({
       where: { id: params.id },
@@ -234,6 +241,25 @@ export default async function ClientProfilePage(props: {
         </Card>
       </div>
 
+      {can(user, "REFUND_CREATE") ? (
+        <div className="mb-4">
+          <RefundClaimSendPanel
+            returnTo={`/app/clients/${client.id}`}
+            fixedClient={{
+              id: client.id,
+              label: `${client.firstName} ${client.lastName}`,
+              email: client.email,
+              phone: client.whatsapp || client.phone,
+            }}
+            payments={clientPayments.map((p) => ({
+              id: p.id,
+              clientId: p.clientId,
+              label: `${p.reference} · ${p.currency} ${Number(p.amount).toFixed(2)}`,
+            }))}
+            compact
+          />
+        </div>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="bg-surface-1">
           <CardHeader>

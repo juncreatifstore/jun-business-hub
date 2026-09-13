@@ -294,3 +294,75 @@ export async function notifyClaimDecision(
     });
   } catch {}
 }
+
+/** Cron: expire stale links and remind clients once when the form is still unanswered after 3 days. */
+export async function processRefundClaimReminders() {
+  const now = new Date();
+  await prisma.refundClaim.updateMany({
+    where: { status: "SENT", expiresAt: { lt: now } },
+    data: { status: "EXPIRED" },
+  });
+  const due = await prisma.refundClaim.findMany({
+    where: {
+      status: "SENT",
+      createdAt: { lt: new Date(now.getTime() - 3 * 86_400_000) },
+      sentVia: { isEmpty: false },
+      NOT: { message: { contains: "[reminded]" } },
+    },
+    take: 20,
+    select: { id: true, sentVia: true, message: true },
+  });
+  let reminded = 0;
+  for (const c of due) {
+    const res = await deliverRefundClaimLink(c.id, c.sentVia as Array<"EMAIL" | "WHATSAPP">).catch(
+      () => null,
+    );
+    if (res?.sent.length) {
+      reminded++;
+      await prisma.refundClaim.update({
+        where: { id: c.id },
+        data: { message: `${c.message ?? ""} [reminded]`.trim() },
+      });
+    }
+  }
+  return { due: due.length, reminded };
+}
+
+/**
+ * Self-service entry from the website: if the e-mail belongs to a client, a
+ * personal form link is created and e-mailed. The caller never learns whether
+ * the address exists.
+ */
+export async function requestRefundFormByEmail(email: string, reference: string | null, language: string) {
+  const client = await prisma.client.findFirst({
+    where: { email: { equals: email, mode: "insensitive" }, archivedAt: null },
+    select: { id: true },
+  });
+  if (!client) return { matched: false };
+  const requester = await prisma.user.findFirst({
+    where: { role: { in: ["SUPER_ADMIN", "FINANCE", "DIRECTOR"] }, status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  if (!requester) return { matched: false };
+  const payment = reference
+    ? await prisma.payment.findFirst({
+        where: {
+          clientId: client.id,
+          reference: { equals: reference, mode: "insensitive" },
+          status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED"] },
+        },
+        select: { id: true },
+      })
+    : null;
+  const claim = await createRefundClaimLink({
+    clientId: client.id,
+    paymentId: payment?.id ?? null,
+    requestedById: requester.id,
+    language,
+    message:
+      language === "fr" ? "Demande initiée depuis le site web." : "Request initiated from the website.",
+  });
+  await deliverRefundClaimLink(claim.id, ["EMAIL"]).catch(() => null);
+  return { matched: true };
+}
