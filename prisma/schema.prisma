@@ -311,6 +311,7 @@ model Client {
   files      File[]
   documentRequests DocumentRequest[]
   refundClaims RefundClaim[]
+  paymentRequests PaymentRequest[]
   documents  Document[]
   payments   Payment[]
   refunds    Refund[]
