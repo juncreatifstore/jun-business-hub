@@ -198,7 +198,17 @@ export default async function PublicFileViewer(props: {
             <Download className="h-4 w-4" /> Download
           </a>
         </div>
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl">
+        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl">
+          {enterprise.publicWatermark && !previewable ? (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-10 flex select-none items-center justify-center overflow-hidden"
+            >
+              <span className="-rotate-45 whitespace-nowrap text-[clamp(18px,4vw,48px)] font-black uppercase tracking-widest text-red-600/15">
+                {enterprise.publicWatermarkText}
+              </span>
+            </div>
+          ) : null}
           {previewable ? (
             <iframe src={rawUrl} title={file.name} className="h-[78vh] min-h-[620px] w-full bg-white" />
           ) : isVideo ? (

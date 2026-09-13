@@ -48,6 +48,11 @@ export async function saveDriveEnterpriseSettings(formData: FormData): Promise<v
     retentionTrashDays,
     publicLinkPolicy,
     maxPublicLinkDays,
+    publicWatermark: String(formData.get("publicWatermark") ?? "") === "1",
+    publicWatermarkText:
+      String(formData.get("publicWatermarkText") ?? "")
+        .trim()
+        .slice(0, 80) || current.publicWatermarkText,
   };
   await prisma.appSetting.upsert({
     where: { key: DRIVE_ENTERPRISE_SETTINGS_KEY },

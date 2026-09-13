@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { storage } from "@/lib/storage";
+import { watermarkPdf } from "@/lib/drive-watermark";
 import {
   getDrivePublicSecurity,
   publicAccessCookieName,
@@ -75,6 +76,33 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     ...requestPublicMeta(req.headers),
     after: { download, privacyVersion: privacy.version, ranged: Boolean(rangeHeader) },
   });
+
+  // Watermarked PDFs are always served through the app (never a raw signed URL).
+  if (
+    enterprise.publicWatermark &&
+    file.mimeType === "application/pdf" &&
+    file.sizeBytes <= 40 * 1024 * 1024
+  ) {
+    try {
+      const raw = await storage().download(file.storageKey);
+      const stamped = await watermarkPdf(
+        raw,
+        enterprise.publicWatermarkText,
+        `Partagé via JUN Business Hub · ${new Date().toISOString().slice(0, 10)} · lien ${file.id.slice(-8)} · toute diffusion non autorisée est interdite`,
+      );
+      return new NextResponse(new Uint8Array(stamped), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Length": String(stamped.length),
+          "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${file.name.replace(/[^a-zA-Z0-9._ -]/g, "_")}"`,
+          "Cache-Control": "private, no-store",
+          "X-Robots-Tag": "noindex, nofollow, noarchive",
+        },
+      });
+    } catch {
+      /* fall through to the regular path */
+    }
+  }
 
   if ((process.env.STORAGE_DRIVER ?? "").toUpperCase() === "SUPABASE") {
     const url = await storage().getSignedUrl(file.storageKey, 300);

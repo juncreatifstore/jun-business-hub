@@ -13,6 +13,9 @@ export type DriveEnterpriseSettings = {
   retentionTrashDays: number;
   publicLinkPolicy: "ALLOW" | "PASSWORD_REQUIRED" | "DISABLED";
   maxPublicLinkDays: number;
+  /** Stamp shared PDFs/previews with a confidentiality watermark. */
+  publicWatermark: boolean;
+  publicWatermarkText: string;
 };
 
 export const DEFAULT_DRIVE_ENTERPRISE_SETTINGS: DriveEnterpriseSettings = {
@@ -23,6 +26,8 @@ export const DEFAULT_DRIVE_ENTERPRISE_SETTINGS: DriveEnterpriseSettings = {
   retentionTrashDays: 30,
   publicLinkPolicy: "ALLOW",
   maxPublicLinkDays: 0,
+  publicWatermark: true,
+  publicWatermarkText: "CONFIDENTIEL · JUN CREATIF AND TRAVEL LLC",
 };
 
 function boundedInt(value: unknown, fallback: number, min: number, max: number) {
@@ -63,6 +68,11 @@ export async function getDriveEnterpriseSettings(): Promise<DriveEnterpriseSetti
         1,
         3650,
       ),
+      publicWatermark: parsed.publicWatermark !== false,
+      publicWatermarkText:
+        typeof parsed.publicWatermarkText === "string" && parsed.publicWatermarkText.trim()
+          ? parsed.publicWatermarkText.trim().slice(0, 80)
+          : DEFAULT_DRIVE_ENTERPRISE_SETTINGS.publicWatermarkText,
       publicLinkPolicy: policy,
       maxPublicLinkDays: boundedInt(
         parsed.maxPublicLinkDays,

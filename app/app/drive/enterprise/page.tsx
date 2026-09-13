@@ -271,6 +271,23 @@ export default async function DriveEnterprisePage() {
                 className="h-10 w-full rounded-lg border border-line px-3"
               />
             </Field>
+            <Field label="Watermark on shared files">
+              <input
+                name="publicWatermarkText"
+                defaultValue={report.settings.publicWatermarkText}
+                maxLength={80}
+                className="h-10 w-full rounded-lg border border-line px-3"
+              />
+              <label className="mt-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="publicWatermark"
+                  value="1"
+                  defaultChecked={report.settings.publicWatermark}
+                />{" "}
+                Stamp PDFs served through public links (diagonal text + footer with date and link id)
+              </label>
+            </Field>
             <Field label="Trash retention days">
               <input
                 name="retentionTrashDays"
