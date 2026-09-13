@@ -101,7 +101,15 @@ function incomingMedia(message: any) {
 async function findClientByPhone(phone: string) {
   const clients = await prisma.client.findMany({
     where: { archivedAt: null, OR: [{ whatsapp: { not: null } }, { phone: { not: null } }] },
-    select: { id: true, firstName: true, lastName: true, whatsapp: true, phone: true, ownerId: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      whatsapp: true,
+      phone: true,
+      ownerId: true,
+      country: true,
+    },
   });
   return (
     clients.find((client) => {

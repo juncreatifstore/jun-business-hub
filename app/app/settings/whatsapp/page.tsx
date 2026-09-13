@@ -10,6 +10,7 @@ import { subscribeWhatsAppAppToWaba } from "@/services/whatsapp-waba-subscriptio
 import { testWhatsAppWebhookLocally } from "@/services/whatsapp-webhook-test";
 import { PageHeader } from "@/components/app/page-header";
 import { getOutreachTemplate } from "@/lib/whatsapp-outreach";
+import { WhatsAppAutoReplyCard } from "@/components/app/whatsapp-autoreply-card";
 import { saveWhatsAppOutreachTemplate } from "@/services/whatsapp-outreach";
 import { listApprovedWhatsAppTemplates } from "@/lib/whatsapp";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -392,6 +393,7 @@ export default async function WhatsAppSettingsPage() {
           <OutreachTemplateForm />
         </CardContent>
       </Card>
+      <WhatsAppAutoReplyCard />
     </div>
   );
 }

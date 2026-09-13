@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { logger } from "@/lib/logger";
 import { getWhatsAppWebhookVerifyToken } from "@/lib/whatsapp";
 import { recordIncomingWhatsAppMessage } from "@/lib/whatsapp-inbox";
@@ -206,9 +206,36 @@ export async function POST(request: NextRequest) {
         messageCount += messages.length;
         for (const message of messages) {
           const from = String(message?.from || "").replace(/[^0-9]/g, "");
-          await recordIncomingWhatsAppMessage({ message, contactName: contactNames.get(from) }).catch(
-            (error) => logger.error("whatsapp.webhook_inbound_failed", { err: error }),
-          );
+          const stored = await recordIncomingWhatsAppMessage({
+            message,
+            contactName: contactNames.get(from),
+          }).catch((error) => {
+            logger.error("whatsapp.webhook_inbound_failed", { err: error });
+            return null;
+          });
+          if (stored && !["audio", "reaction"].includes(String(message?.type ?? ""))) {
+            const phone = String(from ?? "").replace(/[^\d]/g, "");
+            const clientId = (stored as { clientId?: string | null }).clientId ?? null;
+            // Auto-reply runs after the 200 is sent to Meta.
+            after(async () => {
+              const [{ maybeAutoReply }, client] = await Promise.all([
+                import("@/lib/whatsapp-autoreply"),
+                clientId
+                  ? prisma.client.findUnique({
+                      where: { id: clientId },
+                      select: { firstName: true, country: true },
+                    })
+                  : Promise.resolve(null),
+              ]);
+              await maybeAutoReply({
+                phone,
+                clientId,
+                firstName: client?.firstName ?? null,
+                country: client?.country ?? null,
+                text: typeof message?.text?.body === "string" ? message.text.body : null,
+              }).catch((error) => logger.warn("whatsapp.autoreply_error", { err: error }));
+            });
+          }
         }
       }
     }
