@@ -500,8 +500,10 @@ export async function gmailSend(
   const { token, email } = await accessTokenFor(accountId),
     attachments = input.attachments ?? [],
     fromEmail = input.fromEmail || (input.automated ? AUTOMATED_NO_REPLY_EMAIL : email),
+    fromHeader =
+      input.automated && !fromEmail.includes("<") ? `JUN Creatif & Travel <${fromEmail}>` : fromEmail,
     common = [
-      `From: ${safeHeaderValue(fromEmail)}`,
+      `From: ${safeHeaderValue(fromHeader)}`,
       `To: ${safeHeaderValue(input.to)}`,
       ...(input.replyTo ? [`Reply-To: ${safeHeaderValue(input.replyTo)}`] : []),
       ...(input.automated ? ["Auto-Submitted: auto-generated", "X-Auto-Response-Suppress: All"] : []),

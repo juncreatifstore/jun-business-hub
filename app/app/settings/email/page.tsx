@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { disconnectMailbox } from "@/services/mailbox";
+import { SendAsDiagnostic } from "@/components/app/send-as-diagnostic";
 import { setOtpSenderMailbox, updateMailboxProfile } from "@/services/mailbox-profile";
 import { formatDateTime } from "@/lib/utils";
 import { AlertTriangle, Mail, Plug, RefreshCw, ShieldCheck, Star } from "lucide-react";
@@ -79,6 +80,7 @@ export default async function EmailSettingsPage(props: {
           </div>
         </div>
       ) : null}
+      <SendAsDiagnostic />
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
