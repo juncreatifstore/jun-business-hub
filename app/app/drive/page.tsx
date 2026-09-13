@@ -99,7 +99,7 @@ function driveUrl(view: DriveView, folderId?: string, q?: string, category?: str
   return `/app/drive${query ? `?${query}` : ""}`;
 }
 
-const NAV: Array<{ view: DriveView; label: string; icon: typeof HardDrive }> = [
+const NAV: Array<{ view: DriveView; label: { fr: string; en: string }; icon: typeof HardDrive }> = [
   { view: "my", label: { fr: "Mon Drive", en: "My Drive" }, icon: HardDrive },
   { view: "recent", label: { fr: "Récents", en: "Recent" }, icon: Clock3 },
   { view: "starred", label: { fr: "Favoris", en: "Starred" }, icon: Star },
