@@ -6,6 +6,8 @@ import { Header } from "./header";
 import { ContextBack } from "./context-back";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { ThemeProvider, useTheme } from "./theme";
+import { LangProvider } from "./lang";
+import type { Lang } from "@/lib/i18n";
 import { ResponsiveTables } from "./responsive-tables";
 import { Toaster } from "@/components/ui/toast";
 import type { Theme } from "@/lib/theme";
@@ -16,18 +18,22 @@ export function AppShell({
   user,
   unread,
   theme,
+  lang,
   children,
 }: {
   user: { firstName: string; lastName: string; role: string };
   unread: number;
   theme: Theme;
+  lang: Lang;
   children: React.ReactNode;
 }) {
   return (
     <ThemeProvider initial={theme}>
-      <ShellFrame user={user} unread={unread}>
-        {children}
-      </ShellFrame>
+      <LangProvider initial={lang}>
+        <ShellFrame user={user} unread={unread}>
+          {children}
+        </ShellFrame>
+      </LangProvider>
     </ThemeProvider>
   );
 }

@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { randomUUID } from "crypto";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ export default async function HistoricalBackfillPage(props: {
 }) {
   const searchParams = await props.searchParams;
   await requirePermission("PAYMENT_APPROVE");
+  const t = await tr();
   await requirePermission("REFUND_APPROVE");
 
   const [clients, cases] = await Promise.all([
@@ -28,8 +30,17 @@ export default async function HistoricalBackfillPage(props: {
   return (
     <div className="max-w-7xl space-y-5">
       <PageHeader
-        title="Reprise de l’historique financier"
-        subtitle="Saisir les anciens paiements et remboursements antérieurs à JUN, en un lot audité."
+        title={t(
+          t("Reprise de l’historique financier", "Historical finance backfill"),
+          "Historical finance backfill",
+        )}
+        subtitle={t(
+          t(
+            "Saisir les anciens paiements et remboursements antérieurs à JUN, en un lot audité.",
+            "Enter old payments and refunds that predate JUN, in one audited batch.",
+          ),
+          "Enter old payments and refunds that predate JUN, in one audited batch.",
+        )}
       />
       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
         Use this page only for late historical entry. Payments entered here become <strong>CONFIRMED</strong>{" "}

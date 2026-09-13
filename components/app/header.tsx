@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Menu, Search, Bell, Plus, LogOut, ChevronDown, Command, Settings, UserRound } from "lucide-react";
 import { logout } from "@/app/login/actions";
 import { ThemeToggle } from "./theme";
+import { LangToggle } from "./lang";
 import { CommandPalette } from "./command-palette";
 
 const quickCreate = [
@@ -106,6 +107,7 @@ export function Header({
           ) : null}
         </div>
 
+        <LangToggle className="hidden sm:flex" />
         <ThemeToggle className="hidden sm:flex" />
 
         <Link

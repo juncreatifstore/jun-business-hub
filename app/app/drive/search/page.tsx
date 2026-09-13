@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -48,6 +49,7 @@ export default async function DriveSmartSearchPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "FILE_READ")) redirect("/app/forbidden");
   const q = String(searchParams.q ?? "")
     .trim()
@@ -93,12 +95,18 @@ export default async function DriveSmartSearchPage(props: {
           href="/app/drive"
           className="inline-flex items-center gap-2 text-sm text-muted2 hover:text-ink"
         >
-          <ArrowLeft className="h-4 w-4" /> Retour au Drive
+          <ArrowLeft className="h-4 w-4" /> {t(t("Retour au Drive", "Back to Drive"), "Back to Drive")}
         </Link>
       </div>
       <PageHeader
-        title="Rechercher partout"
-        subtitle="Une seule recherche sur JUN Drive, Google Drive, pièces jointes e-mail, médias WhatsApp et documents signés. Filtres par client, type et expiration. Le coffre-fort n’est jamais inclus."
+        title={t(t("Rechercher partout", "Search everything"), "Search everything")}
+        subtitle={t(
+          t(
+            "Une seule recherche sur JUN Drive, Google Drive, pièces jointes e-mail, médias WhatsApp et documents signés. Filtres par client, type et expiration. Le coffre-fort n’est jamais inclus.",
+            "One search across JUN Drive, Google Drive, e-mail attachments, WhatsApp media and signed documents. Filter by client, type or expiry. Vault content is never included.",
+          ),
+          "One search across JUN Drive, Google Drive, e-mail attachments, WhatsApp media and signed documents. Filter by client, type or expiry. Vault content is never included.",
+        )}
       />
 
       <Card className="mb-6">
@@ -119,7 +127,7 @@ export default async function DriveSmartSearchPage(props: {
                 defaultValue={clientId ?? ""}
                 className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
               >
-                <option value="">Tout client</option>
+                <option value="">{t(t("Tout client", "Any client"), "Any client")}</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.firstName} {c.lastName} · {c.internalId}
@@ -131,7 +139,9 @@ export default async function DriveSmartSearchPage(props: {
                 defaultValue={docType ?? ""}
                 className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
               >
-                <option value="">Tout type de document</option>
+                <option value="">
+                  {t(t("Tout type de document", "Any document type"), "Any document type")}
+                </option>
                 {DOC_TYPES.filter((t) => t !== "OTHER").map((t) => (
                   <option key={t} value={t}>
                     {DOC_TYPE_LABELS[t]}
@@ -143,12 +153,16 @@ export default async function DriveSmartSearchPage(props: {
                 defaultValue={searchParams.expires ?? ""}
                 className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
               >
-                <option value="">Toute expiration</option>
-                <option value="expired">Déjà expiré</option>
-                <option value="30">Expire sous 30 jours</option>
-                <option value="90">Expire sous 90 jours</option>
+                <option value="">{t(t("Toute expiration", "Any expiry"), "Any expiry")}</option>
+                <option value="expired">{t(t("Déjà expiré", "Already expired"), "Already expired")}</option>
+                <option value="30">
+                  {t(t("Expire sous 30 jours", "Expires within 30 days"), "Expires within 30 days")}
+                </option>
+                <option value="90">
+                  {t(t("Expire sous 90 jours", "Expires within 90 days"), "Expires within 90 days")}
+                </option>
               </select>
-              <Button type="submit">Rechercher</Button>
+              <Button type="submit">{t(t("Rechercher", "Search"), "Search")}</Button>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <span className="text-muted2">Sources :</span>
@@ -169,7 +183,8 @@ export default async function DriveSmartSearchPage(props: {
               {can(user, "AI_USE") ? (
                 <span className="ml-auto">
                   <Button type="submit" formAction={reindexDriveLibrary} variant="secondary" size="sm">
-                    <RefreshCw className="h-3.5 w-3.5" /> Réindexer JUN Drive
+                    <RefreshCw className="h-3.5 w-3.5" />{" "}
+                    {t(t("Réindexer JUN Drive", "Reindex JUN Drive"), "Reindex JUN Drive")}
                   </Button>
                 </span>
               ) : null}

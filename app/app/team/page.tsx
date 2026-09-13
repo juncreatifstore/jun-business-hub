@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { requireUser, can } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TeamPage() {
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "TEAM_MANAGE")) redirect("/app/forbidden");
 
   const [members, departments] = await Promise.all([
@@ -27,8 +29,14 @@ export default async function TeamPage() {
   return (
     <div>
       <PageHeader
-        title="Équipe"
-        subtitle="Comptes du personnel, rôles et accès. Les comptes du portail client se gèrent depuis chaque fiche client."
+        title={t(t("Équipe", "Team"), "Team")}
+        subtitle={t(
+          t(
+            "Comptes du personnel, rôles et accès. Les comptes du portail client se gèrent depuis chaque fiche client.",
+            "Staff accounts, roles and access. Client-portal accounts are managed from each client record.",
+          ),
+          "Staff accounts, roles and access. Client-portal accounts are managed from each client record.",
+        )}
       />
 
       <Card className="mb-8">

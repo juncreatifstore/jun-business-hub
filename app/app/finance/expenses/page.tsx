@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import {
@@ -15,6 +16,7 @@ import { AlertTriangle, CheckCircle2, Clock3, ReceiptText } from "lucide-react";
 export const dynamic = "force-dynamic";
 export default async function ExpensesPage() {
   await requirePermission("EXPENSE_READ");
+  const t = await tr();
   const rows = await listFinanceExpenses();
   const overdue = rows.filter((e) => expenseIsOverdue(e)).length;
   const open = rows.filter((e) =>
@@ -24,8 +26,14 @@ export default async function ExpensesPage() {
   return (
     <div>
       <PageHeader
-        title="Dépenses et fournisseurs"
-        subtitle="Factures fournisseurs, approbations, échéances et décaissements."
+        title={t(t("Dépenses et fournisseurs", "Expenses & accounts payable"), "Expenses & accounts payable")}
+        subtitle={t(
+          t(
+            "Factures fournisseurs, approbations, échéances et décaissements.",
+            "Vendor bills, approvals, due dates and outgoing payments.",
+          ),
+          "Vendor bills, approvals, due dates and outgoing payments.",
+        )}
         actionHref="/app/finance/expenses/new"
         actionLabel="New expense"
       />

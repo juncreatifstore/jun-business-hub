@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLang } from "./lang";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -32,64 +33,80 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: any; superAdminOnly?: boolean; sectionRoot?: boolean };
-const sections: { label: string | null; items: NavItem[] }[] = [
-  { label: null, items: [{ href: "/app", label: "Tableau de bord", icon: LayoutDashboard }] },
+type Label = { fr: string; en: string };
+type NavItem = { href: string; label: Label; icon: any; superAdminOnly?: boolean; sectionRoot?: boolean };
+const sections: { label: Label | null; items: NavItem[] }[] = [
   {
-    label: "Communication",
+    label: null,
+    items: [{ href: "/app", label: { fr: "Tableau de bord", en: "Dashboard" }, icon: LayoutDashboard }],
+  },
+  {
+    label: { fr: "Communication", en: "Communication" },
     items: [
-      { href: "/app/whatsapp/inbox", label: "Boîte WhatsApp", icon: MessageCircle },
-      { href: "/app/mail", label: "Mail", icon: Mail },
-      { href: "/app/notifications", label: "Notifications", icon: Bell },
+      {
+        href: "/app/whatsapp/inbox",
+        label: { fr: "Boîte WhatsApp", en: "WhatsApp inbox" },
+        icon: MessageCircle,
+      },
+      { href: "/app/mail", label: { fr: "Mail", en: "Mail" }, icon: Mail },
+      { href: "/app/notifications", label: { fr: "Notifications", en: "Notifications" }, icon: Bell },
     ],
   },
   {
-    label: "Gestion",
+    label: { fr: "Gestion", en: "Management" },
     items: [
-      { href: "/app/clients", label: "Clients", icon: Users },
-      { href: "/app/cases", label: "Dossiers", icon: FolderKanban },
-      { href: "/app/tasks", label: "Tâches", icon: CheckSquare },
+      { href: "/app/clients", label: { fr: "Clients", en: "Clients" }, icon: Users },
+      { href: "/app/cases", label: { fr: "Dossiers", en: "Cases" }, icon: FolderKanban },
+      { href: "/app/tasks", label: { fr: "Tâches", en: "Tasks" }, icon: CheckSquare },
     ],
   },
   {
-    label: "Documents",
+    label: { fr: "Documents", en: "Documents" },
     items: [
-      { href: "/app/drive", label: "Drive", icon: HardDrive },
-      { href: "/app/documents", label: "Documents", icon: FileText },
-      { href: "/app/signatures", label: "Signatures", icon: PenTool },
-      { href: "/app/vault", label: "Coffre-fort", icon: Lock },
+      { href: "/app/drive", label: { fr: "Drive", en: "Drive" }, icon: HardDrive },
+      { href: "/app/documents", label: { fr: "Documents", en: "Documents" }, icon: FileText },
+      { href: "/app/signatures", label: { fr: "Signatures", en: "Signatures" }, icon: PenTool },
+      { href: "/app/vault", label: { fr: "Coffre-fort", en: "Vault" }, icon: Lock },
     ],
   },
   {
-    label: "Finance",
+    label: { fr: "Finance", en: "Finance" },
     items: [
-      { href: "/app/finance/payments", label: "Paiements", icon: CreditCard },
-      { href: "/app/finance/receipts", label: "Reçus", icon: ReceiptText },
-      { href: "/app/finance/refunds", label: "Remboursements", icon: Undo2 },
-      { href: "/app/finance/reports", label: "Rapports", icon: BarChart3 },
+      { href: "/app/finance/payments", label: { fr: "Paiements", en: "Payments" }, icon: CreditCard },
+      { href: "/app/finance/receipts", label: { fr: "Reçus", en: "Receipts" }, icon: ReceiptText },
+      { href: "/app/finance/refunds", label: { fr: "Remboursements", en: "Refunds" }, icon: Undo2 },
+      { href: "/app/finance/reports", label: { fr: "Rapports", en: "Reports" }, icon: BarChart3 },
       {
         href: "/app/company-funds",
-        label: "Trésorerie",
+        label: { fr: "Trésorerie", en: "Company funds" },
         icon: Landmark,
         superAdminOnly: true,
         sectionRoot: true,
       },
     ],
   },
-  { label: "Intelligence", items: [{ href: "/app/ai", label: "JUN AI", icon: Sparkles }] },
   {
-    label: "Entreprise",
+    label: { fr: "Intelligence", en: "Intelligence" },
+    items: [{ href: "/app/ai", label: { fr: "JUN AI", en: "JUN AI" }, icon: Sparkles }],
+  },
+  {
+    label: { fr: "Entreprise", en: "Company" },
     items: [
-      { href: "/app/team", label: "Équipe", icon: UsersRound },
-      { href: "/app/departments", label: "Départements", icon: Building2 },
+      { href: "/app/team", label: { fr: "Équipe", en: "Team" }, icon: UsersRound },
+      { href: "/app/departments", label: { fr: "Départements", en: "Departments" }, icon: Building2 },
     ],
   },
   {
-    label: "Système",
+    label: { fr: "Système", en: "System" },
     items: [
-      { href: "/app/audit", label: "Journal d’audit", icon: ScrollText },
-      { href: "/app/settings", label: "Paramètres", icon: Settings },
-      { href: "/app/settings/legal", label: "Pages légales", icon: FileText, superAdminOnly: true },
+      { href: "/app/audit", label: { fr: "Journal d’audit", en: "Audit log" }, icon: ScrollText },
+      { href: "/app/settings", label: { fr: "Paramètres", en: "Settings" }, icon: Settings },
+      {
+        href: "/app/settings/legal",
+        label: { fr: "Pages légales", en: "Legal pages" },
+        icon: FileText,
+        superAdminOnly: true,
+      },
     ],
   },
 ];
@@ -121,6 +138,8 @@ export function Sidebar({
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }) {
+  const { lang } = useLang();
+  const L = (l: Label) => l[lang];
   const pathname = usePathname();
   const [lastCompanyFundsHref, setLastCompanyFundsHref] = useState("/app/company-funds");
 
@@ -206,7 +225,7 @@ export function Sidebar({
                       collapsed && "lg:hidden",
                     )}
                   >
-                    {section.label}
+                    {L(section.label)}
                   </p>
                 ) : null}
                 {collapsed && section.label ? (
@@ -228,7 +247,7 @@ export function Sidebar({
                         key={item.href}
                         href={effectiveHref}
                         onClick={onClose}
-                        title={collapsed ? item.label : undefined}
+                        title={collapsed ? L(item.label) : undefined}
                         className={cn(
                           "group relative flex items-center rounded-lg py-2 text-[13px] font-medium transition-colors",
                           collapsed ? "lg:justify-center lg:px-2" : "gap-3 px-3",
@@ -249,7 +268,7 @@ export function Sidebar({
                           <item.icon className="h-4 w-4" />
                         </span>
                         <span className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
-                          <span className="block truncate">{item.label}</span>
+                          <span className="block truncate">{L(item.label)}</span>
                           {isCompanyFundsRoot &&
                           !insideCompanyFunds &&
                           lastCompanyFundsHref !== "/app/company-funds" ? (

@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getAccountsReceivableSnapshot, listInvoices } from "@/lib/finance-invoices";
@@ -10,6 +11,7 @@ import { AlertTriangle, CircleDollarSign, Clock3, FileText } from "lucide-react"
 export const dynamic = "force-dynamic";
 export default async function InvoicesPage() {
   await requirePermission("INVOICE_READ");
+  const t = await tr();
   const [invoices, snapshot] = await Promise.all([listInvoices(), getAccountsReceivableSnapshot()]);
   const clientIds = [...new Set(invoices.map((i) => i.clientId))];
   const clients = await prisma.client.findMany({
@@ -24,8 +26,17 @@ export default async function InvoicesPage() {
   return (
     <div>
       <PageHeader
-        title="Factures et créances clients"
-        subtitle="Factures clients, soldes dus, ancienneté, relances et recouvrement."
+        title={t(
+          t("Factures et créances clients", "Invoices & accounts receivable"),
+          "Invoices & accounts receivable",
+        )}
+        subtitle={t(
+          t(
+            "Factures clients, soldes dus, ancienneté, relances et recouvrement.",
+            "Client invoices, balances due, aging, reminders and collection.",
+          ),
+          "Client invoices, balances due, aging, reminders and collection.",
+        )}
         actionHref="/app/finance/invoices/new"
         actionLabel="New invoice"
       />

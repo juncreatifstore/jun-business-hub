@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +20,7 @@ function effectiveStatus(s: OnlinePaymentSession) {
 
 export default async function OnlinePaymentsPage() {
   await requirePermission("PAYMENT_READ");
+  const t = await tr();
   const [sessions, clients, cases] = await Promise.all([
     listOnlinePaymentSessions(),
     prisma.client.findMany({
@@ -63,8 +65,14 @@ export default async function OnlinePaymentsPage() {
   return (
     <div>
       <PageHeader
-        title="Paiements en ligne"
-        subtitle="Liens de paiement sécurisés, confirmation du prestataire et statut piloté par webhook."
+        title={t(t("Paiements en ligne", "Online payments"), "Online payments")}
+        subtitle={t(
+          t(
+            "Liens de paiement sécurisés, confirmation du prestataire et statut piloté par webhook.",
+            "Secure checkout links, provider confirmation and webhook-driven status.",
+          ),
+          "Secure checkout links, provider confirmation and webhook-driven status.",
+        )}
       />
       <div className="mb-5 grid gap-3 md:grid-cols-3">
         <Metric label="Pending checkout" value={String(pending)} />

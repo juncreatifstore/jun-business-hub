@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/app/page-header";
@@ -17,6 +18,7 @@ export default async function TasksPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const user = await requirePermission("TASK_READ");
+  const t = await tr();
   const canEdit = can(user, "TASK_UPDATE");
   const status = searchParams.status;
   const assignee = searchParams.assignee;
@@ -54,8 +56,14 @@ export default async function TasksPage(props: {
   return (
     <div>
       <PageHeader
-        title="Tâches"
-        subtitle="Ce qui doit être fait, par qui et avant quelle date."
+        title={t(t("Tâches", "Tasks"), "Tasks")}
+        subtitle={t(
+          t(
+            "Ce qui doit être fait, par qui et avant quelle date.",
+            "What must be done, by whom and by when.",
+          ),
+          "What must be done, by whom and by when.",
+        )}
         actionHref="/app/tasks/new"
         actionLabel="Nouvelle tâche"
       >
@@ -92,7 +100,7 @@ export default async function TasksPage(props: {
       {tasks.length === 0 ? (
         <EmptyState
           icon={CheckSquare}
-          title="Aucune tâche"
+          title={t(t("Aucune tâche", "No tasks"), "No tasks")}
           description="Créez une tâche pour rendre la prochaine étape explicite."
           actionHref="/app/tasks/new"
           actionLabel="Créer une tâche"

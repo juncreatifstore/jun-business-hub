@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { requirePermission, can } from "@/lib/auth";
 import { getFinancePaymentAccounts } from "@/lib/finance-payment-accounts";
 import { PageHeader } from "@/components/app/page-header";
@@ -17,6 +18,7 @@ const METHODS = ["ZELLE", "STRIPE", "PAYPAL", "MERCADO_PAGO", "BANK_TRANSFER", "
 
 export default async function PaymentAccountsPage() {
   const user = await requirePermission("PAYMENT_READ");
+  const t = await tr();
   const accounts = await getFinancePaymentAccounts();
   const canManage = can(user, "SETTINGS_MANAGE");
   const active = accounts.filter((a) => a.enabled).length;
@@ -25,8 +27,14 @@ export default async function PaymentAccountsPage() {
   return (
     <div>
       <PageHeader
-        title="Comptes de paiement"
-        subtitle="Où les paiements sont reçus, quels moyens sont opérationnels, et les frais rattachés à chaque compte receveur."
+        title={t(t("Comptes de paiement", "Payment accounts"), "Payment accounts")}
+        subtitle={t(
+          t(
+            "Où les paiements sont reçus, quels moyens sont opérationnels, et les frais rattachés à chaque compte receveur.",
+            "Where payments are received, which methods are operational, and the fees attached to each receiving account.",
+          ),
+          "Where payments are received, which methods are operational, and the fees attached to each receiving account.",
+        )}
       />
 
       <div className="mb-5 grid gap-3 md:grid-cols-3">

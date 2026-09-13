@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +33,7 @@ type Params = { q?: string; status?: string; page?: string };
 export default async function RefundsPage(props: { searchParams?: Promise<Params> }) {
   const searchParams = await props.searchParams;
   await requirePermission("REFUND_READ");
+  const t = await tr();
   await syncOverdueRefundInstallments();
   const params = searchParams ?? {};
   const q = String(params.q || "").trim();
@@ -118,10 +120,16 @@ export default async function RefundsPage(props: { searchParams?: Promise<Params
   return (
     <div>
       <PageHeader
-        title="Remboursements"
-        subtitle="Workflow contrôlé des demandes, validations, échéanciers, décaissements et rapprochements."
+        title={t(t("Remboursements", "Refunds"), "Refunds")}
+        subtitle={t(
+          t(
+            "Workflow contrôlé des demandes, validations, échéanciers, décaissements et rapprochements.",
+            "Controlled workflow for requests, approvals, schedules, payouts and reconciliation.",
+          ),
+          "Controlled workflow for requests, approvals, schedules, payouts and reconciliation.",
+        )}
         actionHref="/app/finance/refunds/new"
-        actionLabel="Nouveau remboursement"
+        actionLabel={t(t("Nouveau remboursement", "New refund"), "New refund")}
       />
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric icon={SearchCheck} label="À réviser" value={review} />

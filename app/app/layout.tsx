@@ -2,6 +2,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireUser, mfaRequiredFor } from "@/lib/auth";
 import { parseTheme, THEME_COOKIE } from "@/lib/theme";
+import { parseLang, LANG_COOKIE } from "@/lib/i18n";
 import { prisma } from "@/lib/prisma";
 import { AppShell } from "@/components/app/shell";
 import { GeneratedDocumentWhatsAppShortcut } from "@/components/app/generated-document-whatsapp-shortcut";
@@ -19,12 +20,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   )
     redirect("/app/settings/security?required=1");
   const unread = await prisma.notification.count({ where: { userId: user.id, readAt: null } });
-  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+  const jar = await cookies();
+  const theme = parseTheme(jar.get(THEME_COOKIE)?.value);
+  const lang = parseLang(jar.get(LANG_COOKIE)?.value);
   return (
     <AppShell
       user={{ firstName: user.firstName, lastName: user.lastName, role: user.role }}
       unread={unread}
       theme={theme}
+      lang={lang}
     >
       {children}
       <GeneratedDocumentWhatsAppShortcut />

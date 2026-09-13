@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -64,6 +65,7 @@ function MetricCard({
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  const t = await tr();
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -132,7 +134,9 @@ export default async function DashboardPage() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent sm:text-[11px] sm:tracking-[0.2em]">
               JUN Business Hub · Control Center
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">Tableau de bord</h1>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
+              {t(t("Tableau de bord", "Dashboard"), "Dashboard")}
+            </h1>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-ink-3 sm:text-sm">
               Bienvenue, {user.firstName}. Clients, opérations, finance, signatures et communications en un
               coup d’œil.
@@ -147,7 +151,7 @@ export default async function DashboardPage() {
         <div className="mt-5 grid grid-cols-2 gap-2.5 sm:mt-6 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-6">
           <MetricCard
             icon={Users}
-            label="Nouveaux clients"
+            label={t(t("Nouveaux clients", "New clients"), "New clients")}
             value={String(newClients)}
             detail="Activité du mois"
             href="/app/clients"
@@ -155,7 +159,7 @@ export default async function DashboardPage() {
           />
           <MetricCard
             icon={FolderKanban}
-            label="Dossiers ouverts"
+            label={t(t("Dossiers ouverts", "Open cases"), "Open cases")}
             value={String(openCases)}
             detail="Suivi opérationnel actif"
             href="/app/cases"
@@ -165,7 +169,7 @@ export default async function DashboardPage() {
             icon={CreditCard}
             label="Paiements confirmés"
             value={formatMoney(monthTotal)}
-            detail="Encaissements du mois"
+            detail={t(t("Encaissements du mois", "This month’s inflows"), "This month’s inflows")}
             href="/app/finance/payments"
             tone="green"
           />
@@ -232,7 +236,9 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between border-b border-line px-4 py-3.5 sm:px-5 sm:py-4">
               <div>
                 <h2 className="text-sm font-semibold text-ink">À traiter maintenant</h2>
-                <p className="mt-0.5 text-[11px] text-ink-3 sm:text-xs">Files de travail prioritaires</p>
+                <p className="mt-0.5 text-[11px] text-ink-3 sm:text-xs">
+                  {t(t("Files de travail prioritaires", "Priority work queues"), "Priority work queues")}
+                </p>
               </div>
               <Activity className="h-4 w-4 text-success" />
             </div>
@@ -261,7 +267,7 @@ export default async function DashboardPage() {
                   href="/app/company-funds"
                   className="flex items-center justify-between rounded-xl border border-blue-500/15 bg-blue-500/[0.06] px-3.5 py-3 text-sm text-accent hover:bg-blue-500/[0.1] sm:px-4"
                 >
-                  <span>Trésorerie</span>
+                  <span>{t(t("Trésorerie", "Company funds"), "Company funds")}</span>
                   <ChevronRight className="h-4 w-4" />
                 </Link>
               ) : null}
@@ -349,7 +355,9 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between border-b border-line px-4 py-3.5 sm:px-5 sm:py-4">
               <div>
                 <h2 className="text-sm font-semibold text-ink">Activité récente</h2>
-                <p className="mt-0.5 text-[11px] text-ink-3 sm:text-xs">Ce qui vient de se passer</p>
+                <p className="mt-0.5 text-[11px] text-ink-3 sm:text-xs">
+                  {t(t("Ce qui vient de se passer", "What just happened"), "What just happened")}
+                </p>
               </div>
               <Activity className="h-4 w-4 text-accent" />
             </div>

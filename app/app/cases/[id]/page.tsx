@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function CaseDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "CASE_READ")) redirect("/app/forbidden");
 
   const c = await prisma.case.findUnique({
@@ -44,11 +46,11 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
         actions={
           <div className="flex gap-2">
             <Link href={`/app/clients/${c.clientId}`}>
-              <Button variant="secondary">Voir le client</Button>
+              <Button variant="secondary">{t(t("Voir le client", "View client"), "View client")}</Button>
             </Link>
             {can(user, "CASE_UPDATE") ? (
               <Link href={`/app/cases/${c.id}/edit`}>
-                <Button variant="primary">Modifier le dossier</Button>
+                <Button variant="primary">{t(t("Modifier le dossier", "Edit case"), "Edit case")}</Button>
               </Link>
             ) : null}
           </div>
@@ -59,7 +61,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Vue d’ensemble</CardTitle>
+              <CardTitle>{t(t("Vue d’ensemble", "Case overview"), "Case overview")}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -72,25 +74,35 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
                 </Link>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Statut</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">
+                  {t(t("Statut", "Status"), "Status")}
+                </p>
                 <div className="mt-1">
                   <StatusBadge status={c.status} />
                 </div>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Priorité</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">
+                  {t(t("Priorité", "Priority"), "Priority")}
+                </p>
                 <p className="mt-1">{c.priority}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Responsable</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">
+                  {t(t("Responsable", "Owner"), "Owner")}
+                </p>
                 <p className="mt-1">{c.owner ? `${c.owner.firstName} ${c.owner.lastName}` : "Unassigned"}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Échéance</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">
+                  {t(t("Échéance", "Due date"), "Due date")}
+                </p>
                 <p className="mt-1">{formatDate(c.dueDate)}</p>
               </div>
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted2">Créé le</p>
+                <p className="text-xs uppercase tracking-wide text-muted2">
+                  {t(t("Créé le", "Created"), "Created")}
+                </p>
                 <p className="mt-1">{formatDate(c.createdAt)}</p>
               </div>
               {c.description ? (
@@ -104,7 +116,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
 
           <Card>
             <CardHeader>
-              <CardTitle>Tâches</CardTitle>
+              <CardTitle>{t(t("Tâches", "Tasks"), "Tasks")}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {c.tasks.length === 0 ? (
@@ -217,11 +229,13 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
 
           <Card>
             <CardHeader>
-              <CardTitle>Activité</CardTitle>
+              <CardTitle>{t(t("Activité", "Activity"), "Activity")}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {c.activities.length === 0 ? (
-                <p className="p-5 text-sm text-muted2">Aucune activité.</p>
+                <p className="p-5 text-sm text-muted2">
+                  {t(t("Aucune activité.", "No activity yet."), "No activity yet.")}
+                </p>
               ) : (
                 <ul className="divide-y divide-line">
                   {c.activities.map((a) => (
@@ -242,7 +256,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Équipe</CardTitle>
+              <CardTitle>{t(t("Équipe", "Team"), "Team")}</CardTitle>
             </CardHeader>
             <CardContent>
               {c.members.length === 0 ? (
@@ -265,7 +279,9 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
             </CardHeader>
             <CardContent>
               {c.notes.length === 0 ? (
-                <p className="text-sm text-muted2">Aucune note.</p>
+                <p className="text-sm text-muted2">
+                  {t(t("Aucune note.", "No notes yet."), "No notes yet.")}
+                </p>
               ) : (
                 <ul className="space-y-4">
                   {c.notes.map((n) => (
@@ -284,7 +300,7 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
           {can(user, "CASE_UPDATE") ? (
             <Card>
               <CardHeader>
-                <CardTitle>Supprimer le service</CardTitle>
+                <CardTitle>{t(t("Supprimer le service", "Delete service"), "Delete service")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -294,7 +310,9 @@ export default async function CaseDetailPage(props: { params: Promise<{ id: stri
                 </div>
                 <form action={deleteCase.bind(null, c.id)} className="mt-4 space-y-3">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-muted2">Motif de suppression</label>
+                    <label className="mb-1 block text-xs font-medium text-muted2">
+                      {t(t("Motif de suppression", "Deletion reason"), "Deletion reason")}
+                    </label>
                     <textarea
                       name="reason"
                       required

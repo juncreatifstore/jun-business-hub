@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ManualTransfersPage() {
   await requirePermission("PAYMENT_READ");
+  const t = await tr();
   const [receivers, orders, clients, cases] = await Promise.all([
     getManualTransferReceivers(true),
     getManualTransferOrders(),
@@ -33,8 +35,14 @@ export default async function ManualTransfersPage() {
   return (
     <div>
       <PageHeader
-        title="Ordres de transfert manuel"
-        subtitle="Instructions Western Union et virement avec frais, trajet et montant net calculés avant la transaction."
+        title={t(t("Ordres de transfert manuel", "Manual transfer orders"), "Manual transfer orders")}
+        subtitle={t(
+          t(
+            "Instructions Western Union et virement avec frais, trajet et montant net calculés avant la transaction.",
+            "Western Union and bank-transfer instructions with fees, route and net amount computed before the transaction.",
+          ),
+          "Western Union and bank-transfer instructions with fees, route and net amount computed before the transaction.",
+        )}
       />
       <div className="mb-4 flex justify-end">
         <Link href="/app/finance/manual-transfers/receivers">

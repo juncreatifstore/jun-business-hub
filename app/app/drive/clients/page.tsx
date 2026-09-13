@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Users, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -14,6 +15,7 @@ export default async function DriveClientsPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "FILE_READ") || !can(user, "CLIENT_READ")) redirect("/app/forbidden");
   const q = (searchParams.q ?? "").trim().toLowerCase();
   const only = searchParams.only === "issues" ? "issues" : "all";
@@ -27,14 +29,20 @@ export default async function DriveClientsPage(props: {
     <div className="space-y-5 text-ink">
       <PageHeader
         eyebrow="Drive"
-        title="Documents par client"
-        subtitle="Le dossier documentaire de chaque client : pièces par type, manquantes et expirations."
+        title={t(t("Documents par client", "Documents by client"), "Documents by client")}
+        subtitle={t(
+          t(
+            "Le dossier documentaire de chaque client : pièces par type, manquantes et expirations.",
+            "Each client’s file: pieces by type, missing and expiring.",
+          ),
+          "Each client’s file: pieces by type, missing and expiring.",
+        )}
       />
       <form method="get" className="flex flex-wrap items-center gap-2">
         <input
           name="q"
           defaultValue={searchParams.q ?? ""}
-          placeholder="Rechercher un client…"
+          placeholder={t(t("Rechercher un client…", "Search a client…"), "Search a client…")}
           className="h-10 min-w-64 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
         />
         <select
@@ -42,8 +50,13 @@ export default async function DriveClientsPage(props: {
           defaultValue={only}
           className="h-10 rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
         >
-          <option value="all">Tous les clients</option>
-          <option value="issues">Seulement avec pièces manquantes ou expirations</option>
+          <option value="all">{t(t("Tous les clients", "All clients"), "All clients")}</option>
+          <option value="issues">
+            {t(
+              t("Seulement avec pièces manquantes ou expirations", "Only with missing or expiring documents"),
+              "Only with missing or expiring documents",
+            )}
+          </option>
         </select>
         <button className="h-10 rounded-lg border border-line bg-white px-3 text-sm hover:bg-surface">
           Filter
@@ -54,16 +67,23 @@ export default async function DriveClientsPage(props: {
       </form>
 
       {rows.length === 0 ? (
-        <EmptyState icon={Users} title="Aucun client" description="Aucun client ne correspond à ce filtre." />
+        <EmptyState
+          icon={Users}
+          title={t(t("Aucun client", "No clients"), "No clients")}
+          description={t(
+            t("Aucun client ne correspond à ce filtre.", "No client matches this filter."),
+            "No client matches this filter.",
+          )}
+        />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-line bg-white">
           <table className="w-full text-sm">
             <thead className="bg-surface text-left text-xs uppercase tracking-wide text-muted2">
               <tr>
-                <th className="p-3">Client</th>
-                <th className="p-3">Documents</th>
-                <th className="p-3">Manquants</th>
-                <th className="p-3">Expiration</th>
+                <th className="p-3">{t(t("Client", "Client"), t("Client", "Client"))}</th>
+                <th className="p-3">{t(t("Documents", "Documents"), t("Documents", "Documents"))}</th>
+                <th className="p-3">{t(t("Manquants", "Missing"), "Missing")}</th>
+                <th className="p-3">{t(t("Expiration", "Expiry"), "Expiry")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -100,19 +120,25 @@ export default async function DriveClientsPage(props: {
                       </div>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Pièces de base complètes
+                        <CheckCircle2 className="h-3.5 w-3.5" />{" "}
+                        {t(t("Pièces de base complètes", "Baseline complete"), "Baseline complete")}
                       </span>
                     )}
                   </td>
                   <td className="p-3">
                     {c.worstExpiry === "expired" ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700">
-                        <AlertTriangle className="h-3.5 w-3.5" /> Document expiré
+                        <AlertTriangle className="h-3.5 w-3.5" />{" "}
+                        {t(t("Document expiré", "Expired document"), "Expired document")}
                       </span>
                     ) : c.worstExpiry === "critical" ? (
-                      <span className="text-xs font-medium text-amber-800">Expire sous 30 jours</span>
+                      <span className="text-xs font-medium text-amber-800">
+                        {t(t("Expire sous 30 jours", "Expires within 30 days"), "Expires within 30 days")}
+                      </span>
                     ) : c.worstExpiry === "soon" ? (
-                      <span className="text-xs text-amber-700">Expire sous 90 jours</span>
+                      <span className="text-xs text-amber-700">
+                        {t(t("Expire sous 90 jours", "Expires within 90 days"), "Expires within 90 days")}
+                      </span>
                     ) : (
                       <span className="text-xs text-muted2">—</span>
                     )}

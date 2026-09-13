@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -41,6 +42,7 @@ export default async function PaymentsPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const user = await requirePermission("PAYMENT_READ");
+  const t = await tr();
   const status = STATUSES.includes(String(searchParams.status)) ? String(searchParams.status) : "ALL";
   const method = METHODS.includes(String(searchParams.method)) ? String(searchParams.method) : "ALL";
   const currency = String(searchParams.currency || "")
@@ -143,10 +145,16 @@ export default async function PaymentsPage(props: {
   return (
     <div>
       <PageHeader
-        title="Paiements"
-        subtitle="Registre financier des encaissements, validations, soldes, preuves et reçus."
+        title={t(t("Paiements", "Payments"), "Payments")}
+        subtitle={t(
+          t(
+            "Registre financier des encaissements, validations, soldes, preuves et reçus.",
+            "Financial register of inflows, validations, balances, proofs and receipts.",
+          ),
+          "Financial register of inflows, validations, balances, proofs and receipts.",
+        )}
         actionHref="/app/finance/payments/new"
-        actionLabel="Enregistrer un paiement"
+        actionLabel={t(t("Enregistrer un paiement", "Record a payment"), "Record a payment")}
       />
       <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="rounded-2xl border border-line bg-white">
@@ -315,7 +323,7 @@ export default async function PaymentsPage(props: {
           title="Aucun paiement correspondant"
           description="Modifiez les filtres ou enregistrez un nouveau paiement."
           actionHref="/app/finance/payments/new"
-          actionLabel="Enregistrer un paiement"
+          actionLabel={t(t("Enregistrer un paiement", "Record a payment"), "Record a payment")}
         />
       ) : (
         <>

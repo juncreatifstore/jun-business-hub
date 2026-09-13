@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { requireUser, can } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -36,6 +37,7 @@ function checked(value: string | undefined, fallback = true) {
 
 export default async function SettingsPage() {
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "SETTINGS_MANAGE")) redirect("/app/forbidden");
   const rows = await prisma.appSetting.findMany();
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]));
@@ -48,8 +50,14 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto w-full max-w-6xl">
       <PageHeader
-        title="Paramètres"
-        subtitle="Identité de l’entreprise, documents officiels, sécurité, communication, branding et numérotation."
+        title={t(t("Paramètres", "Settings"), "Settings")}
+        subtitle={t(
+          t(
+            "Identité de l’entreprise, documents officiels, sécurité, communication, branding et numérotation.",
+            "Company identity, official documents, security, communication, branding and numbering.",
+          ),
+          "Company identity, official documents, security, communication, branding and numbering.",
+        )}
       />
 
       <div className="mb-5 grid gap-3 sm:mb-7 md:grid-cols-4">

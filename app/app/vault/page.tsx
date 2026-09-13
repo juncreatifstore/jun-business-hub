@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { requireUser, can } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function VaultPage(props: { searchParams: Promise<{ cat?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "VAULT_READ")) redirect("/app/forbidden");
   const canManage = can(user, "VAULT_MANAGE");
 
@@ -34,8 +36,14 @@ export default async function VaultPage(props: { searchParams: Promise<{ cat?: s
   return (
     <div>
       <PageHeader
-        title="Coffre-fort de l’entreprise"
-        subtitle="Espace restreint pour les documents de l’entreprise. Chaque accès est inscrit au journal d’audit."
+        title={t(t("Coffre-fort de l’entreprise", "Company vault"), "Company vault")}
+        subtitle={t(
+          t(
+            "Espace restreint pour les documents de l’entreprise. Chaque accès est inscrit au journal d’audit.",
+            "Restricted area for corporate documents. Every access is written to the audit log.",
+          ),
+          "Restricted area for corporate documents. Every access is written to the audit log.",
+        )}
       />
 
       <div className="mb-6 flex flex-wrap gap-2">
@@ -70,7 +78,7 @@ export default async function VaultPage(props: { searchParams: Promise<{ cat?: s
       {files.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
-          title="Le coffre est vide"
+          title={t(t("Le coffre est vide", "Vault is empty"), "Vault is empty")}
           description={
             cat
               ? `No documents under “${cat}”.`

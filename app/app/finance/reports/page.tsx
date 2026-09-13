@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getFinanceControlCenter } from "@/lib/finance-control-center";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
   await requirePermission("PAYMENT_READ");
+  const t = await tr();
   const data = await getFinanceControlCenter();
   const currencyCount = data.currencies.length;
   const methodCount = data.methods.length;
@@ -30,7 +32,7 @@ export default async function ReportsPage() {
         </span>
       </div>
       <PageHeader
-        title="Rapports financiers"
+        title={t(t("Rapports financiers", "Financial reports"), "Financial reports")}
         subtitle="Encaissements, frais, remboursements et position de trésorerie multi-devises. Les devises ne sont jamais additionnées artificiellement."
       />
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

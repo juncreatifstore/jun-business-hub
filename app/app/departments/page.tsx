@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { requireUser, can } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function DepartmentsPage() {
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "TEAM_MANAGE")) redirect("/app/forbidden");
 
   const departments = await prisma.department.findMany({
@@ -21,13 +23,19 @@ export default async function DepartmentsPage() {
   return (
     <div>
       <PageHeader
-        title="Départements"
-        subtitle="Organisation de JUN CREATIF AND TRAVEL LLC. Les départements sont créés et affectés depuis la page Équipe."
+        title={t(t("Départements", "Departments"), "Departments")}
+        subtitle={t(
+          t(
+            "Organisation de JUN CREATIF AND TRAVEL LLC. Les départements sont créés et affectés depuis la page Équipe.",
+            "Organizational structure of JUN CREATIF AND TRAVEL LLC. Departments are seeded and assigned from the Team page.",
+          ),
+          "Organizational structure of JUN CREATIF AND TRAVEL LLC. Departments are seeded and assigned from the Team page.",
+        )}
       />
       {departments.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title="Aucun département"
+          title={t(t("Aucun département", "No departments"), "No departments")}
           description="Run the database seed (npm run db:seed) to create the nine standard departments."
         />
       ) : (

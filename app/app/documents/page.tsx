@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -83,6 +84,7 @@ function attentionReason(doc: {
 export default async function DocumentsPage(props: { searchParams?: Promise<SearchParams> }) {
   const searchParams = await props.searchParams;
   await requirePermission("DOCUMENT_READ");
+  const t = await tr();
   const params: SearchParams = searchParams ?? {};
   const q = (params.q ?? "").trim().toLowerCase();
   const status = (params.status ?? "ALL").toUpperCase();
@@ -161,7 +163,13 @@ export default async function DocumentsPage(props: { searchParams?: Promise<Sear
     <div>
       <PageHeader
         title="Documents"
-        subtitle="Créez, révisez, finalisez, signez et archivez les documents JUN depuis un seul espace opérationnel."
+        subtitle={t(
+          t(
+            "Créez, révisez, finalisez, signez et archivez les documents JUN depuis un seul espace opérationnel.",
+            "Create, review, finalize, sign and archive JUN documents from one workspace.",
+          ),
+          "Create, review, finalize, sign and archive JUN documents from one workspace.",
+        )}
         actionHref="/app/documents/new"
         actionLabel="Nouveau document"
       />
@@ -294,7 +302,7 @@ export default async function DocumentsPage(props: { searchParams?: Promise<Sear
         docs.length === 0 ? (
           <EmptyState
             icon={FileText}
-            title="Aucun document"
+            title={t(t("Aucun document", "No documents"), "No documents")}
             description="Créez le premier contrat, reçu ou courrier JUN."
             actionHref="/app/documents/new"
             actionLabel="Nouveau document"

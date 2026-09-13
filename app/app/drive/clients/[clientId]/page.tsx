@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, AlertTriangle, Clock3, FileText, Upload } from "lucide-react";
@@ -25,6 +26,7 @@ const d = (v: Date | null) => (v ? v.toLocaleDateString("fr-FR") : "—");
 export default async function DriveClientPage(props: { params: Promise<{ clientId: string }> }) {
   const params = await props.params;
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "FILE_READ") || !can(user, "CLIENT_READ")) redirect("/app/forbidden");
   const client = await prisma.client.findFirst({
     where: { id: params.clientId, archivedAt: null },
@@ -51,22 +53,24 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
         href="/app/drive/clients"
         className="inline-flex items-center gap-1 text-xs text-muted2 hover:text-ink"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Tous les clients
+        <ArrowLeft className="h-3.5 w-3.5" /> {t(t("Tous les clients", "All clients"), "All clients")}
       </Link>
       <PageHeader
-        eyebrow="Documents du client"
+        eyebrow={t(t("Documents du client", "Client documents"), "Client documents")}
         title={`${client.firstName} ${client.lastName}`}
         subtitle={[client.internalId, client.nationality, client.email, client.phone]
           .filter(Boolean)
           .join(" · ")}
         actionHref={`/app/clients/${client.id}`}
-        actionLabel="Ouvrir la fiche client"
+        actionLabel={t(t("Ouvrir la fiche client", "Open client record"), "Open client record")}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="pt-5">
-            <div className="text-xs uppercase tracking-wide text-muted2">Documents</div>
+            <div className="text-xs uppercase tracking-wide text-muted2">
+              {t(t("Documents", "Documents"), t("Documents", "Documents"))}
+            </div>
             <div className="mt-1 text-2xl font-semibold">{total}</div>
             {pending ? <div className="text-xs text-muted2">{pending} en attente d’analyse</div> : null}
           </CardContent>
@@ -86,7 +90,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
                 ))}
               </ul>
             ) : (
-              <div className="mt-1 text-sm text-emerald-700">Complet</div>
+              <div className="mt-1 text-sm text-emerald-700">{t(t("Complet", "Complete"), "Complete")}</div>
             )}
           </CardContent>
         </Card>
@@ -100,7 +104,9 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
           }
         >
           <CardContent className="pt-5">
-            <div className="text-xs uppercase tracking-wide text-muted2">Expirations</div>
+            <div className="text-xs uppercase tracking-wide text-muted2">
+              {t(t("Expirations", "Expirations"), t("Expirations", "Expirations"))}
+            </div>
             {alerts.length ? (
               <ul className="mt-2 space-y-1 text-sm">
                 {alerts.map((a) => (
@@ -119,7 +125,12 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
                 ))}
               </ul>
             ) : (
-              <div className="mt-1 text-sm text-muted2">Rien n’expire sous 90 jours</div>
+              <div className="mt-1 text-sm text-muted2">
+                {t(
+                  t("Rien n’expire sous 90 jours", "Nothing expiring within 90 days"),
+                  "Nothing expiring within 90 days",
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -129,7 +140,13 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
         <div className="space-y-4">
           {groups.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted2">
-              Aucun document pour ce client. Déposez-en un à droite : il sera typé automatiquement.
+              {t(
+                t(
+                  "Aucun document pour ce client. Déposez-en un à droite : il sera typé automatiquement.",
+                  "No document yet for this client. Upload one on the right — it will be typed automatically.",
+                ),
+                "No document yet for this client. Upload one on the right — it will be typed automatically.",
+              )}
             </div>
           ) : (
             groups.map((g) => (
@@ -191,7 +208,12 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
           {canUpload ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Demander des documents au client</CardTitle>
+                <CardTitle className="text-base">
+                  {t(
+                    t("Demander des documents au client", "Request documents from the client"),
+                    "Request documents from the client",
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <DocumentRequestsPanel
@@ -209,7 +231,8 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Upload className="h-4 w-4" /> Ajouter un document
+                  <Upload className="h-4 w-4" />{" "}
+                  {t(t("Ajouter un document", "Add a document"), "Add a document")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -230,7 +253,7 @@ export default async function DriveClientPage(props: { params: Promise<{ clientI
           {client.cases.length ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Dossiers</CardTitle>
+                <CardTitle className="text-base">{t(t("Dossiers", "Cases"), "Cases")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-1 text-sm">

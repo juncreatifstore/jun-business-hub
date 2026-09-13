@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -33,6 +34,7 @@ function initials(firstName: string, lastName: string) {
 export default async function ClientsPage(props: { searchParams: Promise<Params> }) {
   const searchParams = await props.searchParams;
   await requirePermission("CLIENT_READ");
+  const t = await tr();
   const q = searchParams.q?.trim();
   const status = searchParams.status;
   const sort = SORTS.includes(searchParams.sort as SortKey) ? (searchParams.sort as SortKey) : "RECENT";
@@ -71,8 +73,14 @@ export default async function ClientsPage(props: { searchParams: Promise<Params>
   return (
     <div>
       <PageHeader
-        title="Clients"
-        subtitle="Registre central des clients, contacts, dossiers et responsables."
+        title={t(t("Clients", "Clients"), t("Clients", "Clients"))}
+        subtitle={t(
+          t(
+            "Registre central des clients, contacts, dossiers et responsables.",
+            "Central register of clients, contacts, cases and owners.",
+          ),
+          "Central register of clients, contacts, cases and owners.",
+        )}
         actionHref="/app/clients/new"
         actionLabel="Nouveau client"
       />

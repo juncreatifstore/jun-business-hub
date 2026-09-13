@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import { requireUser, can } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function AuditPage(props: { searchParams: Promise<{ q?: string; type?: string }> }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "AUDIT_READ")) redirect("/app/forbidden");
 
   const q = (searchParams.q ?? "").trim();
@@ -41,7 +43,7 @@ export default async function AuditPage(props: { searchParams: Promise<{ q?: str
   return (
     <div>
       <PageHeader
-        title="Journal d’audit"
+        title={t(t("Journal d’audit", "Audit log"), "Audit log")}
         subtitle="Append-only record of every sensitive action. Entries are never edited or deleted."
       />
 
@@ -72,7 +74,7 @@ export default async function AuditPage(props: { searchParams: Promise<{ q?: str
       {logs.length === 0 ? (
         <EmptyState
           icon={ScrollText}
-          title="Aucune entrée d’audit"
+          title={t(t("Aucune entrée d’audit", "No audit entries"), "No audit entries")}
           description={
             q || type
               ? "Nothing matches these filters."

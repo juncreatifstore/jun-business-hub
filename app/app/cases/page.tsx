@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +40,7 @@ function caseOrder(sort: SortKey): Prisma.CaseOrderByWithRelationInput[] {
 export default async function CasesPage(props: { searchParams: Promise<Params> }) {
   const searchParams = await props.searchParams;
   const user = await requirePermission("CASE_READ");
+  const t = await tr();
   const q = searchParams.q?.trim();
   const status = searchParams.status;
   const sort = SORTS.includes(searchParams.sort as SortKey) ? (searchParams.sort as SortKey) : "RECENT";
@@ -81,8 +83,14 @@ export default async function CasesPage(props: { searchParams: Promise<Params> }
   return (
     <div>
       <PageHeader
-        title="Dossiers"
-        subtitle="Suivi des services clients, responsables, priorités, échéances et état opérationnel."
+        title={t(t("Dossiers", "Cases"), "Cases")}
+        subtitle={t(
+          t(
+            "Suivi des services clients, responsables, priorités, échéances et état opérationnel.",
+            "Client services, owners, priorities, due dates and operational status.",
+          ),
+          "Client services, owners, priorities, due dates and operational status.",
+        )}
         actionHref="/app/cases/new"
         actionLabel="Nouveau dossier"
       />
@@ -120,7 +128,7 @@ export default async function CasesPage(props: { searchParams: Promise<Params> }
       {cases.length === 0 ? (
         <EmptyState
           icon={FolderKanban}
-          title="Aucun dossier"
+          title={t(t("Aucun dossier", "No cases"), "No cases")}
           description="Ouvrez un dossier pour suivre un engagement client de bout en bout."
           actionHref="/app/cases/new"
           actionLabel="Ouvrir un dossier"

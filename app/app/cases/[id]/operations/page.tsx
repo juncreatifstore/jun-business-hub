@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -30,6 +31,7 @@ export default async function CaseOperationsPage(props: {
 }) {
   const params = await props.params;
   const user = await requireUser();
+  const t = await tr();
   if (!can(user, "CASE_READ")) redirect("/app/forbidden");
   const { id } = await Promise.resolve(params);
   const [c, state, users] = await Promise.all([
@@ -139,7 +141,9 @@ export default async function CaseOperationsPage(props: {
           {can(user, "CASE_UPDATE") ? (
             <form action={updateCaseStatus.bind(null, id)} className="flex flex-wrap items-end gap-2">
               <div>
-                <label className="mb-1 block text-xs text-muted2">Statut du dossier</label>
+                <label className="mb-1 block text-xs text-muted2">
+                  {t(t("Statut du dossier", "Case status"), "Case status")}
+                </label>
                 <Select name="status" defaultValue={c.status} className="w-52">
                   {CASE_STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -150,7 +154,13 @@ export default async function CaseOperationsPage(props: {
               </div>
               <div className="min-w-64 flex-1">
                 <label className="mb-1 block text-xs text-muted2">
-                  Message au client (facultatif, joint à la notification)
+                  {t(
+                    t(
+                      "Message au client (facultatif, joint à la notification)",
+                      "Message to the client (optional, sent with the notification)",
+                    ),
+                    "Message to the client (optional, sent with the notification)",
+                  )}
                 </label>
                 <input
                   name="clientNote"
@@ -164,7 +174,7 @@ export default async function CaseOperationsPage(props: {
                 (e-mail, WhatsApp si conversation ouverte)
                 <input type="hidden" name="notifyClient" value="off" />
               </label>
-              <Button variant="outline">Mettre à jour</Button>
+              <Button variant="outline">{t(t("Mettre à jour", "Update status"), "Update status")}</Button>
             </form>
           ) : (
             <StatusBadge status={c.status} />

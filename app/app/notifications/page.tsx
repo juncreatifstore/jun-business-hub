@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +40,7 @@ export default async function NotificationsPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const user = await requireUser();
+  const t = await tr();
   const notifications = await loadNotifications(user.id);
   const unread = notifications.filter((n) => !n.readAt).length;
   const query = String(searchParams.q || "")
@@ -71,7 +73,7 @@ export default async function NotificationsPage(props: {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Notifications"
+        title={t(t("Notifications", "Notifications"), t("Notifications", "Notifications"))}
         subtitle={
           unread > 0
             ? `${unread} notification${unread > 1 ? "s" : ""} non lue${unread > 1 ? "s" : ""}`
@@ -135,7 +137,7 @@ export default async function NotificationsPage(props: {
       {notifications.length === 0 ? (
         <EmptyState
           icon={Bell}
-          title="Aucune notification"
+          title={t(t("Aucune notification", "No notifications"), "No notifications")}
           description="Les messages WhatsApp, paiements, remboursements, dossiers et documents apparaîtront ici."
         />
       ) : filtered.length === 0 ? (

@@ -1,3 +1,4 @@
+import { tr } from "@/lib/i18n-server";
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ReceiptsPage() {
   await requirePermission("PAYMENT_READ");
+  const t = await tr();
   const payments = await prisma.payment.findMany({
     where: { status: { in: ["CONFIRMED", "PARTIALLY_REFUNDED", "REFUNDED"] }, paidAt: { not: null } },
     orderBy: { paidAt: "desc" },
@@ -23,13 +25,19 @@ export default async function ReceiptsPage() {
   return (
     <div>
       <PageHeader
-        title="Reçus"
-        subtitle="Reçus officiels avec vérification QR, suivi des preuves et annulation contrôlée."
+        title={t(t("Reçus", "Receipts"), "Receipts")}
+        subtitle={t(
+          t(
+            "Reçus officiels avec vérification QR, suivi des preuves et annulation contrôlée.",
+            "Official receipts with QR verification, proof tracking and controlled void.",
+          ),
+          "Official receipts with QR verification, proof tracking and controlled void.",
+        )}
       />
       {payments.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
-          title="Aucun reçu"
+          title={t(t("Aucun reçu", "No receipts yet"), "No receipts yet")}
           description="Confirm a pending payment and its receipt will appear here."
           actionHref="/app/finance/payments"
           actionLabel="Go to payments"
