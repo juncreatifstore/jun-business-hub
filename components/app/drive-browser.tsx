@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition, Fragment } from "react";
 import {
+  MessageSquare,
   CloudUpload,
   Grid2X2,
   List as ListIcon,
@@ -55,6 +56,7 @@ export type DriveBrowserFile = {
   versions: DriveVersionInfo[];
   activity: DriveActivityInfo[];
   extraction: DriveExtractionInfo | null;
+  commentCount: number;
 };
 export type DriveExtractionInfo = {
   docType: string;
@@ -696,6 +698,25 @@ function FileActions({
           </button>
         </form>
       ) : null}
+      {view !== "trash" ? (
+        <Link
+          prefetch={false}
+          href={`/app/drive/collaboration?type=File&id=${file.id}`}
+          className={`${subtleButton} relative`}
+          title={
+            file.commentCount
+              ? `${file.commentCount} comment${file.commentCount > 1 ? "s" : ""} — open discussion`
+              : "Comment / mention a teammate"
+          }
+        >
+          <MessageSquare className="h-4 w-4" />
+          {file.commentCount ? (
+            <span className="absolute -right-0.5 -top-0.5 rounded-full bg-electric px-1 text-[9px] font-semibold leading-3 text-white">
+              {file.commentCount}
+            </span>
+          ) : null}
+        </Link>
+      ) : null}
       {view !== "trash"
         ? cloudProviders.map((provider) => (
             <form key={provider} action={exportFileToCloud}>
@@ -924,6 +945,19 @@ function DetailsPanel({
               <dd className="font-mono text-xs">{file.extraction.reference}</dd>
             </>
           ) : null}
+          <dt className="text-muted2">Discussion</dt>
+          <dd>
+            <Link
+              prefetch={false}
+              href={`/app/drive/collaboration?type=File&id=${file.id}`}
+              className="text-electric hover:underline"
+            >
+              {file.commentCount
+                ? `${file.commentCount} comment${file.commentCount > 1 ? "s" : ""}`
+                : "Add a comment"}{" "}
+              · approvals
+            </Link>
+          </dd>
           <dt className="text-muted2">Public link</dt>
           <dd className={file.publicDisabled ? "text-red-600" : "text-emerald-700"}>
             {file.publicDisabled ? "Disabled" : "Active"}

@@ -13,6 +13,7 @@ import { uploadFile, createFolder } from "@/services/files";
 import { FOLDER_TRASH_PREFIX, FOLDER_SHARE_PREFIX } from "@/lib/drive-folder-constants";
 import { getCloudConnection, isCloudAdmin } from "@/lib/drive-cloud";
 import { DriveSidebar } from "@/components/app/drive-sidebar";
+import { DRIVE_COMMENT_PREFIX } from "@/lib/drive-collaboration";
 import { DOC_TYPE_LABELS, expiryStatus, listExpiringFiles, type DocType } from "@/lib/file-extraction";
 import {
   FolderOpen,
@@ -367,6 +368,17 @@ export default async function DrivePage(props: {
   });
   const extractionMap = new Map(extractions.map((x) => [x.fileId, x]));
   const expiring = await listExpiringFiles(90, 12).catch(() => []);
+  const commentRows = files.length
+    ? await prisma.appSetting.findMany({
+        where: { OR: files.map((f) => ({ key: { startsWith: `${DRIVE_COMMENT_PREFIX}File.${f.id}.` } })) },
+        select: { key: true },
+      })
+    : [];
+  const commentCount = new Map<string, number>();
+  for (const r of commentRows) {
+    const id = r.key.slice(`${DRIVE_COMMENT_PREFIX}File.`.length).split(".")[0];
+    commentCount.set(id, (commentCount.get(id) ?? 0) + 1);
+  }
   const fmtDate = (d: Date | null) => (d ? d.toISOString() : null);
   const browserFiles = files.map((f) => ({
     id: f.id,
@@ -384,6 +396,7 @@ export default async function DrivePage(props: {
     publicToken: publicTokenMap.get(f.id) ?? null,
     versions: versionsMap.get(f.id) ?? [],
     activity: activityMap.get(f.id) ?? [],
+    commentCount: commentCount.get(f.id) ?? 0,
     extraction: (() => {
       const x = extractionMap.get(f.id);
       if (!x) return null;
