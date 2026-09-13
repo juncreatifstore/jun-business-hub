@@ -350,6 +350,22 @@ export async function notifyClaimDecision(
     },
   });
   if (!c) return;
+  const d = c.decision as ClaimDecision | null;
+  const isPartial = Boolean(d && c.amount && d.approvedAmount < Number(c.amount) - 0.005);
+  const svcFr = d?.renderedServices?.length
+    ? `\nServices déjà rendus :\n${d.renderedServices.map((s) => `  • ${s.description} — ${c.currency} ${s.amount.toFixed(2)}`).join("\n")}`
+    : "";
+  const svcEn = d?.renderedServices?.length
+    ? `\nServices already delivered:\n${d.renderedServices.map((s) => `  • ${s.description} — ${c.currency} ${s.amount.toFixed(2)}`).join("\n")}`
+    : "";
+  const partialFr =
+    isPartial && d
+      ? `\n\nMontant demandé : ${c.currency} ${Number(c.amount).toFixed(2)} — montant accepté : ${c.currency} ${d.approvedAmount.toFixed(2)}.${d.partialReason ? `\nMotif de la retenue : ${d.partialReason}` : ""}${svcFr}\nLes justificatifs sont consultables sur votre page de suivi.`
+      : "";
+  const partialEn =
+    isPartial && d
+      ? `\n\nRequested: ${c.currency} ${Number(c.amount).toFixed(2)} — approved: ${c.currency} ${d.approvedAmount.toFixed(2)}.${d.partialReason ? `\nReason for the deduction: ${d.partialReason}` : ""}${svcEn}\nSupporting documents are available on your tracking page.`
+      : "";
   const to = c.contactEmail || c.client.email;
   if (!to) return;
   const fr = c.language === "fr";
