@@ -14,6 +14,11 @@ import {
 } from "@/lib/refund-claims";
 import { Prisma } from "@prisma/client";
 import { storage, makeStorageKey } from "@/lib/storage";
+import { nextNumber } from "@/lib/sequence";
+import { logActivity } from "@/lib/audit";
+import { generateClaimDossier, mapDeclaredMethod } from "@/lib/refund-claim-dossier";
+import { assertFinancialPeriodOpen } from "@/lib/company-funds-monthly-close";
+import type { ClaimDetails, InfoRequest } from "@/lib/refund-claims";
 
 function back(returnTo: string, key: "toast" | "toast_error", message: string): never {
   const base = returnTo.startsWith("/app/") ? returnTo : "/app/finance/refunds";
@@ -116,11 +121,97 @@ export async function rejectClaim(formData: FormData): Promise<void> {
 
 /** Links a created Refund to the claim (called after creation from the prefilled form). */
 export async function attachRefundToClaim(claimId: string, refundId: string, userId: string) {
-  await prisma.refundClaim.updateMany({
-    where: { id: claimId, status: { in: ["SUBMITTED", "UNDER_REVIEW"] } },
+  const res = await prisma.refundClaim.updateMany({
+    where: { id: claimId, status: { in: ["SUBMITTED", "UNDER_REVIEW", "NEEDS_INFO"] } },
     data: { status: "CONVERTED", refundId, decidedById: userId, decidedAt: new Date() },
   });
+  if (!res.count) return;
+  // Every document of the claim (client uploads, complements, staff proofs) is attached to the refund file.
+  const c = await prisma.refundClaim.findUnique({
+    where: { id: claimId },
+    select: { fileIds: true, decision: true, infoRequest: true },
+  });
+  const ids = new Set<string>(c?.fileIds ?? []);
+  for (const id of (c?.decision as ClaimDecision | null)?.proofFileIds ?? []) ids.add(id);
+  for (const r of (c?.infoRequest as InfoRequest | null)?.replies ?? [])
+    for (const id of r.fileIds) ids.add(id);
+  if (ids.size) await prisma.file.updateMany({ where: { id: { in: Array.from(ids) } }, data: { refundId } });
+  await generateClaimDossier(claimId, refundId, userId).catch(() => null);
   await notifyClaimDecision(claimId, "CONVERTED", null).catch(() => null);
+}
+
+/**
+ * The client declared a payment that the hub never recorded: creates it as a
+ * PENDING payment from the declaration (date, amount, method, reference,
+ * paid to), attaches the proof files, links the claim to it. Confirmation
+ * follows the usual PAYMENT_APPROVE flow.
+ */
+export async function registerPaymentFromClaim(formData: FormData): Promise<void> {
+  const user = await assertPermission("PAYMENT_CREATE");
+  const id = String(formData.get("id") ?? "");
+  const c = await prisma.refundClaim.findUnique({
+    where: { id },
+    include: { client: { select: { firstName: true, lastName: true } } },
+  });
+  const fail = (m: string): never =>
+    redirect(`/app/finance/refunds/claims/${id}?toast_error=${encodeURIComponent(m)}`);
+  if (!c) return fail("Demande introuvable");
+  if (c.paymentId) return fail("Un paiement est déjà rattaché à cette demande");
+  const sub = (c.submission ?? {}) as Partial<ClaimDetails>;
+  if (!sub.payment) return fail("Le client n’a pas déclaré de paiement");
+  const paidAt = new Date(sub.payment.paidOn);
+  if (Number.isNaN(paidAt.getTime())) return fail("Date de paiement invalide");
+  try {
+    await assertFinancialPeriodOpen(paidAt);
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "Période financière fermée");
+  }
+  const reference = await nextNumber("PAY");
+  const method = mapDeclaredMethod(sub.payment.method);
+  const notes = [
+    `Déclaré par le client via la demande de remboursement ${c.id.slice(-8).toUpperCase()}.`,
+    `Moyen déclaré : ${sub.payment.method}. Référence client : ${sub.payment.reference || "—"}. Payé à : ${sub.payment.paidTo}.`,
+    sub.service ? `Service : ${sub.service.type} — ${sub.service.description}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const payment = await prisma.payment.create({
+    data: {
+      reference,
+      clientId: c.clientId,
+      caseId: c.caseId,
+      amount: new Prisma.Decimal(Number(sub.payment.paidAmount).toFixed(2)),
+      currency: (sub.payment.currency || c.currency || "USD").toUpperCase(),
+      method,
+      status: "PENDING",
+      providerRef: sub.payment.reference || null,
+      paidAt,
+      notes,
+      recordedById: user.id,
+    },
+  });
+  const proofIds = (sub.files ?? []).filter((f) => f.role === "PAYMENT_PROOF").map((f) => f.fileId);
+  if (proofIds.length)
+    await prisma.file.updateMany({ where: { id: { in: proofIds } }, data: { paymentId: payment.id } });
+  await prisma.refundClaim.update({ where: { id }, data: { paymentId: payment.id } });
+  await audit({
+    userId: user.id,
+    action: "PAYMENT_CREATE",
+    resourceType: "Payment",
+    resourceId: payment.id,
+    after: { reference, source: "REFUND_CLAIM", claimId: id, amount: Number(sub.payment.paidAmount), method },
+  });
+  await logActivity({
+    type: "PAYMENT_CREATED",
+    message: `Paiement ${reference} enregistré depuis la déclaration du client (${payment.currency} ${Number(payment.amount).toFixed(2)}) — à confirmer`,
+    userId: user.id,
+    clientId: c.clientId,
+    caseId: c.caseId,
+  });
+  revalidatePath(`/app/finance/refunds/claims/${id}`);
+  redirect(
+    `/app/finance/refunds/claims/${id}?toast=${encodeURIComponent(`Paiement ${reference} enregistré (en attente de confirmation) et rattaché à la demande`)}`,
+  );
 }
 
 export async function assignClaim(formData: FormData): Promise<void> {
@@ -272,4 +363,14 @@ export async function decideClaimAmount(formData: FormData): Promise<void> {
   redirect(
     `/app/finance/refunds/new?clientId=${c.clientId}${c.paymentId ? `&paymentId=${c.paymentId}` : ""}${c.caseId ? `&caseId=${c.caseId}` : ""}&amount=${decision.approvedAmount}&reason=${encodeURIComponent(reason.slice(0, 1900))}&claimId=${c.id}`,
   );
+}
+
+/** Confirms the claim's pending payment (usual PAYMENT_APPROVE flow) and returns to the claim. */
+export async function confirmClaimPayment(formData: FormData): Promise<void> {
+  const id = String(formData.get("id") ?? "");
+  const paymentId = String(formData.get("paymentId") ?? "");
+  const { confirmPayment } = await import("@/services/finance");
+  await confirmPayment(paymentId);
+  revalidatePath(`/app/finance/refunds/claims/${id}`);
+  redirect(`/app/finance/refunds/claims/${id}?toast=${encodeURIComponent("Paiement confirmé")}`);
 }

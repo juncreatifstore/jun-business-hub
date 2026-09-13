@@ -50,7 +50,9 @@ export default async function RefundClaimPage(props: {
       client: {
         select: { id: true, firstName: true, lastName: true, internalId: true, email: true, phone: true },
       },
-      payment: { select: { id: true, reference: true, amount: true, currency: true, createdAt: true } },
+      payment: {
+        select: { id: true, reference: true, amount: true, currency: true, createdAt: true, status: true },
+      },
       case: { select: { id: true, caseNumber: true, title: true } },
       refund: { select: { id: true, refundNumber: true, status: true } },
       requestedBy: { select: { firstName: true, lastName: true } },
