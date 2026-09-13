@@ -8,6 +8,7 @@ import {
   signatureRequestMeta,
 } from "@/lib/signature-recipients";
 import { prisma } from "@/lib/prisma";
+import { handleOutreachFailure } from "@/lib/whatsapp-outreach";
 
 export const dynamic = "force-dynamic";
 
@@ -139,6 +140,10 @@ async function recordStatus(status: MetaStatus) {
   const label = statusLabel(state);
   const recipient = status.recipient_id ? ` to ${status.recipient_id}` : "";
   const reason = state === "failed" ? ` · ${failureDetails(status)}` : "";
+  if (state === "failed")
+    await handleOutreachFailure(messageId, failureDetails(status)).catch((error) =>
+      logger.error("whatsapp.outreach_failure_sync_failed", { err: error }),
+    );
   const duplicate = await prisma.activity.findFirst({
     where: { type: `WHATSAPP_${label}`, message: { contains: messageId } },
     select: { id: true },

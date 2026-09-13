@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { AUTOMATED_NO_REPLY_EMAIL } from "@/lib/email-aliases";
 import { resolveOtpSenderMailbox } from "@/lib/mail-otp-sender";
 import { gmailSend } from "@/lib/google/gmail";
-import { sendWhatsAppText } from "@/lib/whatsapp";
+import { sendWhatsAppLink } from "@/lib/whatsapp-outreach";
 import { appBaseUrl } from "@/lib/document-requests";
 
 export type ClaimStatus =
@@ -130,15 +130,20 @@ export async function deliverRefundClaimLink(claimId: string, channels: Array<"E
     if (!to) errors.push("Le client n’a pas de numéro WhatsApp");
     else
       try {
-        await sendWhatsAppText(to, text);
+        await sendWhatsAppLink({
+          to,
+          firstName: c.client.firstName,
+          url,
+          subject: fr ? "votre demande de remboursement" : "your refund request",
+          text,
+          language: c.language,
+          kind: "REFUND_CLAIM",
+          recordId: c.id,
+          userId: c.requestedById,
+        });
         sent.push("WHATSAPP");
       } catch (e) {
-        const raw = e instanceof Error ? e.message : "échec";
-        errors.push(
-          raw.includes("131047") || raw.includes("re-engagement")
-            ? "WhatsApp : fenêtre de 24 h fermée — copiez le lien et envoyez-le via un modèle approuvé"
-            : `WhatsApp : ${raw.slice(0, 160)}`,
-        );
+        errors.push(`WhatsApp : ${(e instanceof Error ? e.message : "échec").slice(0, 220)}`);
       }
   }
   if (sent.length)

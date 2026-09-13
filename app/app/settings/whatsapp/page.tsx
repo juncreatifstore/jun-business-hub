@@ -9,6 +9,9 @@ import { saveWhatsAppSettings } from "@/services/whatsapp";
 import { subscribeWhatsAppAppToWaba } from "@/services/whatsapp-waba-subscription";
 import { testWhatsAppWebhookLocally } from "@/services/whatsapp-webhook-test";
 import { PageHeader } from "@/components/app/page-header";
+import { getOutreachTemplate } from "@/lib/whatsapp-outreach";
+import { saveWhatsAppOutreachTemplate } from "@/services/whatsapp-outreach";
+import { listApprovedWhatsAppTemplates } from "@/lib/whatsapp";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
@@ -362,6 +365,74 @@ export default async function WhatsAppSettingsPage() {
           </span>
         </div>
       </form>
+      <Card className="mt-5">
+        <CardHeader>
+          <CardTitle>Modèle de lien (hors fenêtre de 24 h)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted2">
+            WhatsApp n’autorise un texte libre que dans les 24 h suivant le dernier message du client.
+            Au-delà, les liens (formulaire de remboursement, demande de documents…) partent via ce modèle
+            approuvé. Sans modèle, l’envoi est refusé par Meta (code 131047) et le hub vous le signale.
+          </p>
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/[0.05] p-4 text-sm">
+            <p className="font-semibold text-emerald-200">
+              Modèle à créer dans Meta WhatsApp Manager (catégorie Utility)
+            </p>
+            <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-emerald-400/15 bg-black/20 p-3 text-xs text-ink">
+              {
+                "Bonjour {{1}}, voici le lien sécurisé concernant {{3}} :\n{{2}}\nIl est valable 30 jours. JUN CREATIF AND TRAVEL LLC"
+              }
+            </pre>
+            <p className="mt-2 text-xs text-muted2">
+              Variables : 1 = prénom, 2 = lien, 3 = objet (les noms prenom / lien / objet fonctionnent aussi).
+              Un modèle à 2 variables (prénom, lien) suffit.
+            </p>
+          </div>
+          <OutreachTemplateForm />
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+async function OutreachTemplateForm() {
+  const [current, approved] = await Promise.all([
+    getOutreachTemplate(),
+    listApprovedWhatsAppTemplates().catch(() => []),
+  ]);
+  const options = approved.filter((t) => t.paramCount >= 2 && t.paramCount <= 3);
+  return (
+    <form action={saveWhatsAppOutreachTemplate} className="flex flex-wrap items-end gap-3">
+      <label className="text-sm">
+        <span className="mb-1 block text-xs font-medium text-muted2">Modèle approuvé</span>
+        <select
+          name="template"
+          defaultValue={current ? `${current.name}::${current.language}` : ""}
+          className="h-10 min-w-72 rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-electric"
+        >
+          <option value="">— Aucun (envoi refusé hors fenêtre) —</option>
+          {options.map((t) => (
+            <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>
+              {t.name} · {t.language} · {t.paramCount} variables ({t.params.map((k) => `{{${k}}}`).join(", ")}
+              )
+            </option>
+          ))}
+        </select>
+      </label>
+      <Button type="submit" variant="secondary">
+        Enregistrer le modèle de lien
+      </Button>
+      {current ? (
+        <span className="text-xs text-success">
+          Actif : {current.name} · {current.language}
+        </span>
+      ) : (
+        <span className="text-xs text-warning">Aucun modèle de lien configuré</span>
+      )}
+      {!options.length ? (
+        <span className="text-xs text-muted2">Aucun modèle approuvé à 2–3 variables trouvé.</span>
+      ) : null}
+    </form>
   );
 }

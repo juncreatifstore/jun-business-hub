@@ -7,7 +7,7 @@ import { caseChecklist } from "@/lib/document-requirements";
 import { AUTOMATED_NO_REPLY_EMAIL } from "@/lib/email-aliases";
 import { resolveOtpSenderMailbox } from "@/lib/mail-otp-sender";
 import { gmailSend } from "@/lib/google/gmail";
-import { sendWhatsAppText } from "@/lib/whatsapp";
+import { sendWhatsAppLink } from "@/lib/whatsapp-outreach";
 import { logger } from "@/lib/logger";
 
 export type RequestItem = {
@@ -225,15 +225,20 @@ export async function deliverDocumentRequest(
     if (!to) errors.push("Le client n’a pas de numéro WhatsApp");
     else {
       try {
-        await sendWhatsAppText(to, text);
+        await sendWhatsAppLink({
+          to,
+          firstName: r.client.firstName,
+          url,
+          subject: r.language === "fr" ? "vos documents à transmettre" : "your documents",
+          text,
+          language: r.language,
+          kind: "DOCUMENT_REQUEST",
+          recordId: r.id,
+          userId: r.requestedById,
+        });
         sent.push("WHATSAPP");
       } catch (e) {
-        const raw = e instanceof Error ? e.message : "échec";
-        errors.push(
-          raw.includes("131047") || raw.includes("re-engagement")
-            ? "WhatsApp : fenêtre de 24 h fermée — envoyez le lien via un modèle approuvé ou par e-mail"
-            : `WhatsApp : ${raw.slice(0, 160)}`,
-        );
+        errors.push(`WhatsApp : ${(e instanceof Error ? e.message : "échec").slice(0, 220)}`);
       }
     }
   }
