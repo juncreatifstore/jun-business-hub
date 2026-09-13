@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { PortalActions } from "@/components/client/portal-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +39,14 @@ export default async function ClientPortalPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-3xl">Welcome, {client.firstName}</h1>
+        <h1 className="font-display text-3xl">Bonjour {client.firstName}</h1>
         <p className="mt-1 text-sm text-white/60">
-          Here is a read-only view of your file with JUN CREATIF AND TRAVEL LLC. For any change, contact your
-          agent.
+          Votre espace chez JUN CREATIF AND TRAVEL LLC : ce qui est attendu de vous, l’avancement de vos
+          dossiers, vos documents, paiements et remboursements.
         </p>
       </div>
+
+      <PortalActions clientId={clientId} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
