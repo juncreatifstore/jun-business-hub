@@ -42,6 +42,7 @@ export default async function RefundClaimPage(props: { params: Promise<{ token: 
           lockedPayment={c.lockedPayment}
           defaultEmail={c.email ?? ""}
           defaultPhone={c.phone ?? ""}
+          defaultName={c.fullName}
           reasons={REASON_CODES.map((r) => ({ code: r.code, label: fr ? r.fr : r.en }))}
           payouts={PAYOUT_METHODS.map((m) => ({ code: m.code, label: fr ? m.fr : m.en }))}
         />

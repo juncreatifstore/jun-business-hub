@@ -636,6 +636,8 @@ model RefundClaim {
   reason        String?
   payoutMethod  String?   // ORIGINAL | BANK_TRANSFER | CASH | OTHER
   payoutDetails Json      @default("{}")
+  /// Structured submission: identity, payment, service, evidence, declaration, files [{fileId, role}]
+  submission    Json      @default("{}")
   contactEmail  String?
   contactPhone  String?
   fileIds       String[]  @default([])

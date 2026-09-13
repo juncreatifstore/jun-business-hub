@@ -5,7 +5,7 @@ import { requireUser, can } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/app/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { reasonLabel, payoutLabel, claimUrl } from "@/lib/refund-claims";
+import { reasonLabel, payoutLabel, claimUrl, type ClaimDetails } from "@/lib/refund-claims";
 import { markClaimUnderReview, rejectClaim } from "@/services/refund-claims";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 
@@ -48,6 +48,58 @@ export default async function RefundClaimPage(props: {
       })
     : [];
   const details = (c.payoutDetails ?? {}) as Record<string, string>;
+  const sub = (c.submission ?? {}) as Partial<ClaimDetails>;
+  const fileById = new Map(files.map((f) => [f.id, f]));
+  const byRole = (role: string) =>
+    (sub.files ?? [])
+      .filter((f) => f.role === role)
+      .map((f) => ({ ...f, mime: fileById.get(f.fileId)?.mimeType ?? "" }));
+  const ID_LABEL: Record<string, string> = {
+    PASSPORT: "Passeport",
+    NATIONAL_ID: "Carte d’identité",
+    DRIVER_LICENSE: "Permis de conduire",
+    RESIDENCE_PERMIT: "Titre de séjour",
+  };
+  const METHOD_LABEL: Record<string, string> = {
+    CASH: "Espèces en agence",
+    BANK_TRANSFER: "Virement",
+    CARD: "Carte",
+    ZELLE: "Zelle",
+    PAYPAL: "PayPal",
+    MONCASH: "MonCash / mobile money",
+    WESTERN_UNION: "Western Union / MoneyGram",
+    OTHER: "Autre",
+  };
+  const SERVICE_LABEL: Record<string, string> = {
+    VISA: "Visa / immigration",
+    TRAVEL: "Voyage / billet / hôtel",
+    DOCUMENTS: "Documents / démarches",
+    DESIGN: "Création / design",
+    OTHER: "Autre",
+  };
+  const Thumb = ({ f }: { f: { fileId: string; name: string; mime: string } }) =>
+    f.mime.startsWith("image/") ? (
+      <a
+        href={`/api/files/${f.fileId}`}
+        target="_blank"
+        rel="noreferrer"
+        className="block overflow-hidden rounded-lg border border-line bg-surface"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/api/files/${f.fileId}`} alt={f.name} className="h-40 w-full object-cover" />
+        <div className="truncate px-2 py-1 text-[11px] text-muted2">{f.name}</div>
+      </a>
+    ) : (
+      <a
+        href={`/api/files/${f.fileId}`}
+        target="_blank"
+        rel="noreferrer"
+        className="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-line bg-surface text-xs text-muted2 hover:text-electric"
+      >
+        <FileText className="h-6 w-6" />
+        <span className="max-w-[90%] truncate px-2">{f.name}</span>
+      </a>
+    );
   const open = ["SUBMITTED", "UNDER_REVIEW"].includes(c.status);
   const canDecide = can(user, "REFUND_APPROVE") || can(user, "REFUND_CREATE");
   const createHref = `/app/finance/refunds/new?clientId=${c.clientId}${c.paymentId ? `&paymentId=${c.paymentId}` : ""}${c.caseId ? `&caseId=${c.caseId}` : ""}&amount=${c.amount ? Number(c.amount) : ""}&reason=${encodeURIComponent(`${reasonLabel(c.reasonCode)} — ${c.reason ?? ""}`)}&claimId=${c.id}`;
@@ -75,9 +127,144 @@ export default async function RefundClaimPage(props: {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
+          {c.submittedAt && sub.identity ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">1. Identité déclarée</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">
+                  <dt className="text-muted2">Nom complet</dt>
+                  <dd className="font-medium">{sub.identity.fullName}</dd>
+                  <dt className="text-muted2">Date de naissance</dt>
+                  <dd>{sub.identity.dateOfBirth}</dd>
+                  <dt className="text-muted2">Pièce</dt>
+                  <dd>
+                    {ID_LABEL[sub.identity.idType] ?? sub.identity.idType} ·{" "}
+                    <span className="font-mono">{sub.identity.idNumber}</span>
+                  </dd>
+                  <dt className="text-muted2">Fiche client</dt>
+                  <dd>
+                    {c.client.firstName} {c.client.lastName} · {c.client.internalId}
+                    {sub.identity.fullName.toLowerCase().replace(/\s+/g, " ") !==
+                    `${c.client.firstName} ${c.client.lastName}`.toLowerCase().replace(/\s+/g, " ") ? (
+                      <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
+                        nom différent de la fiche
+                      </span>
+                    ) : (
+                      <span className="ml-2 rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700">
+                        cohérent
+                      </span>
+                    )}
+                  </dd>
+                </dl>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="mb-1 text-xs font-medium text-muted2">Pièce d’identité</div>
+                    <div className="grid gap-2">
+                      {byRole("ID").map((f) => (
+                        <Thumb key={f.fileId} f={f} />
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-xs font-medium text-muted2">Selfie avec la pièce</div>
+                    <div className="grid gap-2">
+                      {byRole("SELFIE").map((f) => (
+                        <Thumb key={f.fileId} f={f} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+          {c.submittedAt && sub.payment ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">2. Paiement déclaré et preuve</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">
+                  <dt className="text-muted2">Payé le</dt>
+                  <dd>{sub.payment.paidOn}</dd>
+                  <dt className="text-muted2">Montant payé</dt>
+                  <dd className="font-medium">
+                    {sub.payment.currency} {Number(sub.payment.paidAmount).toFixed(2)}
+                  </dd>
+                  <dt className="text-muted2">Moyen</dt>
+                  <dd>{METHOD_LABEL[sub.payment.method] ?? sub.payment.method}</dd>
+                  <dt className="text-muted2">Référence</dt>
+                  <dd className="font-mono text-xs">{sub.payment.reference || "—"}</dd>
+                  <dt className="text-muted2">Payé à</dt>
+                  <dd>{sub.payment.paidTo}</dd>
+                  <dt className="text-muted2">Dans nos registres</dt>
+                  <dd>
+                    {c.payment ? (
+                      <>
+                        <Link
+                          prefetch={false}
+                          href={`/app/finance/payments/${c.payment.id}`}
+                          className="text-electric hover:underline"
+                        >
+                          {c.payment.reference} · {c.payment.currency} {Number(c.payment.amount).toFixed(2)}
+                        </Link>
+                        {Math.abs(Number(c.payment.amount) - Number(sub.payment.paidAmount)) > 0.005 ? (
+                          <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
+                            montant déclaré différent
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-800">
+                        aucun paiement enregistré — à rapprocher manuellement
+                      </span>
+                    )}
+                  </dd>
+                </dl>
+                <div>
+                  <div className="mb-1 text-xs font-medium text-muted2">Preuves de paiement</div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {byRole("PAYMENT_PROOF").map((f) => (
+                      <Thumb key={f.fileId} f={f} />
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+          {c.submittedAt && sub.service ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">3. Service concerné</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[160px_1fr]">
+                  <dt className="text-muted2">Type</dt>
+                  <dd>{SERVICE_LABEL[sub.service.type] ?? sub.service.type}</dd>
+                  <dt className="text-muted2">Description</dt>
+                  <dd className="whitespace-pre-wrap">{sub.service.description}</dd>
+                  {sub.service.caseReference ? (
+                    <>
+                      <dt className="text-muted2">Dossier indiqué</dt>
+                      <dd>{sub.service.caseReference}</dd>
+                    </>
+                  ) : null}
+                  {sub.service.date ? (
+                    <>
+                      <dt className="text-muted2">Date du service</dt>
+                      <dd>{sub.service.date}</dd>
+                    </>
+                  ) : null}
+                </dl>
+              </CardContent>
+            </Card>
+          ) : null}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Demande</CardTitle>
+              <CardTitle className="text-base">
+                {c.submittedAt && sub.identity ? "4. Motif et montant" : "Demande"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {c.submittedAt ? (

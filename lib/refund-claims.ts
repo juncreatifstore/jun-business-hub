@@ -159,7 +159,7 @@ export async function getPublicClaim(token: string) {
   const c = await prisma.refundClaim.findUnique({
     where: { token },
     include: {
-      client: { select: { id: true, firstName: true, email: true, phone: true } },
+      client: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
       payment: { select: { id: true, reference: true, amount: true, currency: true, createdAt: true } },
     },
   });
@@ -190,6 +190,7 @@ export async function getPublicClaim(token: string) {
   return {
     id: c.id,
     firstName: c.client.firstName,
+    fullName: `${c.client.firstName} ${c.client.lastName}`.trim(),
     tracking: {
       status: c.status as ClaimStatus,
       submittedAt: c.submittedAt,
@@ -231,7 +232,28 @@ export async function getPublicClaim(token: string) {
   };
 }
 
+export type ClaimFile = {
+  fileId: string;
+  role: "ID" | "SELFIE" | "PAYMENT_PROOF" | "EVIDENCE";
+  name: string;
+};
+export type ClaimDetails = {
+  identity: { fullName: string; dateOfBirth: string; idType: string; idNumber: string };
+  payment: {
+    paidOn: string;
+    paidAmount: number;
+    currency: string;
+    method: string;
+    reference: string;
+    paidTo: string;
+  };
+  service: { type: string; description: string; caseReference: string; date: string };
+  fullRefund: boolean;
+  declaration: { signature: string; signedAt: string; ip: string | null; userAgent: string | null };
+  files: ClaimFile[];
+};
 export type ClaimSubmission = {
+  details: ClaimDetails;
   paymentId: string | null;
   amount: number;
   currency: string;
@@ -262,6 +284,7 @@ export async function submitClaim(id: string, s: ClaimSubmission) {
       contactPhone: s.contactPhone,
       fileIds: s.fileIds,
       clientIp: s.clientIp,
+      submission: s.details as unknown as Prisma.InputJsonValue,
     },
     include: {
       client: { select: { firstName: true, lastName: true, email: true } },
