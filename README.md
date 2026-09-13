@@ -225,29 +225,63 @@ conversations, portal) · append-only audit log for login, MFA, downloads, Vault
 access, payments, refunds, signatures, mailbox events, AI executions · secrets
 at rest encrypted AES-256-GCM · no secret is committed (scan before every push).
 
-## Feature status (real, verified in QA)
+## Feature status (real, verified in production — September 2026)
 
 | Area | Status |
 |---|---|
 | Auth / RBAC / revocable sessions | WORKING (e2e tested) |
-| MFA TOTP + recovery codes | WORKING (e2e tested) |
-| CRM · Cases · Tasks · Drive · Vault · Finance · Audit · Search · Portal | WORKING |
-| Documents: Tiptap · sanitization · versioning · SHA-256 · server PDF · QR verify | WORKING (PDF + verify e2e tested) |
+| MFA TOTP + recovery codes | WORKING — **mandatory** for SUPER_ADMIN, DIRECTOR, ADMIN, FINANCE, LEGAL, ACCOUNTANT |
+| CRM · Cases · Tasks · Vault · Audit · Portal | WORKING |
+| Cases: document checklist per case type, client notified on status change | WORKING |
+| Tasks: created automatically from events (document received, refund claim, payment proof, expiring ID, unanswered requests) | WORKING |
+| Documents: Tiptap · sanitization · versioning · SHA-256 · server PDF · QR verify · templates pre-filled from extracted data | WORKING |
+| Drive: AI typing & key-field extraction, by-client view, checklists, document requests by secure link, unified search, comments/@mentions, Office preview, watermark on public links, off-site backup to Google Drive | WORKING — extraction & Office preview need `OPENAI_API_KEY` / a connected Google Drive |
+| Google Drive / OneDrive connected browsing (folders, Computers, search, preview, trash, copy both ways) | WORKING — Google needs the full `drive` scope (reconnect once) |
+| Mail: Gmail OAuth, sync, aliases, attachments → Drive, contact form routed to aliases | WORKING |
+| WhatsApp: inbox, templates (positional & named variables), 24 h window handling, media → Drive | WORKING — link template to configure in Settings |
+| Finance: payments, receipts, invoices, expenses, refunds with installments, monthly report + CSV | WORKING |
+| Client refund claims (5-step instructed form: identity + selfie, payment proof, service, reason, payout, signed declaration) → team processing (assignment, SLA, complements, AI identity check, partial decisions with retained services, dossier PDF) | WORKING |
+| Client payment requests (secure link, per-method instructions, proof deposit → pending payment → confirmation) | WORKING |
+| Client portal: actions required, case progress, refund tracking, self-service refund | WORKING |
 | JUN AI (Vercel AI SDK, permission-checked tools, human approval) | WORKING — model needs `OPENAI_API_KEY` |
-| Gmail (OAuth, sync, real send, triage) | READY — CREDENTIALS REQUIRED |
+| Online payments STRIPE / PAYPAL / MERCADO_PAGO (checkout, signed webhooks, public pay page) | CODE COMPLETE — CREDENTIALS REQUIRED |
 | DocuSign (JWT grant, envelope, HMAC webhook, signed PDF) | READY — CREDENTIALS REQUIRED (sandbox test pending) |
-| Payments STRIPE/PAYPAL/MERCADO_PAGO | NOT IMPLEMENTED (MANUAL provider is the active, working mode) |
 
 Production guarantees: mock email send and mock signing are hard-disabled when
 `NODE_ENV=production` (server-side guards, not just hidden buttons); nothing is
 ever recorded as SENT/SIGNED unless the real provider accepted it.
 
+## Public client links
+
+| URL | Purpose |
+|---|---|
+| `/r/<token>` | Document request: one upload slot per expected piece |
+| `/p/<token>` | Payment request: instructions per method + proof deposit (or online link) |
+| `/refund/<token>` | Refund claim form, then status tracking |
+| `/refund` | Self-service: e-mail → personal refund form link |
+| `/pay/<token>` | Online checkout (Stripe / PayPal / Mercado Pago) |
+| `/view/file/<id>` | Watermarked public file (token, optional password, expiry) |
+
+Links are random 192-bit tokens, rate-limited, honeypot-protected, bilingual
+(FR/EN), and expire. Uploads land in the client's Drive, are AI-typed, and
+tick case checklists automatically.
+
+## Scheduled jobs (Vercel cron)
+
+| Path | Schedule | Does |
+|---|---|---|
+| `/api/cron/mail-sync` | every 5 min | Gmail sync (catch-up mode), conversation warm-up, alias recipient backfill |
+| `/api/cron/drive-extraction` | hourly | AI typing of files never analysed (8 per run) |
+| `/api/cron/drive-backup` | hourly | Off-site copy of new files to Google Drive |
+| `/api/cron/document-requests` | every 6 h | Reminders/expiry for document, refund and payment requests; SLA alerts; scheduled auto-tasks |
+
 ## Backup
 
-Supabase runs daily automatic backups (check your plan's retention). Additionally:
-scheduled `pg_dump` via the direct URL for off-site copies, and the private
-`jun-files` bucket should be replicated (Supabase Storage has no PITR). Restore
-drill: new project → `psql < dump` → repoint `DATABASE_URL`/`DIRECT_URL`.
+Supabase runs daily automatic backups of the database. Files are replicated
+hourly to the connected Google Drive under "JUN Business Hub — Sauvegarde /
+year / month" (see Drive › Administration › Enterprise for coverage). Restore
+drill: new project → `psql < dump` → repoint `DATABASE_URL`/`DIRECT_URL`;
+files can be re-imported from the backup folder.
 
 ## Troubleshooting
 

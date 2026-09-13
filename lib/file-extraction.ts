@@ -85,20 +85,16 @@ export function parseLooseDate(value: unknown): Date | null {
   if (!value) return null;
   const s = String(value).trim();
   if (!s || /^(unknown|n\/a|none|null)$/i.test(s)) return null;
+  const plausible = (d: Date) => {
+    if (Number.isNaN(d.getTime())) return null;
+    const y = d.getUTCFullYear();
+    return y > 1900 && y < 2200 ? d : null;
+  };
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) {
-    const d = new Date(Date.UTC(+iso[1], +iso[2] - 1, +iso[3]));
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
+  if (iso) return plausible(new Date(Date.UTC(+iso[1], +iso[2] - 1, +iso[3])));
   const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
-  if (dmy) {
-    const d = new Date(Date.UTC(+dmy[3], +dmy[2] - 1, +dmy[1]));
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  const y = d.getUTCFullYear();
-  return y > 1900 && y < 2200 ? d : null;
+  if (dmy) return plausible(new Date(Date.UTC(+dmy[3], +dmy[2] - 1, +dmy[1])));
+  return plausible(new Date(s));
 }
 
 function str(value: unknown, max = 200) {
