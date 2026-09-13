@@ -187,7 +187,7 @@ export async function deliverDocumentRequest(
   if (!r) throw new Error("Request not found");
   const items = parseItems(r.items);
   const url = requestUrl(r.token);
-  const { html, text } = buildMessage({
+  const { html, text, short } = buildMessage({
     firstName: r.client.firstName,
     items,
     message: r.message,

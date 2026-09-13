@@ -120,5 +120,16 @@ ${input.meta ? `<tr><td style="padding:0 28px 12px;font-size:12px;color:${BRAND.
   const text = [greeting, ...input.blocks.map(blockText), signoff, input.meta, "", footer]
     .filter((v): v is string => Boolean(v))
     .join("\n\n");
-  return { html, text };
+  // Short form for chat channels (WhatsApp): greeting, key blocks, link, signature — no footer.
+  const short = [
+    greeting,
+    ...input.blocks
+      .filter((b) => b.type === "p" || b.type === "note" || b.type === "list" || b.type === "button")
+      .slice(0, 4)
+      .map((b) => (b.type === "button" ? b.url : blockText(b))),
+    BRAND.name,
+  ]
+    .filter((v): v is string => Boolean(v))
+    .join("\n\n");
+  return { html, text, short };
 }
