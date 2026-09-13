@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getFinanceControlCenter } from "@/lib/finance-control-center";
 import { PageHeader } from "@/components/app/page-header";
@@ -15,6 +16,19 @@ export default async function ReportsPage() {
   const paymentCount = data.currencies.reduce((sum, row) => sum + row.paymentCount, 0);
   return (
     <div>
+      <div className="mb-4 rounded-2xl border border-electric/30 bg-blue-50 p-4 text-sm">
+        <Link
+          prefetch={false}
+          href="/app/finance/reports/monthly"
+          className="font-semibold text-electric hover:underline"
+        >
+          Rapport mensuel →
+        </Link>{" "}
+        <span className="text-muted2">
+          encaissements, remboursements, dépenses, demandes clients et résultat net par devise, exportable en
+          CSV.
+        </span>
+      </div>
       <PageHeader
         title="Rapports financiers"
         subtitle="Encaissements, frais, remboursements et position de trésorerie multi-devises. Les devises ne sont jamais additionnées artificiellement."
