@@ -94,6 +94,11 @@ export async function finalizeCaseClosure(caseId: string, formData: FormData) {
         update: { value: JSON.stringify(snapshot) },
       });
       await tx.case.update({ where: { id: caseId }, data: { status: "COMPLETED" } });
+      queueMicrotask(() => {
+        void import("@/lib/case-client-notify")
+          .then(({ notifyClientCaseStatus }) => notifyClientCaseStatus(caseId, "COMPLETED"))
+          .catch(() => null);
+      });
     })
     .catch((error) => {
       if ((error as Error)?.message === "CASE_TERMINAL")

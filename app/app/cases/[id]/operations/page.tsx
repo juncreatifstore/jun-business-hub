@@ -148,6 +148,22 @@ export default async function CaseOperationsPage(props: {
                   ))}
                 </Select>
               </div>
+              <div className="min-w-64 flex-1">
+                <label className="mb-1 block text-xs text-muted2">
+                  Message au client (facultatif, joint à la notification)
+                </label>
+                <input
+                  name="clientNote"
+                  maxLength={600}
+                  placeholder="ex. Votre dossier a été déposé au consulat le 12/09."
+                  className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none focus:border-electric"
+                />
+              </div>
+              <label className="mb-2 inline-flex items-center gap-1.5 text-xs text-muted2">
+                <input type="checkbox" name="notifyClient" value="on" defaultChecked /> Informer le client
+                (e-mail, WhatsApp si conversation ouverte)
+                <input type="hidden" name="notifyClient" value="off" />
+              </label>
               <Button variant="outline">Update status</Button>
             </form>
           ) : (

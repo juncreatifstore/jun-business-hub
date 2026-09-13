@@ -172,6 +172,24 @@ export async function updateCaseStatus(caseId: string, formData: FormData) {
     clientId: updated.clientId,
     caseId,
   });
+  if (before.status !== status && String(formData.get("notifyClient") ?? "on") !== "off") {
+    const { notifyClientCaseStatus } = await import("@/lib/case-client-notify");
+    const r = await notifyClientCaseStatus(
+      caseId,
+      status,
+      String(formData.get("clientNote") ?? "")
+        .trim()
+        .slice(0, 600) || null,
+    ).catch(() => ({ sent: [] as string[] }));
+    if (r.sent.length)
+      await logActivity({
+        type: "CLIENT_NOTIFIED",
+        message: `Client informé du statut ${status.replaceAll("_", " ")} (${r.sent.map((v) => (v === "EMAIL" ? "e-mail" : "WhatsApp")).join(", ")})`,
+        userId: user.id,
+        clientId: updated.clientId,
+        caseId,
+      });
+  }
   revalidatePath(`/app/cases/${caseId}`);
   revalidatePath(`/app/cases/${caseId}/dashboard`);
   revalidatePath(`/app/cases/${caseId}/operations`);
