@@ -378,7 +378,6 @@ model Case {
   documentRequests DocumentRequest[]
   refundClaims RefundClaim[]
   paymentRequests PaymentRequest[]
-  paymentRequests PaymentRequest[]
   refunds     Refund[]
   activities  Activity[]
 
