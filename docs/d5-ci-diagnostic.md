@@ -1,0 +1,1 @@
+Temporary CI diagnostic trigger for D.5 after the TypeScript fix. No runtime behavior changes.
