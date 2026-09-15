@@ -152,7 +152,9 @@ export async function recordOutgoingWhatsAppMessage(input: {
     where: { resourceType: "WhatsAppConversation", resourceId: phone, message: { contains: messageId } },
     select: { id: true },
   });
-  if (duplicate) return duplicate;
+  // Meta retries webhook deliveries. Returning a truthy record here caused the
+  // webhook route to run notifications and automatic replies a second time.
+  if (duplicate) return null;
   const timestamp =
     input.timestamp instanceof Date
       ? input.timestamp.toISOString()

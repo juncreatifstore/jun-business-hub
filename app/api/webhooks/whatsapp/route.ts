@@ -9,6 +9,7 @@ import {
 } from "@/lib/signature-recipients";
 import { prisma } from "@/lib/prisma";
 import { handleOutreachFailure } from "@/lib/whatsapp-outreach";
+import { opensWhatsAppCustomerServiceWindow } from "@/lib/whatsapp-service-window";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,8 @@ function statusLabel(status: string) {
 function failureDetails(status: MetaStatus) {
   const err = status.errors?.[0];
   if (!err) return "Meta did not provide a failure reason.";
+  if (err.code === 131047)
+    return "Fenêtre WhatsApp de 24 h expirée · envoyez un modèle Meta approuvé pour reprendre la conversation.";
   return [
     err.code != null ? `code ${err.code}` : "",
     err.title || "",
@@ -213,7 +216,8 @@ export async function POST(request: NextRequest) {
             logger.error("whatsapp.webhook_inbound_failed", { err: error });
             return null;
           });
-          if (stored && !["audio", "reaction"].includes(String(message?.type ?? ""))) {
+          const messageType = String(message?.type ?? "");
+          if (stored && messageType !== "audio" && opensWhatsAppCustomerServiceWindow(messageType)) {
             const phone = String(from ?? "").replace(/[^\d]/g, "");
             const clientId = (stored as { clientId?: string | null }).clientId ?? null;
             // Auto-reply runs after the 200 is sent to Meta.

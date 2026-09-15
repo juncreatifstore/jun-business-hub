@@ -1,6 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { listApprovedWhatsAppTemplates, sendWhatsAppTemplate, sendWhatsAppText } from "@/lib/whatsapp";
+import { decodeWhatsAppInboxPayload } from "@/lib/whatsapp-inbox";
+import {
+  opensWhatsAppCustomerServiceWindow,
+  WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS,
+} from "@/lib/whatsapp-service-window";
 
 export const OUTREACH_TEMPLATE_KEY = "whatsapp.outreach.template";
 export const OUTREACH_MSG_PREFIX = "whatsapp.outreach.msg.";
@@ -15,15 +20,20 @@ function digits(phone: string) {
 export async function whatsAppWindowOpen(phone: string) {
   const p = digits(phone);
   if (!p) return false;
-  const last = await prisma.activity.findFirst({
+  const recent = await prisma.activity.findMany({
     where: {
-      type: { in: ["WHATSAPP_INBOUND", "WHATSAPP_INBOUND_UNREAD"] },
-      createdAt: { gte: new Date(Date.now() - 24 * 3600_000) },
+      type: { in: ["WHATSAPP_INBOUND", "WHATSAPP_INBOUND_UNREAD", "WHATSAPP_INBOUND_READ"] },
+      createdAt: { gte: new Date(Date.now() - WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS) },
       message: { contains: `"phone":"${p}"` },
     },
-    select: { id: true },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: { message: true },
   });
-  return Boolean(last);
+  return recent.some((row) => {
+    const payload = decodeWhatsAppInboxPayload(row.message);
+    return payload?.direction === "INBOUND" && opensWhatsAppCustomerServiceWindow(payload.type);
+  });
 }
 
 /** Template used to send a link outside the 24 h window (configured by an admin). */
