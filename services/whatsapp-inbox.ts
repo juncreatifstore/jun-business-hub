@@ -32,6 +32,7 @@ import {
   isClientCommunicationBanned,
   setClientCommunicationBan,
 } from "@/lib/client-communication-policy";
+import { whatsAppWindowOpen } from "@/lib/whatsapp-outreach";
 
 function assertStaff(role: string) {
   if (role === "CLIENT") throw new Error("Forbidden");
@@ -314,6 +315,13 @@ export async function replyWhatsAppConversation(phone: string, formData: FormDat
   const normalized = cleanPhone(phone);
   const body = String(formData.get("message") || "").trim();
   if (!body) throw new Error("Message is empty");
+
+  if (!(await whatsAppWindowOpen(normalized)))
+    redirect(
+      `/app/whatsapp/inbox?phone=${encodeURIComponent(normalized)}&toast_error=${encodeURIComponent(
+        "Fenêtre WhatsApp de 24 h expirée. Utilisez un modèle Meta approuvé pour reprendre la conversation.",
+      )}`,
+    );
 
   const origin = await conversationClient(normalized);
   if (origin?.clientId && (await isClientCommunicationBanned(origin.clientId))) {

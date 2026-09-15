@@ -69,6 +69,10 @@ import { getQuickReplies, type QuickReply } from "@/lib/whatsapp-quick-replies";
 import { whatsAppAIEnabled, type Transcript } from "@/lib/whatsapp-ai";
 import { listApprovedWhatsAppTemplates, type ApprovedTemplate } from "@/lib/whatsapp";
 import { StatusBadge } from "@/components/ui/badge";
+import {
+  opensWhatsAppCustomerServiceWindow,
+  WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS,
+} from "@/lib/whatsapp-service-window";
 
 export const dynamic = "force-dynamic";
 
@@ -280,7 +284,9 @@ export default async function WhatsAppInboxPage(props: {
       transcripts.set(r.key.replace("whatsapp.ai.transcript.", ""), JSON.parse(r.value) as Transcript);
     } catch {}
   }
-  const windowClosed = !selected?.lastInboundAt || Date.now() - selected.lastInboundAt.getTime() > 86_400_000;
+  const windowClosed =
+    !selected?.lastInboundAt ||
+    Date.now() - selected.lastInboundAt.getTime() > WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS;
   const templateDefaults = selected
     ? [/^\+?\d/.test(selected.name) ? "" : selected.name.split(/\s+/)[0], selected.caseNumber || ""]
     : [];
@@ -1127,7 +1133,8 @@ function groupConversations(rows: Row[]) {
     const payload = payloadForRow(row);
     if (!payload) continue;
     const existing = map.get(phone),
-      inbound = payload.direction === "INBOUND";
+      inbound = payload.direction === "INBOUND",
+      opensWindow = inbound && opensWhatsAppCustomerServiceWindow(payload.type);
     if (!existing)
       map.set(phone, {
         phone,
@@ -1140,7 +1147,7 @@ function groupConversations(rows: Row[]) {
         caseNumber: row.case?.caseNumber || null,
         preview: previewText(payload),
         lastAt: row.createdAt,
-        lastInboundAt: inbound ? new Date(payload.timestamp) : null,
+        lastInboundAt: opensWindow ? new Date(payload.timestamp) : null,
         lastOutboundAt: inbound ? null : new Date(payload.timestamp),
         unread: row.type === "WHATSAPP_INBOUND_UNREAD" ? 1 : 0,
         texts: [payload.text],
@@ -1148,7 +1155,7 @@ function groupConversations(rows: Row[]) {
     else {
       existing.texts.push(payload.text);
       if (row.type === "WHATSAPP_INBOUND_UNREAD") existing.unread++;
-      if (!existing.lastInboundAt && inbound) existing.lastInboundAt = new Date(payload.timestamp);
+      if (!existing.lastInboundAt && opensWindow) existing.lastInboundAt = new Date(payload.timestamp);
       if (!existing.lastOutboundAt && !inbound) existing.lastOutboundAt = new Date(payload.timestamp);
       if (!existing.clientId && row.client) {
         existing.clientId = row.client.id;
@@ -1288,7 +1295,7 @@ function formatDay(value: Date) {
 }
 function serviceWindowLabel(lastInboundAt: Date | null) {
   if (!lastInboundAt) return "Fenêtre Meta indisponible";
-  const r = lastInboundAt.getTime() + 86400000 - Date.now();
+  const r = lastInboundAt.getTime() + WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS - Date.now();
   if (r <= 0) return "Fenêtre expirée · modèle requis";
   return `Fenêtre active · ${Math.floor(r / 3600000)} h ${Math.floor((r % 3600000) / 60000)
     .toString()
