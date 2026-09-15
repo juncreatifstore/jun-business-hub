@@ -152,9 +152,7 @@ export async function recordOutgoingWhatsAppMessage(input: {
     where: { resourceType: "WhatsAppConversation", resourceId: phone, message: { contains: messageId } },
     select: { id: true },
   });
-  // Meta retries webhook deliveries. Returning a truthy record here caused the
-  // webhook route to run notifications and automatic replies a second time.
-  if (duplicate) return null;
+  if (duplicate) return duplicate;
   const timestamp =
     input.timestamp instanceof Date
       ? input.timestamp.toISOString()
@@ -192,7 +190,9 @@ export async function recordIncomingWhatsAppMessage(input: { message: any; conta
     where: { resourceType: "WhatsAppConversation", resourceId: phone, message: { contains: messageId } },
     select: { id: true },
   });
-  if (duplicate) return duplicate;
+  // Meta retries inbound webhook deliveries. Returning a truthy record here
+  // caused the route to run notifications and automatic replies a second time.
+  if (duplicate) return null;
 
   const client = await findClientByPhone(phone);
   if (client && (await isClientCommunicationBanned(client.id))) {
