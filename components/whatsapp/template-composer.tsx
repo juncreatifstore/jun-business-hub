@@ -19,7 +19,8 @@ function RefundClaimShortcut({ phone, compact }: { phone: string; compact: boole
           <div className="text-xs font-semibold text-emerald-700">Demande de remboursement</div>
           {!compact ? (
             <p className="mt-0.5 text-xs text-muted2">
-              Crée un lien sécurisé pour ce client et l’envoie avec le modèle WhatsApp approuvé, même après 24 h.
+              Crée un lien sécurisé pour ce client et l’envoie avec le modèle WhatsApp approuvé, même après
+              24 h.
             </p>
           ) : null}
         </div>
