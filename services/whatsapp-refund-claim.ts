@@ -29,25 +29,47 @@ export async function sendRefundClaimFromWhatsAppInbox(phone: string): Promise<v
   const normalized = normalizeWhatsAppPhone(phone);
   if (!normalized) back("", "toast_error", "Numéro WhatsApp invalide");
 
-  const clients = await prisma.client.findMany({
+  // Prefer the client already linked to this exact Inbox conversation. This
+  // also works when the number in the conversation differs from the client's
+  // main phone field (for example after a manual Inbox link).
+  const linked = await prisma.activity.findFirst({
     where: {
-      archivedAt: null,
-      OR: [{ whatsapp: { not: null } }, { phone: { not: null } }],
+      resourceType: "WhatsAppConversation",
+      resourceId: normalized,
+      clientId: { not: null },
     },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      whatsapp: true,
-      phone: true,
-    },
+    orderBy: { createdAt: "desc" },
+    select: { clientId: true },
   });
-  const client =
-    clients.find((c) => {
-      const wa = normalizeWhatsAppPhone(c.whatsapp || "");
-      const tel = normalizeWhatsAppPhone(c.phone || "");
-      return wa === normalized || tel === normalized;
-    }) ?? null;
+  let client = linked?.clientId
+    ? await prisma.client.findFirst({
+        where: { id: linked.clientId, archivedAt: null },
+        select: { id: true, firstName: true, lastName: true, whatsapp: true, phone: true },
+      })
+    : null;
+
+  // Fallback for older conversations created before explicit Inbox linking.
+  if (!client) {
+    const clients = await prisma.client.findMany({
+      where: {
+        archivedAt: null,
+        OR: [{ whatsapp: { not: null } }, { phone: { not: null } }],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        whatsapp: true,
+        phone: true,
+      },
+    });
+    client =
+      clients.find((c) => {
+        const wa = normalizeWhatsAppPhone(c.whatsapp || "");
+        const tel = normalizeWhatsAppPhone(c.phone || "");
+        return wa === normalized || tel === normalized;
+      }) ?? null;
+  }
 
   if (!client) {
     back(
