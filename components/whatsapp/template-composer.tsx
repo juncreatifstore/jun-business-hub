@@ -19,8 +19,8 @@ function RefundClaimShortcut({ phone, compact }: { phone: string; compact: boole
           <div className="text-xs font-semibold text-emerald-700">Demande de remboursement</div>
           {!compact ? (
             <p className="mt-0.5 text-xs text-muted2">
-              Crée un lien sécurisé pour ce client et l’envoie avec le modèle WhatsApp approuvé, même après
-              24 h.
+              Crée un lien sécurisé pour ce client et l’envoie avec le modèle WhatsApp approuvé, même après 24
+              h.
             </p>
           ) : null}
         </div>
@@ -90,7 +90,8 @@ export function TemplateComposer({
         {windowClosed ? (
           <p className="flex items-start gap-2 text-xs text-warning">
             <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Ce client n’a pas écrit depuis plus de 24 h : WhatsApp n’autorise que l’envoi d’un modèle approuvé.
+            Ce client n’a pas écrit depuis plus de 24 h : WhatsApp n’autorise que l’envoi d’un modèle
+            approuvé.
           </p>
         ) : null}
         <Select value={id} onChange={(e) => choose(e.target.value)} className="h-10">
