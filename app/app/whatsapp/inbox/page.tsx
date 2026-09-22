@@ -1155,8 +1155,16 @@ function groupConversations(rows: Row[]) {
     else {
       existing.texts.push(payload.text);
       if (row.type === "WHATSAPP_INBOUND_UNREAD") existing.unread++;
-      if (!existing.lastInboundAt && opensWindow) existing.lastInboundAt = new Date(payload.timestamp);
-      if (!existing.lastOutboundAt && !inbound) existing.lastOutboundAt = new Date(payload.timestamp);
+      if (opensWindow) {
+        const inboundAt = new Date(payload.timestamp);
+        if (!Number.isNaN(inboundAt.getTime()) && (!existing.lastInboundAt || inboundAt > existing.lastInboundAt))
+          existing.lastInboundAt = inboundAt;
+      }
+      if (!inbound) {
+        const outboundAt = new Date(payload.timestamp);
+        if (!Number.isNaN(outboundAt.getTime()) && (!existing.lastOutboundAt || outboundAt > existing.lastOutboundAt))
+          existing.lastOutboundAt = outboundAt;
+      }
       if (!existing.clientId && row.client) {
         existing.clientId = row.client.id;
         existing.internalId = row.client.internalId;
