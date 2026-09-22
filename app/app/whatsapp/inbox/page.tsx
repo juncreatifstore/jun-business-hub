@@ -1111,6 +1111,13 @@ function payloadForRow(row: Row): WhatsAppInboxPayload | null {
   };
 }
 function groupConversations(rows: Row[]) {
+  type ClientLink = {
+    id: string;
+    internalId: string | null;
+    name: string;
+    sourcePriority: number;
+    at: number;
+  };
   const map = new Map<
     string,
     {
@@ -1125,26 +1132,35 @@ function groupConversations(rows: Row[]) {
       lastInboundAt: Date | null;
       lastOutboundAt: Date | null;
       unread: number;
-      /** All message texts, newest first, for content search. */
       texts: string[];
+      clientLink: ClientLink | null;
     }
   >();
+
   for (const row of rows) {
     const phone = rowPhone(row);
     if (!phone) continue;
     const payload = payloadForRow(row);
     if (!payload) continue;
-    const existing = map.get(phone),
-      inbound = payload.direction === "INBOUND",
-      opensWindow = inbound && opensWhatsAppCustomerServiceWindow(payload.type);
-    if (!existing)
+    const existing = map.get(phone);
+    const inbound = payload.direction === "INBOUND";
+    const opensWindow = inbound && opensWhatsAppCustomerServiceWindow(payload.type);
+    const client = row.client
+      ? {
+          id: row.client.id,
+          internalId: row.client.internalId,
+          name: `${row.client.firstName} ${row.client.lastName}`.trim(),
+          sourcePriority: row.resourceType === "WhatsAppConversation" ? 2 : 1,
+          at: row.createdAt.getTime(),
+        }
+      : null;
+
+    if (!existing) {
       map.set(phone, {
         phone,
-        name: row.client
-          ? `${row.client.firstName} ${row.client.lastName}`
-          : payload.contactName || `+${phone}`,
-        clientId: row.client?.id || null,
-        internalId: row.client?.internalId || null,
+        name: client?.name || payload.contactName || `+${phone}`,
+        clientId: client?.id || null,
+        internalId: client?.internalId || null,
         caseId: row.case?.id || null,
         caseNumber: row.case?.caseNumber || null,
         preview: previewText(payload),
@@ -1153,32 +1169,46 @@ function groupConversations(rows: Row[]) {
         lastOutboundAt: inbound ? null : new Date(payload.timestamp),
         unread: row.type === "WHATSAPP_INBOUND_UNREAD" ? 1 : 0,
         texts: [payload.text],
+        clientLink: client,
       });
-    else {
+    } else {
       existing.texts.push(payload.text);
       if (row.type === "WHATSAPP_INBOUND_UNREAD") existing.unread++;
+
       if (opensWindow) {
         const inboundAt = new Date(payload.timestamp);
         if (!Number.isNaN(inboundAt.getTime()) && (!existing.lastInboundAt || inboundAt > existing.lastInboundAt))
           existing.lastInboundAt = inboundAt;
       }
+
       if (!inbound) {
         const outboundAt = new Date(payload.timestamp);
         if (!Number.isNaN(outboundAt.getTime()) && (!existing.lastOutboundAt || outboundAt > existing.lastOutboundAt))
           existing.lastOutboundAt = outboundAt;
       }
-      if (!existing.clientId && row.client) {
-        existing.clientId = row.client.id;
-        existing.internalId = row.client.internalId;
-        existing.name = `${row.client.firstName} ${row.client.lastName}`;
+
+      if (
+        client &&
+        (!existing.clientLink ||
+          client.sourcePriority > existing.clientLink.sourcePriority ||
+          (client.sourcePriority === existing.clientLink.sourcePriority && client.at > existing.clientLink.at))
+      ) {
+        existing.clientLink = client;
+        existing.clientId = client.id;
+        existing.internalId = client.internalId;
+        existing.name = client.name;
       }
+
       if (!existing.caseId && row.case) {
         existing.caseId = row.case.id;
         existing.caseNumber = row.case.caseNumber;
       }
     }
   }
-  return [...map.values()].sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+
+  return [...map.values()]
+    .map(({ clientLink: _clientLink, ...conversation }) => conversation)
+    .sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
 }
 function dedupeTimeline<T extends { row: Row; payload: WhatsAppInboxPayload }>(items: T[]) {
   const result: T[] = [],
