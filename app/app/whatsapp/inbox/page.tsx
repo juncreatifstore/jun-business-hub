@@ -624,6 +624,7 @@ export default async function WhatsAppInboxPage(props: {
                     <div className="sticky bottom-0 z-10 border-t border-line bg-canvas px-2.5 py-2.5 sm:px-4 sm:py-3">
                       <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
                         <TemplateComposer
+                          key={`template-${selected.phone}-${selected.clientId ?? "unlinked"}-${templateDefaults.join("|")}`}
                           phone={selected.phone}
                           templates={approvedTemplates}
                           defaults={templateDefaults}
@@ -661,6 +662,7 @@ export default async function WhatsAppInboxPage(props: {
                                 }
                               >
                                 <TemplateComposer
+                                  key={`template-${selected.phone}-${selected.clientId ?? "unlinked"}-${templateDefaults.join("|")}`}
                                   phone={selected.phone}
                                   templates={approvedTemplates}
                                   defaults={templateDefaults}
@@ -1703,6 +1705,7 @@ function MobileInbox({
               }
             >
               <TemplateComposer
+                key={`template-${selected.phone}-${selected.clientId ?? "unlinked"}-${templateDefaults.join("|")}`}
                 phone={selected.phone}
                 templates={approvedTemplates}
                 defaults={templateDefaults}

@@ -406,9 +406,32 @@ export async function replyWhatsAppConversation(phone: string, formData: FormDat
 /* ───────────── Link / create client from a conversation ───────────── */
 
 async function attachConversationToClient(phone: string, clientId: string) {
-  await prisma.activity.updateMany({
-    where: { resourceType: "WhatsAppConversation", resourceId: phone, clientId: null },
-    data: { clientId },
+  // A WhatsApp number identifies one conversation, but its activity history can
+  // contain records that were previously linked to a different client. When a
+  // staff member explicitly re-links the conversation, replace the old link on
+  // the entire conversation instead of only filling null clientId values.
+  await prisma.$transaction(async (tx) => {
+    const previous = await tx.activity.findMany({
+      where: { resourceType: "WhatsAppConversation", resourceId: phone, clientId: { not: null } },
+      select: { clientId: true },
+      distinct: ["clientId"],
+    });
+    await tx.activity.updateMany({
+      where: { resourceType: "WhatsAppConversation", resourceId: phone },
+      data: { clientId, caseId: null },
+    });
+
+    // Prevent the legacy client from winning conversationClient()'s fallback
+    // lookup if this number was previously stored as its WhatsApp number.
+    const previousIds = previous
+      .map((row) => row.clientId)
+      .filter((id): id is string => Boolean(id) && id !== clientId);
+    if (previousIds.length) {
+      await tx.client.updateMany({
+        where: { id: { in: previousIds }, whatsapp: { equals: `+${phone}` } },
+        data: { whatsapp: null },
+      });
+    }
   });
 }
 
@@ -426,7 +449,7 @@ export async function linkWhatsAppConversationToClient(phone: string, formData: 
   if (!client) return;
   await prisma.client.update({
     where: { id: client.id },
-    data: { whatsapp: client.whatsapp || `+${normalized}` },
+    data: { whatsapp: `+${normalized}` },
   });
   await attachConversationToClient(normalized, client.id);
   await logActivity({
