@@ -287,8 +287,15 @@ export default async function WhatsAppInboxPage(props: {
   const windowClosed =
     !selected?.lastInboundAt ||
     Date.now() - selected.lastInboundAt.getTime() > WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS;
+  // Template variables are always derived from the currently selected conversation:
+  // 1 = client first name, 2 = document/case type, 3 = document/case reference.
+  // Never reuse values from another conversation.
   const templateDefaults = selected
-    ? [/^\+?\d/.test(selected.name) ? "" : selected.name.split(/\s+/)[0], selected.caseNumber || ""]
+    ? [
+        /^\+?\d/.test(selected.name) ? "" : selected.name.split(/\s+/)[0],
+        selected.caseType || "",
+        selected.caseNumber || "",
+      ]
     : [];
   const linkableClients =
     selected && !selected.clientId
@@ -1127,6 +1134,7 @@ function groupConversations(rows: Row[]) {
       internalId: string | null;
       caseId: string | null;
       caseNumber: string | null;
+      caseType: string | null;
       preview: string;
       lastAt: Date;
       lastInboundAt: Date | null;
@@ -1163,6 +1171,7 @@ function groupConversations(rows: Row[]) {
         internalId: client?.internalId || null,
         caseId: row.case?.id || null,
         caseNumber: row.case?.caseNumber || null,
+        caseType: row.case?.type || null,
         preview: previewText(payload),
         lastAt: row.createdAt,
         lastInboundAt: opensWindow ? new Date(payload.timestamp) : null,
@@ -1199,9 +1208,10 @@ function groupConversations(rows: Row[]) {
         existing.name = client.name;
       }
 
-      if (!existing.caseId && row.case) {
+      if (row.case && (!existing.caseId || row.case.id === existing.caseId)) {
         existing.caseId = row.case.id;
         existing.caseNumber = row.case.caseNumber;
+        existing.caseType = row.case.type;
       }
     }
   }
