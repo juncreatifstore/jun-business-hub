@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { opensWhatsAppCustomerServiceWindow } from "../lib/whatsapp-service-window";
 
 describe("WhatsApp customer-service window", () => {
+  it("treats message types case-insensitively", () => {
+    expect(opensWhatsAppCustomerServiceWindow(" TEXT ")).toBe(true);
+  });
+
   it.each([
     "text",
     "button",
