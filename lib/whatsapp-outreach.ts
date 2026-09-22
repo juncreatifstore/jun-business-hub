@@ -16,24 +16,39 @@ function digits(phone: string) {
   return phone.replace(/[^\d]/g, "");
 }
 
-/** True when the customer wrote to us in the last 24 h (free-text allowed). */
-export async function whatsAppWindowOpen(phone: string) {
+/** Return the timestamp of the latest customer message that opens Meta's 24 h window. */
+export async function getWhatsAppWindowOpenedAt(phone: string): Promise<Date | null> {
   const p = digits(phone);
-  if (!p) return false;
-  const recent = await prisma.activity.findMany({
+  if (!p) return null;
+
+  // resourceId is the normalized WhatsApp number for Inbox activities. Using it
+  // avoids depending on a JSON substring match and lets us trust the timestamp
+  // delivered by Meta rather than the database insertion time.
+  const rows = await prisma.activity.findMany({
     where: {
+      resourceType: "WhatsAppConversation",
+      resourceId: p,
       type: { in: ["WHATSAPP_INBOUND", "WHATSAPP_INBOUND_UNREAD", "WHATSAPP_INBOUND_READ"] },
-      createdAt: { gte: new Date(Date.now() - WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS) },
-      message: { contains: `"phone":"${p}"` },
     },
     orderBy: { createdAt: "desc" },
-    take: 100,
+    take: 500,
     select: { message: true },
   });
-  return recent.some((row) => {
+
+  let latest: Date | null = null;
+  for (const row of rows) {
     const payload = decodeWhatsAppInboxPayload(row.message);
-    return payload?.direction === "INBOUND" && opensWhatsAppCustomerServiceWindow(payload.type);
-  });
+    if (payload?.direction !== "INBOUND" || !opensWhatsAppCustomerServiceWindow(payload.type)) continue;
+    const at = new Date(payload.timestamp);
+    if (!Number.isNaN(at.getTime()) && (!latest || at > latest)) latest = at;
+  }
+  return latest;
+}
+
+/** True when the customer wrote to us in the last 24 h (free-text allowed). */
+export async function whatsAppWindowOpen(phone: string) {
+  const openedAt = await getWhatsAppWindowOpenedAt(phone);
+  return Boolean(openedAt && Date.now() - openedAt.getTime() < WHATSAPP_CUSTOMER_SERVICE_WINDOW_MS);
 }
 
 /** Template used to send a link outside the 24 h window (configured by an admin). */
