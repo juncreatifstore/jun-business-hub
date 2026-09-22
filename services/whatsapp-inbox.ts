@@ -428,7 +428,7 @@ async function attachConversationToClient(phone: string, clientId: string) {
       .filter((id): id is string => Boolean(id) && id !== clientId);
     if (previousIds.length) {
       await tx.client.updateMany({
-        where: { id: { in: previousIds }, whatsapp: { equals: `+${phone}` } },
+        where: { id: { in: previousIds }, whatsapp: { not: null } },
         data: { whatsapp: null },
       });
     }
